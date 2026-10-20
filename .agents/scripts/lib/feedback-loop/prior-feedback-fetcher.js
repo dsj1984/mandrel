@@ -86,8 +86,7 @@ function formatGhError(label, { code, stderr, spawnError }) {
 
 /**
  * Deliberately narrow: the planner envelope is budgeted. The body is fetched
- * only to derive `intake` (CI-gap intake marker) and is not carried. Takes a
- * REST issue row, so the link is `html_url`; a bare `url` is accepted too.
+ * only to derive `intake` (CI-gap intake marker) and is not carried.
  *
  * @param {object} raw
  * @returns {{ number: number, title: string, url: string, labels: string[], intake: boolean }|null}
@@ -130,12 +129,10 @@ function normalizeLabels(raw) {
     .filter((name) => typeof name === 'string');
 }
 
-// The REST issues endpoint caps a page at 100 rows.
 const REST_PER_PAGE_MAX = 100;
 
 /**
- * The repo-scoped REST issues endpoint, never `gh issue list`: that one is
- * GraphQL, which a Claude Code cloud session refuses outright.
+ * REST, not `gh issue list` (GraphQL, refused in cloud sessions).
  *
  * @param {{ owner: string, repo: string, label: string, limit: number }} opts
  * @returns {string[]}
@@ -185,7 +182,6 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
         error: `gh api issues returned non-array JSON for label "${label}"`,
       };
     }
-    // The REST issues endpoint lists pull requests too.
     const issues = parsed
       .filter((row) => !row?.pull_request)
       .map(normalizeIssue)

@@ -4,9 +4,8 @@
  * GraphQL. Soft no-op when no project is configured, the Status field or
  * option is missing, or the issue is not on the board. A token that cannot
  * reach the board (missing `project` scope) reports `{ status: 'failed',
- * reason: 'insufficient-scope' }` and trips the warn-once latch instead; a
- * session whose proxy refuses GraphQL reports `{ status: 'skipped', reason:
- * 'graphql-blocked' }` through its own warn-once latch.
+ * reason: 'insufficient-scope' }` (a GraphQL-blocked session: `skipped` /
+ * `graphql-blocked`) and trips a warn-once latch instead.
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
@@ -130,7 +129,7 @@ export class ColumnSync {
     this._meta = null; // lazy-cached { projectId, fieldId, options: Map<name, id> }
     // Disk-hydrated meta may be stale; a failed mutation then invalidates it.
     this._metaFromDiskCache = false;
-    // The access-failure reason seen this process; memory only, never on disk.
+    // Access-failure reason seen this process; memory only, never on disk.
     this._accessFailure = null;
   }
 
@@ -199,8 +198,8 @@ export class ColumnSync {
   }
 
   /**
-   * Latch the access failure (the first reason seen holds; one warning per
-   * process) and report it; never throws, so the label transition completes.
+   * Latch the access failure (first reason holds) and report it; never
+   * throws, so the label transition still completes.
    */
   #accessFailure(err) {
     this._accessFailure ??= boardAccessFailureReason(err);

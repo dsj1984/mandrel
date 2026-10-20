@@ -4,8 +4,7 @@
  * be enabled via API. Never throws (issue creation survives a board failure)
  * and is idempotent (the mutation returns an existing item). A token without
  * the `project` scope reports `reason: 'insufficient-scope'` and trips the
- * warn-once latch rather than warning per issue; a session refusing GraphQL
- * reports `reason: 'graphql-blocked'` through its own latch.
+ * warn-once latch rather than warning per issue (`graphql-blocked` likewise).
  */
 
 import { Logger } from '../../lib/Logger.js';

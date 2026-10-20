@@ -233,14 +233,12 @@ async function fetchOpenStoriesViaList(provider) {
   return issues.map(normalizeIssue);
 }
 
-// A cloud session's proxy refuses `/search/issues` for the whole process;
-// once seen, later calls skip straight to the label listing, silently.
+// A proxy refusal of `/search/issues` holds for the whole process.
 let searchRefusedByProxy = false;
 
 /**
- * Search, or `null` when the caller should use the label listing: search
- * errored (and a listing exists), was refused by the proxy, or found nothing.
- * An empty search is evidence about the AND-ed query, not about the backlog.
+ * Search hits, or `null` to use the label listing. An empty search is
+ * evidence about the AND-ed query, not about the backlog.
  *
  * @param {object} provider
  * @param {string} seed
@@ -356,7 +354,6 @@ export const __test = {
   SEARCH_RESULT_CAP,
   buildIssueUrl,
   buildEpicUrl: buildIssueUrl,
-  /** Test isolation: forget a proxy search refusal seen this process. */
   resetProxySearchRefusal() {
     searchRefusedByProxy = false;
   },

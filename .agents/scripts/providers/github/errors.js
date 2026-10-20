@@ -147,23 +147,15 @@ export function classifyGithubError(err) {
   return 'permanent';
 }
 
-/**
- * The Claude Code cloud session's GitHub proxy refuses GraphQL wholesale, and
- * some REST routes (`/search/issues`) per session. Both needles are the
- * proxy's own wording, so an ordinary 403 (scope, SSO, rate limit) never
- * matches and keeps its `classifyGithubError` bucket.
- */
+// The cloud proxy's own wording, so an ordinary 403 never matches.
 const GRAPHQL_BLOCKED_RE =
   /GitHub GraphQL is not available from Claude Code sessions/i;
 const PROXY_SCOPE_REFUSAL_RE =
   /is not enabled for this session|sessions are bound to their configured repositories/i;
 
-// Wrappers (`ProjectAccessError`) carry the proxy's text on `cause`.
 const CAUSE_DEPTH = 3;
 
 /**
- * Message and stderr of `err` and its `cause` chain, joined.
- *
  * @param {unknown} err
  * @returns {string}
  */
@@ -181,8 +173,6 @@ function failureText(err) {
 }
 
 /**
- * Is `err` the cloud proxy refusing GraphQL? No retry or re-auth helps.
- *
  * @param {unknown} err
  * @returns {boolean}
  */
@@ -191,8 +181,6 @@ export function isGraphqlBlocked(err) {
 }
 
 /**
- * Is `err` the cloud proxy refusing a REST route for this session's scope?
- *
  * @param {unknown} err
  * @returns {boolean}
  */

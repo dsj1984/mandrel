@@ -1,8 +1,8 @@
 /**
  * GitHub Provider — SubIssueGateway: the read side of native Sub-Issues (the
  * GraphQL `subIssues` field, paginated into child numbers). Holds no
- * transport state; every call goes through the parent's `ghGraphql` hook,
- * or the injected `restFallback` once a cloud session refused GraphQL.
+ * transport state; every call goes through the parent's `ghGraphql` hook
+ * (or `restFallback` once GraphQL is refused).
  */
 
 import { describeGhFailure } from '../../lib/gh-exec.js';
@@ -24,7 +24,7 @@ export class SubIssueGateway {
    *   ghGraphql: (query: string, variables?: object, opts?: object) => Promise<object>,
    *   cache?: { primeIfAbsent: (ticket: object) => void },
    *   classifyGithubError?: (err: unknown) => string,
-   *   restFallback?: import('./sub-issues-rest.js').SubIssueRestFallback | null,
+   *   restFallback?: object | null,
    * }} deps
    */
   constructor({
