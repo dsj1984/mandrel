@@ -603,3 +603,65 @@ describe('classifyGithubError — the endpoint name is not a schema fact (Story 
     );
   });
 });
+
+describe('cloud-proxy refusal predicates (Story #5794)', () => {
+  const { classifyGithubError, isGraphqlBlocked, isProxyScopeRefusal } =
+    errorsMod;
+  const ghErr = (stderr) =>
+    Object.assign(new Error('gh exited with code 1'), { stderr });
+
+  it('isGraphqlBlocked matches the proxy wording on stderr, message, or cause', () => {
+    const text = 'GitHub GraphQL is not available from Claude Code sessions';
+    assert.equal(isGraphqlBlocked(ghErr(`HTTP 403: ${text}`)), true);
+    assert.equal(isGraphqlBlocked(new Error(text)), true);
+    assert.equal(
+      isGraphqlBlocked(new Error('wrapped', { cause: ghErr(text) })),
+      true,
+    );
+  });
+
+  it('isProxyScopeRefusal matches both repo-scope wordings', () => {
+    assert.equal(
+      isProxyScopeRefusal(
+        ghErr('HTTP 403: /search/issues is not enabled for this session'),
+      ),
+      true,
+    );
+    assert.equal(
+      isProxyScopeRefusal(
+        new Error('sessions are bound to their configured repositories'),
+      ),
+      true,
+    );
+  });
+
+  it('an ordinary 403 matches neither predicate and keeps its classification', () => {
+    for (const stderr of [
+      'HTTP 403: Resource not accessible by integration',
+      'HTTP 403: Resource protected by organization SAML enforcement',
+      'HTTP 403: You have exceeded a secondary rate limit',
+    ]) {
+      const err = ghErr(stderr);
+      assert.equal(isGraphqlBlocked(err), false, stderr);
+      assert.equal(isProxyScopeRefusal(err), false, stderr);
+    }
+    assert.equal(
+      classifyGithubError(
+        ghErr('HTTP 403: Resource not accessible by integration'),
+      ),
+      'permission',
+    );
+    assert.equal(
+      classifyGithubError(
+        ghErr('HTTP 403: You have exceeded a secondary rate limit'),
+      ),
+      'transient',
+    );
+  });
+
+  it('tolerates null and non-Error values', () => {
+    assert.equal(isGraphqlBlocked(null), false);
+    assert.equal(isProxyScopeRefusal(undefined), false);
+    assert.equal(isGraphqlBlocked('plain string'), false);
+  });
+});

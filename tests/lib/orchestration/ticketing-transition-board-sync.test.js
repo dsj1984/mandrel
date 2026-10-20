@@ -107,6 +107,16 @@ describe('transitionTicketState — board-sync outcome (Story #5784)', () => {
     assert.deepEqual(warned, []);
   });
 
+  it('leaves a GraphQL-blocked skip to the board-access latch (Story #5794)', async (t) => {
+    const { result, warned } = await transitionWith(t, {
+      status: 'skipped',
+      reason: 'graphql-blocked',
+    });
+    assert.equal(result.boardSync.reason, 'graphql-blocked');
+    // The latch already warned once for the process; no per-flip line.
+    assert.deepEqual(warned, []);
+  });
+
   it('reports a sync that threw as failed, and the label write still lands', async (t) => {
     const { result, warned, provider } = await transitionWith(
       t,

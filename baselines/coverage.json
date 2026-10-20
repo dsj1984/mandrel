@@ -1456,8 +1456,8 @@
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
-      "lines": 96.93,
-      "branches": 79.45,
+      "lines": 97.25,
+      "branches": 82.35,
       "functions": 100
     },
     {
@@ -1510,8 +1510,8 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
-      "lines": 97.47,
-      "branches": 71.19,
+      "lines": 99.35,
+      "branches": 75,
       "functions": 100
     },
     {
@@ -1818,6 +1818,12 @@
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
       "lines": 100,
       "branches": 80,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-graphql-latch.js",
+      "lines": 100,
+      "branches": 93.75,
       "functions": 100
     },
     {
@@ -2902,8 +2908,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
-      "lines": 98.66,
-      "branches": 94.94,
+      "lines": 98.75,
+      "branches": 95.7,
       "functions": 100
     },
     {
@@ -3521,7 +3527,7 @@
     {
       "path": ".agents/scripts/providers/github/board-add.js",
       "lines": 100,
-      "branches": 95,
+      "branches": 94.74,
       "functions": 100
     },
     {
@@ -3550,8 +3556,8 @@
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
-      "lines": 99.57,
-      "branches": 93.75,
+      "lines": 99.65,
+      "branches": 94.37,
       "functions": 100
     },
     {
@@ -3627,9 +3633,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/providers/github/sub-issues-rest.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/providers/github/sub-issues.js",
-      "lines": 93.48,
-      "branches": 83.33,
+      "lines": 94,
+      "branches": 87.5,
       "functions": 100
     },
     {

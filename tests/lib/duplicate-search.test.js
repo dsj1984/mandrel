@@ -13,14 +13,37 @@
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 import {
+  __test,
   buildOpenStorySearchQuery,
   findSimilarOpenStories,
   overlapScore,
   pickSearchTokens,
   tokenize,
 } from '../../.agents/scripts/lib/duplicate-search.js';
+import { Logger } from '../../.agents/scripts/lib/Logger.js';
+
+/**
+ * Run `fn` with `Logger.info` / `Logger.warn` captured, independent of the
+ * configured log level.
+ *
+ * @param {() => Promise<unknown>} fn
+ * @returns {Promise<{ info: string[], warn: string[] }>}
+ */
+async function captureLogs(fn) {
+  const logs = { info: [], warn: [] };
+  const original = { info: Logger.info, warn: Logger.warn };
+  Logger.info = (m) => logs.info.push(String(m));
+  Logger.warn = (m) => logs.warn.push(String(m));
+  try {
+    await fn();
+  } finally {
+    Logger.info = original.info;
+    Logger.warn = original.warn;
+  }
+  return logs;
+}
 
 function makeListProvider(stories) {
   return {
@@ -379,6 +402,85 @@ describe('duplicate-search', () => {
       assert.equal(listCalled, true);
       assert.ok(out.length >= 1);
       assert.ok(out.some((c) => c.id === 101 || c.id === 103));
+    });
+  });
+
+  describe('findSimilarOpenStories — cloud proxy search refusal (Story #5794)', () => {
+    afterEach(() => __test.resetProxySearchRefusal());
+
+    function makeRefusingProvider(err) {
+      const calls = { search: 0, list: 0 };
+      const provider = {
+        async searchIssues() {
+          calls.search += 1;
+          throw err;
+        },
+        async listIssuesByLabel() {
+          calls.list += 1;
+          return WEBHOOK_STORIES.map((s) => ({
+            number: s.id,
+            title: s.title,
+            body: s.body,
+          }));
+        },
+      };
+      return { provider, calls };
+    }
+
+    const SEED = 'Detect duplicate webhook payloads via fingerprint hashing.';
+
+    it('ranks from the label listing, logs the refusal once, and never searches again', async () => {
+      const refusal = Object.assign(new Error('gh exited with code 1'), {
+        stderr:
+          'HTTP 403: /search/issues is not enabled for this session (https://api.github.com/search/issues)',
+      });
+      const { provider, calls } = makeRefusingProvider(refusal);
+
+      let first;
+      let second;
+      const logs = await captureLogs(async () => {
+        first = await findSimilarOpenStories({ seed: SEED, provider });
+        second = await findSimilarOpenStories({ seed: SEED, provider });
+      });
+
+      assert.ok(first.some((c) => c.id === 101 || c.id === 103));
+      assert.deepEqual(second, first);
+      assert.equal(
+        calls.search,
+        1,
+        'search must not be retried after a refusal',
+      );
+      assert.equal(calls.list, 2);
+      const proxyLines = logs.info.filter((l) => /cloud proxy/.test(l));
+      assert.equal(proxyLines.length, 1, 'one info line per process');
+      assert.equal(logs.warn.length, 0, 'a proxy refusal is not a warning');
+    });
+
+    it('treats the repo-binding wording as a refusal too', async () => {
+      const { provider, calls } = makeRefusingProvider(
+        new Error(
+          'Claude Code sessions are bound to their configured repositories',
+        ),
+      );
+      await captureLogs(async () => {
+        await findSimilarOpenStories({ seed: SEED, provider });
+        await findSimilarOpenStories({ seed: SEED, provider });
+      });
+      assert.equal(calls.search, 1);
+    });
+
+    it('an ordinary 403 keeps warn-and-fall-back and retries search next call', async () => {
+      const plain403 = Object.assign(new Error('gh exited with code 1'), {
+        stderr: 'HTTP 403: Resource not accessible by integration',
+      });
+      const { provider, calls } = makeRefusingProvider(plain403);
+      const logs = await captureLogs(async () => {
+        await findSimilarOpenStories({ seed: SEED, provider });
+        await findSimilarOpenStories({ seed: SEED, provider });
+      });
+      assert.equal(calls.search, 2);
+      assert.equal(logs.warn.length, 2);
+      assert.ok(!logs.info.some((l) => /cloud proxy/.test(l)));
     });
   });
 

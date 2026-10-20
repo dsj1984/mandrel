@@ -4,15 +4,16 @@
  * GraphQL. Soft no-op when no project is configured, the Status field or
  * option is missing, or the issue is not on the board. A token that cannot
  * reach the board (missing `project` scope) reports `{ status: 'failed',
- * reason: 'insufficient-scope' }` and trips the warn-once latch instead.
+ * reason: 'insufficient-scope' }` (a GraphQL-blocked session: `skipped` /
+ * `graphql-blocked`) and trips a warn-once latch instead.
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
 import {
-  isProjectAccessFailure,
-  reportBoardScopeFailure,
-  SCOPE_FAILURE,
-} from './board-access-latch.js';
+  boardAccessFailureReason,
+  isBoardAccessFailure,
+  reportBoardAccessFailure,
+} from './board-graphql-latch.js';
 import {
   invalidateProjectMetaCache,
   readProjectMetaCache,
@@ -128,8 +129,8 @@ export class ColumnSync {
     this._meta = null; // lazy-cached { projectId, fieldId, options: Map<name, id> }
     // Disk-hydrated meta may be stale; a failed mutation then invalidates it.
     this._metaFromDiskCache = false;
-    // A scope/auth refusal seen this process; memory only, never on disk.
-    this._accessFailed = false;
+    // Access-failure reason seen this process; memory only, never on disk.
+    this._accessFailure = null;
   }
 
   /**
@@ -157,8 +158,8 @@ export class ColumnSync {
     try {
       return await this.#setColumnOnBoard(issueId, column);
     } catch (err) {
-      if (!isProjectAccessFailure(err)) throw err;
-      return this.#scopeFailure();
+      if (!isBoardAccessFailure(err)) throw err;
+      return this.#accessFailure(err);
     }
   }
 
@@ -184,26 +185,27 @@ export class ColumnSync {
       // Likely a reconfigured board: drop cached meta so the next flip
       // self-heals, and re-throw for the caller's handling. A scope refusal
       // is not staleness, so the cache stays.
-      if (!isProjectAccessFailure(err)) this.#invalidateMetaCache();
+      if (!isBoardAccessFailure(err)) this.#invalidateMetaCache();
       throw err;
     }
     return { status: 'synced', column };
   }
 
-  /** No meta: a latched scope refusal, or a board without a Status field. */
+  /** No meta: a latched access refusal, or a board without a Status field. */
   #metaMiss() {
-    if (this._accessFailed) return this.#scopeFailure();
+    if (this._accessFailure) return this.#accessFailure();
     return { status: 'skipped', reason: 'no-meta' };
   }
 
   /**
-   * Latch the scope failure (one warning per process) and report it to the
-   * caller; never throws, so the label transition still completes.
+   * Latch the access failure (first reason holds) and report it; never
+   * throws, so the label transition still completes.
    */
-  #scopeFailure() {
-    this._accessFailed = true;
-    reportBoardScopeFailure({ logger: this.logger });
-    return { status: 'failed', ...SCOPE_FAILURE };
+  #accessFailure(err) {
+    this._accessFailure ??= boardAccessFailureReason(err);
+    return reportBoardAccessFailure(this._accessFailure, {
+      logger: this.logger,
+    });
   }
 
   /**
@@ -231,7 +233,7 @@ export class ColumnSync {
   }
 
   async #loadMeta() {
-    if (this._accessFailed) return null;
+    if (this._accessFailure) return null;
     if (this._meta !== null) return this._meta || null;
     // Board meta is repo-invariant; the disk cache spares each cold CLI
     // process the resolve round-trips.
@@ -282,8 +284,8 @@ export class ColumnSync {
       this._metaFromDiskCache = false;
       return this._meta;
     } catch (err) {
-      if (isProjectAccessFailure(err)) {
-        this._accessFailed = true;
+      if (isBoardAccessFailure(err)) {
+        this._accessFailure = boardAccessFailureReason(err);
         return null;
       }
       this.logger.warn?.(

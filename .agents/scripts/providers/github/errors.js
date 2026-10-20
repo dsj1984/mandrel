@@ -147,6 +147,47 @@ export function classifyGithubError(err) {
   return 'permanent';
 }
 
+// The cloud proxy's own wording, so an ordinary 403 never matches.
+const GRAPHQL_BLOCKED_RE =
+  /GitHub GraphQL is not available from Claude Code sessions/i;
+const PROXY_SCOPE_REFUSAL_RE =
+  /is not enabled for this session|sessions are bound to their configured repositories/i;
+
+const CAUSE_DEPTH = 3;
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function failureText(err) {
+  const parts = [];
+  let cur = err;
+  for (let depth = 0; cur && depth < CAUSE_DEPTH; depth++) {
+    parts.push(
+      stderrText(cur),
+      typeof cur.message === 'string' ? cur.message : '',
+    );
+    cur = cur.cause;
+  }
+  return parts.join(' ');
+}
+
+/**
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isGraphqlBlocked(err) {
+  return GRAPHQL_BLOCKED_RE.test(failureText(err));
+}
+
+/**
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isProxyScopeRefusal(err) {
+  return PROXY_SCOPE_REFUSAL_RE.test(failureText(err));
+}
+
 export const TRANSIENT_RETRY_DEFAULTS = Object.freeze({
   maxAttempts: 6,
   baseDelayMs: 500,
