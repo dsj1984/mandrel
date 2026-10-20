@@ -15,6 +15,18 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.94.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.93.0...mandrel-v2.94.0) (2026-10-20)
+
+
+### Added
+
+* close, merge and confirm a Story over repo-scoped REST when GitHub GraphQL is blocked ([#5793](https://github.com/dsj1984/mandrel/issues/5793)) ([#5796](https://github.com/dsj1984/mandrel/issues/5796)) ([e2cd9ff](https://github.com/dsj1984/mandrel/commit/e2cd9ff1feaac25434674f919d4e8663c5ef6cfb))
+
+
+### Fixed
+
+* plan-side GitHub reads work over REST in cloud sessions, and blocked GraphQL warns once, not once per item ([#5794](https://github.com/dsj1984/mandrel/issues/5794)) ([#5795](https://github.com/dsj1984/mandrel/issues/5795)) ([d1a4280](https://github.com/dsj1984/mandrel/commit/d1a42802497b82b523ab4c1878114c7e775eb3b6))
+
 ## [2.93.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.92.0...mandrel-v2.93.0) (2026-10-19)
 
 
