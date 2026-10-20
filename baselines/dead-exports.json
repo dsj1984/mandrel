@@ -51,10 +51,6 @@
       "symbol": "AGENT_SETTINGS_STRING_FIELDS"
     },
     {
-      "file": ".agents/scripts/lib/duplicate-search.js",
-      "symbol": "__test"
-    },
-    {
       "file": ".agents/scripts/lib/findings/classify-finding.js",
       "symbol": "__testing"
     },
