@@ -136,14 +136,14 @@ injects for a consumer whose declared gate omits the `'*'` component key; the
 
 | Floor (`gate.floors['*']` key) | Helper default (consumers) | This repo (`.agentrc.json`) |
 | --- | --- | --- |
-| Coverage — `lines` | ≥ 90 % | ≥ 96 % |
+| Coverage — `lines` | ≥ 90 % | ≥ 97 % |
 | Coverage — `branches` | ≥ 85 % | ≥ 88 % |
-| Coverage — `functions` | ≥ 90 % | ≥ 89 % |
-| Maintainability — `min` | ≥ 70 | ≥ 81.277 |
+| Coverage — `functions` | ≥ 90 % | ≥ 91 % |
+| Maintainability — `min` | ≥ 70 | ≥ 81.391 |
 | CRAP — `max` | ≤ 30 | — |
 | CRAP — `p95` | ≤ 20 | — |
 | CRAP — `methodsAbove20` | ≤ 50 | ≤ 0 |
-| Duplication — `percentage` | — | ≤ 6.3 % |
+| Duplication — `percentage` | — | ≤ 5.9 % |
 
 Floors are enforced against the baseline's `rollup` components — the
 `applyFloors` phase compares `rollup["*"]` (and any named component), never
