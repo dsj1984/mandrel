@@ -25,6 +25,7 @@ import doctor, {
   runDoctor,
   writeDoctorResultCache,
 } from '../../lib/cli/doctor.js';
+import { createRunner } from '../../lib/cli/doctor-checks/spawn.js';
 import { registry } from '../../lib/cli/registry.js';
 
 // ---------------------------------------------------------------------------
@@ -880,9 +881,9 @@ describe('doctor gh checks report a gh-env config error as a result', () => {
   });
 
   for (const name of ['gh-available', 'github-token', 'gh-auth']) {
-    it(`${name} returns ok:false naming the missing store, without spawning`, () => {
+    it(`${name} returns ok:false naming the missing store, without spawning`, async () => {
       let spawned = false;
-      const result = registry
+      const result = await registry
         .find((c) => c.name === name)
         .run({
           runner: () => {
@@ -932,9 +933,9 @@ describe('llm-review-provider check', () => {
     );
   }
 
-  it('names claude as the default chain CLI when both are present', () => {
+  it('names claude as the default chain CLI when both are present', async () => {
     const { runner, probed } = pathWith('claude', 'codex');
-    const result = check().run({ projectRoot: project, runner });
+    const result = await check().run({ projectRoot: project, runner });
     assert.equal(result.ok, true);
     assert.match(
       result.detail,
@@ -943,16 +944,16 @@ describe('llm-review-provider check', () => {
     assert.deepEqual(probed, ['claude --version']);
   });
 
-  it('names codex when it is the only CLI', () => {
+  it('names codex when it is the only CLI', async () => {
     const { runner } = pathWith('codex');
-    const result = check().run({ projectRoot: project, runner });
+    const result = await check().run({ projectRoot: project, runner });
     assert.equal(result.ok, true);
     assert.match(result.detail, /llm-review via codex/);
   });
 
-  it('passes with the native-only advisory when neither CLI is present', () => {
+  it('passes with the native-only advisory when neither CLI is present', async () => {
     const { runner } = pathWith();
-    const result = check().run({ projectRoot: project, runner });
+    const result = await check().run({ projectRoot: project, runner });
     assert.equal(result.ok, true);
     assert.equal(
       result.detail,
@@ -960,28 +961,28 @@ describe('llm-review-provider check', () => {
     );
   });
 
-  it('fails for a pinned non-optional provider whose CLI is missing', () => {
+  it('fails for a pinned non-optional provider whose CLI is missing', async () => {
     pin([{ name: 'native' }, { name: 'codex' }]);
     const { runner } = pathWith('claude');
-    const result = check().run({ projectRoot: project, runner });
+    const result = await check().run({ projectRoot: project, runner });
     assert.equal(result.ok, false);
     assert.match(result.detail, /pins codex without optional: true/);
     assert.ok(result.remedy);
   });
 
-  it('passes for a pinned optional provider whose CLI is missing', () => {
+  it('passes for a pinned optional provider whose CLI is missing', async () => {
     pin([{ name: 'native' }, { name: 'code-review', optional: true }]);
     const { runner } = pathWith('codex');
-    const result = check().run({ projectRoot: project, runner });
+    const result = await check().run({ projectRoot: project, runner });
     assert.equal(result.ok, true);
     assert.match(result.detail, /pinned .* runs no LLM review/);
   });
 
-  it('reads the pin from .agentrc.local.json over .agentrc.json', () => {
+  it('reads the pin from .agentrc.local.json over .agentrc.json', async () => {
     pin([{ name: 'codex' }]);
     pin([{ name: 'code-review' }], '.agentrc.local.json');
     const { runner } = pathWith('claude');
-    const result = check().run({ projectRoot: project, runner });
+    const result = await check().run({ projectRoot: project, runner });
     assert.equal(result.ok, true);
     assert.match(
       result.detail,
@@ -998,5 +999,186 @@ describe('llm-review-provider check', () => {
     assert.match(checkSource, /from '[^']*\/config\/review-provider-clis\.js'/);
     assert.doesNotMatch(checkSource, /'code-review': \[/);
     assert.doesNotMatch(mapSource, /^import /m);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Concurrent run, one shared runner (Story #5814)
+// ---------------------------------------------------------------------------
+
+describe('runDoctor — concurrent checks share one memoized runner', () => {
+  const quiet = { writeResultCache: () => {}, closureReport: () => '' };
+
+  /** Answers every probe like a healthy host whose gh login is `login`. */
+  function healthyHost(login) {
+    const calls = [];
+    const run = (cmd, args) => {
+      calls.push(`${cmd} ${args.join(' ')}`);
+      if (cmd === 'claude')
+        return { status: 0, stdout: '2.1.300\n', stderr: '' };
+      if (cmd === 'gh' && args[0] === 'api') {
+        const root = args.some((a) => /user\(login/.test(a))
+          ? 'user'
+          : 'organization';
+        const stdout = JSON.stringify({
+          data: { [root]: { projectV2: { id: 'P' } } },
+        });
+        return { status: 0, stdout, stderr: '' };
+      }
+      if (cmd === 'git' && args[0] === 'config') {
+        return {
+          status: 0,
+          stdout: 'node merge-baseline.js %O %A %B %P\n',
+          stderr: '',
+        };
+      }
+      return {
+        status: 0,
+        stdout: `Logged in to github.com as ${login}\n`,
+        stderr: '',
+      };
+    };
+    return { run, calls };
+  }
+
+  function projectFor(owner) {
+    const dir = makeTempDir('mandrel-doctor-concurrent-');
+    fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# agents\n');
+    fs.writeFileSync(
+      path.join(dir, '.gitattributes'),
+      'baselines/*.json merge=mandrel-baseline\n',
+    );
+    fs.writeFileSync(
+      path.join(dir, '.agentrc.json'),
+      JSON.stringify({ github: { owner, projectNumber: 3 } }),
+    );
+    return dir;
+  }
+
+  /** The registry, pointed at `dir`. */
+  const rooted = (dir, checks = registry) =>
+    checks.map((c) => ({
+      ...c,
+      run: (opts) => c.run({ ...opts, cwd: () => dir, projectRoot: dir }),
+    }));
+
+  it('spawns `claude --version` once and at most 8 probes in a whole run', async () => {
+    const dir = projectFor('a-user');
+    const { run, calls } = healthyHost('a-user');
+    await runDoctor({
+      checks: rooted(dir),
+      runner: createRunner(run),
+      write: () => {},
+      exit: () => {},
+      ...quiet,
+    });
+    fs.rmSync(dir, { recursive: true, force: true });
+    assert.equal(calls.filter((c) => c === 'claude --version').length, 1);
+    assert.ok(
+      calls.length <= 8,
+      `spawned ${calls.length}: ${calls.join(', ')}`,
+    );
+  });
+
+  it('probes the user rung first, and only, when github.owner is the gh login', async () => {
+    const dir = projectFor('a-user');
+    const { run, calls } = healthyHost('a-user');
+    const cap = makeCapture();
+    const names = new Set(['gh-available', 'gh-auth', 'github-project-access']);
+    await runDoctor({
+      checks: rooted(
+        dir,
+        registry.filter((c) => names.has(c.name)),
+      ),
+      runner: createRunner(run),
+      write: cap.write,
+      exit: cap.exit,
+      ...quiet,
+    });
+    fs.rmSync(dir, { recursive: true, force: true });
+    const rungs = calls.filter((c) => c.startsWith('gh api'));
+    assert.equal(rungs.length, 1);
+    assert.match(rungs[0], /user\(login/);
+    assert.match(cap.lines.join(''), /project #3 for a-user readable/);
+  });
+
+  it('keeps the organization rung first for an owner that is not the login', async () => {
+    const dir = projectFor('acme');
+    const { run, calls } = healthyHost('a-user');
+    const access = registry.find((c) => c.name === 'github-project-access');
+    await access.run({
+      cwd: () => dir,
+      runner: run,
+      prior: { ok: true, detail: 'logged in as a-user', login: 'a-user' },
+    });
+    fs.rmSync(dir, { recursive: true, force: true });
+    assert.match(calls[0], /organization\(login/);
+  });
+
+  it('reports in registry order and starts a dependent only after its prerequisite', async () => {
+    const events = [];
+    const delayed = (name, ms) => ({
+      name,
+      run: async ({ prior } = {}) => {
+        events.push(`start ${name}`);
+        await new Promise((r) => setTimeout(r, ms));
+        events.push(`end ${name}`);
+        return { ok: true, detail: `${name} after ${prior?.detail ?? '-'}` };
+      },
+    });
+    const cap = makeCapture();
+    await runDoctor({
+      checks: [
+        delayed('gh-available', 30),
+        delayed('github-token', 1),
+        delayed('gh-auth', 1),
+      ],
+      write: cap.write,
+      exit: cap.exit,
+      ...quiet,
+    });
+    assert.deepEqual(
+      cap.lines.slice(0, 3).map((l) => l.split(/\s+/)[1]),
+      ['gh-available', 'github-token', 'gh-auth'],
+    );
+    assert.match(cap.lines[2], /gh-auth after gh-available after -/);
+    assert.ok(
+      events.indexOf('end github-token') < events.indexOf('end gh-available'),
+    );
+    assert.ok(
+      events.indexOf('end gh-available') < events.indexOf('start gh-auth'),
+    );
+    assert.equal(cap.exitCode, null);
+  });
+});
+
+describe('createRunner', () => {
+  it('spawns an identical cmd + args once and hands every caller its result', async () => {
+    let spawns = 0;
+    const runner = createRunner(async () => {
+      spawns++;
+      return { status: 0, stdout: 'x', stderr: '' };
+    });
+    const [a, b] = await Promise.all([
+      runner('claude', ['--version'], { timeout: 1 }),
+      runner('claude', ['--version'], { timeout: 2 }),
+    ]);
+    await runner('codex', ['--version']);
+    assert.equal(spawns, 2);
+    assert.equal(a, b);
+  });
+
+  it('the default spawn resolves a real exit and a missing binary', async () => {
+    const runner = createRunner();
+    const ok = await runner(process.execPath, [
+      '-e',
+      'process.stdout.write("hi")',
+    ]);
+    assert.deepEqual([ok.status, ok.stdout, ok.error], [0, 'hi', undefined]);
+    const fail = await runner(process.execPath, ['-e', 'process.exit(3)']);
+    assert.equal(fail.status, 3);
+    const missing = await runner('mandrel-no-such-binary-5814', []);
+    assert.equal(missing.status, null);
+    assert.equal(missing.error?.code, 'ENOENT');
   });
 });

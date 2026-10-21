@@ -243,7 +243,7 @@ const RAW_CAPTURE_SITES = {
   },
   'lib/cli/doctor-checks/spawn.js': {
     reason: "doctor's version / presence probes; small captures",
-    sites: { spawnSync: 1 },
+    sites: { execFile: 1 },
   },
   'lib/cli/guarded-sync.js': {
     reason: SEAM_REASON,
