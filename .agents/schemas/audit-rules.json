@@ -434,6 +434,22 @@
       },
       "scope": "global",
       "substitutionKeys": []
+    },
+    "audit-red-team": {
+      "triggers": {
+        "gates": ["gate3"],
+        "keywords": [
+          "red team",
+          "red-team",
+          "adversarial",
+          "threat model",
+          "attack path",
+          "abuse case",
+          "blast radius"
+        ]
+      },
+      "scope": "global",
+      "substitutionKeys": []
     }
   },
   "sensitivePaths": {
