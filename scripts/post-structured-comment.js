@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
+/* node:coverage ignore file -- CLI wrapper over upsertStructuredComment, which carries the tests; posts to live GitHub */
 
 /**
  * post-structured-comment.js — CLI wrapper for structured comment upsert.

@@ -17,23 +17,19 @@ export function __setExecSyncForTests(fn) {
   execSyncHolder.impl = fn ?? defaultExecSync;
 }
 
-/* node:coverage ignore next */
 export function readGhCliToken() {
   return runGhAuthToken(execSyncHolder.impl);
 }
 
-/* node:coverage ignore next */
 function readEnvToken() {
   return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
 }
 
-/* node:coverage ignore next */
 function memoizeEnvToken(token) {
   process.env.GITHUB_TOKEN = token;
   process.env[TOKEN_SOURCE_ENV] = 'gh-cli';
 }
 
-/* node:coverage ignore next */
 export function resolveToken() {
   const envToken = readEnvToken();
   if (envToken) return envToken;

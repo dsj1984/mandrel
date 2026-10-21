@@ -59,6 +59,19 @@ before(async () => {
         '}',
       ),
       '.prettierignore': lines('# generated', 'build', '/coverage-old'),
+      'knip.jsonc': lines(
+        '{',
+        '  "ignore": [',
+        '    // vendored shim, removed with #41',
+        '    "src/a.js",',
+        '    "src/allow.js",',
+        '    "src/generated/**",',
+        '    "tests/fixtures/**"',
+        '  ]',
+        '}',
+      ),
+      'src/generated/v.js': 'export const v = 1;\n',
+      'tests/fixtures/f.json': '{}\n',
       '.github/workflows/ci.yml': lines(
         'jobs:',
         '  smoke:',
@@ -207,6 +220,26 @@ describe('tool-config exemptions', () => {
       'conventional-setting',
     );
     assert.ok(ts.find((r) => r.target === 'strict'));
+  });
+
+  it('reads a JSONC // line directly above an entry as its reason', () => {
+    const knip = env.records.filter((r) => r.file === 'knip.jsonc');
+    const [shim, allow] = knip;
+    assert.equal(shim.target, 'src/a.js');
+    assert.equal(shim.justification, 'vendored shim, removed with #41');
+    assert.equal(shim.verdict, 'live');
+    assert.equal(allow.justification, null);
+    assert.equal(allow.verdict, 'unjustified');
+  });
+
+  it('a generated-code or fixture glob is live by design and needs no written reason', () => {
+    const hintOf = (target) =>
+      env.records.find((r) => r.file === 'knip.jsonc' && r.target === target);
+    const gen = hintOf('src/generated/**');
+    assert.equal(gen.permanentHint, 'generated-path');
+    assert.equal(gen.justification, null);
+    assert.equal(gen.verdict, 'live');
+    assert.equal(hintOf('tests/fixtures/**').permanentHint, 'fixture-path');
   });
 
   it('reads gitignore-style ignore files with the comment above as reason', () => {

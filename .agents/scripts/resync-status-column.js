@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
+/* node:coverage ignore file -- live board poller */
 
 /**
  * resync-status-column.js — re-assert a ticket's Projects v2 Status after

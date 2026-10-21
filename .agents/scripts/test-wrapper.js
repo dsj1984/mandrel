@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
+/* node:coverage ignore file -- pretest shell over tested runPreflight */
 
 /**
  * `pretest` preflight: runs the self-healing checks (scope `npm-test`) so the

@@ -107,7 +107,7 @@ describe('mandrel-update partial-upgrade recovery — CLI ↔ workflow drift', (
   it('quotes every per-phase recovery hint the CLI actually emits', async () => {
     const phases = ['sync', 'sync-commands', 'migrate', 'doctor'];
     for (const phase of phases) {
-      // eslint-disable-next-line no-await-in-loop
+      // One phase at a time: each capture spawns the CLI.
       const rawHint = await captureHint(phase);
       const hint = normalizeWs(rawHint);
 

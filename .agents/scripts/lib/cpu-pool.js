@@ -103,7 +103,6 @@ export async function runOnPool(workerScript, items, opts = {}) {
         const myIndex = nextIndex++;
         if (myIndex >= itemsArr.length) break;
         const item = itemsArr[myIndex];
-        // eslint-disable-next-line no-await-in-loop
         const outcome = await dispatchOne(worker, item);
         if (outcome.kind === 'ok') {
           results[myIndex] = outcome.result;

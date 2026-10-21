@@ -1,3 +1,4 @@
 node_modules
 dist
+# npm writes the lockfile; formatting it would churn every install diff.
 package-lock.json
