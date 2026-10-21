@@ -28,10 +28,6 @@ import { ensureBaselineMergeDriver } from '../../.agents/scripts/lib/bootstrap/b
 import {
   applyQualityBootstrap,
   DOWNSTREAM_PRE_COMMIT,
-  ensureGuardrailsHelper,
-  ensurePreCommitHook,
-  ensureQualityConfigDefaults,
-  ensureQualityNpmScripts,
   PRE_COMMIT_MARKER,
   QUALITY_NPM_SCRIPTS,
 } from '../../.agents/scripts/lib/bootstrap/quality-bootstrap.js';
@@ -71,6 +67,20 @@ beforeEach(() => {
 afterEach(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
+
+// The git half of the merge driver is stubbed so no run writes into whatever
+// repo the suite happens to execute inside.
+const noGit = () => ({ status: 1, stdout: '', stderr: '' });
+
+/** Drive the public entry point; each step reports under its own key. */
+function bootstrap(projectRoot, extra = {}) {
+  return applyQualityBootstrap({
+    projectRoot,
+    frameworkRoot,
+    spawnImpl: noGit,
+    ...extra,
+  });
+}
 
 function makeProject(overrides = {}) {
   const root = path.join(tmpRoot, 'project');
@@ -176,7 +186,7 @@ describe('quality-bootstrap — preserves operator overrides', () => {
     const customBody = '#!/usr/bin/env sh\nnpm run my-custom-check\n';
     fs.writeFileSync(hookPath, customBody);
 
-    const result = ensurePreCommitHook({ projectRoot });
+    const result = bootstrap(projectRoot).hook;
     assert.equal(result.action, 'custom-hook-skip');
     assert.match(result.notice, /Custom \.husky\/pre-commit detected/);
     // The custom hook is left exactly as the operator wrote it.
@@ -198,7 +208,7 @@ describe('quality-bootstrap — preserves operator overrides', () => {
       },
     });
 
-    const result = ensureQualityNpmScripts({ projectRoot });
+    const result = bootstrap(projectRoot).scripts;
     assert.equal(result.action, 'updated');
     assert.equal(result.scripts['quality:preview'], 'already-present');
     assert.equal(result.scripts['quality:watch'], 'added');
@@ -224,7 +234,7 @@ describe('quality-bootstrap — preserves operator overrides', () => {
       },
     });
 
-    const result = ensureQualityConfigDefaults({ projectRoot });
+    const result = bootstrap(projectRoot).config;
     assert.equal(result.action, 'no-change');
     // Custom override survives.
     const cfg = readJson(path.join(projectRoot, '.agentrc.json'));
@@ -245,22 +255,21 @@ describe('quality-bootstrap — degraded environments', () => {
     const projectRoot = makeProject();
     const emptyFramework = path.join(tmpRoot, '_empty-framework');
     fs.mkdirSync(emptyFramework, { recursive: true });
-    const result = ensureGuardrailsHelper({
-      projectRoot,
+    const result = bootstrap(projectRoot, {
       frameworkRoot: emptyFramework,
-    });
+    }).helper;
     assert.equal(result.action, 'missing-source');
   });
 
   it('reports missing-package-json when package.json is absent', () => {
     const projectRoot = makeProject({ packageJson: false });
-    const result = ensureQualityNpmScripts({ projectRoot });
+    const result = bootstrap(projectRoot).scripts;
     assert.equal(result.action, 'missing-package-json');
   });
 
   it('reports missing-config when .agentrc.json is absent', () => {
     const projectRoot = makeProject({ agentrc: false });
-    const result = ensureQualityConfigDefaults({ projectRoot });
+    const result = bootstrap(projectRoot).config;
     assert.equal(result.action, 'missing-config');
     assert.deepEqual(result.addedKeys, []);
   });
@@ -271,11 +280,6 @@ describe('quality-bootstrap — baselines merge driver (AC-6)', () => {
   // consumer's `.gitattributes` must end up carrying, so the test should
   // fail if the installer changes it.
   const BASELINE_MERGE_ATTRIBUTE = 'baselines/*.json merge=mandrel-baseline';
-
-  // The git half is stubbed everywhere here: these assertions are about the
-  // tracked `.gitattributes` line, and a real `git config` would write into
-  // whatever repo the suite happens to run inside.
-  const noGit = () => ({ status: 1, stdout: '', stderr: '' });
 
   const PRE_EXISTING = [
     '* text=auto eol=lf',

@@ -10,8 +10,9 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getAgentrcDefaults, lookupPath } from '../config/defaults.js';
-import { deepEqual } from '../json-utils.js';
+import { deepEqual, isObject } from '../json-utils.js';
 import { ensureBaselineMergeDriver } from './baseline-merge-driver.js';
+import { readJsonIfExists, writeJson } from './json-io.js';
 
 /** The framework's own pre-commit body. */
 const FRAMEWORK_PRE_COMMIT = `node scripts/check-version-sync.js
@@ -51,24 +52,12 @@ export const QUALITY_NPM_SCRIPTS = Object.freeze({
   'quality:watch': 'node .agents/scripts/quality-watch.js',
 });
 
-/** `null` when absent; parse errors propagate so a corrupt config fails loudly. */
-function readJsonIfExists(p) {
-  if (!fs.existsSync(p)) return null;
-  const raw = fs.readFileSync(p, 'utf8');
-  return JSON.parse(raw);
-}
-
-function writeJson(p, obj) {
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
-}
-
 /**
  * @param {object} ctx
  * @param {string} ctx.projectRoot
  * @param {string} [ctx.frameworkRoot] - Defaults to `<projectRoot>/.agents`.
  */
-export function ensureGuardrailsHelper(ctx) {
+function ensureGuardrailsHelper(ctx) {
   const projectRoot = ctx.projectRoot;
   const target = path.join(
     projectRoot,
@@ -103,7 +92,7 @@ export function ensureGuardrailsHelper(ctx) {
  * @param {string} ctx.projectRoot
  * @param {'framework'|'downstream'} [ctx.variant='downstream']
  */
-export function ensurePreCommitHook(ctx) {
+function ensurePreCommitHook(ctx) {
   const variant = ctx.variant ?? 'downstream';
   const body =
     variant === 'framework' ? FRAMEWORK_PRE_COMMIT : DOWNSTREAM_PRE_COMMIT;
@@ -139,7 +128,7 @@ export function ensurePreCommitHook(ctx) {
 }
 
 /** Add missing quality npm scripts; existing values always win. */
-export function ensureQualityNpmScripts(ctx) {
+function ensureQualityNpmScripts(ctx) {
   const pkgPath = path.join(ctx.projectRoot, 'package.json');
   const pkg = readJsonIfExists(pkgPath);
   if (!pkg) {
@@ -168,62 +157,59 @@ export function ensureQualityNpmScripts(ctx) {
 /**
  * Set only keys that are absent AND differ from the framework default — a
  * default-equal write would be flagged `[REDUNDANT]` by sync-agentrc.
- * Default-equal keys are reported in `skippedKeys`.
+ * Default-equal keys are reported in `skippedKeys`. Mutates `target`.
  *
  * @param {object} target
  * @param {object} defaults
- * @param {object} frameworkDefaults — resolved defaults at the seed root.
+ * @param {unknown} frameworkDefaults — resolved defaults at the seed root.
  * @param {string} prefix — dotted path under construction.
+ * @param {{ addedKeys: string[], skippedKeys: string[] }} [out]
  */
 function mergeMissingKeys(
   target,
   defaults,
-  frameworkDefaults = {},
-  prefix = '',
+  frameworkDefaults,
+  prefix,
+  out = { addedKeys: [], skippedKeys: [] },
 ) {
-  const addedKeys = [];
-  const skippedKeys = [];
   for (const [key, value] of Object.entries(defaults)) {
-    const keyPath = prefix ? `${prefix}.${key}` : key;
-    const frameworkValue =
-      frameworkDefaults && typeof frameworkDefaults === 'object'
-        ? frameworkDefaults[key]
-        : undefined;
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (!target[key] || typeof target[key] !== 'object') {
-        target[key] = {};
-      }
-      const nested = mergeMissingKeys(
-        target[key],
-        value,
-        frameworkValue ?? {},
-        keyPath,
-      );
-      addedKeys.push(...nested.addedKeys);
-      skippedKeys.push(...nested.skippedKeys);
-      if (
-        Object.keys(target[key]).length === 0 &&
-        target[key] !== frameworkDefaults?.[key]
-      ) {
-        delete target[key];
-      }
+    const keyPath = `${prefix}.${key}`;
+    const frameworkValue = isObject(frameworkDefaults)
+      ? frameworkDefaults[key]
+      : undefined;
+    if (isObject(value)) {
+      mergeNestedKey(target, key, value, frameworkValue, keyPath, out);
     } else if (target[key] === undefined) {
-      if (deepEqual(value, frameworkValue)) {
-        skippedKeys.push(keyPath);
-      } else {
-        target[key] = value;
-        addedKeys.push(keyPath);
-      }
+      seedLeafKey(target, key, value, frameworkValue, keyPath, out);
     }
   }
-  return { merged: target, addedKeys, skippedKeys };
+  return out;
+}
+
+/** Recurse into an object default; drop the scaffolding when nothing landed. */
+function mergeNestedKey(target, key, value, frameworkValue, keyPath, out) {
+  if (!target[key] || typeof target[key] !== 'object') target[key] = {};
+  mergeMissingKeys(target[key], value, frameworkValue ?? {}, keyPath, out);
+  if (Object.keys(target[key]).length === 0 && target[key] !== frameworkValue) {
+    delete target[key];
+  }
+}
+
+/** Seed one absent leaf unless it equals the framework default. */
+function seedLeafKey(target, key, value, frameworkValue, keyPath, out) {
+  if (deepEqual(value, frameworkValue)) {
+    out.skippedKeys.push(keyPath);
+    return;
+  }
+  target[key] = value;
+  out.addedKeys.push(keyPath);
 }
 
 /**
  * Seed missing quality defaults into `.agentrc.json`; writes nothing when the
  * file is absent (base bootstrap must run first).
  */
-export function ensureQualityConfigDefaults(ctx) {
+function ensureQualityConfigDefaults(ctx) {
   const cfgPath = path.join(ctx.projectRoot, '.agentrc.json');
   const cfg = readJsonIfExists(cfgPath);
   if (!cfg) {
@@ -275,7 +261,7 @@ const LEGACY_EPIC_BASELINES_RELPATH = 'baselines/epic';
  * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
  * @returns {{ action: 'absent'|'pruned', path: string, gitStatus?: number|null }}
  */
-export function pruneLegacyEpicBaselines(ctx) {
+function pruneLegacyEpicBaselines(ctx) {
   const target = path.join(ctx.projectRoot, 'baselines', 'epic');
   if (!fs.existsSync(target)) return { action: 'absent', path: target };
   const spawn = ctx.spawnImpl ?? defaultSpawnSync;

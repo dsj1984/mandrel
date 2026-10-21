@@ -16,23 +16,32 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { normalizeHandleAnswer } from '../../.agents/scripts/bootstrap.js';
 import { LEDGER_RELATIVE_PATH } from '../../.agents/scripts/lib/bootstrap/install-ledger.js';
 import {
+  applyProjectBootstrap,
   checkNodeVersion,
-  checkParity,
-  detectPackageManager,
-  ensureAgentrc,
   ensureGitignore,
-  ensurePackageJson,
   GITIGNORE_BLOCKS,
   LEGACY_PREPARE_COMMAND,
   PREPARE_COMMAND,
   REQUIRED_NODE_FLOOR,
-  SYNC_AGENTS_COMMAND,
   SYNC_COMMAND,
   satisfiesNodeEngine,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
+// Asserted as a literal: it is the `sync:agents` contract a consumer's
+// manifest must carry.
+const SYNC_AGENTS_COMMAND = 'node .agents/scripts/sync-claude-agents.js';
+
 let tmpRoot;
+
+/** One pipeline phase's result, driven through the public entry point. */
+async function runPhase(name, ctx) {
+  const report = await applyProjectBootstrap({ ...ctx, onlyPhases: [name] });
+  return report[name];
+}
+
+const ensurePackageJson = (ctx) => runPhase('pkg', ctx);
+const ensureAgentrc = (ctx) => runPhase('agentrc', ctx);
 
 function writeFile(p, content) {
   fs.mkdirSync(path.dirname(p), { recursive: true });
@@ -84,25 +93,28 @@ describe('checkNodeVersion', () => {
   });
 });
 
-describe('detectPackageManager', () => {
-  it('returns npm by default', () => {
-    assert.equal(detectPackageManager(tmpRoot), 'npm');
+describe('install phase — package manager detection', () => {
+  const detectPackageManager = async (projectRoot) =>
+    (await runPhase('install', { projectRoot, skipInstall: true })).manager;
+
+  it('returns npm by default', async () => {
+    assert.equal(await detectPackageManager(tmpRoot), 'npm');
   });
 
-  it('prefers pnpm when pnpm-lock.yaml is present', () => {
+  it('prefers pnpm when pnpm-lock.yaml is present', async () => {
     writeFile(path.join(tmpRoot, 'pnpm-lock.yaml'), '');
-    assert.equal(detectPackageManager(tmpRoot), 'pnpm');
+    assert.equal(await detectPackageManager(tmpRoot), 'pnpm');
   });
 
-  it('prefers yarn when yarn.lock is present', () => {
+  it('prefers yarn when yarn.lock is present', async () => {
     writeFile(path.join(tmpRoot, 'yarn.lock'), '');
-    assert.equal(detectPackageManager(tmpRoot), 'yarn');
+    assert.equal(await detectPackageManager(tmpRoot), 'yarn');
   });
 });
 
 describe('ensurePackageJson', () => {
-  it('creates a fresh package.json with the sync wiring on a green-field repo', () => {
-    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+  it('creates a fresh package.json with the sync wiring on a green-field repo', async () => {
+    const outcome = await ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(outcome.created, true);
     assert.equal(outcome.scriptsSyncCommands, 'added');
     assert.equal(outcome.scriptsSyncAgents, 'added');
@@ -117,28 +129,28 @@ describe('ensurePackageJson', () => {
     assert.ok(pkg.scripts.prepare.includes(SYNC_AGENTS_COMMAND));
   });
 
-  it('upgrades the legacy unguarded prepare to the guarded form, then is a no-op', () => {
+  it('upgrades the legacy unguarded prepare to the guarded form, then is a no-op', async () => {
     writeFile(
       path.join(tmpRoot, 'package.json'),
       `${JSON.stringify({ name: 'host', scripts: { prepare: LEGACY_PREPARE_COMMAND } }, null, 2)}\n`,
     );
-    const first = ensurePackageJson({ projectRoot: tmpRoot });
+    const first = await ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(first.scriptsPrepare, 'upgraded');
     assert.equal(first.mutated, true);
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.equal(pkg.scripts.prepare, PREPARE_COMMAND);
-    const second = ensurePackageJson({ projectRoot: tmpRoot });
+    const second = await ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(second.scriptsPrepare, 'already-present');
     assert.equal(second.mutated, false);
   });
 
-  it('leaves an operator prepare that already names both scripts untouched', () => {
+  it('leaves an operator prepare that already names both scripts untouched', async () => {
     const custom = `husky && ${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`;
     writeFile(
       path.join(tmpRoot, 'package.json'),
       `${JSON.stringify({ name: 'host', scripts: { prepare: custom } }, null, 2)}\n`,
     );
-    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+    const outcome = await ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(outcome.scriptsPrepare, 'already-present');
     assert.equal(
       readJson(path.join(tmpRoot, 'package.json')).scripts.prepare,
@@ -146,17 +158,17 @@ describe('ensurePackageJson', () => {
     );
   });
 
-  it('never seeds framework runtime deps into the consumer manifest', () => {
+  it('never seeds framework runtime deps into the consumer manifest', async () => {
     // Story #3466: the dependency-merge loop was removed — framework deps
     // arrive transitively via mandrel, so bootstrap must leave the
     // consumer manifest's dependency surface entirely untouched.
-    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+    const outcome = await ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(Object.hasOwn(outcome, 'deps'), false);
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.equal(Object.hasOwn(pkg, 'dependencies'), false);
   });
 
-  it('leaves a pre-existing dependencies block unmutated', () => {
+  it('leaves a pre-existing dependencies block unmutated', async () => {
     writeFile(
       path.join(tmpRoot, 'package.json'),
       `${JSON.stringify(
@@ -165,17 +177,17 @@ describe('ensurePackageJson', () => {
         2,
       )}\n`,
     );
-    ensurePackageJson({ projectRoot: tmpRoot });
+    await ensurePackageJson({ projectRoot: tmpRoot });
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.deepEqual(pkg.dependencies, { 'left-pad': '^1.0.0' });
   });
 
-  it('appends sync to an existing prepare without clobbering it', () => {
+  it('appends sync to an existing prepare without clobbering it', async () => {
     writeFile(
       path.join(tmpRoot, 'package.json'),
       `${JSON.stringify({ name: 'host', scripts: { prepare: 'husky' } }, null, 2)}\n`,
     );
-    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+    const outcome = await ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(outcome.scriptsPrepare, 'appended');
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.equal(
@@ -184,12 +196,12 @@ describe('ensurePackageJson', () => {
     );
   });
 
-  it('appends only the agent sync to a prepare that already carries the command sync', () => {
+  it('appends only the agent sync to a prepare that already carries the command sync', async () => {
     writeFile(
       path.join(tmpRoot, 'package.json'),
       `${JSON.stringify({ name: 'host', scripts: { prepare: `husky && ${SYNC_COMMAND}` } }, null, 2)}\n`,
     );
-    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+    const outcome = await ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(outcome.scriptsPrepare, 'appended');
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.equal(
@@ -198,9 +210,9 @@ describe('ensurePackageJson', () => {
     );
   });
 
-  it('is idempotent on the second run', () => {
-    ensurePackageJson({ projectRoot: tmpRoot });
-    const second = ensurePackageJson({ projectRoot: tmpRoot });
+  it('is idempotent on the second run', async () => {
+    await ensurePackageJson({ projectRoot: tmpRoot });
+    const second = await ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(second.created, false);
     assert.equal(second.scriptsSyncCommands, 'already-present');
     assert.equal(second.scriptsSyncAgents, 'already-present');
@@ -220,16 +232,16 @@ describe('guarded prepare — runtime behaviour (Story #5581)', () => {
     });
   }
 
-  it('exits 0 and writes nothing when .agents/ is absent (manifest-only container)', () => {
-    ensurePackageJson({ projectRoot: tmpRoot });
+  it('exits 0 and writes nothing when .agents/ is absent (manifest-only container)', async () => {
+    await ensurePackageJson({ projectRoot: tmpRoot });
     const before = fs.readdirSync(tmpRoot).sort();
     const result = runPrepare();
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(fs.readdirSync(tmpRoot).sort(), before);
   });
 
-  it('runs both projections when .agents/scripts/ is present', () => {
-    ensurePackageJson({ projectRoot: tmpRoot });
+  it('runs both projections when .agents/scripts/ is present', async () => {
+    await ensurePackageJson({ projectRoot: tmpRoot });
     const scripts = path.join(tmpRoot, '.agents', 'scripts');
     for (const name of ['sync-claude-commands', 'sync-claude-agents']) {
       writeFile(
@@ -327,8 +339,8 @@ describe('ensureGitignore', () => {
     assert.ok(status.includes('.codex/agents/reviewer.toml'), status);
   });
 
-  it('runs the Codex projections through the seeded sync scripts — no new npm script', () => {
-    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+  it('runs the Codex projections through the seeded sync scripts — no new npm script', async () => {
+    const outcome = await ensurePackageJson({ projectRoot: tmpRoot });
     const scripts = readJson(outcome.path).scripts;
     assert.equal(scripts['sync:commands'], SYNC_COMMAND);
     assert.equal(scripts['sync:agents'], SYNC_AGENTS_COMMAND);
@@ -365,12 +377,12 @@ describe('ensureGitignore', () => {
 });
 
 describe('ensureAgentrc', () => {
-  it('skips when .agentrc.json already exists', () => {
+  it('skips when .agentrc.json already exists', async () => {
     writeFile(
       path.join(tmpRoot, '.agentrc.json'),
       '{"project":{"baseBranch":"main"}}',
     );
-    const outcome = ensureAgentrc({
+    const outcome = await ensureAgentrc({
       projectRoot: tmpRoot,
       answers: {
         owner: 'a',
@@ -382,8 +394,8 @@ describe('ensureAgentrc', () => {
     assert.equal(outcome.action, 'already-present');
   });
 
-  it('reports missing-starter when the framework starter is absent', () => {
-    const outcome = ensureAgentrc({
+  it('reports missing-starter when the framework starter is absent', async () => {
+    const outcome = await ensureAgentrc({
       projectRoot: tmpRoot,
       agentRoot: path.join(tmpRoot, '.agents-missing'),
       answers: {
@@ -396,7 +408,7 @@ describe('ensureAgentrc', () => {
     assert.equal(outcome.action, 'missing-starter');
   });
 
-  it('seeds from the starter and replaces placeholders', () => {
+  it('seeds from the starter and replaces placeholders', async () => {
     const fakeAgentRoot = path.join(tmpRoot, '.agents');
     writeFile(
       path.join(fakeAgentRoot, 'starter-agentrc.json'),
@@ -409,7 +421,7 @@ describe('ensureAgentrc', () => {
         },
       }),
     );
-    const outcome = ensureAgentrc({
+    const outcome = await ensureAgentrc({
       projectRoot: tmpRoot,
       agentRoot: fakeAgentRoot,
       answers: {
@@ -430,7 +442,7 @@ describe('ensureAgentrc', () => {
   // Story #3700 — a flag/env-supplied `@`-prefixed handle, after the
   // bootstrap's `normalizeHandleAnswer`, seeds a single-`@` value (not `@@me`)
   // and a second seed run is a no-op (operator wins).
-  it('seeds a single-@ handle from an @-prefixed answer and is idempotent', () => {
+  it('seeds a single-@ handle from an @-prefixed answer and is idempotent', async () => {
     const fakeAgentRoot = path.join(tmpRoot, '.agents');
     writeFile(
       path.join(fakeAgentRoot, 'starter-agentrc.json'),
@@ -450,7 +462,7 @@ describe('ensureAgentrc', () => {
       operatorHandle: normalizeHandleAnswer('@me'),
       baseBranch: 'main',
     };
-    const first = ensureAgentrc({
+    const first = await ensureAgentrc({
       projectRoot: tmpRoot,
       agentRoot: fakeAgentRoot,
       answers,
@@ -461,7 +473,7 @@ describe('ensureAgentrc', () => {
 
     // Second run: the file already exists → no-op, no double-@ accumulation.
     const before = fs.readFileSync(path.join(tmpRoot, '.agentrc.json'), 'utf8');
-    const second = ensureAgentrc({
+    const second = await ensureAgentrc({
       projectRoot: tmpRoot,
       agentRoot: fakeAgentRoot,
       answers,
@@ -474,7 +486,7 @@ describe('ensureAgentrc', () => {
   });
 });
 
-describe('checkParity — command:false workflows', () => {
+describe('parity phase — command:false workflows', () => {
   function seed({ commandFalse = true, withCommand = true } = {}) {
     const wf = path.join(tmpRoot, '.agents', 'workflows');
     const cmd = path.join(tmpRoot, '.claude', 'commands');
@@ -495,13 +507,13 @@ describe('checkParity — command:false workflows', () => {
     }
   }
 
-  it('does not report a command:false workflow as missing a command', () => {
+  it('does not report a command:false workflow as missing a command', async () => {
     // The Install Matrix cold-start regression: audit-security carries
     // `command: false`, sync-claude-commands skips it, and the parity check
     // must skip it too rather than demand a command the sync is contracted
     // never to emit.
     seed({ commandFalse: true, withCommand: false });
-    const result = checkParity({ projectRoot: tmpRoot });
+    const result = await runPhase('parity', { projectRoot: tmpRoot });
     assert.equal(
       result.ok,
       true,
@@ -511,12 +523,14 @@ describe('checkParity — command:false workflows', () => {
     assert.deepEqual(result.orphanCommand, []);
   });
 
-  it('still flags a projectable workflow that is genuinely missing its command', () => {
+  it('still flags a projectable workflow that is genuinely missing its command', async () => {
     // Guard against over-correcting: a normal workflow with no command is a
     // real drift the check must keep catching.
     seed({ commandFalse: false, withCommand: false });
-    const result = checkParity({ projectRoot: tmpRoot });
-    assert.equal(result.ok, false);
-    assert.deepEqual(result.missingCommand, ['audit-security']);
+    // Parity is fatal: the drift aborts the pipeline, naming the workflow.
+    await assert.rejects(
+      runPhase('parity', { projectRoot: tmpRoot }),
+      /Parity check failed — workflows missing commands: audit-security;/,
+    );
   });
 });

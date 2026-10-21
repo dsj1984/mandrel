@@ -10,6 +10,7 @@ import path from 'node:path';
 
 import { applyHeader } from '../command-header.js';
 import { applyAgentModel, getAgentModels } from '../config/agent-models.js';
+import { readJsonOrNull } from '../json-utils.js';
 import { dirExists } from '../util/paths.js';
 
 export const CLAUDE_AGENTS_DIR = '.claude/agents';
@@ -30,18 +31,6 @@ function agentFilesIn(dir) {
     .readdirSync(dir, { withFileTypes: true })
     .filter((e) => e.isFile() && e.name.endsWith('.md'))
     .map((e) => e.name);
-}
-
-/**
- * @param {string} file
- * @returns {object | null}
- */
-function readJsonOrNull(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return null;
-  }
 }
 
 /**

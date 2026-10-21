@@ -20,13 +20,14 @@ import {
 } from './agents-md-fold.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
 import { ensureIssueForms } from './issue-forms-template.js';
+import { readJsonIfExists, writeJson } from './json-io.js';
 import { PHASE_GROUPS } from './manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
 
 export const SYNC_COMMAND = 'node .agents/scripts/sync-claude-commands.js';
 
 // The agent projection runs everywhere the command projection does.
-export const SYNC_AGENTS_COMMAND = 'node .agents/scripts/sync-claude-agents.js';
+const SYNC_AGENTS_COMMAND = 'node .agents/scripts/sync-claude-agents.js';
 
 export const BOOTSTRAP_COMMAND = 'node .agents/scripts/bootstrap.js';
 
@@ -93,26 +94,6 @@ export const GITIGNORE_BLOCKS = Object.freeze({
   },
 });
 
-/**
- * @param {string} p
- * @param {typeof fs} [fsImpl]
- * @returns {object|null}
- */
-function readJsonIfExists(p, fsImpl = fs) {
-  if (!fsImpl.existsSync(p)) return null;
-  return JSON.parse(fsImpl.readFileSync(p, 'utf8'));
-}
-
-/**
- * @param {string} p
- * @param {object} obj
- * @param {typeof fs} [fsImpl]
- */
-function writeJson(p, obj, fsImpl = fs) {
-  fsImpl.mkdirSync(path.dirname(p), { recursive: true });
-  fsImpl.writeFileSync(p, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
-}
-
 function agentRootOf(ctx) {
   return ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents');
 }
@@ -159,7 +140,7 @@ export function checkNodeVersion(version = process.versions.node) {
  * @param {typeof fs} [fsImpl]
  * @returns {'pnpm'|'yarn'|'npm'}
  */
-export function detectPackageManager(projectRoot, fsImpl = fs) {
+function detectPackageManager(projectRoot, fsImpl = fs) {
   return detectPm(projectRoot, (p) => fsImpl.existsSync(p)) ?? 'npm';
 }
 
@@ -213,7 +194,7 @@ export function ensurePrepareScript(scripts) {
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]
  */
-export function ensurePackageJson(ctx) {
+function ensurePackageJson(ctx) {
   const { fsImpl = fs } = ctx;
   const pkgPath = path.join(ctx.projectRoot, 'package.json');
   const existing = readJsonIfExists(pkgPath, fsImpl);
@@ -253,7 +234,7 @@ export function ensurePackageJson(ctx) {
  * @param {typeof fs} [ctx.fsImpl]
  * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
  */
-export function ensureDependenciesInstalled(ctx) {
+function ensureDependenciesInstalled(ctx) {
   const { fsImpl = fs, spawnImpl = defaultSpawnSync } = ctx;
   const manager = detectPackageManager(ctx.projectRoot, fsImpl);
   const sentinel = path.join(
@@ -290,7 +271,7 @@ export function ensureDependenciesInstalled(ctx) {
  * @param {typeof fs} [ctx.fsImpl]
  * @returns {{ action: string, path: string, source?: string }}
  */
-export function ensureAgentrc(ctx) {
+function ensureAgentrc(ctx) {
   const { fsImpl = fs } = ctx;
   const target = path.join(ctx.projectRoot, '.agentrc.json');
   if (fsImpl.existsSync(target)) {
@@ -442,7 +423,7 @@ function runSyncCommands(ctx) {
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]
  */
-export function checkParity(ctx) {
+function checkParity(ctx) {
   const { fsImpl = fs } = ctx;
   const workflowsDir = path.join(agentRootOf(ctx), 'workflows');
   const commandsDir = path.join(ctx.projectRoot, '.claude', 'commands');
@@ -467,18 +448,6 @@ export function checkParity(ctx) {
     missingCommand,
     orphanCommand,
   };
-}
-
-/**
- * Ensure `AGENTS.md` imports the system prompt — without it the framework
- * never loads on cold start. A pre-existing `CLAUDE.md` is folded in first
- * (the host would otherwise read it instead). Creates, appends, or no-ops.
- *
- * @param {object} ctx
- * @param {typeof fs} [ctx.fsImpl]
- */
-export function ensureSystemPromptWiring(ctx) {
-  return wireEntryDoc(ctx.projectRoot, ctx.fsImpl);
 }
 
 /**
@@ -547,10 +516,10 @@ const fatalParity = (result) =>
  * Ordered bootstrap pipeline. `phaseGroup` is ledger/uninstall metadata only
  * — every phase runs on every install.
  */
-export const BOOTSTRAP_PHASES = Object.freeze([
+const BOOTSTRAP_PHASES = Object.freeze([
   {
     name: 'nodeCheck',
-    run: () => checkNodeVersion(),
+    run: (ctx) => checkNodeVersion(ctx.nodeVersion),
     isFatal: true,
     formatError: fatalNodeCheck,
   },
@@ -578,7 +547,9 @@ export const BOOTSTRAP_PHASES = Object.freeze([
   {
     name: 'systemPromptWiring',
     phaseGroup: PHASE_GROUPS.IDE_WIRING,
-    run: (ctx) => ensureSystemPromptWiring(ctx),
+    // `AGENTS.md` must import the system prompt or the framework never loads
+    // on cold start; a pre-existing `CLAUDE.md` is folded in first.
+    run: (ctx) => wireEntryDoc(ctx.projectRoot, ctx.fsImpl),
   },
   {
     name: 'gitignore',
@@ -623,7 +594,7 @@ export const BOOTSTRAP_PHASES = Object.freeze([
  * @param {BootstrapPhase} phase
  * @param {any} result
  */
-export function throwIfFatal(phase, result) {
+function throwIfFatal(phase, result) {
   if (!phase.isFatal) return;
   const msg = phase.formatError?.(result);
   if (typeof msg === 'string' && msg.length > 0) throw new Error(msg);
@@ -634,7 +605,7 @@ export function throwIfFatal(phase, result) {
  * @param {object} ctx
  * @returns {Promise<object>}
  */
-export async function runPhases(phases, ctx) {
+async function runPhases(phases, ctx) {
   const report = {};
   for (const phase of phases) {
     const result = await phase.run(ctx, report);
@@ -656,8 +627,14 @@ export async function runPhases(phases, ctx) {
  * @param {boolean} [ctx.quiet]
  * @param {typeof fs} [ctx.fsImpl]
  * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
+ * @param {string} [ctx.nodeVersion] - Test seam; defaults to the running Node.
+ * @param {readonly string[]} [ctx.onlyPhases] - Test seam: run only these
+ *   phases (in pipeline order) instead of the whole pipeline.
  * @returns {Promise<object>}
  */
 export async function applyProjectBootstrap(ctx) {
-  return runPhases(BOOTSTRAP_PHASES, ctx);
+  const phases = ctx.onlyPhases
+    ? BOOTSTRAP_PHASES.filter((p) => ctx.onlyPhases.includes(p.name))
+    : BOOTSTRAP_PHASES;
+  return runPhases(phases, ctx);
 }

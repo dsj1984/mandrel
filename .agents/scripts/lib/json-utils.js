@@ -3,6 +3,8 @@
  * Sets, RegExps or class instances).
  */
 
+import fs from 'node:fs';
+
 /**
  * @param {unknown} v
  * @returns {boolean}
@@ -41,4 +43,19 @@ export function deepEqual(a, b) {
     if (!deepEqual(a[k], b[k])) return false;
   }
   return true;
+}
+
+/**
+ * Missing or unparsable → `null`; never throws.
+ *
+ * @param {string} file
+ * @param {{ readFileSync: Function }} [fsImpl]
+ * @returns {any}
+ */
+export function readJsonOrNull(file, fsImpl = fs) {
+  try {
+    return JSON.parse(fsImpl.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
 }

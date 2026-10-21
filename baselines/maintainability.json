@@ -587,6 +587,10 @@
       "mi": 96.864
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/json-io.js",
+      "mi": 123.422
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/manifest.js",
       "mi": 109.291
     },
@@ -608,7 +612,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "mi": 84.67
+      "mi": 86.941
     },
     {
       "path": ".agents/scripts/lib/bootstrap/summary.js",
@@ -660,7 +664,7 @@
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
-      "mi": 103.04
+      "mi": 102.497
     },
     {
       "path": ".agents/scripts/lib/claude/commands-projection.js",
@@ -1108,7 +1112,7 @@
     },
     {
       "path": ".agents/scripts/lib/json-utils.js",
-      "mi": 95.486
+      "mi": 98.428
     },
     {
       "path": ".agents/scripts/lib/label-constants.js",
@@ -2316,7 +2320,7 @@
     },
     {
       "path": ".agents/scripts/plan-critics.js",
-      "mi": 93.754
+      "mi": 92.576
     },
     {
       "path": ".agents/scripts/plan-persist.js",
@@ -2564,7 +2568,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/read-json.js",
-      "mi": 133.913
+      "mi": 171
     },
     {
       "path": "lib/cli/doctor-checks/runtime-deps.js",

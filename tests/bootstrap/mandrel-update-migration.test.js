@@ -30,7 +30,6 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   applyQualityBootstrap,
   PRE_COMMIT_MARKER,
-  pruneLegacyEpicBaselines,
   QUALITY_NPM_SCRIPTS,
 } from '../../.agents/scripts/lib/bootstrap/quality-bootstrap.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -153,16 +152,23 @@ describe('mandrel-update — custom-hook-skip path', () => {
 });
 
 describe('mandrel-update — legacy baselines/epic prune (Story #5007)', () => {
-  // A stub spawnSync that records git invocations without mutating anything;
-  // the helper's `git rm -r --quiet --ignore-unmatch` is safe to no-op in
-  // tests where the fixture is not a real git repo.
+  // A stub spawnSync that records the prune's `git rm` without mutating
+  // anything; every other git call (the merge-driver step) reports
+  // not-a-repo, so only the prune's invocations are recorded.
   function makeGitStub() {
     const calls = [];
     const spawnImpl = (cmd, args) => {
+      if (args[0] !== 'rm') return { status: 1, stdout: '', stderr: '' };
       calls.push({ cmd, args });
       return { status: 0, stdout: '', stderr: '' };
     };
     return { spawnImpl, calls };
+  }
+
+  /** The prune step's outcome, driven through the public entry point. */
+  function prune(projectRoot, spawnImpl) {
+    return applyQualityBootstrap({ projectRoot, frameworkRoot, spawnImpl })
+      .legacyBaselines;
   }
 
   function setupProject() {
@@ -174,10 +180,7 @@ describe('mandrel-update — legacy baselines/epic prune (Story #5007)', () => {
   it('reports absent when no committed baselines/epic tree exists', () => {
     const projectRoot = setupProject();
     const git = makeGitStub();
-    const result = pruneLegacyEpicBaselines({
-      projectRoot,
-      spawnImpl: git.spawnImpl,
-    });
+    const result = prune(projectRoot, git.spawnImpl);
     assert.equal(result.action, 'absent');
     assert.equal(git.calls.length, 0, 'no git spawn on the common path');
   });
@@ -189,10 +192,7 @@ describe('mandrel-update — legacy baselines/epic prune (Story #5007)', () => {
     writeJson(path.join(epicDir, 'maintainability.json'), { legacy: true });
 
     const git = makeGitStub();
-    const result = pruneLegacyEpicBaselines({
-      projectRoot,
-      spawnImpl: git.spawnImpl,
-    });
+    const result = prune(projectRoot, git.spawnImpl);
 
     assert.equal(result.action, 'pruned');
     assert.equal(result.gitStatus, 0);
@@ -213,11 +213,7 @@ describe('mandrel-update — legacy baselines/epic prune (Story #5007)', () => {
 
     // Idempotent: the second pass finds nothing and spawns no git.
     const second = makeGitStub();
-    assert.equal(
-      pruneLegacyEpicBaselines({ projectRoot, spawnImpl: second.spawnImpl })
-        .action,
-      'absent',
-    );
+    assert.equal(prune(projectRoot, second.spawnImpl).action, 'absent');
     assert.equal(second.calls.length, 0);
   });
 
@@ -233,10 +229,7 @@ describe('mandrel-update — legacy baselines/epic prune (Story #5007)', () => {
       recursive: true,
     });
 
-    pruneLegacyEpicBaselines({
-      projectRoot,
-      spawnImpl: makeGitStub().spawnImpl,
-    });
+    prune(projectRoot, makeGitStub().spawnImpl);
 
     assert.equal(readJson(canonical).canonical, true);
   });

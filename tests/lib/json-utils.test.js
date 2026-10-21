@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { deepEqual, isObject } from '../../.agents/scripts/lib/json-utils.js';
+import {
+  deepEqual,
+  isObject,
+  readJsonOrNull,
+} from '../../.agents/scripts/lib/json-utils.js';
 
 // ---------------------------------------------------------------------------
 // json-utils.test.js — pin the shared JSON-shape helpers extracted in
@@ -122,5 +126,41 @@ describe('deepEqual()', () => {
       const b = { a: [1, { b: [2, 4] }] };
       assert.equal(deepEqual(a, b), false);
     });
+  });
+});
+
+describe('readJsonOrNull()', () => {
+  const fsWith = (files) => ({
+    readFileSync: (file) => {
+      if (!(file in files)) throw new Error(`ENOENT: ${file}`);
+      return files[file];
+    },
+  });
+
+  it('parses a present file', () => {
+    assert.deepEqual(
+      readJsonOrNull('/a.json', fsWith({ '/a.json': '{"a":1}' })),
+      {
+        a: 1,
+      },
+    );
+  });
+
+  it('returns null for a missing file', () => {
+    assert.equal(readJsonOrNull('/missing.json', fsWith({})), null);
+  });
+
+  it('returns null for an unparsable file', () => {
+    assert.equal(
+      readJsonOrNull('/bad.json', fsWith({ '/bad.json': '{' })),
+      null,
+    );
+  });
+
+  it('reads through node:fs by default', () => {
+    assert.equal(
+      readJsonOrNull('/nonexistent/mandrel/readJsonOrNull.json'),
+      null,
+    );
   });
 });

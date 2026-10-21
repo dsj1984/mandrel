@@ -16,6 +16,7 @@ import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { readJsonOrNull } from './lib/json-utils.js';
 import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
 import { evaluatePlanCritics } from './lib/orchestration/plan-critics-evaluate.js';
 import { appendCriticSkip } from './lib/orchestration/plan-metrics.js';
@@ -43,15 +44,6 @@ function collectPackageIdentity(names, pkg) {
     if (map && typeof map === 'object') {
       for (const dep of Object.keys(map)) names.add(dep);
     }
-  }
-}
-
-/** Best-effort JSON read: a missing or malformed file yields `null`. */
-async function readJsonIfPresent(filePath) {
-  try {
-    return JSON.parse(await readFile(filePath, 'utf8'));
-  } catch {
-    return null;
   }
 }
 
@@ -102,7 +94,7 @@ async function resolveWorkspaceManifestPaths(rootDir, patterns) {
  * @returns {Promise<string[]>}
  */
 export async function collectRepoPackages({ rootDir = process.cwd() } = {}) {
-  const root = await readJsonIfPresent(path.join(rootDir, 'package.json'));
+  const root = readJsonOrNull(path.join(rootDir, 'package.json'));
   if (!root) return [];
   const names = new Set();
   collectPackageIdentity(names, root);
@@ -111,7 +103,7 @@ export async function collectRepoPackages({ rootDir = process.cwd() } = {}) {
     workspacePatterns(root),
   );
   for (const wsPath of wsPaths) {
-    const pkg = await readJsonIfPresent(wsPath);
+    const pkg = readJsonOrNull(wsPath);
     if (pkg) collectPackageIdentity(names, pkg);
   }
   return [...names];
