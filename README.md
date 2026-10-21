@@ -90,7 +90,7 @@ separate, planned pass.
 
 | Area | Lenses |
 | ---- | ------ |
-| Code & design | `architecture`, `clean-code`, `adrs`, `data-model`, `documentation`, `exceptions` |
+| Code & design | `architecture`, `clean-code`, `adrs`, `data-model`, `documentation`, `exceptions`, `lean` |
 | Quality & ops | `quality`, `baselines`, `performance`, `devops`, `sre`, `dependencies` |
 | Security & privacy | `security`, `privacy` |
 | Product & UX | `ux-ui`, `accessibility`, `mobile`, `navigability`, `seo` |

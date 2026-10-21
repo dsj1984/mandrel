@@ -33,7 +33,7 @@ export function parseStashList(stdout) {
   return out;
 }
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; parsing tested via parseStashList */
 function listStashes(cwd) {
   const res = gitSpawn(cwd, 'stash', 'list', '--format=%gd|%ci|%s');
   if (res.status !== 0) return [];

@@ -841,15 +841,7 @@
     },
     {
       "file": ".agents/scripts/lib/label-constants.js",
-      "symbol": "isValidTransition"
-    },
-    {
-      "file": ".agents/scripts/lib/label-constants.js",
       "symbol": "PLANNING_HEALTHCHECK_WAIVED"
-    },
-    {
-      "file": ".agents/scripts/lib/label-constants.js",
-      "symbol": "VALID_TRANSITIONS"
     },
     {
       "file": ".agents/scripts/lib/Logger.js",
@@ -946,30 +938,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "symbol": "defaultGhRunner"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "decideBranchPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "decideFastForwardPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "decideStashPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "executeBranchPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "executeFastForwardPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "executeStashPhase"
     },
     {
       "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/prompts.js",
