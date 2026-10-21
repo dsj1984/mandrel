@@ -47,13 +47,15 @@ const MOVED_SHA = 'ffffeeeeddddccccbbbbaaaa9999888877776666';
 const PR_URL = 'https://github.com/owner/repo/pull/123';
 const CLEAN = { critical: 0, high: 0, medium: 0, suggestion: 0 };
 
-/** A deferred promise: `resolve` it from outside. */
+/** A deferred promise: settle it from outside. */
 function deferred() {
   let resolve;
-  const promise = new Promise((r) => {
-    resolve = r;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 /** Every SHA diffs to the same text: a SHA move alone keeps the digest. */
@@ -738,10 +740,8 @@ describe('runSingleStoryClose — review overlaps close-validation', () => {
         failed: [{ gate: { name: 'lint' }, status: 1 }],
       }),
     });
-    const runCodeReview = async () => {
-      await new Promise((r) => setTimeout(r, 30));
-      throw new Error('review blew up after validation failed');
-    };
+    const reviewOutcome = deferred();
+    const runCodeReview = () => reviewOutcome.promise;
     const recorder = recordingProvider();
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=overlap-fail`);
     await assert.rejects(
@@ -749,7 +749,11 @@ describe('runSingleStoryClose — review overlaps close-validation', () => {
       (err) =>
         err.closeGate === 'lint' && err.closePhase === 'close-validation',
     );
-    await new Promise((r) => setTimeout(r, 80));
+    // The review fails only after close has already rejected; two
+    // macrotask turns let Node report any rejection nobody handled.
+    reviewOutcome.reject(new Error('review blew up after validation failed'));
+    await new Promise(setImmediate);
+    await new Promise(setImmediate);
     assert.deepEqual(unhandled, []);
     assert.equal(prComments(recorder).length, 0);
     assert.equal(events.includes('gh create'), false, 'nothing was pushed');
