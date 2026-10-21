@@ -901,15 +901,7 @@
     },
     {
       "file": ".agents/scripts/lib/label-constants.js",
-      "symbol": "isValidTransition"
-    },
-    {
-      "file": ".agents/scripts/lib/label-constants.js",
       "symbol": "PLANNING_HEALTHCHECK_WAIVED"
-    },
-    {
-      "file": ".agents/scripts/lib/label-constants.js",
-      "symbol": "VALID_TRANSITIONS"
     },
     {
       "file": ".agents/scripts/lib/Logger.js",
