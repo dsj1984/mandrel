@@ -9,6 +9,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { AGENT_LABELS } from '../../../.agents/scripts/lib/label-constants.js';
 import { RUNTIME_FRICTION_CATEGORIES } from '../../../.agents/scripts/lib/observability/runtime-friction.js';
 import { forEachLine } from '../../../.agents/scripts/lib/observability/signals-writer.js';
 import {
@@ -99,6 +100,49 @@ describe('invalid agent:: transition observer (Story #5805)', () => {
     const provider = buildFakeProvider([]);
     await flip(provider, 5808, STATE_LABELS.READY);
     assert.equal((await invalidSignals(5808)).length, 0);
+  });
+
+  // Production-shaped opts: no snapshot and no notify, as the CLI, the
+  // blocked flips and the done cascade send. The observer loads the prior
+  // state itself rather than reading the flip as initial entry.
+  for (const [id, from, to] of [
+    [5810, STATE_LABELS.READY, STATE_LABELS.DONE],
+    [5811, STATE_LABELS.DONE, STATE_LABELS.BLOCKED],
+  ]) {
+    it(`records ${from} → ${to} made with only { config }`, async () => {
+      const provider = buildFakeProvider([from]);
+      await transitionTicketState(provider, id, to, { config });
+
+      const rows = await invalidSignals(id);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].details.fromState, from);
+      assert.equal(rows[0].details.toState, to);
+      assert.equal(provider.updates.length, 1);
+    });
+  }
+
+  it('reads an agent::review-spec origin rather than initial entry', async () => {
+    const provider = buildFakeProvider([AGENT_LABELS.REVIEW_SPEC]);
+    await flip(provider, 5812, STATE_LABELS.EXECUTING);
+
+    const rows = await invalidSignals(5812);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].details.fromState, AGENT_LABELS.REVIEW_SPEC);
+  });
+
+  it('records nothing for review-spec → ready, nor when a lifecycle state sits beside a stale review-spec', async () => {
+    await flip(
+      buildFakeProvider([AGENT_LABELS.REVIEW_SPEC]),
+      5813,
+      STATE_LABELS.READY,
+    );
+    await flip(
+      buildFakeProvider([AGENT_LABELS.REVIEW_SPEC, STATE_LABELS.READY]),
+      5814,
+      STATE_LABELS.EXECUTING,
+    );
+    assert.equal((await invalidSignals(5813)).length, 0);
+    assert.equal((await invalidSignals(5814)).length, 0);
   });
 
   it('does not throw when the signal write is broken', async () => {

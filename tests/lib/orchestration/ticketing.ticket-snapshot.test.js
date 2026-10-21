@@ -80,17 +80,25 @@ describe('transitionTicketState — opts.ticketSnapshot seam', () => {
     assert.deepEqual(provider.getTicketCalls, [42]);
   });
 
-  it('makes zero getTicket calls for a non-recovery target when neither notify nor ticketSnapshot is set', async () => {
-    // `agent::closing` is not a block-recovery target, so Story #4622's
-    // recovery-detection read does not fire and the snapshot-free fast path
-    // is preserved.
-    const provider = makeRecordingProvider({
-      ticket: { id: 5, labels: [], body: '' },
-    });
-    await transitionTicketState(provider, 5, 'agent::closing', {
-      cascade: false,
-    });
-    assert.equal(provider.getTicketCalls.length, 0);
+  it('loads the snapshot once for a non-recovery target with neither notify nor ticketSnapshot set', async () => {
+    // The invalid-transition observer needs the prior state on every flip
+    // (Story #5805). The provider's label merge would otherwise issue its
+    // own read, so threading the snapshot keeps production at one read.
+    for (const target of ['agent::closing', 'agent::done']) {
+      const ticket = { id: 5, labels: ['agent::executing'], body: '' };
+      const provider = makeRecordingProvider({ ticket });
+      await transitionTicketState(provider, 5, target, { cascade: false });
+      assert.deepEqual(
+        provider.getTicketCalls,
+        [5],
+        `expected exactly one snapshot read for ${target}`,
+      );
+      assert.equal(
+        provider.updateCalls[0].mutations._ticketSnapshot,
+        ticket,
+        'the snapshot must be threaded into updateTicket for reuse',
+      );
+    }
   });
 
   it('loads the snapshot once for a block-recovery target and threads it into updateTicket (Story #4622)', async () => {

@@ -35,11 +35,14 @@ function fakeProvider() {
 
 function fakeTransition() {
   const calls = [];
-  const transition = async (provider, id, state) => {
-    calls.push([provider, id, state]);
+  const transition = async (provider, id, state, opts) => {
+    calls.push([provider, id, state, opts]);
   };
   return { calls, transition };
 }
+
+/** Injected so the run never resolves the checkout's own `.agentrc.json`. */
+const config = { project: { paths: { tempRoot: '/fixture/temp' } } };
 
 describe('runUpdateTicketState — argument validation', () => {
   beforeEach(() => setLevel('silent'));
@@ -55,7 +58,7 @@ describe('runUpdateTicketState — argument validation', () => {
       const { calls, transition } = fakeTransition();
 
       await assert.rejects(
-        runUpdateTicketState({ argv, provider, transition }),
+        runUpdateTicketState({ argv, provider, transition, config }),
         /Usage: node update-ticket-state\.js --ticket <id>/,
       );
       assert.deepEqual(provider.updates, []);
@@ -76,6 +79,7 @@ describe('runUpdateTicketState — mutation paths', () => {
       argv: ['--ticket', '42', '--remove-label', 'status::blocked'],
       provider,
       transition,
+      config,
     });
 
     assert.deepEqual(calls, [], 'no state transition on the label-only path');
@@ -89,7 +93,7 @@ describe('runUpdateTicketState — mutation paths', () => {
     });
   });
 
-  it('transitions the state alone when only --state is given', async () => {
+  it('transitions the state alone, threading the resolved config, when only --state is given', async () => {
     const provider = fakeProvider();
     const { calls, transition } = fakeTransition();
 
@@ -97,9 +101,10 @@ describe('runUpdateTicketState — mutation paths', () => {
       argv: ['--ticket', '7', '--state', 'agent::executing'],
       provider,
       transition,
+      config,
     });
 
-    assert.deepEqual(calls, [[provider, 7, 'agent::executing']]);
+    assert.deepEqual(calls, [[provider, 7, 'agent::executing', { config }]]);
     assert.deepEqual(provider.updates, []);
     assert.deepEqual(res, {
       ticketId: 7,
@@ -130,6 +135,7 @@ describe('runUpdateTicketState — mutation paths', () => {
       ],
       provider,
       transition,
+      config,
     });
 
     assert.deepEqual(order, [
@@ -145,6 +151,7 @@ describe('runUpdateTicketState — mutation paths', () => {
       runUpdateTicketState({
         argv: ['--ticket', '9', '--state', 'agent::done'],
         provider,
+        config,
         transition: async () => {
           throw new Error('rate limited');
         },

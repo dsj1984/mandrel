@@ -56,15 +56,16 @@ function parseTicketStateArgs(argv) {
 }
 
 /**
- * @param {{ argv?: string[], provider?: object, transition?: typeof transitionTicketState }} [opts]
+ * @param {{ argv?: string[], provider?: object, transition?: typeof transitionTicketState, config?: object }} [opts]
  */
 export async function runUpdateTicketState({
   argv = process.argv.slice(2),
   provider,
   transition = transitionTicketState,
+  config = resolveConfig(),
 } = {}) {
   const { ticketId, state, removeLabel } = parseTicketStateArgs(argv);
-  const ticketing = provider ?? createProvider(resolveConfig());
+  const ticketing = provider ?? createProvider(config);
 
   // Label-only mutation path — no state transition. Callers that just
   // need to drop a single label without flipping the agent::* state.
@@ -81,7 +82,7 @@ export async function runUpdateTicketState({
 
   Logger.info(`[State-Sync] Transitioning ticket #${ticketId} to ${state}...`);
   // No explicit cascade: `transitionTicketState` already runs it.
-  await transition(ticketing, ticketId, state);
+  await transition(ticketing, ticketId, state, { config });
 
   // Optional secondary label removal alongside the state transition
   // (e.g. clear `status::blocked` when transitioning back to ready).

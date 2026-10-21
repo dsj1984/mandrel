@@ -9,6 +9,7 @@
 
 import { extractEpicIdFromBody } from '../../dependency-parser.js';
 import { Logger } from '../../Logger.js';
+import { AGENT_LABELS } from '../../label-constants.js';
 import {
   eventSeverity,
   renderTransitionMessage,
@@ -77,26 +78,22 @@ function validateTransitionInputs(newState) {
  */
 const BLOCK_RECOVERY_TARGETS = [STATE_LABELS.EXECUTING, STATE_LABELS.READY];
 
+/** The observer also reads a `review-spec` origin; a lifecycle state wins. */
+const OBSERVED_STATES = Object.values(AGENT_LABELS);
+
 /**
- * Resolve the pre-transition snapshot, honoring `opts.ticketSnapshot`. Loaded
- * only when `notify` needs `fromState` or `needFromState` is set (recovery
- * detection must read the prior label before `updateTicket` overwrites it).
- * Returns `null` on transient failure.
+ * Resolve the pre-transition snapshot, honoring `opts.ticketSnapshot`; the
+ * provider's label merge reuses it instead of its own read. Returns `null`
+ * on transient failure.
  *
  * @param {object} provider
- * @param {{ notify?: Function, ticketSnapshot?: object|null }} opts
+ * @param {{ ticketSnapshot?: object|null }} opts
  * @param {number} ticketId
- * @param {boolean} [needFromState]
  * @returns {Promise<object|null>}
  */
-async function loadTicketSnapshot(provider, opts, ticketId, needFromState) {
+async function loadTicketSnapshot(provider, opts, ticketId) {
   if (opts.ticketSnapshot) return opts.ticketSnapshot;
-  if (
-    (!opts.notify && !needFromState) ||
-    typeof provider.getTicket !== 'function'
-  ) {
-    return null;
-  }
+  if (typeof provider.getTicket !== 'function') return null;
   try {
     return await provider.getTicket(ticketId);
   } catch (err) {
@@ -286,14 +283,11 @@ export async function transitionTicketState(
 
   const toRemove = ALL_STATES.filter((state) => state !== newState);
 
-  const ticketSnapshot = await loadTicketSnapshot(
-    provider,
-    opts,
-    ticketId,
-    BLOCK_RECOVERY_TARGETS.includes(newState),
-  );
-  const fromState =
-    ticketSnapshot?.labels?.find((l) => ALL_STATES.includes(l)) ?? null;
+  const ticketSnapshot = await loadTicketSnapshot(provider, opts, ticketId);
+  const priorLabels = ticketSnapshot?.labels ?? [];
+  const fromState = priorLabels.find((l) => ALL_STATES.includes(l)) ?? null;
+  const observedFrom =
+    fromState ?? priorLabels.find((l) => OBSERVED_STATES.includes(l)) ?? null;
 
   const isDone = newState === STATE_LABELS.DONE;
 
@@ -308,7 +302,7 @@ export async function transitionTicketState(
     _ticketSnapshot: ticketSnapshot,
   });
 
-  await emitInvalidTransitionFriction(ticketId, fromState, newState, opts);
+  await emitInvalidTransitionFriction(ticketId, observedFrom, newState, opts);
   await emitBlockedFriction(ticketId, fromState, newState, opts);
 
   const boardSync = await syncProjectStatusColumn(
