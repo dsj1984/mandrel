@@ -14,11 +14,9 @@ import {
 } from './merge-poll.js';
 
 /**
- * Every valid `merge.unlanded` attribution. The first five are the classes
- * `classifyMergeBlock` can return, in its evaluation priority; the rest are
- * emitted directly, never by the classifier: `predicate-refused` (kept so
- * archived records validate), the advisory-gate pair, and the REST
- * transport's merge-queue refusal (`merge-queue.js` owns its constant).
+ * Every valid `merge.unlanded` attribution: the first five are what
+ * `classifyMergeBlock` returns, in priority order; the rest are emitted
+ * directly (`merge-queue.js` owns the REST refusal constant).
  */
 const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
   CHECKS_FAILED_CLASS,
@@ -93,12 +91,7 @@ function hasChecksPendingEvidence(prProbe) {
   );
 }
 
-/**
- * Step 1: a failed arm leaves no armed PR to probe.
- *
- * @param {object} armResult
- * @returns {{ blockClass: string, reason: string }}
- */
+// Step 1: a failed arm leaves no armed PR to probe.
 function classifyArmFailure(armResult) {
   const detail = armResult.reason ?? armResult.error ?? '';
   if (textIncludesAny(detail, BRANCH_PROTECTION_MARKERS)) {
@@ -119,10 +112,6 @@ function classifyArmFailure(armResult) {
  * Step 2: BLOCKED is the steady state while checks run; a slow-CI timeout
  * must not read as human-required. Positive evidence only: `unknown` routes
  * to the fallback; `undefined` (no probe) keeps this mapping.
- *
- * @param {object} [prProbe]
- * @param {object} [budget]
- * @returns {boolean}
  */
 function isChecksPendingTimeout(prProbe, budget) {
   if (budget?.exhausted !== true) return false;
@@ -131,12 +120,7 @@ function isChecksPendingTimeout(prProbe, budget) {
   );
 }
 
-/**
- * Step 3: BLOCKED counts only with checks settled — a genuinely human gate.
- *
- * @param {object} [prProbe]
- * @returns {boolean}
- */
+// Step 3: BLOCKED counts only with checks settled — a genuinely human gate.
 function isHumanRequired(prProbe) {
   if (!prProbe) return false;
   return (

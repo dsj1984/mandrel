@@ -55,22 +55,12 @@ function cloneDefault() {
   return { '*': ['**'] };
 }
 
-/**
- * @param {unknown} row
- * @param {string}  field
- * @returns {string|null} The row's `/`-normalized key, or null when absent.
- */
 function rowKey(row, field) {
   const key = row && typeof row === 'object' ? row[field] : undefined;
   if (typeof key !== 'string' || key.length === 0) return null;
   return key.replace(/\\/g, '/');
 }
 
-/**
- * @param {string}  normalized
- * @param {unknown} globs
- * @returns {boolean} `true` iff any non-empty string glob matches.
- */
 function matchesAnyGlob(normalized, globs) {
   if (!Array.isArray(globs)) return false;
   return globs.some(

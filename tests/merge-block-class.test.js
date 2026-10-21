@@ -20,9 +20,7 @@ import {
   isValidBlockClass,
 } from '../.agents/scripts/lib/orchestration/merge-block-class.js';
 
-// Every classifyMergeBlock output, in evaluation order. The Epic #4425 Goal
-// named four; Story #4543 added `checks-failed` so a red required check is
-// attributable as itself.
+// Every classifyMergeBlock output, in evaluation order.
 const BLOCK_CLASSES = Object.freeze([
   'checks-failed',
   'checks-pending-timeout',
