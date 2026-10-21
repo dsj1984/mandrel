@@ -13,18 +13,13 @@
  * dies with the digest). A missing SHA on either side fails closed.
  */
 
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from '../config-resolver.js';
 import { prSurfaceUsesRest, runGh } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
 import { createProvider } from '../provider-factory.js';
+import { writeFileAtomic } from '../util/atomic-write.js';
 import { isRerunPermitted } from './check-state.js';
 import {
   STATE_LABELS,
@@ -213,7 +208,10 @@ export function readCiDigest({ storyId = null, tempRoot, cwd }) {
   try {
     const parsed = JSON.parse(readFileSync(paths.jsonPath, 'utf8'));
     return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
+  } catch (err) {
+    Logger.warn(
+      `ignoring unreadable CI digest ${paths.jsonPath} (${err.message}) — treated as absent`,
+    );
     return null;
   }
 }
@@ -351,9 +349,8 @@ export function writeCiDigest({
     logTail,
     generatedAt: new Date().toISOString(),
   };
-  mkdirSync(path.dirname(paths.jsonPath), { recursive: true });
-  writeFileSync(paths.jsonPath, `${JSON.stringify(digest, null, 2)}\n`);
-  writeFileSync(paths.mdPath, renderDigestMarkdown(digest, failures));
+  writeFileAtomic(paths.jsonPath, `${JSON.stringify(digest, null, 2)}\n`);
+  writeFileAtomic(paths.mdPath, renderDigestMarkdown(digest, failures));
   return { jsonPath: paths.jsonPath, mdPath: paths.mdPath };
 }
 
@@ -388,7 +385,7 @@ export function recordRerunAllowance({
     recordedAt: now().toISOString(),
   };
   try {
-    writeFileSync(
+    writeFileAtomic(
       paths.jsonPath,
       `${JSON.stringify({ ...digest, rerunAllowance: allowance }, null, 2)}\n`,
     );
