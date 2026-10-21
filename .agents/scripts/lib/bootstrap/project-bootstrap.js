@@ -547,8 +547,7 @@ const BOOTSTRAP_PHASES = Object.freeze([
   {
     name: 'systemPromptWiring',
     phaseGroup: PHASE_GROUPS.IDE_WIRING,
-    // `AGENTS.md` must import the system prompt or the framework never loads
-    // on cold start; a pre-existing `CLAUDE.md` is folded in first.
+    // AGENTS.md must import the system prompt; CLAUDE.md is folded in first.
     run: (ctx) => wireEntryDoc(ctx.projectRoot, ctx.fsImpl),
   },
   {

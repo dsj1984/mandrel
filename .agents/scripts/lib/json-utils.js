@@ -45,13 +45,7 @@ export function deepEqual(a, b) {
   return true;
 }
 
-/**
- * Missing or unparsable → `null`; never throws.
- *
- * @param {string} file
- * @param {{ readFileSync: Function }} [fsImpl]
- * @returns {any}
- */
+/** Missing or unparsable → `null`; never throws. */
 export function readJsonOrNull(file, fsImpl = fs) {
   try {
     return JSON.parse(fsImpl.readFileSync(file, 'utf8'));
