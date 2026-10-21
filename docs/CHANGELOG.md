@@ -15,6 +15,20 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.96.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.95.0...mandrel-v2.96.0) (2026-10-21)
+
+
+### Added
+
+* add /audit-red-team: a global adversarial lens that reports attack paths, abuse cases and agent exposure with a reproduced-or-reasoned evidence bar ([#5838](https://github.com/dsj1984/mandrel/issues/5838)) ([#5841](https://github.com/dsj1984/mandrel/issues/5841)) ([36bc0fb](https://github.com/dsj1984/mandrel/commit/36bc0fb34dea12c389f892c42f170026f5dfcd88))
+* add /mandrel-leverage, a leverage review with maker-blind skeptics (refs [#5839](https://github.com/dsj1984/mandrel/issues/5839)) ([#5840](https://github.com/dsj1984/mandrel/issues/5840)) ([146310f](https://github.com/dsj1984/mandrel/commit/146310f9477d4753ca441f19bdde0c708263a1eb))
+
+
+### Fixed
+
+* harden this repo's Claude Code settings and record why Bash and Write stay broad (refs [#5844](https://github.com/dsj1984/mandrel/issues/5844)) ([#5846](https://github.com/dsj1984/mandrel/issues/5846)) ([f56c028](https://github.com/dsj1984/mandrel/commit/f56c02861e91370c7cee89ab745c99e3706bcc6f))
+* stop the issue-body conformance comment from echoing issue text as the Actions bot, and update one marker comment instead of posting a new one per edit ([#5843](https://github.com/dsj1984/mandrel/issues/5843)) ([#5845](https://github.com/dsj1984/mandrel/issues/5845)) ([bd6cbe7](https://github.com/dsj1984/mandrel/commit/bd6cbe70651408b5311be0629dc641db8953b80e))
+
 ## [2.95.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.94.0...mandrel-v2.95.0) (2026-10-21)
 
 
