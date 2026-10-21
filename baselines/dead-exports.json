@@ -71,10 +71,6 @@
       "symbol": "isTransientStatus"
     },
     {
-      "file": ".agents/scripts/providers/github/auth.js",
-      "symbol": "execSyncHolder"
-    },
-    {
       "file": ".agents/scripts/providers/github/issues.js",
       "symbol": "paginateRest"
     },

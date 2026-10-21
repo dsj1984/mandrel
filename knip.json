@@ -79,6 +79,7 @@
     "scripts/*.js!",
     "tests/**/*.{js,mjs,cjs}",
     ".agents/scripts/**/__tests__/**/*.test.js",
+    "lib/**/__tests__/**/*.test.js",
     ".agents/scripts/**/__tests__/fixtures/**/*.js",
     "*.config.{js,mjs,cjs}",
     ".husky/**"
@@ -90,16 +91,7 @@
     "scripts/**/*.js!",
     "tests/**/*.{js,mjs,cjs}"
   ],
-  "ignore": [
-    "node_modules/**",
-    ".worktrees/**",
-    "coverage/**",
-    "temp/**",
-    "baselines/**",
-    ".claude/**",
-    "lib/**/__tests__/**",
-    ".agents/scripts/lib/generated/**"
-  ],
+  "ignore": [".agents/scripts/lib/generated/**"],
   "rules": {
     "files": "error",
     "duplicates": "off",

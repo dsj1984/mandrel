@@ -48,6 +48,13 @@ export function ignoreLineGlobs(line, dir = '') {
     .map((g) => (dir ? `${dir}/${g}` : g));
 }
 
+// Emitted code and captured test data are excluded by design.
+function byDesignHint(glob) {
+  const dir = /(?:^|\/)(generated|fixtures)(?:\/|$)/.exec(glob)?.[1];
+  if (dir === 'generated') return 'generated-path';
+  return dir === 'fixtures' ? 'fixture-path' : null;
+}
+
 /**
  * @param {object} ctx
  * @param {string} glob - repo-relative.
@@ -59,7 +66,11 @@ function probeOne(ctx, glob) {
     dot: true,
   });
   if (ctx.scope.files.some((f) => isMatch(f)))
-    return { verdict: 'live', basis: 'matches-tracked' };
+    return {
+      verdict: 'live',
+      basis: 'matches-tracked',
+      permanentHint: byDesignHint(clean),
+    };
   const base = staticBase(clean);
   if (base === '') return { verdict: 'unknown', basis: 'no-static-base' };
   if (fs.existsSync(path.join(ctx.root, base))) {

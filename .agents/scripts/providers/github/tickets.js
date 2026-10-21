@@ -180,7 +180,6 @@ export class TicketGateway {
     return tickets;
   }
 
-  /* node:coverage ignore next */
   async getTicketDependencies(ticketId) {
     const ticket = await this.getTicket(ticketId);
     return {
@@ -363,7 +362,6 @@ export class TicketGateway {
    * @field-manifest PATCH /repos/{owner}/{repo}/issues/{n}:
    *                 title, body, assignees, state, state_reason, labels
    */
-  /* node:coverage ignore next */
   async updateTicket(ticketId, mutations) {
     await this._addAssignees(ticketId, mutations.addAssignees);
     const patch = {};

@@ -21,7 +21,6 @@ export class ProjectBoardGateway {
     return projects.ensureStatusField(this._ctx, optionNames);
   }
 
-  /* node:coverage ignore next */
   async ensureProjectFields(fieldDefs) {
     return projects.ensureProjectFields(this._ctx, fieldDefs);
   }
