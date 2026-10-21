@@ -5,14 +5,7 @@
  */
 
 import { Logger } from '../../../Logger.js';
-import {
-  canFastForward,
-  checkoutBranch,
-  currentBranch,
-  fetchRef,
-  isWorkingTreeClean,
-  mergeFastForward,
-} from './git-probes.js';
+import { defaultFfProbes } from './git-probes-ff.js';
 
 const TAG = '[git-cleanup]';
 
@@ -26,10 +19,10 @@ export function planFastForward(ctx) {
     cwd,
     baseBranch,
     remoteName = 'origin',
-    isCleanFn = isWorkingTreeClean,
-    currentBranchFn = currentBranch,
-    fetchFn = fetchRef,
-    canFastForwardFn = canFastForward,
+    isCleanFn = defaultFfProbes.isClean,
+    currentBranchFn = defaultFfProbes.currentBranch,
+    fetchFn = defaultFfProbes.fetch,
+    canFastForwardFn = defaultFfProbes.canFastForward,
   } = ctx;
   if (!isCleanFn(cwd)) return { runnable: false, reason: 'dirty-tree' };
   const fetchRes = fetchFn(cwd, remoteName, baseBranch);
@@ -111,8 +104,8 @@ export function executeFastForward(ctx) {
     baseBranch,
     remoteName = 'origin',
     plan,
-    checkoutFn = checkoutBranch,
-    mergeFn = mergeFastForward,
+    checkoutFn = defaultFfProbes.checkout,
+    mergeFn = defaultFfProbes.merge,
     logger = Logger,
   } = ctx;
   if (!plan.runnable) {
