@@ -15,6 +15,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
+  branchTipSha,
   dropStash,
   removeWorktree,
 } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js';
@@ -117,5 +118,34 @@ describe('git-probes-ff default bindings — real repo', () => {
 
     fs.writeFileSync(path.join(repo, 'extra.txt'), 'changed\n');
     assert.equal(defaultFfProbes.isClean(repo), false);
+  });
+});
+
+describe('branchTipSha — real repo', () => {
+  let repo;
+
+  beforeEach(() => {
+    repo = makeGitRepo({ prefix: 'tip-sha-real-' });
+    seedGitIdentity(repo);
+  });
+
+  afterEach(() => {
+    fs.rmSync(repo, { recursive: true, force: true });
+  });
+
+  it('reads a local tip via rev-parse and null for a missing ref', () => {
+    const head = git(repo, 'rev-parse', 'HEAD').trim();
+    assert.equal(branchTipSha({ cwd: repo, branch: 'main' }), head);
+    assert.equal(branchTipSha({ cwd: repo, branch: 'no-such' }), null);
+  });
+
+  it('reads a remote-only tip via ls-remote and null when absent or unreachable', () => {
+    const head = git(repo, 'rev-parse', 'HEAD').trim();
+    git(repo, 'remote', 'add', 'self', repo);
+    const remote = (branch, remoteName = 'self') =>
+      branchTipSha({ cwd: repo, branch, remoteName, localExists: false });
+    assert.equal(remote('main'), head);
+    assert.equal(remote('no-such'), null);
+    assert.equal(remote('main', 'no-such-remote'), null);
   });
 });
