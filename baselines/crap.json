@@ -2725,6 +2725,13 @@
       "crap": 7.155836556075718
     },
     {
+      "path": ".agents/scripts/cleanup-repo-test-temp.js",
+      "method": "<anon ()#0>",
+      "startLine": 72,
+      "crap": 1.037037037037037,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/coverage-capture.js",
       "method": "parseArgs",
       "startLine": 48,
@@ -5589,6 +5596,12 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "commentAbove",
+      "startLine": 114,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
       "method": "jsonSourceRecords",
       "startLine": 140,
       "crap": 1
@@ -5986,6 +5999,12 @@
       "startLine": 48,
       "crap": 2,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "byDesignHint",
+      "startLine": 52,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/globs.js",
@@ -47763,6 +47782,13 @@
       "method": "parseIsolateArgv",
       "startLine": 75,
       "crap": 7
+    },
+    {
+      "path": "scripts/lib/test-isolate/env-snapshot-loader.js",
+      "method": "<anon ()#0>",
+      "startLine": 19,
+      "crap": 9.018031555221638,
+      "anonymous": true
     },
     {
       "path": "scripts/lib/test-isolate/list-files.js",
