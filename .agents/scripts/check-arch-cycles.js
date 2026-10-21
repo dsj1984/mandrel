@@ -11,7 +11,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
-import { readJsonBaseline } from './lib/gates/baseline-store.js';
+import { readJsonBaseline, writeBaseline } from './lib/gates/baseline-store.js';
 import {
   buildGraph,
   collectJsFiles,
@@ -28,19 +28,22 @@ export {
   readJsonBaseline as loadBaseline,
 };
 
+const BASELINE_SCHEMA = 'https://mandrel.dev/baselines/arch-cycles.schema.json';
+
 /**
  * @param {string[]} argv
- * @returns {{ baselinePath: string | null, rootPath: string | null, json: boolean }}
+ * @returns {{ baselinePath: string | null, rootPath: string | null, json: boolean, update: boolean }}
  */
 export function parseArgv(argv = []) {
   const flags = parseGateArgv(argv, {
     strings: ['baseline', 'root'],
-    booleans: ['json'],
+    booleans: ['json', 'update'],
   });
   return {
     baselinePath: flags.baseline,
     rootPath: flags.root,
     json: flags.json,
+    update: flags.update,
   };
 }
 
@@ -157,13 +160,48 @@ export function renderDiff(diff) {
 }
 
 /**
+ * `--root` scans one root relative to itself; otherwise every root is
+ * relativized against `cwd` so cross-root edges join one graph.
+ *
+ * @param {string} cwd
+ * @param {string | null} rootPath
+ * @returns {{ graphRoot: string, detected: string[][] }}
+ */
+function detectCycles(cwd, rootPath) {
+  const graphRoot = rootPath ? path.resolve(cwd, rootPath) : path.resolve(cwd);
+  const scanDirs = (rootPath ? [rootPath] : DEFAULT_ROOTS).map((dir) =>
+    path.resolve(cwd, dir),
+  );
+  const presentScanDirs = scanDirs.filter((dir) => fs.existsSync(dir));
+  if (presentScanDirs.length === 0) {
+    throw new Error(`[arch-cycles] no scan root found: ${scanDirs.join(', ')}`);
+  }
+  const files = presentScanDirs.flatMap((dir) => collectJsFiles(dir));
+  return { graphRoot, detected: findCycles(buildGraph(files, graphRoot)) };
+}
+
+function writeReport({ json, baseline, report, stdout, stderr }) {
+  if (json) {
+    stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    return;
+  }
+  if (!baseline) {
+    stderr.write(
+      `[arch-cycles] ⚠ allowlist not found at ${report.baselinePath} — treating as empty\n`,
+    );
+  }
+  stdout.write(`\n--- arch-cycles preview ---\n`);
+  stdout.write(`${renderDiff(report)}\n`);
+}
+
+/**
  * @param {{
  *   argv?: string[],
  *   cwd?: string,
  *   stdout?: { write: (s: string) => void },
  *   stderr?: { write: (s: string) => void },
  * }} [opts]
- * @returns {Promise<number>} 0 = clean or removals-only; 1 = new cycle detected
+ * @returns {Promise<number>} 0 = clean, removals-only, or `--update`; 1 = new cycle detected
  */
 export async function runCli({
   argv = process.argv.slice(2),
@@ -171,52 +209,39 @@ export async function runCli({
   stdout = process.stdout,
   stderr = process.stderr,
 } = {}) {
-  const { baselinePath, rootPath, json } = parseArgv(argv);
-  // `--root` scans one root relative to itself; otherwise every root is
-  // relativized against `cwd` so cross-root edges join one graph.
-  const graphRoot = rootPath ? path.resolve(cwd, rootPath) : path.resolve(cwd);
-  const scanDirs = (rootPath ? [rootPath] : DEFAULT_ROOTS).map((dir) =>
-    path.resolve(cwd, dir),
-  );
+  const { baselinePath, rootPath, json, update } = parseArgv(argv);
   const resolvedBaselinePath = path.resolve(
     cwd,
     baselinePath ?? path.join('baselines', 'arch-cycles.json'),
   );
-  const presentScanDirs = scanDirs.filter((dir) => fs.existsSync(dir));
-  if (presentScanDirs.length === 0) {
-    throw new Error(`[arch-cycles] no scan root found: ${scanDirs.join(', ')}`);
+  const { graphRoot, detected } = detectCycles(cwd, rootPath);
+  if (update) {
+    writeBaseline({
+      baselinePath: resolvedBaselinePath,
+      data: {
+        $schema: BASELINE_SCHEMA,
+        generatedAt: new Date().toISOString(),
+        cycles: detected,
+      },
+    });
+    stdout.write(`[arch-cycles] wrote ${detected.length} cycle(s)\n`);
+    return 0;
   }
   const baseline = readJsonBaseline(resolvedBaselinePath);
   const allowlisted = Array.isArray(baseline?.cycles) ? baseline.cycles : [];
-
-  const files = presentScanDirs.flatMap((dir) => collectJsFiles(dir));
-  const graph = buildGraph(files, graphRoot);
-  const detected = findCycles(graph);
   const diff = diffCycles(allowlisted, detected);
   const exitCode = diff.added.length > 0 ? 1 : 0;
-
-  if (json) {
-    const envelope = {
-      kind: 'arch-cycles-report',
-      root: graphRoot,
-      baselinePath: resolvedBaselinePath,
-      allowlisted: allowlisted.map(normalizeCycle),
-      detected,
-      added: diff.added,
-      removed: diff.removed,
-      exitCode,
-    };
-    stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
-  } else {
-    if (!baseline) {
-      stderr.write(
-        `[arch-cycles] ⚠ allowlist not found at ${resolvedBaselinePath} — treating as empty\n`,
-      );
-    }
-    stdout.write(`\n--- arch-cycles preview ---\n`);
-    stdout.write(`${renderDiff(diff)}\n`);
-  }
-
+  const report = {
+    kind: 'arch-cycles-report',
+    root: graphRoot,
+    baselinePath: resolvedBaselinePath,
+    allowlisted: allowlisted.map(normalizeCycle),
+    detected,
+    added: diff.added,
+    removed: diff.removed,
+    exitCode,
+  };
+  writeReport({ json, baseline, report, stdout, stderr });
   return exitCode;
 }
 
@@ -226,7 +251,7 @@ runAsCli(import.meta.url, runCli, {
   errorPrefix: '[arch-cycles] ❌ Fatal error',
   usage: {
     invocation:
-      'node .agents/scripts/check-arch-cycles.js [--baseline <path>] [--root <dir>] [--json]',
+      'node .agents/scripts/check-arch-cycles.js [--baseline <path>] [--root <dir>] [--json] [--update]',
     summary:
       'Ratchet on module-dependency cycles: compare the live import graph against the recorded baseline and fail on any newly added cycle.',
     flags: [
@@ -239,6 +264,10 @@ runAsCli(import.meta.url, runCli, {
         'Scan a single root instead of the distributed surface.',
       ],
       ['--json', 'Emit the comparison envelope as JSON.'],
+      [
+        '--update',
+        'Rewrite the baseline to the detected cycles with a fresh generatedAt.',
+      ],
     ],
     notes: [
       'Exit codes:\n  0  clean, or removals only\n  1  a new cycle was detected',
