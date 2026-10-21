@@ -110,6 +110,10 @@ export function isIgnoredByGlobs(filePath, ignoreGlobs = [], cwd) {
   );
 }
 
+function skipVanishedDir(err) {
+  if (err?.code !== 'ENOENT') throw err;
+}
+
 /**
  * Recursively collect scorable source files, using the shared extension set
  * so the walk, coverage freshness and CRAP projection cannot drift apart.
@@ -122,15 +126,15 @@ export function isIgnoredByGlobs(filePath, ignoreGlobs = [], cwd) {
 export function scanDirectory(dir, fileList = [], opts = {}) {
   const { ignoreGlobs = [], cwd: optsCwd } = opts;
   const matchCwd = optsCwd ?? process.cwd();
-  fileList.push(
-    ...walkFiles(dir, {
-      skipDirs: IGNORED_DIRS,
-      filter: (abs, dirent) =>
-        dirent.isFile() &&
-        isScorableSourceFile(dirent.name) &&
-        !isIgnoredByGlobs(abs, ignoreGlobs, matchCwd),
-    }),
-  );
+  const found = walkFiles(dir, {
+    skipDirs: IGNORED_DIRS,
+    filter: (abs, dirent) =>
+      dirent.isFile() &&
+      isScorableSourceFile(dirent.name) &&
+      !isIgnoredByGlobs(abs, ignoreGlobs, matchCwd),
+    onError: skipVanishedDir,
+  });
+  for (const file of found) fileList.push(file);
   return fileList;
 }
 

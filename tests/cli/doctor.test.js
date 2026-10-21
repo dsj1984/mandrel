@@ -1181,4 +1181,67 @@ describe('createRunner', () => {
     assert.equal(missing.status, null);
     assert.equal(missing.error?.code, 'ENOENT');
   });
+
+  it('the default spawn resolves a spawn error Node throws synchronously', async () => {
+    const runner = createRunner();
+    const nul = String.fromCharCode(0);
+    for (const [args, opts] of [
+      [[`a${nul}b`], {}],
+      [['-e', '1'], { cwd: import.meta.filename }],
+    ]) {
+      const res = await runner(process.execPath, args, opts);
+      assert.deepEqual([res.status, res.stdout, res.stderr], [null, '', '']);
+      assert.ok(res.error instanceof Error);
+    }
+  });
+});
+
+describe('runDoctor — a check that throws', () => {
+  it('reports it as a failure and still prints every check, the summary and exits 1', async () => {
+    const cap = makeCapture();
+    let verdict = null;
+    await runDoctor({
+      checks: [
+        fakeCheck('node-version', { ok: true, detail: 'v24' }),
+        {
+          name: 'gh-available',
+          run: async () => {
+            throw new Error('spawn EINVAL');
+          },
+        },
+        {
+          name: 'gh-auth',
+          run: ({ prior }) => ({ ok: true, detail: `after ${prior.detail}` }),
+        },
+        {
+          name: 'runtime-deps',
+          run: () => {
+            throw new TypeError('boom');
+          },
+        },
+      ],
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: (v) => {
+        verdict = v;
+      },
+      closureReport: () => '',
+    });
+    assert.deepEqual(
+      cap.lines.slice(0, 4).map((l) => l.split(/\s+/)[1]),
+      ['node-version', 'gh-available', 'gh-auth', 'runtime-deps'],
+    );
+    assert.match(
+      cap.lines[1],
+      /✘\s+gh-available\s+check threw: Error: spawn EINVAL/,
+    );
+    assert.match(cap.lines[2], /✔\s+gh-auth\s+after check threw: Error/);
+    assert.match(
+      cap.lines[3],
+      /✘\s+runtime-deps\s+check threw: TypeError: boom/,
+    );
+    assert.match(cap.lines.join(''), /❌\s+Not ready \(2\/4 checks failed\)/);
+    assert.equal(verdict, 'unready');
+    assert.equal(cap.exitCode, 1);
+  });
 });

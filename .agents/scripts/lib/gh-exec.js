@@ -242,6 +242,9 @@ export function classify({
   return new GhExecError(`gh-exec: gh exited with code ${code}`, details);
 }
 
+/** Windows (libuv) reports a broken pipe on a pending write as `EOF`. */
+const BROKEN_PIPE_CODES = new Set(['EPIPE', 'EOF']);
+
 /**
  * @param {object} opts
  * @param {string[]} opts.args
@@ -294,6 +297,7 @@ export function exec({
     let stdout = '';
     let stderr = '';
     let settled = false;
+    let stdinError = null;
 
     child.stdout?.on('data', (chunk) => {
       stdout += chunk.toString('utf8');
@@ -316,7 +320,7 @@ export function exec({
       const timedOut =
         spawnOpts.timeout !== undefined &&
         (signal === 'SIGTERM' || code === null);
-      if (timedOut && spawnOpts.timeout !== undefined) {
+      if (timedOut) {
         reject(
           new GhExecTimeoutError(
             `gh-exec: gh ${args.join(' ')} exceeded ${spawnOpts.timeout}ms`,
@@ -328,6 +332,17 @@ export function exec({
 
       if (code !== 0) {
         reject(classify({ args, stdout, stderr, code }));
+        return;
+      }
+
+      // A clean exit after a failed stdin write may have run on truncated input.
+      if (stdinError) {
+        reject(
+          new GhExecError(
+            `gh-exec: writing gh stdin failed: ${stdinError.message}`,
+            { args, stdout, stderr, code },
+          ),
+        );
         return;
       }
 
@@ -349,21 +364,16 @@ export function exec({
     });
 
     // A gh that exits before reading stdin breaks the pipe; its exit still
-    // settles the call, so the write error must not escape as uncaught.
-    child.stdin?.on?.('error', ignoreBrokenPipe);
+    // settles the call. Any other write error rejects at 'close', never throws.
+    child.stdin?.on?.('error', (err) => {
+      if (!BROKEN_PIPE_CODES.has(err.code)) stdinError = err;
+    });
     if (typeof input === 'string' && child.stdin) {
       child.stdin.end(input);
     } else if (child.stdin) {
       child.stdin.end();
     }
   });
-}
-
-/**
- * @param {NodeJS.ErrnoException} err
- */
-function ignoreBrokenPipe(err) {
-  if (err.code !== 'EPIPE') throw err;
 }
 
 /**
