@@ -2548,7 +2548,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
-      "mi": 95.393
+      "mi": 97.356
     },
     {
       "path": "lib/cli/doctor-checks/merge-driver.js",
@@ -2560,7 +2560,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/project-access.js",
-      "mi": 96.879
+      "mi": 98.168
     },
     {
       "path": "lib/cli/doctor-checks/read-json.js",
@@ -2572,7 +2572,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/spawn.js",
-      "mi": 120.285
+      "mi": 121.293
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
