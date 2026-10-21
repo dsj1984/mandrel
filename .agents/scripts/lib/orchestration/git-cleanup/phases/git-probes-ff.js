@@ -22,26 +22,6 @@ export function isWorktreeLockFailure(stderr) {
   return WORKTREE_LOCK_RE.test(stderr ?? '');
 }
 
-export function isWorkingTreeClean(cwd) {
-  return defaultFfProbes.isClean(cwd);
-}
-
-export function fetchRef(cwd, remoteName, ref) {
-  return defaultFfProbes.fetch(cwd, remoteName, ref);
-}
-
-export function canFastForward(cwd, baseBranch, remoteName) {
-  return defaultFfProbes.canFastForward(cwd, baseBranch, remoteName);
-}
-
-export function checkoutBranch(cwd, branch) {
-  return defaultFfProbes.checkout(cwd, branch);
-}
-
-export function mergeFastForward(cwd, ref) {
-  return defaultFfProbes.merge(cwd, ref);
-}
-
 /**
  * The single implementation of the FF git wrappers; callers needing an
  * injected spawn use this factory rather than a parallel copy.
@@ -109,7 +89,8 @@ export function makeFfProbes(spawn = gitSpawn) {
   };
 }
 
-const defaultFfProbes = makeFfProbes(gitSpawn);
+/** The FF wrappers bound to the real `gitSpawn` — the phase defaults. */
+export const defaultFfProbes = makeFfProbes(gitSpawn);
 
 /**
  * The destructive worktree / prune / stash wrappers over an injected spawn,
