@@ -103,7 +103,6 @@ export async function runOnPool(workerScript, items, opts = {}) {
         const myIndex = nextIndex++;
         if (myIndex >= itemsArr.length) break;
         const item = itemsArr[myIndex];
-        // Sequential per worker by design: each worker drains one item at a time.
         const outcome = await dispatchOne(worker, item);
         if (outcome.kind === 'ok') {
           results[myIndex] = outcome.result;

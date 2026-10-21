@@ -210,7 +210,7 @@ async function applyPlan({ plan, issue, provider, projectId, sync, summary }) {
   else summary.failed += 1;
 }
 
-/* node:coverage ignore next -- CLI entry over the live board; the backfill logic above is tested */
+/* node:coverage ignore next -- live CLI entry */
 export async function main(argv = process.argv.slice(2)) {
   const { values } = parseArgs({
     args: argv,

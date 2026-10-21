@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- the npm test driver itself; it cannot run under the suite it launches */
+/* node:coverage ignore file -- the suite driver itself */
 
 /**
  * Cross-platform driver for `npm test`. Cleanup runs in-process so reserved

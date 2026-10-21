@@ -15,7 +15,7 @@ import { resolveConfig } from './lib/config-resolver.js';
 import { promptYesNo } from './lib/orchestration/git-cleanup/phases/prompts.js';
 import { createProvider } from './lib/provider-factory.js';
 
-/* node:coverage ignore next -- CLI entry; runCleanTemp carries the tests */
+/* node:coverage ignore next -- CLI entry */
 async function main() {
   const { exitCode } = await runCleanTemp({
     argv: process.argv.slice(2),

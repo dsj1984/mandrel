@@ -1,4 +1,4 @@
-/* node:coverage ignore file -- operator CLI driving live gh/GitHub setup; its preflight and protection logic is tested in lib/bootstrap/ */
+/* node:coverage ignore file -- live gh setup CLI; logic tested in lib/bootstrap */
 /**
  * agents-bootstrap-github — idempotent GitHub-side setup: label taxonomy,
  * optional project board, branch protection, merge methods.

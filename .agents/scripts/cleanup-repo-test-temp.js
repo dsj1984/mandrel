@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- posttest housekeeping CLI; deletes only the reserved test-id band and runs outside the suite */
+/* node:coverage ignore file -- posttest CLI outside the suite */
 
 /**
  * Removes **test-reserved** per-Epic trees under `<repo>/temp/epic-<id>/` after

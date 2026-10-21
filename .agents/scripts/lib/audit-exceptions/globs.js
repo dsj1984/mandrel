@@ -48,14 +48,7 @@ export function ignoreLineGlobs(line, dir = '') {
     .map((g) => (dir ? `${dir}/${g}` : g));
 }
 
-/**
- * A glob under a `generated/` or `fixtures/` directory exempts emitted code or
- * captured test data — excluded by design, so it needs no written reason (a
- * JSON config such as `biome.json` cannot hold a comment to carry one).
- *
- * @param {string} glob
- * @returns {string|null}
- */
+// Emitted code and captured test data are excluded by design.
 function byDesignHint(glob) {
   const dir = /(?:^|\/)(generated|fixtures)(?:\/|$)/.exec(glob)?.[1];
   if (dir === 'generated') return 'generated-path';
@@ -65,7 +58,7 @@ function byDesignHint(glob) {
 /**
  * @param {object} ctx
  * @param {string} glob - repo-relative.
- * @returns {{ verdict: string, basis: string, permanentHint?: string|null }}
+ * @returns {{ verdict: string, basis: string }}
  */
 function probeOne(ctx, glob) {
   const clean = glob.replace(/^\.\//, '').replace(/^!/, '');

@@ -110,14 +110,7 @@ const TS_LOOSENED = Object.freeze({
   skipLibCheck: true,
 });
 
-/**
- * A JSONC `//` line directly above an entry is its reason — the JSON-config
- * twin of the `#` line `ignoreFileRecords` reads.
- *
- * @param {string|null} text
- * @param {number} line - 1-based line of the entry.
- * @returns {string|null}
- */
+// A JSONC `//` line directly above an entry is its reason.
 function commentAbove(text, line) {
   const prev = (text ?? '').split('\n')[line - 2]?.trim() ?? '';
   return prev.startsWith('//') ? prev.slice(2).trim() || null : null;

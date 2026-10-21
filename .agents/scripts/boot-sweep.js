@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- CLI shell over sweepMergedBranches/sweepStaleStoryWorktrees, which carry the tests */
+/* node:coverage ignore file -- CLI shell over tested sweep libs */
 
 /**
  * boot-sweep.js — non-interactive *protected* merged-branch sweep over

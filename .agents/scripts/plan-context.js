@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- CLI shell that assembles the plan envelope from the tested lib/plan-context modules */
+/* node:coverage ignore file -- CLI shell over tested libs */
 
 /**
  * plan-context.js — build the `/mandrel-plan` authoring-context envelope from
