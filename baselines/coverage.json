@@ -3934,8 +3934,8 @@
     },
     {
       "path": "lib/cli/uninstall.js",
-      "lines": 96,
-      "branches": 87.23,
+      "lines": 99.74,
+      "branches": 95.68,
       "functions": 100
     },
     {
