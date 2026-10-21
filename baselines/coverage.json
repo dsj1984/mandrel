@@ -1924,8 +1924,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 96.25,
-      "branches": 86.42,
+      "lines": 96.29,
+      "branches": 86.25,
       "functions": 100
     },
     {
@@ -2050,8 +2050,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/fast-forward.js",
-      "lines": 94.16,
-      "branches": 87.5,
+      "lines": 93.88,
+      "branches": 86.21,
       "functions": 100
     },
     {
@@ -2063,14 +2063,14 @@
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "lines": 100,
-      "branches": 94.44,
+      "branches": 90.91,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "lines": 94.75,
-      "branches": 81.03,
-      "functions": 95.24
+      "lines": 97.13,
+      "branches": 81.97,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/merged-tip.js",
@@ -2086,8 +2086,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "lines": 79.19,
-      "branches": 90,
+      "lines": 98.77,
+      "branches": 95.89,
       "functions": 100
     },
     {
@@ -2110,8 +2110,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/stashes.js",
-      "lines": 99.27,
-      "branches": 89.47,
+      "lines": 99.25,
+      "branches": 92.31,
       "functions": 100
     },
     {
@@ -3167,7 +3167,7 @@
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
       "lines": 100,
-      "branches": 97.47,
+      "branches": 98.13,
       "functions": 100
     },
     {

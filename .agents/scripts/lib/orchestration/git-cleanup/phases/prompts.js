@@ -22,7 +22,7 @@ export function decideStashAnswer(answer) {
   return 'keep';
 }
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin readline shim on process.stdin; drivers inject prompt */
 export async function promptYesNo(question) {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -38,7 +38,7 @@ export async function promptYesNo(question) {
   }
 }
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin readline shim; answer parsing tested via decideStashAnswer */
 export async function promptStashDecision(entry) {
   const rl = readline.createInterface({
     input: process.stdin,
