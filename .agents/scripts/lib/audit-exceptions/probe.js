@@ -17,11 +17,13 @@ import { readJsonc } from './read.js';
 
 const PROBE_TIMEOUT_MS = 180_000;
 
+// .native expands Windows 8.3 short names.
 const realOrSelf = (p) => {
+  const plain = p.replace(/^\\\\\?\\/, '');
   try {
-    return fs.realpathSync(p);
+    return fs.realpathSync.native(plain);
   } catch {
-    return p;
+    return plain;
   }
 };
 
