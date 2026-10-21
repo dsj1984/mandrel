@@ -17,8 +17,19 @@ import { readJsonc } from './read.js';
 
 const PROBE_TIMEOUT_MS = 180_000;
 
+const realOrSelf = (p) => {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return p;
+  }
+};
+
 const relTo = (root, file) =>
-  path.relative(root, path.resolve(root, file)).split(path.sep).join('/');
+  path
+    .relative(realOrSelf(root), realOrSelf(path.resolve(root, file)))
+    .split(path.sep)
+    .join('/');
 
 /** Each tool: package + bin, when it applies, its args, and how to read hits. */
 const TOOLS = Object.freeze([
