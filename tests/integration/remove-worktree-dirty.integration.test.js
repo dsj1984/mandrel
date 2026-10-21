@@ -4,8 +4,8 @@
  * worktree holding an untracked file refuses a plain `git worktree remove`,
  * so only the `--force` escalation inside the real `removeWorktree` (as production binds it in `git-probes.js`) can
  * remove it — if that branch is deleted this test fails with `ok: false`.
- * The same fixture drives the real `dropStash` and the fast-forward
- * delegates through the default `gitSpawn` binding.
+ * The same fixture drives the real `dropStash` and the default
+ * fast-forward probes (`defaultFfProbes`) through the real `gitSpawn` binding.
  */
 
 import assert from 'node:assert/strict';
@@ -15,14 +15,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
-  canFastForward,
-  checkoutBranch,
   dropStash,
-  fetchRef,
-  isWorkingTreeClean,
-  mergeFastForward,
   removeWorktree,
 } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js';
+import { defaultFfProbes } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js';
 import { makeGitRepo, seedGitIdentity } from '../fixtures/git-fixture.js';
 
 const CLEAN_ENV = Object.fromEntries(
@@ -89,7 +85,7 @@ describe('git-probes-ff default bindings — real repo', () => {
   it('drops a real stash and reports a missing one', () => {
     fs.writeFileSync(path.join(repo, 'baseline.json'), '{"floor":41}\n');
     git(repo, 'stash', 'push', '-q');
-    assert.equal(isWorkingTreeClean(repo), true);
+    assert.equal(defaultFfProbes.isClean(repo), true);
 
     assert.deepEqual(dropStash('stash@{0}', repo), { ok: true });
     assert.equal(git(repo, 'stash', 'list').trim(), '');
@@ -102,18 +98,24 @@ describe('git-probes-ff default bindings — real repo', () => {
     git(repo, 'add', 'extra.txt');
     git(repo, 'commit', '-q', '-m', 'extra');
 
-    assert.equal(checkoutBranch(repo, 'main').ok, true);
-    assert.deepEqual(mergeFastForward(repo, 'feature'), { ok: true });
+    assert.equal(defaultFfProbes.checkout(repo, 'main').ok, true);
+    assert.deepEqual(defaultFfProbes.merge(repo, 'feature'), { ok: true });
     assert.equal(fs.existsSync(path.join(repo, 'extra.txt')), true);
-    assert.equal(checkoutBranch(repo, 'no-such-branch').ok, false);
-    assert.equal(fetchRef(repo, 'no-such-remote', 'main').ok, false);
-    assert.deepEqual(canFastForward(repo, 'main', 'no-such-remote'), {
-      ok: false,
-      behind: 0,
-      reason: 'rev-list-failed',
-    });
+    assert.equal(defaultFfProbes.checkout(repo, 'no-such-branch').ok, false);
+    assert.equal(
+      defaultFfProbes.fetch(repo, 'no-such-remote', 'main').ok,
+      false,
+    );
+    assert.deepEqual(
+      defaultFfProbes.canFastForward(repo, 'main', 'no-such-remote'),
+      {
+        ok: false,
+        behind: 0,
+        reason: 'rev-list-failed',
+      },
+    );
 
     fs.writeFileSync(path.join(repo, 'extra.txt'), 'changed\n');
-    assert.equal(isWorkingTreeClean(repo), false);
+    assert.equal(defaultFfProbes.isClean(repo), false);
   });
 });

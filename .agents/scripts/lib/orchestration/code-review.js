@@ -76,11 +76,6 @@ function resolveStoryScope(opts, config) {
   };
 }
 
-/** `'story'` is the only scope. */
-function resolveScopeEnvelope(opts, config) {
-  return resolveStoryScope(opts, config);
-}
-
 /**
  * Run a Story-scope review. `headRef` is required; `baseRef` defaults to
  * the remote base branch; `commentTargetId` (e.g. a PR number) overrides
@@ -349,7 +344,7 @@ export async function runCodeReview(opts = {}) {
   const { resolveConfigFn = resolveConfig } = opts;
 
   const config = resolveConfigFn();
-  const envelope = resolveScopeEnvelope(opts, config);
+  const envelope = resolveStoryScope(opts, config);
 
   return executeReviewPipeline({ opts, config, envelope });
 }

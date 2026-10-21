@@ -1,6 +1,5 @@
 /**
- * Branch / worktree / PR probes for the git-cleanup branches planner; also
- * re-exports the fast-forward probes from `git-probes-ff.js`.
+ * Branch / worktree / PR probes for the git-cleanup branches planner.
  *
  * @module lib/orchestration/git-cleanup/phases/git-probes
  */
@@ -12,18 +11,10 @@ import { parseWorktreePorcelain } from '../../../worktree-manager.js';
 import { makeWorktreeOps } from './git-probes-ff.js';
 import { resolveMergedTip } from './merged-tip.js';
 
-export {
-  canFastForward,
-  checkoutBranch,
-  fetchRef,
-  isWorkingTreeClean,
-  mergeFastForward,
-} from './git-probes-ff.js';
-
 export const { removeWorktree, pruneRemoteTracking, dropStash } =
   makeWorktreeOps(gitSpawn);
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; real-git run in git-cleanup-content-merged.integration.test.js */
 export function listLocalBranches(cwd) {
   const res = gitSpawn(
     cwd,
@@ -60,7 +51,7 @@ function shortRemoteNames(stdout, remoteName) {
     .filter(Boolean);
 }
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; parsing tested via __testing.shortRemoteNames */
 export function listRemoteBranches(cwd, remoteName = 'origin') {
   const res = gitSpawn(
     cwd,
@@ -82,7 +73,7 @@ export function listRemoteBranches(cwd, remoteName = 'origin') {
  * @param {string} [remoteName]
  * @returns {string[]}
  */
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; parsing tested via __testing.shortRemoteNames */
 export function listRemoteMergedBranches(cwd, base, remoteName = 'origin') {
   const res = gitSpawn(
     cwd,
@@ -96,7 +87,7 @@ export function listRemoteMergedBranches(cwd, base, remoteName = 'origin') {
   return shortRemoteNames(res.stdout, remoteName);
 }
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; real-git run in git-cleanup-content-merged.integration.test.js */
 export function listMergedBranches(cwd, base) {
   const res = gitSpawn(
     cwd,
@@ -135,14 +126,14 @@ export function freshAnchoredMergedSet({
   return set;
 }
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; real-git run in git-cleanup-content-merged.integration.test.js */
 export function currentBranch(cwd) {
   const res = gitSpawn(cwd, 'symbolic-ref', '--quiet', '--short', 'HEAD');
   if (res.status !== 0) return null;
   return res.stdout.trim() || null;
 }
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; real-git run in git-cleanup-content-merged.integration.test.js */
 export function readProtectedConfig(cwd) {
   const res = gitSpawn(cwd, 'config', '--get', 'branch.protectedBranches');
   if (res.status !== 0) return [];
@@ -152,7 +143,7 @@ export function readProtectedConfig(cwd) {
     .filter(Boolean);
 }
 
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; parsing tested via parseWorktreePorcelain */
 export function worktreesByBranch(cwd) {
   const res = gitSpawn(cwd, 'worktree', 'list', '--porcelain');
   if (res.status !== 0) return new Map();
@@ -165,8 +156,8 @@ export function worktreesByBranch(cwd) {
   return map;
 }
 
-/* node:coverage ignore next */
 // Synchronous on purpose: `planCleanup` is a sync planner.
+/* node:coverage ignore next -- thin gh spawn shim; tests inject runGh */
 export function defaultGhRunner(args, { cwd }) {
   return runGhOrThrow(args, { cwd, encoding: 'utf8' }, execFileCapture);
 }
@@ -354,8 +345,8 @@ export function branchTipSha({
   return res.status !== 0 ? null : validSha(firstLsRemoteSha(res.stdout));
 }
 
-/* node:coverage ignore next */
 // Guards the `<remote>/<base>` ancestry union.
+/* node:coverage ignore next -- thin git spawn shim; tests inject refExistsFn */
 export function refExists(cwd, ref) {
   const res = gitSpawn(cwd, 'rev-parse', '--verify', '--quiet', ref);
   return res.status === 0;
@@ -370,7 +361,7 @@ export function refExists(cwd, ref) {
  * @param {{ localExists?: boolean, remoteName?: string }} [opts]
  * @returns {string | null}
  */
-/* node:coverage ignore next */
+/* node:coverage ignore next -- thin git spawn shim; real-git run in git-cleanup-content-merged.integration.test.js */
 export function branchLastCommitAt(cwd, branch, opts = {}) {
   const { localExists = true, remoteName = 'origin' } = opts;
   const ref = localExists

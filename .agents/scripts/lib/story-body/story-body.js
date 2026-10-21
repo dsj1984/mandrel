@@ -259,17 +259,6 @@ function pathEntryFixIt(raw) {
 }
 
 /**
- * Delegates to footer-block.js so the body and dispatch-edge parsers cannot
- * disagree about what declares an edge.
- *
- * @param {string} footerBlock
- * @returns {string[]}
- */
-function extractBlockedBy(footerBlock) {
-  return parseFooterBlockedByRefs(footerBlock);
-}
-
-/**
  * Split markdown into named sections plus the footer block; content after
  * the footer separator is not parsed as sections.
  *
@@ -391,7 +380,7 @@ function parseUnstructuredBody(input, preamble, footer) {
     verify: [],
     references: [],
     non_goals: [],
-    depends_on: extractBlockedBy(footer),
+    depends_on: parseFooterBlockedByRefs(footer),
   };
   return {
     body,
@@ -543,7 +532,7 @@ export function parse(input) {
     warnings,
   );
   const non_goals = parseTextListSection(sections.get('non_goals') ?? []);
-  const dependsOn = extractBlockedBy(footer);
+  const dependsOn = parseFooterBlockedByRefs(footer);
 
   const body = {
     goal,
