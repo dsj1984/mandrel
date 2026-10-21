@@ -10,6 +10,7 @@
 import path from 'node:path';
 import { createGitInterface } from './git-utils.js';
 import { isIgnoredByGlobs } from './maintainability-utils.js';
+import { toPosix } from './util/paths.js';
 
 /**
  * `diff HEAD` already covers staged and unstaged, so no `--cached` pass.
@@ -96,7 +97,7 @@ export function selectFilesToScore(
   const selected = [];
   for (const abs of files) {
     if (isIgnoredByGlobs(abs, ignoreGlobs, cwd)) continue;
-    const rel = path.relative(cwd, abs).split(path.sep).join('/');
+    const rel = toPosix(path.relative(cwd, abs));
     if (scopeFiles && !scopeFiles.has(rel)) continue;
     selected.push({ abs, rel });
   }

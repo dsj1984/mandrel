@@ -7,6 +7,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { toPosix } from '../util/paths.js';
 
 /**
  * @param {string} absolutePath
@@ -53,7 +54,7 @@ export function listFilesUnder(repoRoot, rootDir, scannerSkip = []) {
       if (entry.isDirectory()) {
         walk(child);
       } else if (entry.isFile()) {
-        out.push(path.relative(repoRoot, child).split(path.sep).join('/'));
+        out.push(toPosix(path.relative(repoRoot, child)));
       }
     }
   };

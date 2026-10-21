@@ -30,9 +30,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-
 import { _internals as readerInternals } from '../../../.agents/scripts/lib/baselines/reader.js';
 import { writeFile } from '../../../.agents/scripts/lib/baselines/writer.js';
+import { toPosix } from '../../../.agents/scripts/lib/util/paths.js';
 import { EXTRA_REASONS } from './scope-assert.js';
 import {
   buildScopeInventory,
@@ -131,7 +131,7 @@ function readEnvelope(absPath, fsImpl) {
  */
 function pruneKind({ kind, cwd, quality, check, fsImpl, requireFn }) {
   const absPath = readerInternals.resolveBaselinePath(kind, { cwd });
-  const relPath = path.relative(cwd, absPath).split(path.sep).join('/');
+  const relPath = toPosix(path.relative(cwd, absPath));
   const envelope = readEnvelope(absPath, fsImpl);
   if (envelope === null) {
     return { kind, path: relPath, present: false, removed: [], written: false };

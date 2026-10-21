@@ -8,6 +8,7 @@
 
 import nodeFs from 'node:fs';
 import path from 'node:path';
+import { toPosix } from './util/paths.js';
 import { resolveWorkflowClosures } from './workflow-closure.js';
 
 /**
@@ -78,7 +79,7 @@ export function parseImportSpecifiers(source) {
  * @returns {string}
  */
 function toRepoRel(root, abs) {
-  return path.relative(root, abs).split(path.sep).join('/');
+  return toPosix(path.relative(root, abs));
 }
 
 /**

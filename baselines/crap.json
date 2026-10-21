@@ -47450,12 +47450,6 @@
       "crap": 8
     },
     {
-      "path": "scripts/lib/fs-walk.js",
-      "method": "walkFilesByExtension",
-      "startLine": 32,
-      "crap": 5
-    },
-    {
       "path": "scripts/lib/knip-config-resolver.js",
       "method": "importKnipSession",
       "startLine": 36,

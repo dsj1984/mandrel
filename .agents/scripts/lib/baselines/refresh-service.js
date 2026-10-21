@@ -31,6 +31,7 @@ import {
   scanDirectory as scanDirectoryMi,
 } from '../maintainability-utils.js';
 import { isScorableSourceFile } from '../source-extensions.js';
+import { toPosix } from '../util/paths.js';
 import { buildBundleSizeScorer } from './bundle-size-scorer.js';
 import { resolveDetectClones, scanDuplication } from './duplication-scanner.js';
 import { getKindModule } from './kernel.js';
@@ -214,7 +215,7 @@ function buildDefaultMaintainabilityScorer({ cwd, config, quality } = {}) {
     return filterExcludedRows(
       Object.entries(scores).map(([p, mi]) => {
         const rel = path.isAbsolute(p) ? path.relative(effectiveCwd, p) : p;
-        return { path: rel.split(path.sep).join('/'), mi };
+        return { path: toPosix(rel), mi };
       }),
     );
   };

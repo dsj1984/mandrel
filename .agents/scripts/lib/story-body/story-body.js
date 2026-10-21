@@ -8,6 +8,7 @@
  * @module story-body
  */
 
+import { isObject } from '../json-utils.js';
 import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js';
 import {
   isProseBullet,
@@ -481,7 +482,7 @@ export function parse(input) {
     });
   }
 
-  if (typeof input === 'object' && !Array.isArray(input)) {
+  if (isObject(input)) {
     return parseStructuredObject(input);
   }
 

@@ -11,7 +11,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-
 import {
   diffRows as defaultDiffDeadExportRows,
   loadBaseline as loadJsonBaseline,
@@ -31,6 +30,7 @@ import {
 import { resolveDeadExportsMode } from '../../dead-exports-mode.js';
 import { gitSync as defaultGitSync } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
+import { toPosix } from '../../util/paths.js';
 import { currentBranch, listDirtyPaths } from './format-autofix.js';
 
 const TAG = '[ratchet-shrink]';
@@ -81,7 +81,7 @@ function planDeadExportShrink({
   diffRows = defaultDiffDeadExportRows,
 }) {
   const { baseline } = resolveDeadExportsMode(production);
-  const relPath = baseline.split(path.sep).join('/');
+  const relPath = toPosix(baseline);
   const committed = loadJsonBaseline(path.join(workTree, baseline));
   if (!Array.isArray(committed?.rows))
     return { relPath, reason: 'no-baseline' };
@@ -291,7 +291,7 @@ export function runRatchetShrinkWriteback({
     resolveDeadExportsMode(false).baseline,
     resolveDeadExportsMode(true).baseline,
     DEFAULT_CYCLOMATIC_BASELINE,
-  ].map((p) => p.split(path.sep).join('/'));
+  ].map(toPosix);
   try {
     if (currentBranch(workTree, git) !== storyBranch) {
       return skip(logger, 'wrong-branch');

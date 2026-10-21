@@ -5,6 +5,8 @@
  * one app's steps cannot vouch for another's feature.
  */
 
+import { isObject } from '../json-utils.js';
+
 const GHERKIN_LINT_DEFAULTS = Object.freeze({
   exemptionTags: Object.freeze(['@skip']),
   stepWaivers: Object.freeze([]),
@@ -37,11 +39,8 @@ function normalizeScope(name, raw) {
  * } | null} `null` when the block is absent or not an object
  */
 function resolveGherkinLint(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const scopesRaw =
-    raw.scopes && typeof raw.scopes === 'object' && !Array.isArray(raw.scopes)
-      ? raw.scopes
-      : {};
+  if (!isObject(raw)) return null;
+  const scopesRaw = isObject(raw.scopes) ? raw.scopes : {};
   return {
     scopes: Object.keys(scopesRaw)
       .sort()

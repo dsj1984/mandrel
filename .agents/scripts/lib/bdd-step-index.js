@@ -13,6 +13,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { listFeatureFiles } from './bdd-scenario-scanner.js';
+import { escapeRegExp } from './util/regex.js';
 
 export { listFeatureFiles };
 
@@ -46,10 +47,6 @@ const PARAMETER_PATTERNS = Object.freeze({
 /** Groups 2/3: quoted expression; 4/5: regex literal and flags. */
 const STEP_CALL_PATTERN =
   /\b(Given|When|Then|And|But|Step|defineStep)\s*\(\s*(?:(['"`])((?:\\.|(?!\2)[^\\])*)\2|\/((?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\[])+)\/([dgimsuvy]*))/g;
-
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /**
  * @param {string} segment An alternation-free piece of an expression.
@@ -135,9 +132,8 @@ function expressionToRegExp(expression) {
 }
 
 /**
- * Not `fs-walk.js`: that walker takes one extension, descends into
- * `node_modules`, and rethrows readdir failures, whereas an unreadable scope
- * here must surface as "zero step definitions" (the gate's fail-closed path).
+ * Not `walkFiles`: this walk follows symlinked directories. An unreadable
+ * scope yields zero step definitions (the gate's fail-closed path).
  *
  * @param {string[]} roots
  * @returns {string[]} absolute paths, sorted

@@ -78,7 +78,12 @@ import { fileURLToPath } from 'node:url';
 
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import { stripJsComments } from '../.agents/scripts/lib/source-text/strip-js-comments.js';
-import { walkFilesByExtension } from './lib/fs-walk.js';
+import { walkFiles } from '../.agents/scripts/lib/util/paths.js';
+
+const walkJs = (dir) =>
+  walkFiles(dir, {
+    filter: (abs, dirent) => dirent.isFile() && abs.endsWith('.js'),
+  });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -144,7 +149,7 @@ export function findPromiseAllViolations(
   { read = readFileSync } = {},
 ) {
   const violations = [];
-  for (const file of walkFilesByExtension(rootDir, '.js')) {
+  for (const file of walkJs(rootDir)) {
     const text = read(file, 'utf8');
     const lines = text.split('\n');
     for (let i = 0; i < lines.length; i += 1) {
@@ -190,7 +195,7 @@ export function findMergeLockoutViolations(
   // CLI, only the space-delimited form is.
   const FORBIDDEN = 'gh pr merge';
   const lineRe = /(['"`])((?:\\.|(?!\1).)*)\1/g;
-  for (const file of walkFilesByExtension(rootDir, '.js')) {
+  for (const file of walkJs(rootDir)) {
     // Skip the armer (intentional carrier) and the lint infrastructure.
     const allExempt = [...allowSuffixes, ...infrastructureSuffixes];
     if (allExempt.some((suffix) => file.endsWith(suffix))) continue;

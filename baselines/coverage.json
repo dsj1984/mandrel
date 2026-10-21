@@ -4329,12 +4329,6 @@
       "functions": 100
     },
     {
-      "path": "scripts/lib/fs-walk.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": "scripts/lib/knip-config-resolver.js",
       "lines": 100,
       "branches": 97.14,

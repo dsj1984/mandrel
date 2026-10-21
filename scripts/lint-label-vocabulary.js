@@ -35,11 +35,11 @@
  * Ships as part of `npm run lint` via `scripts/run-lint.js`.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
-import { walkFilesByExtension } from './lib/fs-walk.js';
+import { walkFiles } from '../.agents/scripts/lib/util/paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -78,26 +78,13 @@ export const KNOWN_AXES = Object.freeze([
  */
 function* resolveTargets(targets) {
   for (const target of targets) {
-    let stat;
     try {
-      stat = readdirSync(target, { withFileTypes: true });
+      yield* walkFiles(target, {
+        filter: (abs, dirent) => dirent.isFile() && abs.endsWith('.md'),
+      });
     } catch (err) {
-      if (err.code === 'ENOTDIR') {
-        // it's a file path — yield directly if it's .md
-        if (target.endsWith('.md')) yield target;
-        continue;
-      }
-      if (err.code === 'ENOENT') continue;
-      throw err;
-    }
-    // directory — walk it
-    for (const entry of stat) {
-      const p = path.join(target, entry.name);
-      if (entry.isDirectory()) {
-        yield* walkFilesByExtension(p, '.md');
-      } else if (entry.isFile() && entry.name.endsWith('.md')) {
-        yield p;
-      }
+      if (err.code !== 'ENOTDIR') throw err;
+      if (target.endsWith('.md')) yield target;
     }
   }
 }

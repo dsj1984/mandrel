@@ -35,6 +35,7 @@ import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import { getQuality } from '../.agents/scripts/lib/config/quality.js';
 import { resolveConfig } from '../.agents/scripts/lib/config-resolver.js';
 import { gitSpawn } from '../.agents/scripts/lib/git-utils.js';
+import { toPosix } from '../.agents/scripts/lib/util/paths.js';
 import {
   assertScope,
   attributeDivergence,
@@ -181,10 +182,9 @@ function readChangeSet({ cwd, base }) {
  */
 function baselinePathsFor({ cwd, kinds }) {
   return kinds.map((kind) =>
-    path
-      .relative(cwd, readerInternals.resolveBaselinePath(kind, { cwd }))
-      .split(path.sep)
-      .join('/'),
+    toPosix(
+      path.relative(cwd, readerInternals.resolveBaselinePath(kind, { cwd })),
+    ),
   );
 }
 

@@ -8,6 +8,8 @@
  * @module audit-report-contracts/report-contract-core
  */
 
+import { escapeRegExp } from '../../../.agents/scripts/lib/util/regex.js';
+
 /**
  * Assert that a rendered markdown report has the expected H1 title and every
  * required `##` section heading. Returns a structured result rather than
@@ -36,8 +38,4 @@ export function assertSectionsContract(markdown, { title, requiredSections }) {
     missingSections,
     hasTitle,
   };
-}
-
-export function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
