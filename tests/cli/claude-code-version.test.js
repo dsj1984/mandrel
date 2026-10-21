@@ -31,8 +31,8 @@ describe('claude-code-version', () => {
     assert.equal(CLAUDE_CODE_AGENTS_MD_FLOOR, '2.1.277');
   });
 
-  it('fails with an upgrade remedy below the floor on an AGENTS.md-only project', () => {
-    const r = runClaudeCodeVersion({
+  it('fails with an upgrade remedy below the floor on an AGENTS.md-only project', async () => {
+    const r = await runClaudeCodeVersion({
       projectRoot: ROOT,
       existsSync: project(['AGENTS.md']),
       runClaude: claudeSays('2.1.276 (Claude Code)\n'),
@@ -42,8 +42,8 @@ describe('claude-code-version', () => {
     assert.match(r.remedy, /2\.1\.277/);
   });
 
-  it('passes at or above the floor', () => {
-    const r = runClaudeCodeVersion({
+  it('passes at or above the floor', async () => {
+    const r = await runClaudeCodeVersion({
       projectRoot: ROOT,
       existsSync: project(['AGENTS.md']),
       runClaude: claudeSays('2.1.277 (Claude Code)\n'),
@@ -52,8 +52,8 @@ describe('claude-code-version', () => {
     assert.equal(r.remedy, undefined);
   });
 
-  it('skips when claude is not on PATH', () => {
-    const r = runClaudeCodeVersion({
+  it('skips when claude is not on PATH', async () => {
+    const r = await runClaudeCodeVersion({
       projectRoot: ROOT,
       existsSync: project(['AGENTS.md']),
       runClaude: () => ({
@@ -66,8 +66,8 @@ describe('claude-code-version', () => {
     assert.match(r.detail, /skipped: claude not found/);
   });
 
-  it('skips on unparseable output', () => {
-    const r = runClaudeCodeVersion({
+  it('skips on unparseable output', async () => {
+    const r = await runClaudeCodeVersion({
       projectRoot: ROOT,
       existsSync: project(['AGENTS.md']),
       runClaude: claudeSays('garbage\n'),
@@ -76,9 +76,9 @@ describe('claude-code-version', () => {
     assert.match(r.detail, /skipped: unparseable/);
   });
 
-  it('skips when CLAUDE.md is present, without spawning claude', () => {
+  it('skips when CLAUDE.md is present, without spawning claude', async () => {
     let spawned = false;
-    const r = runClaudeCodeVersion({
+    const r = await runClaudeCodeVersion({
       projectRoot: ROOT,
       existsSync: project(['AGENTS.md', 'CLAUDE.md']),
       runClaude: () => {
@@ -91,8 +91,8 @@ describe('claude-code-version', () => {
     assert.equal(spawned, false);
   });
 
-  it('skips when the project has no AGENTS.md', () => {
-    const r = runClaudeCodeVersion({
+  it('skips when the project has no AGENTS.md', async () => {
+    const r = await runClaudeCodeVersion({
       projectRoot: ROOT,
       existsSync: project([]),
       runClaude: claudeSays('1.0.0'),
@@ -106,8 +106,8 @@ describe('claude-code-version', () => {
     assert.equal(parseClaudeVersion('Claude 2.1.300'), null);
   });
 
-  it('skips when no runner is injected', () => {
-    const r = runClaudeCodeVersion({
+  it('skips when no runner is injected', async () => {
+    const r = await runClaudeCodeVersion({
       projectRoot: ROOT,
       existsSync: project(['AGENTS.md']),
     });
@@ -115,9 +115,9 @@ describe('claude-code-version', () => {
     assert.match(r.detail, /skipped/);
   });
 
-  it('the registered wrapper injects a claude runner that reaches the check', () => {
+  it('the registered wrapper injects a claude runner that reaches the check', async () => {
     const entry = registry.find((c) => c.name === 'claude-code-version');
-    const r = entry.run({
+    const r = await entry.run({
       projectRoot: ROOT,
       existsSync: project(['AGENTS.md']),
     });

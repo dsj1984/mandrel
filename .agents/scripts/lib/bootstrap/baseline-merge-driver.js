@@ -81,19 +81,23 @@ function declaresBaselineMergeDriver(gitattributes) {
 }
 
 /**
- * Is the driver declared by the project and registered in this clone? Not
- * declared (or unreadable `.gitattributes`) means the project never opted in
- * and callers stay silent; declared with an empty command is the silent
- * text-merge fallback callers must flag.
+ * Is the driver declared and registered in this clone? Not declared (or
+ * unreadable `.gitattributes`) means the project never opted in and callers
+ * stay silent; declared with an empty command is the silent text-merge
+ * fallback callers must flag.
  *
  * @param {{
  *   projectRoot: string,
  *   fsImpl?: typeof fs,
  *   runGit: (args: string[]) => { status?: number|null, stdout?: unknown },
  * }} ctx
- * @returns {{ declared: boolean, command: string }}
+ * @returns {Promise<{ declared: boolean, command: string }>}
  */
-export function probeBaselineMergeDriver({ projectRoot, fsImpl = fs, runGit }) {
+export async function probeBaselineMergeDriver({
+  projectRoot,
+  fsImpl = fs,
+  runGit,
+}) {
   let attributes = '';
   try {
     attributes = fsImpl.readFileSync(
@@ -106,7 +110,7 @@ export function probeBaselineMergeDriver({ projectRoot, fsImpl = fs, runGit }) {
   if (!declaresBaselineMergeDriver(attributes)) {
     return { declared: false, command: '' };
   }
-  const configured = runGit([
+  const configured = await runGit([
     'config',
     '--get',
     BASELINE_MERGE_DRIVER_CONFIG_KEY,
