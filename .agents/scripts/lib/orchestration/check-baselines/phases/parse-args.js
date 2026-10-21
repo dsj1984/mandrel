@@ -82,6 +82,16 @@ function flattenGateTokens(raw) {
   return parts.length === 0 ? null : parts;
 }
 
+/** Reject a mistyped kind rather than silently evaluating nothing. */
+function assertKnownKinds(gates) {
+  const unknown = (gates ?? []).filter((k) => !KNOWN_KINDS.includes(k));
+  if (unknown.length === 0) return;
+  throw new Error(
+    `unknown --gate kind "${unknown.join(', ')}"; valid kinds: ${KNOWN_KINDS.join(', ')}. ` +
+      'cyclomatic and dead-exports run via check-cyclomatic.js and check-dead-exports.js.',
+  );
+}
+
 /**
  * @param {string[]} argv  process.argv.slice(2)
  * @returns {{
@@ -126,13 +136,7 @@ export function parseArgs(argv) {
 
   const { values } = parsed;
   const gates = flattenGateTokens(values.gate);
-  const unknown = gates?.filter((k) => !KNOWN_KINDS.includes(k)) ?? [];
-  if (unknown.length > 0) {
-    throw new Error(
-      `unknown --gate kind "${unknown.join(', ')}"; valid kinds: ${KNOWN_KINDS.join(', ')}. ` +
-        'cyclomatic and dead-exports run via check-cyclomatic.js and check-dead-exports.js.',
-    );
-  }
+  assertKnownKinds(gates);
   const out = {
     configPath: values.configPath ?? null,
     gates,
