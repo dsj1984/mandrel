@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
+/* node:coverage ignore file -- contributor lint CLI run by npm run lint, not by the unit suite */
 
 /**
  * lint-label-vocabulary.js — enforce that GitHub label tokens cited in

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
+/* node:coverage ignore file -- polls the live Projects v2 board to win a race with a GitHub workflow; no offline seam */
 
 /**
  * resync-status-column.js — re-assert a ticket's Projects v2 Status after

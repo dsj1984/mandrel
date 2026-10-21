@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
+/* node:coverage ignore file -- CLI dispatcher over live GitHub comment and webhook transports */
 
 /**
  * notify.js — dispatch a notification to two independently gated channels:

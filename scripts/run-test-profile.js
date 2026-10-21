@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-/* node:coverage ignore file */
+/* node:coverage ignore file -- contributor profiling CLI that runs the whole suite; it cannot run under itself */
 
 /**
  * Capture TAP timing from the full test suite and write a human summary under

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
+/* node:coverage ignore file -- process-wrapping CLI (spawns the wrapped command, writes NDJSON); integration-shaped */
 
 /**
  * Diagnostic interceptor: runs a command (argv words, no shell) and on
