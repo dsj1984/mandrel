@@ -1236,7 +1236,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/parse-args.js",
-      "mi": 95.135
+      "mi": 98.012
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/pipeline.js",
