@@ -64,7 +64,7 @@ export function buildAllowlistDecider(allowlist) {
   return (entry) => (set.has(entry.ref) ? 'drop' : 'keep');
 }
 
-// Fail safe: only an explicit 'drop' drops; a throwing prompt keeps.
+// A throwing prompt keeps the stash.
 async function decide(decideFn, s) {
   try {
     return await decideFn(s);
