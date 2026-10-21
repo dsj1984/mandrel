@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   deepEqual,
   isObject,
   readJsonOrNull,
 } from '../../.agents/scripts/lib/json-utils.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 // ---------------------------------------------------------------------------
 // json-utils.test.js — pin the shared JSON-shape helpers extracted in
@@ -158,9 +161,14 @@ describe('readJsonOrNull()', () => {
   });
 
   it('reads through node:fs by default', () => {
-    assert.equal(
-      readJsonOrNull('/nonexistent/mandrel/readJsonOrNull.json'),
-      null,
-    );
+    const dir = makeTempDir('mandrel-read-json-');
+    try {
+      const file = path.join(dir, 'present.json');
+      fs.writeFileSync(file, '{"a":1}');
+      assert.deepEqual(readJsonOrNull(file), { a: 1 });
+      assert.equal(readJsonOrNull(path.join(dir, 'missing.json')), null);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
