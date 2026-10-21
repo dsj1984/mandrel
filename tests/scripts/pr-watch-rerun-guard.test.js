@@ -25,10 +25,12 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { setGraphqlAvailability } from '../../.agents/scripts/lib/gh-exec.js';
+import { Logger } from '../../.agents/scripts/lib/Logger.js';
 import {
   blockStoryDelivery,
   classifyGreenVerdict,
   formatRerunViolation,
+  readCiDigest,
   recordRerunAllowance,
   resolvePrHeadSha,
   writeCiDigest,
@@ -595,6 +597,34 @@ describe('one rerun after a recorded verdict (Story #5343)', () => {
       const onDisk = readDigest(tempRoot, 5343);
       assert.deepEqual(onDisk.rerunAllowance, stamped);
       assert.equal(onDisk.failingCheck, 'Validate and Test', 'digest intact');
+    });
+  });
+
+  it('a truncated digest reads as absent with a warning, and the stamp leaves it alone', async (t) => {
+    await withTempRoot(async (tempRoot) => {
+      const file = seedDigest(tempRoot, 5343, ALLOWED);
+      writeFileSync(file, '{"headSha":"same-');
+      const warn = t.mock.method(Logger, 'warn', () => {});
+
+      assert.equal(
+        readCiDigest({ storyId: 5343, tempRoot, cwd: process.cwd() }),
+        null,
+      );
+      assert.equal(
+        recordRerunAllowance({
+          storyId: 5343,
+          verdict: 'capacity',
+          tempRoot,
+          cwd: process.cwd(),
+        }),
+        null,
+      );
+      assert.equal(warn.mock.callCount(), 2);
+      assert.match(
+        warn.mock.calls[0].arguments[0],
+        /unreadable CI digest .*story-5343-ci-digest\.json/,
+      );
+      assert.equal(readFileSync(file, 'utf8'), '{"headSha":"same-');
     });
   });
 

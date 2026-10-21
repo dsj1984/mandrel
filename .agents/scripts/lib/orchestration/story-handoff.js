@@ -45,6 +45,7 @@ import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
 import { describeBlocking } from '../suite-admission.js';
+import { writeFileAtomic } from '../util/atomic-write.js';
 import { defaultSleep } from '../util/sleep.js';
 import { runStreamed } from './evidence-stream.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
@@ -817,13 +818,26 @@ function precheck(ctx) {
 }
 
 /**
+ * `{}` when absent or corrupt; a corrupt file is reported.
+ *
  * @param {string} statePath
+ * @param {(tag: string, msg: string) => void} progress
  * @returns {{ preflightHead?: string, creditHead?: string, seatHead?: string }}
  */
-function readState(statePath) {
+function readState(statePath, progress) {
+  let raw;
   try {
-    return JSON.parse(fs.readFileSync(statePath, 'utf8'))?.state ?? {};
+    raw = fs.readFileSync(statePath, 'utf8');
   } catch {
+    return {};
+  }
+  try {
+    return JSON.parse(raw)?.state ?? {};
+  } catch (err) {
+    progress(
+      'STATE',
+      `⚠️ ignoring corrupt ${statePath} (${err.message}) — every step re-runs`,
+    );
     return {};
   }
 }
@@ -945,7 +959,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     sleep,
     lockPollMs,
     env,
-    state: readState(statePath),
+    state: readState(statePath, progress),
     review: null,
     reviewPath: storyReviewDepositPath(storyId, config),
     depositor: selectCreditedDepositor({
@@ -1008,10 +1022,9 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
         }
       : {}),
   };
-  fs.writeFileSync(
+  writeFileAtomic(
     statePath,
     `${JSON.stringify({ state: ctx.state, envelope }, null, 2)}\n`,
-    'utf8',
   );
   return { envelope, exitCode: EXIT_CODES[status] };
 }

@@ -618,6 +618,34 @@ describe('story-handoff — idempotent re-run (AC-3)', () => {
     assert.ok(envelope.steps.every((s) => s.outcome === 'skipped'));
   });
 
+  test('a truncated state file is reported through progress and every step re-runs', async () => {
+    const h = harness();
+    const statePath = path.join(
+      tempRoot,
+      'orchestration',
+      `story-handoff-${STORY}.json`,
+    );
+    mkdirSync(path.dirname(statePath), { recursive: true });
+    writeFileSync(statePath, '{"state":{"creditHead":"');
+    const lines = [];
+    h.deps.progress = (tag, msg) => lines.push({ tag, msg });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    const warning = lines.find((l) => l.tag === 'STATE');
+    assert.ok(warning, 'the corrupt state file is reported');
+    assert.match(warning.msg, /ignoring corrupt .*story-handoff-5518\.json/);
+    assert.ok(
+      spawned(h.runCommand).includes('coverage-capture.js'),
+      'no prior credit is trusted: the credited run spawns',
+    );
+    assert.equal(envelope.status, 'ready');
+    // The run rewrites the state atomically: it parses again afterwards.
+    assert.equal(
+      JSON.parse(readFileSync(statePath, 'utf8')).envelope.status,
+      'ready',
+    );
+  });
+
   test('a fresh capture stamp is judged by its signal, not the exit code', async () => {
     const h = harness({
       outputs: {
