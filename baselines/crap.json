@@ -11086,6 +11086,18 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/json-io.js",
+      "method": "readJsonIfExists",
+      "startLine": 17,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/json-io.js",
+      "method": "writeJson",
+      "startLine": 29,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/manifest.js",
       "method": "<anon (parts)#0>",
       "startLine": 33,
@@ -11199,316 +11211,305 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "readJsonIfExists",
-      "startLine": 68,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "writeJson",
-      "startLine": 78,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "agentRootOf",
-      "startLine": 83,
+      "startLine": 97,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "satisfiesNodeEngine",
-      "startLine": 98,
+      "startLine": 112,
       "crap": 9
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "checkNodeVersion",
-      "startLine": 114,
+      "startLine": 128,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "detectPackageManager",
-      "startLine": 129,
+      "startLine": 143,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon detectPackageManager/(p)#0>",
-      "startLine": 130,
+      "startLine": 144,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "ensureScript",
-      "startLine": 134,
+      "startLine": 148,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "ensurePrepareScript",
-      "startLine": 141,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "ensurePackageJson",
-      "startLine": 167,
-      "crap": 3
+      "startLine": 171,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon ensurePrepareScript/(script)#0>",
-      "startLine": 186,
+      "startLine": 182,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon ensurePrepareScript/(command)#0>",
-      "startLine": 187,
+      "startLine": 183,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "ensurePackageJson",
+      "startLine": 197,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon ensurePackageJson/(v)#0>",
-      "startLine": 194,
-      "crap": 3,
+      "startLine": 223,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "ensureDependenciesInstalled",
-      "startLine": 207,
+      "startLine": 237,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "ensureAgentrc",
-      "startLine": 244,
+      "startLine": 274,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "loadAgentrcValidator",
-      "startLine": 270,
+      "startLine": 300,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "agentrcVerdict",
-      "startLine": 276,
+      "startLine": 306,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "validateAgentrc",
-      "startLine": 288,
+      "startLine": 318,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "ensureGitignore",
-      "startLine": 313,
+      "startLine": 344,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "ensureIssueFormsPhase",
-      "startLine": 341,
+      "startLine": 373,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "runSyncCommands",
-      "startLine": 356,
+      "startLine": 388,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "checkParity",
-      "startLine": 394,
+      "startLine": 426,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon checkParity/(dir)#0>",
-      "startLine": 398,
+      "startLine": 430,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon checkParity/(dir)#0/(e)#0>",
-      "startLine": 402,
+      "startLine": 434,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon checkParity/(dir)#0/(e)#1>",
-      "startLine": 403,
+      "startLine": 435,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon checkParity/(name)#0>",
-      "startLine": 406,
+      "startLine": 438,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon checkParity/(n)#0>",
-      "startLine": 412,
+      "startLine": 444,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon checkParity/(n)#1>",
-      "startLine": 413,
+      "startLine": 445,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "ensureSystemPromptWiring",
-      "startLine": 429,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "checkWindowsGitPerf",
-      "startLine": 440,
+      "startLine": 460,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (result)#0>",
-      "startLine": 474,
+      "startLine": 494,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (result)#1>",
-      "startLine": 479,
+      "startLine": 499,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (result)#2>",
-      "startLine": 488,
+      "startLine": 508,
       "crap": 4,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon ()#0>",
-      "startLine": 502,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#0>",
-      "startLine": 509,
+      "startLine": 522,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#1>",
-      "startLine": 513,
+      "startLine": 529,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#2>",
-      "startLine": 518,
+      "startLine": 533,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#3>",
-      "startLine": 523,
+      "startLine": 538,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#4>",
-      "startLine": 530,
+      "startLine": 543,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#5>",
-      "startLine": 535,
+      "startLine": 552,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#6>",
-      "startLine": 540,
-      "crap": 2.5,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon (ctx)#7>",
-      "startLine": 548,
+      "startLine": 557,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon (ctx)#7>",
+      "startLine": 562,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#8>",
-      "startLine": 553,
+      "startLine": 570,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#9>",
-      "startLine": 560,
-      "crap": 2.5,
+      "startLine": 575,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon (ctx)#10>",
-      "startLine": 567,
+      "startLine": 582,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon (ctx)#11>",
+      "startLine": 589,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "throwIfFatal",
-      "startLine": 575,
+      "startLine": 597,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "runPhases",
-      "startLine": 586,
+      "startLine": 608,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "applyProjectBootstrap",
-      "startLine": 610,
-      "crap": 1.2962962962962963
+      "startLine": 635,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon applyProjectBootstrap/(p)#0>",
+      "startLine": 637,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",
@@ -11623,56 +11624,56 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "method": "readJsonIfExists",
-      "startLine": 55,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "method": "writeJson",
-      "startLine": 61,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "method": "ensureGuardrailsHelper",
-      "startLine": 71,
+      "startLine": 60,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "method": "ensurePreCommitHook",
-      "startLine": 106,
+      "startLine": 95,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "method": "ensureQualityNpmScripts",
-      "startLine": 142,
+      "startLine": 131,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "method": "mergeMissingKeys",
-      "startLine": 178,
-      "crap": 13.057391173104255
+      "startLine": 168,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
+      "method": "mergeNestedKey",
+      "startLine": 190,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
+      "method": "seedLeafKey",
+      "startLine": 199,
+      "crap": 2.0625
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "method": "ensureQualityConfigDefaults",
-      "startLine": 226,
+      "startLine": 212,
       "crap": 7.000892987315935
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "method": "pruneLegacyEpicBaselines",
-      "startLine": 278,
+      "startLine": 264,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "method": "applyQualityBootstrap",
-      "startLine": 310,
+      "startLine": 296,
       "crap": 1
     },
     {
@@ -12259,65 +12260,59 @@
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "agentFilesIn",
-      "startLine": 27,
+      "startLine": 28,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "<anon agentFilesIn/(e)#0>",
-      "startLine": 31,
+      "startLine": 32,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "<anon agentFilesIn/(e)#1>",
-      "startLine": 32,
+      "startLine": 33,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
-      "method": "readJsonOrNull",
-      "startLine": 39,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "readAgentModels",
-      "startLine": 54,
+      "startLine": 43,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "<anon readAgentModels/(file)#0>",
-      "startLine": 55,
+      "startLine": 44,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "expectedClaudeAgents",
-      "startLine": 77,
+      "startLine": 66,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "listGeneratedClaudeAgents",
-      "startLine": 109,
+      "startLine": 98,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "<anon listGeneratedClaudeAgents/(f)#0>",
-      "startLine": 111,
+      "startLine": 100,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "method": "syncClaudeAgents",
-      "startLine": 129,
+      "startLine": 118,
       "crap": 4
     },
     {
@@ -19969,14 +19964,20 @@
     {
       "path": ".agents/scripts/lib/json-utils.js",
       "method": "isObject",
-      "startLine": 10,
+      "startLine": 12,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/json-utils.js",
       "method": "deepEqual",
-      "startLine": 21,
+      "startLine": 23,
       "crap": 14
+    },
+    {
+      "path": ".agents/scripts/lib/json-utils.js",
+      "method": "readJsonOrNull",
+      "startLine": 55,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/label-constants.js",
@@ -39963,55 +39964,49 @@
     {
       "path": ".agents/scripts/plan-critics.js",
       "method": "collectPackageIdentity",
-      "startLine": 39,
+      "startLine": 40,
       "crap": 4
     },
     {
       "path": ".agents/scripts/plan-critics.js",
-      "method": "readJsonIfPresent",
-      "startLine": 50,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/plan-critics.js",
       "method": "workspacePatterns",
-      "startLine": 58,
+      "startLine": 50,
       "crap": 3
     },
     {
       "path": ".agents/scripts/plan-critics.js",
       "method": "resolveWorkspaceManifestPaths",
-      "startLine": 72,
+      "startLine": 64,
       "crap": 4.010520259718912
     },
     {
       "path": ".agents/scripts/plan-critics.js",
       "method": "collectRepoPackages",
-      "startLine": 104,
+      "startLine": 96,
       "crap": 3
     },
     {
       "path": ".agents/scripts/plan-critics.js",
       "method": "loadCriticArtifacts",
-      "startLine": 124,
+      "startLine": 116,
       "crap": 3
     },
     {
       "path": ".agents/scripts/plan-critics.js",
       "method": "recordCriticSkips",
-      "startLine": 154,
+      "startLine": 146,
       "crap": 3
     },
     {
       "path": ".agents/scripts/plan-critics.js",
       "method": "evaluateCriticArtifacts",
-      "startLine": 188,
+      "startLine": 180,
       "crap": 1
     },
     {
       "path": ".agents/scripts/plan-critics.js",
       "method": "main",
-      "startLine": 209,
+      "startLine": 201,
       "crap": 3
     },
     {
@@ -43161,12 +43156,6 @@
       "startLine": 91,
       "crap": 1,
       "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/read-json.js",
-      "method": "readJsonSafe",
-      "startLine": 10,
-      "crap": 1
     },
     {
       "path": "lib/cli/doctor-checks/runtime-deps.js",

@@ -855,6 +855,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/json-io.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/manifest.js",
       "lines": 100,
       "branches": 100,
@@ -875,7 +881,7 @@
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "lines": 99.53,
-      "branches": 91.56,
+      "branches": 93.92,
       "functions": 100
     },
     {
@@ -886,8 +892,8 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "lines": 98.75,
-      "branches": 82.54,
+      "lines": 99.02,
+      "branches": 86.57,
       "functions": 100
     },
     {
@@ -965,8 +971,8 @@
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
       "lines": 100,
-      "branches": 96.97,
-      "functions": 88.89
+      "branches": 96.77,
+      "functions": 87.5
     },
     {
       "path": ".agents/scripts/lib/claude/commands-projection.js",
@@ -3484,8 +3490,8 @@
     },
     {
       "path": ".agents/scripts/plan-critics.js",
-      "lines": 99.18,
-      "branches": 90.91,
+      "lines": 99.16,
+      "branches": 90.24,
       "functions": 100
     },
     {
@@ -3840,7 +3846,7 @@
       "path": "lib/cli/doctor-checks/read-json.js",
       "lines": 100,
       "branches": 100,
-      "functions": 100
+      "functions": 0
     },
     {
       "path": "lib/cli/doctor-checks/runtime-deps.js",
