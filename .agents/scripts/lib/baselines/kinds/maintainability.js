@@ -6,6 +6,7 @@
 
 import { readBaselineAtRef } from '../../baseline-loader.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
+import { isObject } from '../../json-utils.js';
 import { getBaseline } from '../maintainability-baseline-io.js';
 import { canonicalise } from '../path-canon.js';
 import { percentile } from './_shared-metric.js';
@@ -137,9 +138,7 @@ export function loadMaintainabilityBaseline({
   // An epic-ref read may return a non-object.
   if (epicRef && (parsed === null || typeof parsed !== 'object')) return {};
   if (
-    parsed &&
-    typeof parsed === 'object' &&
-    !Array.isArray(parsed) &&
+    isObject(parsed) &&
     Array.isArray(parsed.rows) &&
     typeof parsed.$schema === 'string'
   ) {

@@ -27,6 +27,7 @@ import {
   PAYLOAD_SKILLS_SEGMENTS,
 } from './lib/skills/walk-skill-files.js';
 import { createAjv } from './lib/util/ajv.js';
+import { toPosix } from './lib/util/paths.js';
 
 const MIN_CAPSULE_BULLETS = 5;
 const MAX_CAPSULE_BULLETS = 12;
@@ -156,7 +157,7 @@ function validateOne(absPath, repoRoot, validateFrontmatter, indexPaths) {
 }
 
 function rel(absPath, repoRoot) {
-  return path.relative(repoRoot, absPath).split(path.sep).join('/');
+  return toPosix(path.relative(repoRoot, absPath));
 }
 
 /**

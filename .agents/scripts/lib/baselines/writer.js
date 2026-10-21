@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { deepEqual } from '../json-utils.js';
+import { deepEqual, isObject } from '../json-utils.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
 import { assertEnvelope, buildEnvelope } from './envelope.js';
 import { currentKernelVersion, getKindModule } from './kernel.js';
@@ -106,12 +106,7 @@ function resolvePriorEnvelope(priorEnvelope, prior) {
 }
 
 function isEnvelopeObject(value) {
-  return (
-    Boolean(value) &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    Array.isArray(value.rows)
-  );
+  return isObject(value) && Array.isArray(value.rows);
 }
 
 /**

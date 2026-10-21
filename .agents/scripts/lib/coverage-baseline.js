@@ -12,6 +12,7 @@ import {
   captureStampPath,
   MissingCoverageArtifactError,
 } from './coverage-capture.js';
+import { isObject } from './json-utils.js';
 
 const COVERAGE_FINAL_PATH = COVERAGE_CAPTURE_DEFAULTS.coveragePath;
 const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
@@ -106,9 +107,7 @@ export function readCoverageFinal(cwd, opts = {}, fsImpl) {
 
 function isEnvelopeShape(parsed) {
   return (
-    parsed &&
-    typeof parsed === 'object' &&
-    !Array.isArray(parsed) &&
+    isObject(parsed) &&
     Array.isArray(parsed.rows) &&
     typeof parsed.$schema === 'string'
   );

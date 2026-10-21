@@ -32,6 +32,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
+import { toPosix } from '../.agents/scripts/lib/util/paths.js';
 
 /** Default workflow root, relative to the repository root. */
 const DEFAULT_ROOT = path.join('.agents', 'workflows');
@@ -124,7 +125,7 @@ export function tallyCitations(files, cwd, { readFile } = {}) {
     if (count === 0) continue;
     total += count;
     rows.push({
-      path: path.relative(cwd, file).split(path.sep).join('/'),
+      path: toPosix(path.relative(cwd, file)),
       count,
     });
   }

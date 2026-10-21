@@ -12,6 +12,7 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 import { buildCatalog, buildLoopCatalog } from './lib/mandrel-catalog.js';
+import { toPosix } from './lib/util/paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -179,7 +180,7 @@ async function main(argv = process.argv.slice(2)) {
   });
 
   const { generated, original, root, docPath } = buildExpected(values.root);
-  const rel = path.relative(root, docPath).split(path.sep).join('/');
+  const rel = toPosix(path.relative(root, docPath));
 
   if (values.check) {
     if (original === generated) {

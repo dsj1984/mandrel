@@ -13,6 +13,7 @@ import {
 } from '../config/temp-paths.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { gitSpawn as defaultGitSpawn, getStoryBranch } from '../git-utils.js';
+import { isObject } from '../json-utils.js';
 import { defaultSleep } from '../util/sleep.js';
 import {
   CHECKS_FAILED_CLASS,
@@ -226,7 +227,7 @@ export function probeCloseArtifacts({
   let envelopeMtimeMs = null;
   try {
     const parsed = JSON.parse(fsImpl.readFileSync(envelopePath, 'utf8'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (isObject(parsed)) {
       envelope = parsed;
       envelopeMtimeMs = fsImpl.statSync(envelopePath).mtimeMs;
     }

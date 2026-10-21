@@ -5,11 +5,11 @@
  */
 
 import path from 'node:path';
-
 import { resolvePreviewScope } from '../changed-files.js';
 import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
 import { KERNEL_VERSION, resolveEscomplexVersion } from '../crap-utils.js';
 import { calculateAll, scanDirectory } from '../maintainability-utils.js';
+import { toPosix } from '../util/paths.js';
 import { computeCrapPreviewScan } from './crap-preview-scan.js';
 import {
   assertBaselineCompatible,
@@ -174,7 +174,7 @@ export async function runMaintainabilityPreview({
   const scores = {};
   for (const [key, mi] of Object.entries(rawScores)) {
     const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
-    const posixRel = rel.split(path.sep).join('/');
+    const posixRel = toPosix(rel);
     if (!MAINTAINABILITY_EXCLUSIONS.has(posixRel)) scores[key] = mi;
   }
   const stats = compareScores(scores, scopedBaseline, effectiveTolerance);

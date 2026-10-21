@@ -171,12 +171,6 @@
       "percentage": 5.81
     },
     {
-      "path": ".agents/scripts/lib/import-graph.js",
-      "duplicatedLines": 11,
-      "totalLines": 129,
-      "percentage": 8.53
-    },
-    {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
       "duplicatedLines": 37,
       "totalLines": 148,
@@ -349,12 +343,6 @@
       "duplicatedLines": 9,
       "totalLines": 512,
       "percentage": 1.76
-    },
-    {
-      "path": "scripts/check-workflow-citations.js",
-      "duplicatedLines": 11,
-      "totalLines": 218,
-      "percentage": 5.05
     },
     {
       "path": "scripts/check-workflow-cli-lint.js",

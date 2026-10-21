@@ -7,6 +7,8 @@
  * @typedef {import('./types.js').Severity} Severity
  */
 
+import { isObject } from '../../json-utils.js';
+
 /**
  * Unwrap a bare array, `{ findings }`, or either under `result`/`data`.
  * A non-array result is returned for the caller to reject.
@@ -16,12 +18,12 @@
  */
 export function unwrapEnvelope(parsed) {
   let value = parsed;
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
+  if (isObject(value)) {
     if (Array.isArray(value.findings)) value = value.findings;
     else if (value.result !== undefined) value = value.result;
     else if (value.data !== undefined) value = value.data;
   }
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
+  if (isObject(value)) {
     if (Array.isArray(value.findings)) value = value.findings;
   }
   return value;

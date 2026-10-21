@@ -26,6 +26,7 @@ import {
   LOCAL_SKILLS_SEGMENTS,
   PAYLOAD_SKILLS_SEGMENTS,
 } from './lib/skills/walk-skill-files.js';
+import { toPosix } from './lib/util/paths.js';
 
 const GENERATOR_ID = 'generate-skills-index.js@1';
 
@@ -125,7 +126,7 @@ function writeManifest(manifest, outPath, root) {
 
 /** An emptied local zone removes its index rather than leave a stale one. */
 function writeLocalManifest(localFresh, localOutPath, root) {
-  const rel = path.relative(root, localOutPath).split(path.sep).join('/');
+  const rel = toPosix(path.relative(root, localOutPath));
   if (localFresh === null) {
     if (fs.existsSync(localOutPath)) {
       fs.rmSync(localOutPath);
@@ -236,7 +237,7 @@ export function run({ argv = [], now = new Date(), repoRoot } = {}) {
 
   writeManifest(fresh, outPath, root);
   Logger.info(
-    `wrote ${path.relative(root, outPath).split(path.sep).join('/')} (${fresh.skills.length} entries)`,
+    `wrote ${toPosix(path.relative(root, outPath))} (${fresh.skills.length} entries)`,
   );
   writeLocalManifest(localFresh, localOutPath, root);
   return { status: 0, output: '' };

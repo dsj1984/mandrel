@@ -17,7 +17,7 @@ import {
   collectLocalSkillFiles,
   collectSkillFiles,
 } from '../skills/walk-skill-files.js';
-import { dirExists } from '../util/paths.js';
+import { dirExists, toPosix } from '../util/paths.js';
 
 /**
  * Project-relative POSIX home of the projection. Outside the `core`/`stack`
@@ -84,15 +84,6 @@ function listProjectableWorkflows({ payloadSrc, localSrc }) {
 }
 
 /**
- * @param {string} projectRoot
- * @param {string} absPath
- * @returns {string}
- */
-function toPosixRelative(projectRoot, absPath) {
-  return path.relative(projectRoot, absPath).split(path.sep).join('/');
-}
-
-/**
  * @param {string | null} description
  * @param {string} name
  * @returns {string}
@@ -149,7 +140,7 @@ export function expectedCodexSkills({
       renderCodexSkill({
         name: wf.name,
         description: extractDescription(wf.content),
-        workflowPath: toPosixRelative(projectRoot, wf.sourcePath),
+        workflowPath: toPosix(path.relative(projectRoot, wf.sourcePath)),
       }),
     );
   }
@@ -187,7 +178,8 @@ function assertProjectableNames(projectRoot, names) {
     ...collectLocalSkillFiles(projectRoot),
   ]) {
     const skillName = skillNameOf(file);
-    if (skillName) taken.set(skillName, toPosixRelative(projectRoot, file));
+    if (skillName)
+      taken.set(skillName, toPosix(path.relative(projectRoot, file)));
   }
   for (const name of names) {
     if (name.length > CODEX_SKILL_NAME_MAX) {

@@ -15,7 +15,6 @@
  */
 
 import path from 'node:path';
-
 import {
   compare as compareMaintainability,
   projectRow as projectMaintainabilityRow,
@@ -32,6 +31,7 @@ import { getQuality } from '../../config-resolver.js';
 import { gitSync as defaultGitSync } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 import { isScorableSourceFile } from '../../source-extensions.js';
+import { toPosix } from '../../util/paths.js';
 import {
   currentBranch,
   listChangedFiles,
@@ -325,7 +325,7 @@ export async function runBaselineUpwardWriteback({
   }).filter(isScorableSourceFile);
 
   const writePath = resolveWritePath({ cwd: workTree });
-  const relPath = path.relative(workTree, writePath).split(path.sep).join('/');
+  const relPath = toPosix(path.relative(workTree, writePath));
 
   const blocked = precheck({
     gate,

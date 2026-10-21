@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
@@ -8,6 +7,7 @@ import { scoreFile } from './maintainability-engine.js';
 import { isScored, reportUnscorable } from './maintainability-unscorable.js';
 import { isScorableSourceFile } from './source-extensions.js';
 import { CompilerMissingError } from './transpile.js';
+import { walkFiles } from './util/paths.js';
 
 const MAINTAINABILITY_WORKER_URL = new URL(
   './workers/maintainability-worker.js',
@@ -122,27 +122,15 @@ export function isIgnoredByGlobs(filePath, ignoreGlobs = [], cwd) {
 export function scanDirectory(dir, fileList = [], opts = {}) {
   const { ignoreGlobs = [], cwd: optsCwd } = opts;
   const matchCwd = optsCwd ?? process.cwd();
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch (err) {
-    if (err.code === 'ENOENT') return fileList;
-    throw err;
-  }
-
-  for (const entry of entries) {
-    const filePath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (!IGNORED_DIRS.has(entry.name)) {
-        scanDirectory(filePath, fileList, opts);
-      }
-    } else if (entry.isFile() && isScorableSourceFile(entry.name)) {
-      if (isIgnoredByGlobs(filePath, ignoreGlobs, matchCwd)) {
-        continue;
-      }
-      fileList.push(filePath);
-    }
-  }
+  fileList.push(
+    ...walkFiles(dir, {
+      skipDirs: IGNORED_DIRS,
+      filter: (abs, dirent) =>
+        dirent.isFile() &&
+        isScorableSourceFile(dirent.name) &&
+        !isIgnoredByGlobs(abs, ignoreGlobs, matchCwd),
+    }),
+  );
   return fileList;
 }
 

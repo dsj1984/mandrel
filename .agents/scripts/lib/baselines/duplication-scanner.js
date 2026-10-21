@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { resolveDependencyVersion } from '../dependency-version.js';
 import { jscpdFormatsFor } from '../source-extensions.js';
+import { toPosix } from '../util/paths.js';
 
 const DEFAULT_MIN_TOKENS = 50;
 /** Derived from the scorable-extension SSOT; deliberately not configurable. */
@@ -75,7 +76,7 @@ export function relativisePath(sourceId, cwd) {
   const rel = path.isAbsolute(sourceId)
     ? path.relative(cwd, sourceId)
     : sourceId;
-  return rel.split(path.sep).join('/');
+  return toPosix(rel);
 }
 
 /**
@@ -187,11 +188,6 @@ export function readLineCount(absPath) {
   return lines.length;
 }
 
-/** fast-glob reads a backslash as an escape. */
-function toGlobPath(p) {
-  return p.split(path.sep).join('/');
-}
-
 /**
  * jscpd 4's finder globs with `cwd: process.cwd()` and ignores its `cwd`
  * option, so a repo-relative ignore glob only ever matches the process tree.
@@ -207,7 +203,7 @@ function anchorIgnoreGlobs(ignoreGlobs, cwd) {
   return ignoreGlobs.map((glob) =>
     path.isAbsolute(glob) || glob.startsWith('**/')
       ? glob
-      : toGlobPath(path.resolve(cwd, glob)),
+      : toPosix(path.resolve(cwd, glob)),
   );
 }
 
@@ -235,7 +231,7 @@ export async function scanDuplication({
   }
   const dirs = Array.isArray(targetDirs) ? targetDirs : [];
   const clones = await detect({
-    path: dirs.map((dir) => toGlobPath(path.resolve(cwd, dir))),
+    path: dirs.map((dir) => toPosix(path.resolve(cwd, dir))),
     cwd,
     silent: true,
     gitignore: false,

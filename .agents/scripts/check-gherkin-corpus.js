@@ -20,6 +20,7 @@ import {
   listStepFiles,
   matchStep,
 } from './lib/bdd-step-index.js';
+import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getGherkinLint } from './lib/config/qa.js';
 import { resolveConfig } from './lib/config-resolver.js';
@@ -44,17 +45,7 @@ const HELP = {
  * @returns {{ cwd: string | null }}
  */
 export function parseArgs(argv = []) {
-  const out = { cwd: null };
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--cwd') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        out.cwd = next;
-        i += 1;
-      }
-    }
-  }
-  return out;
+  return parseGateArgv(argv, { strings: ['cwd'] });
 }
 
 /**
