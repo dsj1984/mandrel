@@ -64,7 +64,16 @@ export function buildAllowlistDecider(allowlist) {
   return (entry) => (set.has(entry.ref) ? 'drop' : 'keep');
 }
 
-function applyDecision({
+// Fail safe: only an explicit 'drop' drops; a throwing prompt keeps.
+async function decide(decideFn, s) {
+  try {
+    return await decideFn(s);
+  } catch {
+    return 'keep';
+  }
+}
+
+async function applyDecision({
   s,
   decideFn,
   dropFn,
@@ -73,12 +82,12 @@ function applyDecision({
   failures,
   logger,
 }) {
-  const decision = decideFn(s);
+  const decision = await decide(decideFn, s);
   if (decision === 'quit') {
     actions.push({ ref: s.ref, action: 'quit' });
     return { quit: true };
   }
-  if (decision === 'keep') {
+  if (decision !== 'drop') {
     actions.push({ ref: s.ref, action: 'keep' });
     return { quit: false };
   }
@@ -104,7 +113,7 @@ function applyDecision({
  * `decideFn` so interactive prompts (readline) and non-interactive
  * allowlists (`--drop-stashes <ref>`) share the same engine.
  */
-export function executeStashes(ctx) {
+export async function executeStashes(ctx) {
   const { cwd, stashes, decideFn, dropFn = dropStash, logger = Logger } = ctx;
   const actions = [];
   const failures = [];
@@ -119,7 +128,7 @@ export function executeStashes(ctx) {
       actions.push({ ref: s.ref, action: 'quit' });
       continue;
     }
-    const out = applyDecision({
+    const out = await applyDecision({
       s,
       decideFn,
       dropFn,

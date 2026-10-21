@@ -493,4 +493,52 @@ describe('runStashPhase', () => {
     assert.deepEqual(dropped, ['stash@{1}']);
     assert.equal(out.ok, true);
   });
+
+  const runAsync = (answer) => {
+    const { seams, dropped } = stashSeams();
+    const promptStash = async (entry) => answer(entry);
+    return runStashPhase({}, '/repo', { ...seams, promptStash }).then(
+      (out) => ({ out, dropped }),
+    );
+  };
+
+  it('keeps every stash when an async prompt answers keep', async () => {
+    const { out, dropped } = await runAsync(() => 'keep');
+    assert.deepEqual(dropped, []);
+    assert.deepEqual(
+      out.actions.map((a) => a.action),
+      ['keep', 'keep'],
+    );
+  });
+
+  it('drops only the stash an async prompt answers drop to', async () => {
+    const { dropped } = await runAsync((e) =>
+      e.ref === 'stash@{0}' ? 'drop' : 'keep',
+    );
+    assert.deepEqual(dropped, ['stash@{0}']);
+  });
+
+  it('stops on an async quit and drops nothing after it', async () => {
+    const { out, dropped } = await runAsync(() => 'quit');
+    assert.deepEqual(dropped, []);
+    assert.deepEqual(
+      out.actions.map((a) => a.action),
+      ['quit', 'quit'],
+    );
+  });
+
+  it('keeps a stash on an unexpected or throwing answer', async () => {
+    const odd = await runAsync((e) =>
+      e.ref === 'stash@{1}' ? 'maybe' : undefined,
+    );
+    assert.deepEqual(odd.dropped, []);
+    const thrown = await runAsync(() => {
+      throw new Error('stdin closed');
+    });
+    assert.deepEqual(thrown.dropped, []);
+    assert.deepEqual(
+      thrown.out.actions.map((a) => a.action),
+      ['keep', 'keep'],
+    );
+  });
 });
