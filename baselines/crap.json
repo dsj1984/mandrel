@@ -19959,9 +19959,30 @@
     },
     {
       "path": ".agents/scripts/lib/import-graph.js",
+      "method": "<anon collectJsFiles/(abs,dirent)#0>",
+      "startLine": 27,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/import-graph.js",
+      "method": "<anon collectJsFiles/()#0>",
+      "startLine": 28,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/import-graph.js",
       "method": "parseRelativeImports",
       "startLine": 52,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/import-graph.js",
+      "method": "<anon buildGraph/(file)#0>",
+      "startLine": 56,
+      "crap": 1.001728,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/import-graph.js",
@@ -20322,6 +20343,13 @@
       "method": "scanDirectory",
       "startLine": 122,
       "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/maintainability-utils.js",
+      "method": "<anon scanDirectory/(abs,dirent)#0>",
+      "startLine": 128,
+      "crap": 3,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
@@ -32641,6 +32669,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
+      "method": "<anon runRatchetShrinkWriteback/(p)#2/(p)#0>",
+      "startLine": 325,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
       "method": "<anon runRatchetShrinkWriteback/(p,r)#0>",
       "startLine": 327,
       "crap": 1,
@@ -35309,6 +35344,13 @@
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
+      "method": "<anon (m)#0>",
+      "startLine": 17,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
       "method": "toTopLevelPackage",
       "startLine": 28,
       "crap": 2
@@ -35349,6 +35391,13 @@
       "method": "listJsFiles",
       "startLine": 119,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
+      "method": "<anon listJsFiles/(abs,dirent)#0>",
+      "startLine": 122,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
@@ -36211,6 +36260,20 @@
       "method": "walkSkillFiles",
       "startLine": 37,
       "crap": 6.023670584367552
+    },
+    {
+      "path": ".agents/scripts/lib/skills/walk-skill-files.js",
+      "method": "<anon walkSkillFiles/(_abs,dirent)#0>",
+      "startLine": 40,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/skills/walk-skill-files.js",
+      "method": "<anon walkSkillFiles/()#0>",
+      "startLine": 41,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/skills/walk-skill-files.js",
@@ -38061,6 +38124,12 @@
       "startLine": 75,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/util/regex.js",
+      "method": "escapeRegExp",
+      "startLine": 2,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/util/sleep.js",
@@ -45523,6 +45592,20 @@
     },
     {
       "path": "scripts/check-lifecycle-lint.js",
+      "method": "<anon (dir)#0>",
+      "startLine": 83,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-lifecycle-lint.js",
+      "method": "<anon (dir)#0/(abs,dirent)#0>",
+      "startLine": 85,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-lifecycle-lint.js",
       "method": "lifecycleDirFor",
       "startLine": 87,
       "crap": 1
@@ -48357,6 +48440,13 @@
       "method": "resolveTargets",
       "startLine": 79,
       "crap": 7.084672
+    },
+    {
+      "path": "scripts/lint-label-vocabulary.js",
+      "method": "<anon resolveTargets/(abs,dirent)#0>",
+      "startLine": 83,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": "scripts/lint-label-vocabulary.js",
