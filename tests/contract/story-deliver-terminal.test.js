@@ -32,7 +32,7 @@ import path from 'node:path';
 import { describe, it, mock } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { setLevel } from '../../.agents/scripts/lib/Logger.js';
-import { MERGE_UNLANDED_BLOCK_CLASSES } from '../../.agents/scripts/lib/orchestration/merge-block-class.js';
+import { isValidBlockClass } from '../../.agents/scripts/lib/orchestration/merge-block-class.js';
 import { lockWaitPending } from '../../.agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js';
 import {
   buildEscalationTerminal,
@@ -560,7 +560,22 @@ describe('story-deliver-terminal — blocked / failed', () => {
     // adds a class on one side only. `checks-failed` (Story #4543) is exactly
     // that case; pin the relationship so the next one fails here first.
     const schemaClasses = SCHEMA.properties.blocked.properties.blockClass.enum;
-    for (const cls of MERGE_UNLANDED_BLOCK_CLASSES) {
+    const unlandedClasses = [
+      'checks-failed',
+      'checks-pending-timeout',
+      'branch-protection-human-required',
+      'arm-failure',
+      'api-race-other',
+      'predicate-refused',
+      'advisory-gate-red',
+      'advisory-gate-inconclusive',
+      'merge-queue-rest-unsupported',
+    ];
+    for (const cls of unlandedClasses) {
+      assert.ok(
+        isValidBlockClass(cls),
+        `merge-block-class.js rejects "${cls}"`,
+      );
       assert.ok(
         schemaClasses.includes(cls),
         `terminal schema is missing block class "${cls}" from merge-block-class.js`,
@@ -569,6 +584,13 @@ describe('story-deliver-terminal — blocked / failed', () => {
     // The merged-flip-failed terminal is not an unlanded attribution (the
     // merge landed) but is a legitimate blocked class on the envelope.
     assert.ok(schemaClasses.includes('merged-flip-failed'));
+    for (const cls of schemaClasses) {
+      if (cls === 'merged-flip-failed') continue;
+      assert.ok(
+        isValidBlockClass(cls),
+        `terminal schema class "${cls}" is not a merge-block-class.js attribution`,
+      );
+    }
   });
 
   it('failed names the phase that crashed', () => {

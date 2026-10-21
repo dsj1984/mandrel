@@ -150,6 +150,77 @@ function detectDependencyEdges(groups) {
 }
 
 /**
+ * File findings key by primary file; file-less findings join the best
+ * signature match or open a new topic key (seeding its signature bucket).
+ */
+function resolveGroupKey(finding, sigBuckets) {
+  const primary = pickPrimaryFile(finding);
+  if (primary) return `file:${primary}`;
+  const { key: matchKey, sig } = bestSignatureGroupKey(finding, sigBuckets);
+  if (matchKey) return matchKey;
+  const key = `topic:${finding.dimension}:${finding.normalisedTitle.slice(0, 40)}`;
+  sigBuckets.set(key, sig);
+  return key;
+}
+
+function addFindingToGroups(groups, sigBuckets, key, finding) {
+  if (!groups.has(key)) {
+    groups.set(key, makeGroup(key));
+    if (!sigBuckets.has(key)) sigBuckets.set(key, rootCauseSignature(finding));
+  } else {
+    const existing = sigBuckets.get(key) ?? new Set();
+    for (const t of rootCauseSignature(finding)) existing.add(t);
+    sigBuckets.set(key, existing);
+  }
+  attachFindingToGroup(groups.get(key), finding);
+}
+
+function signatureOverlap(a, b) {
+  let overlap = 0;
+  for (const t of a) if (b.has(t)) overlap += 1;
+  return overlap;
+}
+
+/**
+ * Merge single-finding groups into a same-directory group sharing ≥ 3
+ * signature tokens.
+ *
+ * @returns {Set<string>} keys of the groups absorbed into another.
+ */
+function mergeSameDirectorySingletons(groupArray, sigBuckets) {
+  const merged = new Set();
+  for (let i = 0; i < groupArray.length; i += 1) {
+    const target = groupArray[i];
+    if (merged.has(target.groupKey) || target.findings.length > 1) continue;
+    const targetDir = dirOf(pickPrimaryFile(target.findings[0]) ?? '');
+    if (!targetDir) continue;
+    const targetSig = sigBuckets.get(target.groupKey) ?? new Set();
+
+    for (let j = i + 1; j < groupArray.length; j += 1) {
+      const other = groupArray[j];
+      if (merged.has(other.groupKey)) continue;
+      const otherDir = dirOf(pickPrimaryFile(other.findings[0] ?? {}) ?? '');
+      if (otherDir !== targetDir) continue;
+      const otherSig = sigBuckets.get(other.groupKey) ?? new Set();
+      if (signatureOverlap(targetSig, otherSig) < 3) continue;
+
+      for (const f of other.findings) attachFindingToGroup(target, f);
+      merged.add(other.groupKey);
+    }
+  }
+  return merged;
+}
+
+function finalizeGroup(g) {
+  g.severity = highestSeverity(g.findings);
+  g.dimensions = [...g.dimensions].sort();
+  g.files = [...g.files];
+  g.title = synthesizeTitle(g);
+  delete g._signature;
+  return g;
+}
+
+/**
  * @param {Array<{
  *   dimension: string,
  *   severity: string|null,
@@ -168,77 +239,20 @@ export function groupFindings(findings) {
 
   const groups = new Map();
   const sigBuckets = new Map();
-
   for (const finding of findings) {
-    const primary = pickPrimaryFile(finding);
-    let key;
-
-    if (primary) {
-      key = `file:${primary}`;
-    } else {
-      const { key: matchKey, sig } = bestSignatureGroupKey(finding, sigBuckets);
-      if (matchKey) {
-        key = matchKey;
-      } else {
-        key = `topic:${finding.dimension}:${finding.normalisedTitle.slice(0, 40)}`;
-        sigBuckets.set(key, sig);
-      }
-    }
-
-    if (!groups.has(key)) {
-      groups.set(key, makeGroup(key));
-      if (!sigBuckets.has(key))
-        sigBuckets.set(key, rootCauseSignature(finding));
-    } else {
-      const existing = sigBuckets.get(key) ?? new Set();
-      for (const t of rootCauseSignature(finding)) existing.add(t);
-      sigBuckets.set(key, existing);
-    }
-
-    attachFindingToGroup(groups.get(key), finding);
+    addFindingToGroups(
+      groups,
+      sigBuckets,
+      resolveGroupKey(finding, sigBuckets),
+      finding,
+    );
   }
 
-  // Merge single-finding groups into a same-directory group sharing ≥ 3
-  // signature tokens.
   const groupArray = [...groups.values()];
-  const merged = new Set();
-  for (let i = 0; i < groupArray.length; i += 1) {
-    if (merged.has(groupArray[i].groupKey)) continue;
-    if (groupArray[i].findings.length > 1) continue;
-    const targetDir = dirOf(pickPrimaryFile(groupArray[i].findings[0]) ?? '');
-    if (!targetDir) continue;
-    const targetSig = sigBuckets.get(groupArray[i].groupKey) ?? new Set();
-
-    for (let j = i + 1; j < groupArray.length; j += 1) {
-      if (merged.has(groupArray[j].groupKey)) continue;
-      const otherDir = dirOf(
-        pickPrimaryFile(groupArray[j].findings[0] ?? {}) ?? '',
-      );
-      if (otherDir !== targetDir) continue;
-      const otherSig = sigBuckets.get(groupArray[j].groupKey) ?? new Set();
-      let overlap = 0;
-      for (const t of targetSig) if (otherSig.has(t)) overlap += 1;
-      if (overlap < 3) continue;
-
-      for (const f of groupArray[j].findings) {
-        attachFindingToGroup(groupArray[i], f);
-      }
-      merged.add(groupArray[j].groupKey);
-    }
-  }
-
+  const merged = mergeSameDirectorySingletons(groupArray, sigBuckets);
   const finalGroups = groupArray
     .filter((g) => !merged.has(g.groupKey))
-    .map((g) => {
-      g.severity = highestSeverity(g.findings);
-      g.dimensions = [...g.dimensions].sort();
-      g.files = [...g.files];
-      g.title = synthesizeTitle(g);
-      delete g._signature;
-      return g;
-    });
+    .map(finalizeGroup);
 
-  const edges = detectDependencyEdges(finalGroups);
-
-  return { groups: finalGroups, edges };
+  return { groups: finalGroups, edges: detectDependencyEdges(finalGroups) };
 }

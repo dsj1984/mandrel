@@ -4,8 +4,6 @@
 
 import picomatch from 'picomatch';
 
-const DEFAULT_COMPONENTS = Object.freeze({ '*': Object.freeze(['**']) });
-
 /**
  * Compiled matchers keyed by glob: `groupRows` runs over tens of thousands of
  * rows, and re-parsing each glob per row dominated its cost.
@@ -58,6 +56,32 @@ function cloneDefault() {
 }
 
 /**
+ * @param {unknown} row
+ * @param {string}  field
+ * @returns {string|null} The row's `/`-normalized key, or null when absent.
+ */
+function rowKey(row, field) {
+  const key = row && typeof row === 'object' ? row[field] : undefined;
+  if (typeof key !== 'string' || key.length === 0) return null;
+  return key.replace(/\\/g, '/');
+}
+
+/**
+ * @param {string}  normalized
+ * @param {unknown} globs
+ * @returns {boolean} `true` iff any non-empty string glob matches.
+ */
+function matchesAnyGlob(normalized, globs) {
+  if (!Array.isArray(globs)) return false;
+  return globs.some(
+    (glob) =>
+      typeof glob === 'string' &&
+      glob.length > 0 &&
+      matcherFor(glob)(normalized),
+  );
+}
+
+/**
  * A row without a string `keyField` lands only in `*`.
  *
  * @param {Array<Record<string, unknown>>} rows
@@ -73,33 +97,21 @@ export function groupRows(rows, components, keyField = 'path') {
     components && typeof components === 'object' ? components : cloneDefault();
   const field =
     typeof keyField === 'string' && keyField.length > 0 ? keyField : 'path';
+  const entries = Object.entries(safeComponents);
 
   const buckets = {};
-  for (const name of Object.keys(safeComponents)) {
+  for (const [name] of entries) {
     buckets[name] = [];
   }
 
   for (const row of safeRows) {
-    for (const [name, globs] of Object.entries(safeComponents)) {
-      if (name === '*') {
+    const normalized = rowKey(row, field);
+    for (const [name, globs] of entries) {
+      if (name === '*' || (normalized && matchesAnyGlob(normalized, globs))) {
         buckets[name].push(row);
-        continue;
-      }
-      const key = row && typeof row === 'object' ? row[field] : undefined;
-      if (typeof key !== 'string' || key.length === 0) continue;
-      const normalized = key.replace(/\\/g, '/');
-      const list = Array.isArray(globs) ? globs : [];
-      for (const glob of list) {
-        if (typeof glob !== 'string' || glob.length === 0) continue;
-        if (matcherFor(glob)(normalized)) {
-          buckets[name].push(row);
-          break;
-        }
       }
     }
   }
 
   return buckets;
 }
-
-export const _internals = Object.freeze({ DEFAULT_COMPONENTS });
