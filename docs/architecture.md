@@ -848,7 +848,7 @@ changing its shape (full per-field reference:
   and wall-clock budgets for merge confirmation after auto-merge is armed
   (the poll cadence is a fixed 30s; the cumulative budget defaults to
   3600s); exhausting the budget surfaces `agent::blocked` attributed with a
-  block class from `BLOCK_CLASSES`
+  block class returned by `classifyMergeBlock`
   (`.agents/scripts/lib/orchestration/merge-block-class.js`:
   `checks-failed`, `checks-pending-timeout`,
   `branch-protection-human-required`, `arm-failure`, `api-race-other`).

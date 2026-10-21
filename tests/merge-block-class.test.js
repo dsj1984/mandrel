@@ -16,23 +16,33 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
-  BLOCK_CLASSES,
   classifyMergeBlock,
   isValidBlockClass,
-  MERGE_UNLANDED_BLOCK_CLASSES,
 } from '../.agents/scripts/lib/orchestration/merge-block-class.js';
 
+// Every classifyMergeBlock output, in evaluation order.
+const BLOCK_CLASSES = Object.freeze([
+  'checks-failed',
+  'checks-pending-timeout',
+  'branch-protection-human-required',
+  'arm-failure',
+  'api-race-other',
+]);
+
+// Plus the classes emitted directly, never by the classifier.
+const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
+  ...BLOCK_CLASSES,
+  'predicate-refused',
+  'advisory-gate-red',
+  'advisory-gate-inconclusive',
+  'merge-queue-rest-unsupported',
+]);
+
 describe('merge-block-class (Story #4426)', () => {
-  it('BLOCK_CLASSES names every classifyMergeBlock output in evaluation order', () => {
-    // The Epic #4425 Goal named four; Story #4543 added `checks-failed` so a
-    // red required check is attributable as itself.
-    assert.deepEqual(BLOCK_CLASSES, [
-      'checks-failed',
-      'checks-pending-timeout',
-      'branch-protection-human-required',
-      'arm-failure',
-      'api-race-other',
-    ]);
+  it('isValidBlockClass accepts every classifyMergeBlock output', () => {
+    for (const cls of BLOCK_CLASSES) {
+      assert.equal(isValidBlockClass(cls), true, cls);
+    }
   });
 
   it('isValidBlockClass recognises the full merge.unlanded attribution set', () => {
