@@ -369,15 +369,11 @@ function persistHeadline(created, primary) {
 }
 
 /**
- * A dry run wrote nothing, so it claims no ready flip and offers no deliver
- * command; the per-ticket `dry-run: would …` lines already said what it would do.
- *
  * @param {{
  *   created: object[],
  *   primary: object,
  *   planRunLabel: string,
  *   planRunLabelApplied: boolean,
- *   dryRun?: boolean,
  * }} args
  * @returns {void}
  */
@@ -386,15 +382,7 @@ function logPersistEpilogue({
   primary,
   planRunLabel,
   planRunLabelApplied,
-  dryRun = false,
 }) {
-  if (dryRun) {
-    Logger.info(
-      `[plan-persist] dry-run: validated ${created.length} Story(ies); ` +
-        'nothing was written to GitHub.',
-    );
-    return;
-  }
   const adopted = created.filter((story) => story.adopted);
   if (adopted.length > 0) {
     Logger.info(
@@ -413,6 +401,24 @@ function logPersistEpilogue({
         `label:${planRunLabel}`,
     );
   }
+}
+
+/**
+ * A dry run wrote nothing, so it claims no ready flip and offers no deliver
+ * command; the per-ticket `dry-run: would …` lines already said what it would do.
+ *
+ * @param {Parameters<typeof logPersistEpilogue>[0] & { dryRun: boolean }} args
+ * @returns {void}
+ */
+function logRunEpilogue({ dryRun, ...epilogue }) {
+  if (!dryRun) {
+    logPersistEpilogue(epilogue);
+    return;
+  }
+  Logger.info(
+    `[plan-persist] dry-run: validated ${epilogue.created.length} Story(ies); ` +
+      'nothing was written to GitHub.',
+  );
 }
 
 /**
@@ -609,7 +615,7 @@ export async function runPlanPersist({
   supersede.sourceTicketOrigin = sourceTicketOrigin;
 
   await cleanupPlanDirs({ config, planDir, skipCleanup });
-  logPersistEpilogue({
+  logRunEpilogue({
     created,
     primary,
     planRunLabel,
