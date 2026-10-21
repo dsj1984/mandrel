@@ -27,7 +27,7 @@ refines this shared constraint for that lens only.
 
 **Deliberate shortcuts are decisions.** In every lens, a `shortcut:` comment
 that names a ceiling and a trigger
-([convention](code-quality-guardrails.md#deliberate-shortcuts)) is a decision,
+(convention: `code-quality-guardrails.md` § Deliberate shortcuts) is a decision,
 not a finding, unless the lens can show the ceiling is already crossed at the
 expected load. A marker with no trigger, or one whose trigger has fired, is
 `/audit-exceptions`' finding, not the reading lens's.
