@@ -666,6 +666,7 @@ ticket and still refused.
 | `/mandrel-update` | Upgrade a consumer: newest version → install → re-materialize `.agents/` → migrate → doctor → changelog. |
 | `/mandrel-plan <what you want>` | Plan from prose, a notes file, or issue ids — interrogate → author **one Story by default** → persist at `agent::ready`. |
 | `/mandrel-plan <doneStoryId>` | Amend a delivered Story from a delta envelope. |
+| `/mandrel-leverage [<focus>]` | Draft ~10x bets with evidence, refute them with maker-blind skeptics, and hand survivors to `/mandrel-plan` behind a HITL gate. |
 | `/mandrel-deliver <storyId> [<storyId>…]` | Deliver one Story inline, or a set / range in `depends_on` order, then the per-run epilogue. |
 | `/mandrel-deliver <epicId>` | Deliver every open Story under a container Epic. |
 | `/mandrel-deliver <prompt>` | Unplanned small work via the light path — risk gate, receipt Story, same close. |
