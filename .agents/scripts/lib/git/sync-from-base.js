@@ -139,7 +139,7 @@ export async function syncBranchFromBase({
     );
   }
 
-  const driver = probeBaselineMergeDriver({
+  const driver = await probeBaselineMergeDriver({
     projectRoot: cwd,
     runGit: (args) => gitSpawn(cwd, ...args),
   });

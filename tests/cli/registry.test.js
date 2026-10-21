@@ -159,18 +159,18 @@ describe('node-version check', () => {
 // ---------------------------------------------------------------------------
 
 describe('git-available check', () => {
-  it('returns ok=true when git --version succeeds', () => {
+  it('returns ok=true when git --version succeeds', async () => {
     const check = findCheck('git-available');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({ status: 0, stdout: 'git version 2.49.0\n', stderr: '' }),
     });
     assertResultShape(result, { expectOk: true });
     assert.equal(result.detail, 'git version 2.49.0');
   });
 
-  it('returns ok=false when git is not on PATH (ENOENT)', () => {
+  it('returns ok=false when git is not on PATH (ENOENT)', async () => {
     const check = findCheck('git-available');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({
         status: null,
         stdout: '',
@@ -182,9 +182,9 @@ describe('git-available check', () => {
     assert.match(result.remedy, /Install git/i);
   });
 
-  it('returns ok=false when git exits non-zero', () => {
+  it('returns ok=false when git exits non-zero', async () => {
     const check = findCheck('git-available');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({ status: 1, stdout: '', stderr: 'some error' }),
     });
     assertResultShape(result, { expectOk: false });
@@ -197,9 +197,9 @@ describe('git-available check', () => {
 // ---------------------------------------------------------------------------
 
 describe('gh-available check', () => {
-  it('returns ok=true when gh --version succeeds', () => {
+  it('returns ok=true when gh --version succeeds', async () => {
     const check = findCheck('gh-available');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({
         status: 0,
         stdout:
@@ -211,9 +211,9 @@ describe('gh-available check', () => {
     assert.match(result.detail, /gh version/);
   });
 
-  it('returns ok=false when gh is not on PATH (ENOENT)', () => {
+  it('returns ok=false when gh is not on PATH (ENOENT)', async () => {
     const check = findCheck('gh-available');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({
         status: null,
         stdout: '',
@@ -225,9 +225,9 @@ describe('gh-available check', () => {
     assert.match(result.remedy, /Install gh/i);
   });
 
-  it('returns ok=false when gh exits non-zero', () => {
+  it('returns ok=false when gh exits non-zero', async () => {
     const check = findCheck('gh-available');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({ status: 127, stdout: '', stderr: 'command not found' }),
     });
     assertResultShape(result, { expectOk: false });
@@ -249,9 +249,9 @@ describe('github-token check', () => {
     error: undefined,
   });
 
-  it('returns ok=true when GITHUB_TOKEN is set', () => {
+  it('returns ok=true when GITHUB_TOKEN is set', async () => {
     const check = findCheck('github-token');
-    const result = check.run({
+    const result = await check.run({
       env: { GITHUB_TOKEN: 'ghp_supersecret' },
       runner: noGhToken,
     });
@@ -263,9 +263,9 @@ describe('github-token check', () => {
     }
   });
 
-  it('returns ok=true when GH_TOKEN is set (env alias, parity with runtime resolver)', () => {
+  it('returns ok=true when GH_TOKEN is set (env alias, parity with runtime resolver)', async () => {
     const check = findCheck('github-token');
-    const result = check.run({
+    const result = await check.run({
       env: { GH_TOKEN: 'gho_aliassecret' },
       runner: noGhToken,
     });
@@ -273,9 +273,9 @@ describe('github-token check', () => {
     assert.doesNotMatch(result.detail, /gho_aliassecret/);
   });
 
-  it('returns ok=true via the `gh auth token` fallback when env is unset (Story #3893)', () => {
+  it('returns ok=true via the `gh auth token` fallback when env is unset (Story #3893)', async () => {
     const check = findCheck('github-token');
-    const result = check.run({
+    const result = await check.run({
       env: {},
       runner: (cmd, args) => {
         assert.equal(cmd, 'gh');
@@ -294,9 +294,9 @@ describe('github-token check', () => {
     assert.doesNotMatch(result.detail, /ghp_resolvedviaghcli/);
   });
 
-  it('returns ok=false with an accurate remedy when env is unset and gh has no token', () => {
+  it('returns ok=false with an accurate remedy when env is unset and gh has no token', async () => {
     const check = findCheck('github-token');
-    const result = check.run({ env: {}, runner: noGhToken });
+    const result = await check.run({ env: {}, runner: noGhToken });
     assertResultShape(result, { expectOk: false });
     // Remedy must point at the path the runtime actually uses (gh auth login)
     // and must not promise a `.env` path the CLI cannot read (Finding A.4).
@@ -304,9 +304,9 @@ describe('github-token check', () => {
     assert.doesNotMatch(result.remedy, /\.env/);
   });
 
-  it('returns ok=false when gh CLI is missing (ENOENT) and env is unset', () => {
+  it('returns ok=false when gh CLI is missing (ENOENT) and env is unset', async () => {
     const check = findCheck('github-token');
-    const result = check.run({
+    const result = await check.run({
       env: {},
       runner: () => ({
         status: null,
@@ -318,9 +318,9 @@ describe('github-token check', () => {
     assertResultShape(result, { expectOk: false });
   });
 
-  it('treats an empty GITHUB_TOKEN as unset and falls through to gh fallback', () => {
+  it('treats an empty GITHUB_TOKEN as unset and falls through to gh fallback', async () => {
     const check = findCheck('github-token');
-    const result = check.run({
+    const result = await check.run({
       env: { GITHUB_TOKEN: '' },
       runner: () => ({
         status: 0,
@@ -333,10 +333,10 @@ describe('github-token check', () => {
     assert.match(result.detail, /gh auth token/);
   });
 
-  it('never echoes a real-looking token value in detail or remedy', () => {
+  it('never echoes a real-looking token value in detail or remedy', async () => {
     const sensitiveToken = 'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
     const check = findCheck('github-token');
-    const result = check.run({
+    const result = await check.run({
       env: { GITHUB_TOKEN: sensitiveToken },
       runner: noGhToken,
     });
@@ -352,9 +352,9 @@ describe('github-token check', () => {
 // ---------------------------------------------------------------------------
 
 describe('gh-auth check', () => {
-  it('returns ok=true when gh auth status succeeds and parses the username', () => {
+  it('returns ok=true when gh auth status succeeds and parses the username', async () => {
     const check = findCheck('gh-auth');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({
         status: 0,
         stdout: '',
@@ -363,20 +363,33 @@ describe('gh-auth check', () => {
     });
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /dsj1984/);
+    assert.equal(result.login, 'dsj1984');
   });
 
-  it('returns ok=true when gh auth status succeeds without a parseable username', () => {
+  it('returns the login from the current `account` status line', async () => {
+    const result = await findCheck('gh-auth').run({
+      runner: () => ({
+        status: 0,
+        stdout: '✓ Logged in to github.com account dsj1984 (keyring)',
+        stderr: '',
+      }),
+    });
+    assert.equal(result.login, 'dsj1984');
+    assert.equal(result.detail, 'logged in as dsj1984');
+  });
+
+  it('returns ok=true when gh auth status succeeds without a parseable username', async () => {
     const check = findCheck('gh-auth');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({ status: 0, stdout: 'authenticated', stderr: '' }),
     });
     assertResultShape(result, { expectOk: true });
     assert.equal(result.detail, 'logged in');
   });
 
-  it('returns ok=false when gh auth status exits non-zero and no env token is present', () => {
+  it('returns ok=false when gh auth status exits non-zero and no env token is present', async () => {
     const check = findCheck('gh-auth');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({ status: 1, stdout: '', stderr: 'not logged in' }),
       env: {},
     });
@@ -384,9 +397,9 @@ describe('gh-auth check', () => {
     assert.match(result.remedy, /gh auth login/);
   });
 
-  it('degrades to ok=true when gh auth status fails but GITHUB_TOKEN is set (CI installation token)', () => {
+  it('degrades to ok=true when gh auth status fails but GITHUB_TOKEN is set (CI installation token)', async () => {
     const check = findCheck('gh-auth');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({
         status: 1,
         stdout: '',
@@ -399,9 +412,9 @@ describe('gh-auth check', () => {
     assert.equal(result.remedy, undefined);
   });
 
-  it('degrades to ok=true when gh auth status fails but GH_TOKEN is set', () => {
+  it('degrades to ok=true when gh auth status fails but GH_TOKEN is set', async () => {
     const check = findCheck('gh-auth');
-    const result = check.run({
+    const result = await check.run({
       runner: () => ({ status: 1, stdout: '', stderr: 'not logged in' }),
       env: { GH_TOKEN: 'gho_some_token' },
     });
