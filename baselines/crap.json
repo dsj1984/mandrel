@@ -6111,6 +6111,13 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (p)#0>",
+      "startLine": 20,
+      "crap": 1.0233236151603498,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
       "method": "<anon (root,file)#0>",
       "startLine": 20,
       "crap": 1,
