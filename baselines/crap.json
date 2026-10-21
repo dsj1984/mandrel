@@ -18788,6 +18788,12 @@
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "ignoreBrokenPipe",
+      "startLine": 365,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
       "method": "transportForVerdict",
       "startLine": 369,
       "crap": 2
