@@ -6,7 +6,7 @@
  *
  *   - Helper A — `sync-agentrc` emits `[REDUNDANT]` advisories for
  *     project leaves that deep-equal the framework default.
- *   - Helper B — `quality-bootstrap`'s `ensureQualityConfigDefaults`
+ *   - Helper B — `quality-bootstrap`'s config-defaults seed
  *     seeds `delivery.quality.{codingGuardrails,autoRefresh}` keys.
  *
  * Before Story #2281 the two helpers contradicted each other: Helper A
@@ -37,10 +37,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import {
-  applyQualityBootstrap,
-  ensureQualityConfigDefaults,
-} from '../../.agents/scripts/lib/bootstrap/quality-bootstrap.js';
+import { applyQualityBootstrap } from '../../.agents/scripts/lib/bootstrap/quality-bootstrap.js';
 import {
   collectRedundantAdvisories,
   syncAgentrc,
@@ -184,9 +181,13 @@ describe('mandrel-update contract — Helper B does not seed Helper A redundancy
     }
   });
 
-  it('ensureQualityConfigDefaults reports skipped default-equal keys instead of writing them', () => {
+  it('the config seed reports skipped default-equal keys instead of writing them', () => {
     const projectRoot = makeFixtureProject();
-    const result = ensureQualityConfigDefaults({ projectRoot });
+    const result = applyQualityBootstrap({
+      projectRoot,
+      frameworkRoot,
+      spawnImpl: () => ({ status: 1, stdout: '', stderr: '' }),
+    }).config;
     assert.equal(result.action, 'no-change');
     assert.deepEqual(result.addedKeys, []);
     // Every default-mirror key is reported under skippedKeys so the
