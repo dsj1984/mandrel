@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
-  "kernelVersion": "6.17.1",
+  "kernelVersion": "6.42.1",
   "rows": [
     {
       "file": ".agents/scripts/lib/baseline-schema-registry.js",
