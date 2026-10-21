@@ -41,9 +41,6 @@ const NULLABLE_NONEMPTY_SAFE_STRING = {
   not: { type: 'string', pattern: SHELL_INJECTION_PATTERN_STRING },
 };
 
-/** Kept empty so existing imports still resolve. */
-export const AGENT_SETTINGS_STRING_FIELDS = Object.freeze([]);
-
 // project.*
 
 const PATHS_SCHEMA = {

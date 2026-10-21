@@ -7497,22 +7497,45 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
+      "method": "resolveGroupKey",
+      "startLine": 156,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
+      "method": "addFindingToGroups",
+      "startLine": 166,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
+      "method": "signatureOverlap",
+      "startLine": 178,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
+      "method": "mergeSameDirectorySingletons",
+      "startLine": 190,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
+      "method": "finalizeGroup",
+      "startLine": 214,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
       "method": "groupFindings",
-      "startLine": 164,
-      "crap": 15.14521837795729
+      "startLine": 235,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
       "method": "<anon groupFindings/(g)#0>",
-      "startLine": 231,
-      "crap": 1.0006454150131434,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
-      "method": "<anon groupFindings/(g)#1>",
-      "startLine": 232,
-      "crap": 1.0006454150131434,
+      "startLine": 254,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -8137,26 +8160,45 @@
     {
       "path": ".agents/scripts/lib/baselines/components.js",
       "method": "matcherFor",
-      "startLine": 21,
+      "startLine": 19,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/components.js",
       "method": "resolveComponents",
-      "startLine": 37,
+      "startLine": 35,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/baselines/components.js",
       "method": "cloneDefault",
-      "startLine": 56,
+      "startLine": 54,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/components.js",
+      "method": "rowKey",
+      "startLine": 63,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/components.js",
+      "method": "matchesAnyGlob",
+      "startLine": 74,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/components.js",
+      "method": "<anon matchesAnyGlob/(glob)#0>",
+      "startLine": 77,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/components.js",
       "method": "groupRows",
-      "startLine": 70,
-      "crap": 15
+      "startLine": 94,
+      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
@@ -24267,39 +24309,57 @@
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "method": "isValidBlockClass",
-      "startLine": 48,
+      "startLine": 43,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "method": "textIncludesAny",
-      "startLine": 61,
+      "startLine": 56,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "method": "<anon textIncludesAny/(marker)#0>",
-      "startLine": 63,
+      "startLine": 58,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "method": "describeApiRaceFallback",
-      "startLine": 67,
+      "startLine": 62,
       "crap": 5.072886297376093
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "method": "hasChecksPendingEvidence",
-      "startLine": 90,
+      "startLine": 85,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "classifyArmFailure",
+      "startLine": 102,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "isChecksPendingTimeout",
+      "startLine": 127,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "isHumanRequired",
+      "startLine": 140,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "method": "classifyMergeBlock",
-      "startLine": 124,
-      "crap": 15
+      "startLine": 172,
+      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",
