@@ -13,7 +13,7 @@ read the same numbers from here so a "high cyclomatic complexity" finding in
 
 ## At-keyboard verification
 
-Run [`npm run quality:preview`](../../../package.json) before committing
+Run `npm run quality:preview` before committing
 on any Story that touches production source. The preview runs
 `quality-preview.js`, which scopes the diff to `HEAD` by default (the
 alias passes no `--changed-since`; the script defaults to `HEAD`) and
@@ -63,7 +63,7 @@ No structural check enforces the pairing — it is a review-time rule
 ## Maintainability-Index drop refactor rule
 
 Per-file Maintainability Index (MI) is tracked in
-[`baselines/maintainability.json`](../../../baselines/maintainability.json).
+`baselines/maintainability.json`.
 A commit that drops a file's MI by more than the configured
 `delivery.quality.gates.maintainability.tolerance` (default `0.5` points)
 requires a refactor in the same Story — not a baseline bump. `tolerance` is
@@ -108,7 +108,7 @@ Every judging surface reads the marker the same way:
 - **Rot**: a ceiling with no trigger. Nothing will ever say when to fix it.
 - **Fired**: the date has passed or the issue has closed. Fix it now.
 
-[`/audit-exceptions`](../audit-exceptions.md) lists every marker with its
+`/audit-exceptions` lists every marker with its
 verdict.
 
 ## When a number changes
