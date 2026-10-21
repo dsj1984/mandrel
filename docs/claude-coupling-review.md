@@ -126,22 +126,19 @@ These already do the host-agnostic thing and are the template for extending it:
 ## Widening further: suggested order
 
 Ordered by leverage per unit of risk. The stance has changed once:
-[ADR `20261013-5655`](decisions.md#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts) acted on step 1 for Codex. The rest
+[ADR `20261013-5655`](decisions.md#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts) acted on the projection-layer step for Codex. The rest
 remains a sketch, not a plan of record.
 
-1. ~~**Abstract the projection layer.**~~ — done for Codex without a
-   host-adapter interface: `lib/claude/` and `lib/codex/` projectors share
-   one module shape (`expected*` / `listGenerated*` / `sync*`) behind the
-   thin `sync-claude-*` entry points. A third host would be the point to
-   extract the interface.
-2. **Generalize env detection** behind a single `host-runtime` resolver
+Two former steps are closed: the projection layer was abstracted for Codex
+without a host-adapter interface (`lib/claude/` and `lib/codex/` share one
+projector shape; a third host would be the point to extract it), and the
+model-attribution module is moot (Story #5367 deleted it).
+
+1. **Generalize env detection** behind a single `host-runtime` resolver
    wrapping the `CLAUDE_CODE_*` / `CC_*` vars in neutral names.
-3. ~~**Generalize the model-attribution module**~~ — moot: Story #5367 deleted
-   it. Nothing wrote the comment and nothing read it back, so the Claude family
-   map and its `CLAUDE_MODEL` / `ANTHROPIC_MODEL` fallbacks went with it.
-4. **Neutralize host tool names in skills** (`AskUserQuestion` → "the host's
+2. **Neutralize host tool names in skills** (`AskUserQuestion` → "the host's
    structured-question tool"), reusing the § 1.C live-docs phrasing.
-5. **Leave the review providers alone** — already correctly isolated and
+3. **Leave the review providers alone** — already correctly isolated and
    optional.
-6. **Prose sweep last** — cosmetic, and it should follow the ADR rather than
+4. **Prose sweep last** — cosmetic, and it should follow the ADR rather than
    lead it.
