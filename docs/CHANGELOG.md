@@ -15,6 +15,40 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.95.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.94.0...mandrel-v2.95.0) (2026-10-21)
+
+
+### Added
+
+* observe invalid agent:: state transitions instead of leaving the transition table unwired ([#5805](https://github.com/dsj1984/mandrel/issues/5805)) ([#5821](https://github.com/dsj1984/mandrel/issues/5821)) ([68bb4c1](https://github.com/dsj1984/mandrel/commit/68bb4c122c99f96bcb70b0b10a1d40ca1f72885f))
+* tighten the quality floors after the burn-down, refresh stale baselines, and stop check-baselines ignoring unknown gate kinds ([#5817](https://github.com/dsj1984/mandrel/issues/5817)) ([#5833](https://github.com/dsj1984/mandrel/issues/5833)) ([37705a7](https://github.com/dsj1984/mandrel/commit/37705a7ac6a44a1d1df080273c708b958d532246))
+
+
+### Fixed
+
+* address the post-v2.94.0 review: accept js-yaml 4 at consumer roots, observe every agent:: transition, and close error-path regressions ([#5836](https://github.com/dsj1984/mandrel/issues/5836)) ([5e0c216](https://github.com/dsj1984/mandrel/commit/5e0c216e7b79b084427b20f565db59eada73ec12))
+* clear the dev-only npm advisories and refresh dependencies: markdownlint-cli2 0.24 with js-yaml 5, jscpd 4.3, minor batch, c8 12, chokidar 6 ([#5815](https://github.com/dsj1984/mandrel/issues/5815)) ([#5831](https://github.com/dsj1984/mandrel/issues/5831)) ([aba9345](https://github.com/dsj1984/mandrel/commit/aba93456869d150f256bbb1694de1fc9db1d326e))
+* **deps:** clear the markdown-it GHSA-gfr2-rv44-r23c advisory (refs [#5799](https://github.com/dsj1984/mandrel/issues/5799)) ([#5800](https://github.com/dsj1984/mandrel/issues/5800)) ([9f5ccd1](https://github.com/dsj1984/mandrel/commit/9f5ccd1d31977fcb19bc630ff8d769d37e7f2baa))
+* fix [#5804](https://github.com/dsj1984/mandrel/issues/5804): gh-exec.js ends child.stdin with no 'error' listener, so a g… ([#5819](https://github.com/dsj1984/mandrel/issues/5819)) ([#5820](https://github.com/dsj1984/mandrel/issues/5820)) ([86a1ffb](https://github.com/dsj1984/mandrel/commit/86a1ffb9f9a95775ae1e7b25ad00fdd006871ed0))
+* justify or remove the dead and unexplained exceptions: GitHub auth coverage ignores, knip/biome/prettier exemptions, eslint comments ([#5812](https://github.com/dsj1984/mandrel/issues/5812)) ([#5828](https://github.com/dsj1984/mandrel/issues/5828)) ([66213b9](https://github.com/dsj1984/mandrel/commit/66213b98f6e4ae8a79978926cc5a3691c8c779de))
+* plan-persist --dry-run prints 'Rewrote #&lt;id&gt; in place; it is agent::rea… ([#5802](https://github.com/dsj1984/mandrel/issues/5802)) ([#5803](https://github.com/dsj1984/mandrel/issues/5803)) ([d39f797](https://github.com/dsj1984/mandrel/commit/d39f7970198f7a6487c53d53638ba58487e7a085))
+* stop interactive /clean-git from dropping every stash: await the stash decision and drop only on an explicit 'drop' ([#5834](https://github.com/dsj1984/mandrel/issues/5834)) ([#5835](https://github.com/dsj1984/mandrel/issues/5835)) ([9c8c890](https://github.com/dsj1984/mandrel/commit/9c8c8909d31feb9ea684e9378969c5c67fc568d6))
+* write sync output and orchestration state files atomically, and make mandrel sync skip unchanged files ([#5813](https://github.com/dsj1984/mandrel/issues/5813)) ([#5829](https://github.com/dsj1984/mandrel/issues/5829)) ([9760a2f](https://github.com/dsj1984/mandrel/commit/9760a2f056351a9c078a98d15e2d822160b8acd8))
+
+
+### Performance
+
+* run mandrel doctor checks concurrently, dedupe claude --version, and probe the user rung first for user-owned boards ([#5814](https://github.com/dsj1984/mandrel/issues/5814)) ([#5830](https://github.com/dsj1984/mandrel/issues/5830)) ([a699bc0](https://github.com/dsj1984/mandrel/commit/a699bc001c10067deef5ee5ae275a5113688daaf))
+
+
+### Changed
+
+* adopt the shared helpers the tree re-implements: toPosix, walkFiles, isObject, parseGateArgv, escapeRegExp ([#5816](https://github.com/dsj1984/mandrel/issues/5816)) ([#5832](https://github.com/dsj1984/mandrel/issues/5832)) ([ae332d3](https://github.com/dsj1984/mandrel/commit/ae332d364f2c53c46be7b4037a7e57beb3e8747b))
+* burn down the bootstrap hotspots and collapse their duplicated JSON readers ([#5807](https://github.com/dsj1984/mandrel/issues/5807)) ([#5825](https://github.com/dsj1984/mandrel/issues/5825)) ([f07f470](https://github.com/dsj1984/mandrel/commit/f07f470862aaf131b5f5e0b8e924418225f12074))
+* burn down the lib/cli/uninstall.js CRAP and cyclomatic hotspot ([#5808](https://github.com/dsj1984/mandrel/issues/5808)) ([#5822](https://github.com/dsj1984/mandrel/issues/5822)) ([883d16a](https://github.com/dsj1984/mandrel/commit/883d16a6aaafedeca3fc81fc93f52db44c6be589))
+* burn down the remaining single-file hotspots: baselines/components, merge-block-class, group-findings, config-schema ([#5810](https://github.com/dsj1984/mandrel/issues/5810)) ([#5826](https://github.com/dsj1984/mandrel/issues/5826)) ([39136ff](https://github.com/dsj1984/mandrel/commit/39136ffeafc94c78b219ebcb40c5b116daa4f820))
+* test the git-cleanup phase drivers and probes, and remove their pass-through forwarders ([#5809](https://github.com/dsj1984/mandrel/issues/5809)) ([#5824](https://github.com/dsj1984/mandrel/issues/5824)) ([b97880b](https://github.com/dsj1984/mandrel/commit/b97880b212bf942a52b77e0ecfebb6d2c442d945))
+
 ## [2.94.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.93.0...mandrel-v2.94.0) (2026-10-20)
 
 
