@@ -186,7 +186,6 @@ function mergeMissingKeys(
   return out;
 }
 
-/** Recurse into an object default; drop the scaffolding when nothing landed. */
 function mergeNestedKey(target, key, value, frameworkValue, keyPath, out) {
   if (!target[key] || typeof target[key] !== 'object') target[key] = {};
   mergeMissingKeys(target[key], value, frameworkValue ?? {}, keyPath, out);
@@ -195,7 +194,6 @@ function mergeNestedKey(target, key, value, frameworkValue, keyPath, out) {
   }
 }
 
-/** Seed one absent leaf unless it equals the framework default. */
 function seedLeafKey(target, key, value, frameworkValue, keyPath, out) {
   if (deepEqual(value, frameworkValue)) {
     out.skippedKeys.push(keyPath);
