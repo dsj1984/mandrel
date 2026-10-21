@@ -392,26 +392,39 @@ A sibling per-method gate alongside the maintainability ratchet. CRAP
 scores each JavaScript method via `c² · (1 − cov)³ + c`, combining
 kernel-derived cyclomatic complexity with per-method coverage from
 the `coverage/coverage-final.json` artifact your test runner already
-produces. No new runtime dependencies. Runs at three sites:
-`close-validation` (story close), `ci.yml` (push + PR), and
-`.husky/pre-push`.
+produces. No new runtime dependencies. Runs at four sites:
+`.husky/pre-commit` (staged files), `.husky/pre-push` (diff vs
+`origin/main`), close validation (Story close), and `ci.yml` (push + PR).
 
 If you're a consumer repo that installed the framework via the
 `mandrel` npm package (`mandrel sync`), this is what you need to know.
 
 ### First-run behavior — bootstrap before the first push
 
-The gate is hard-enforcing at all four firing sites — pre-commit (staged
-files, via `quality:preview`), pre-push (diff vs `origin/main`), Story close
-validation, and CI. With `crap.enabled: true` and no
-`baselines/crap.json` on disk, the CRAP gate (`npm run crap:check`)
-prints:
+Once `baselines/crap.json` exists, the gate is hard-enforcing at all four
+firing sites — pre-commit (staged files, via `quality-preview.js --staged`),
+pre-push (diff vs `origin/main`), Story close validation, and CI. Before it
+exists only the `check-baselines` runs fail: with `crap.enabled: true`,
+`npm run crap:check` (`check-baselines.js --gate crap`, which pre-push runs
+too) records the missing file as a schema error in its report:
 
 ```text
-[CRAP] ❌ no baseline found — run the matching baseline-update command and commit with a 'baseline-refresh:' subject to bootstrap
+"schemaErrors": [
+  {
+    "kind": "crap",
+    "tag": "read",
+    "message": "[baselines/reader] failed to read baseline at <repo>/baselines/crap.json: ENOENT: no such file or directory, open '<repo>/baselines/crap.json'"
+  }
+]
 ```
 
-…and exits `1`. Bootstrap explicitly: run `npm run test:coverage` to
+…and exits `2`; CI's `--format text` run prints the same message as a
+`! schema error (crap): …` line. Story close registers `check-baselines` only
+once some enabled kind has a committed baseline, or when
+`delivery.quality.requireBaselines` is set. The pre-commit CRAP preview fails
+open (exit `0`) until a baseline exists.
+
+Bootstrap explicitly: run `npm run test:coverage` to
 produce `coverage/coverage-final.json`, then `npm run crap:update` to
 generate `baselines/crap.json`, and commit the file with a
 `baseline-refresh:` tagged subject + non-empty body so the
@@ -467,8 +480,11 @@ If your repo doesn't run coverage, set `enabled: false` in your
 }
 ```
 
-The three `crap:check` sites (pre-push, close validation, CI) self-skip with
-`[CRAP] gate skipped (disabled)` — no source edits required. The maintainability ratchet keeps running.
+Every site then skips CRAP with no source edits and no skip message:
+`check-baselines` drops a disabled kind before dispatch, so
+`npm run crap:check` prints an empty report (`"gates": []`) and exits `0`,
+and the CRAP preview scores nothing. The maintainability ratchet keeps
+running.
 
 ### Extending `targetDirs` without re-listing framework defaults
 
