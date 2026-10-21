@@ -51,7 +51,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (33)
+## Commands (34)
 
 | Command | Description |
 | --- | --- |
@@ -71,6 +71,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-performance` | Audit performance by measuring first — profile hot paths, I/O, memory, and payload against the repo's own numbers — and audit interleaving/partial-failure correctness (TOCTOU, unawaited promises, non-atomic writes) as a first-class dimension. |
 | `/audit-privacy` | Audit logs, telemetry, and persistence paths for PII leakage and retention violations; surface secrets exposure and consent gaps. |
 | `/audit-quality` | Audit test coverage gaps, flaky tests, missing assertions, and test-pyramid balance; recommend a remediation batch. |
+| `/audit-red-team` | Audit the project as a goal-directed adversary — attack paths that chain two or more crossings, abuse of intended features, agent exposure to hostile repository or inbound content, hostile operations and operator hazards — graded under a reproduced-or-reasoned evidence bar. A deliberately-global lens that runs on any project. |
 | `/audit-security` | Audit dependency CVEs, input-validation gaps, secrets handling, auth boundaries, and the trust-boundary attack classes the baseline is silent on (business logic, SSRF/traversal, deserialization, crypto misuse, feature abuse, LLM tool-binding); emit a structured High/Medium/Low findings report. |
 | `/audit-seo` | Audit SEO fundamentals and Generative Engine Optimization signals (meta, structured data, crawlability); only relevant for web targets. |
 | `/audit-sre` | "Audit production-readiness for a release candidate: SLOs, observability, runbooks, error budgets, and rollback paths." |

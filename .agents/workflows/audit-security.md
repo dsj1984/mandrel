@@ -119,7 +119,10 @@ for an undetected ecosystem is inapplicable and never a finding.
 ### Tier B — trust-boundary classes (cite a CWE)
 
 Each class names the sibling lens owning adjacent territory; when the only
-defect is the sibling's, cite that lens and drop the finding here.
+defect is the sibling's, cite that lens and drop the finding here. Chains of two
+or more crossings, and agent exposure (hostile repository or inbound content
+steering the development agents that operate on the repo), are
+`/audit-red-team`'s.
 
 1. **Business logic & state machines:** steps skipped, reordered or replayed;
    partial failure leaving step 1 applied; numeric coercion (negative, zero,
