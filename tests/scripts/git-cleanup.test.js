@@ -33,7 +33,7 @@ import {
   renderPruneLine,
   stashRefIndex,
 } from '../../.agents/scripts/clean-git.js';
-import { decideBranchPhase } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js';
+import { runBranchPhase } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js';
 import { renderCandidateList } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/render.js';
 
 const REPO_ROOT = path.resolve(
@@ -3235,42 +3235,52 @@ describe('git-cleanup remote-only --remote gate (Story #5188 AC-5)', () => {
 // =====================================================================
 
 describe('git-cleanup weak-signal remote guard (Story #5283)', () => {
-  const contentMergedRemoteOnly = {
-    branch: 'fix/orphan',
-    detectedBy: 'content-merged',
-    localExists: false,
-    hasWorktree: false,
-    worktreePath: null,
-    prNumber: null,
-  };
-  const ghMergedRemoteOnly = {
-    branch: 'fix/landed',
-    detectedBy: 'gh',
-    localExists: false,
-    hasWorktree: false,
-    worktreePath: null,
-    prNumber: 7,
-  };
+  /**
+   * planCleanup seams producing the named candidates without git: each
+   * `contentMerged` branch is content-equivalent to the base (local when
+   * listed in `local`, else remote-only), and each `ghMerged` remote-only
+   * branch carries merged PR #7.
+   */
+  function planSeams({ local = [], contentMerged = [], ghMerged = [] }) {
+    const remoteOnly = [...contentMerged, ...ghMerged].filter(
+      (b) => !local.includes(b),
+    );
+    return {
+      localLister: () => ['main', ...local],
+      mergedLister: () => [],
+      currentBranchFn: () => 'main',
+      protectedConfigFn: () => [],
+      worktreesFn: () => new Map(),
+      refExistsFn: () => false,
+      remoteLister: () => remoteOnly,
+      remoteMergedLister: () => [],
+      prProbe: (b) =>
+        ghMerged.includes(b) ? { number: 7, state: 'MERGED' } : null,
+      branchTipShaFn: () => null,
+      branchLastCommitFn: () => null,
+      // Remote-only branches are probed by their `origin/<name>` rev.
+      contentEquivalentFn: ({ branch }) =>
+        contentMerged.includes(branch.replace(/^origin\//, ''))
+          ? { supported: true, equivalent: true }
+          : { supported: false },
+    };
+  }
+  const contentMergedRemoteOnly = { contentMerged: ['fix/orphan'] };
 
   /**
    * Drive the real path an unattended run takes: the argv the operator
    * types goes through the real parser, the parsed options through the
-   * real decision, and the decision's own `executeArgs` into the real
-   * executor. Only the two destructive git calls are stubbed — everything
-   * that decides *whether* to make them is production code, so a guard
-   * that stopped being consulted would fail here.
+   * real branch phase, its decision and the real executor. Only the git
+   * probes and the two destructive git calls are stubbed — everything that
+   * decides *whether* to make them is production code, so a guard that
+   * stopped being consulted would fail here.
    */
-  function runUnattended(argv, candidates) {
+  async function runUnattended(argv, branches) {
     const opts = parseCleanupArgs(argv);
-    const action = decideBranchPhase({
-      plan: { candidates, skipped: [] },
-      opts,
-      cwd: '/repo',
-    });
-    assert.equal(action.kind, 'execute', '--yes must not stop to prompt');
     const deleted = [];
-    const result = executeCleanup({
-      ...action.executeArgs,
+    const { result } = await runBranchPhase(opts, '/repo', 'main', {
+      ...planSeams(branches),
+      prompt: () => assert.fail('--yes must not stop to prompt'),
       deleteLocalFn: (branch) => {
         deleted.push({ scope: 'local', branch });
         return { deleted: true, reason: 'deleted' };
@@ -3287,10 +3297,11 @@ describe('git-cleanup weak-signal remote guard (Story #5283)', () => {
 
   const UNATTENDED = ['--yes', '--remote', '--execute'];
 
-  it('AC-1: withholds the remote delete of a content-merged candidate under --yes', () => {
-    const { deleted, result } = runUnattended(UNATTENDED, [
+  it('AC-1: withholds the remote delete of a content-merged candidate under --yes', async () => {
+    const { deleted, result } = await runUnattended(
+      UNATTENDED,
       contentMergedRemoteOnly,
-    ]);
+    );
     assert.deepEqual(
       deleted,
       [],
@@ -3313,11 +3324,11 @@ describe('git-cleanup weak-signal remote guard (Story #5283)', () => {
     );
   });
 
-  it('AC-1: the guard is scoped to the weak signal — a merged-PR candidate still goes', () => {
-    const { deleted, result } = runUnattended(UNATTENDED, [
-      contentMergedRemoteOnly,
-      ghMergedRemoteOnly,
-    ]);
+  it('AC-1: the guard is scoped to the weak signal — a merged-PR candidate still goes', async () => {
+    const { deleted, result } = await runUnattended(UNATTENDED, {
+      contentMerged: ['fix/orphan'],
+      ghMerged: ['fix/landed'],
+    });
     assert.deepEqual(
       deleted.map((d) => d.branch),
       ['fix/landed'],
@@ -3330,19 +3341,20 @@ describe('git-cleanup weak-signal remote guard (Story #5283)', () => {
     assert.ok(result.prune, 'a real delete still triggers the prune');
   });
 
-  it('AC-1: local deletion is untouched — only the remote ref is withheld', () => {
-    const { deleted, result } = runUnattended(UNATTENDED, [
-      { ...contentMergedRemoteOnly, branch: 'fix/local', localExists: true },
-    ]);
+  it('AC-1: local deletion is untouched — only the remote ref is withheld', async () => {
+    const { deleted, result } = await runUnattended(UNATTENDED, {
+      local: ['fix/local'],
+      contentMerged: ['fix/local'],
+    });
     assert.deepEqual(deleted, [{ scope: 'local', branch: 'fix/local' }]);
     assert.equal(result.local.length, 1);
     assert.equal(result.remote[0].skipped, true);
   });
 
-  it('AC-2: --include-content-merged deletes the same candidate', () => {
-    const { opts, deleted, result } = runUnattended(
+  it('AC-2: --include-content-merged deletes the same candidate', async () => {
+    const { opts, deleted, result } = await runUnattended(
       [...UNATTENDED, '--include-content-merged'],
-      [contentMergedRemoteOnly],
+      contentMergedRemoteOnly,
     );
     assert.equal(
       opts.includeContentMerged,
@@ -3374,15 +3386,29 @@ describe('git-cleanup weak-signal remote guard (Story #5283)', () => {
     );
   });
 
-  it('the interactive path does not arm the guard — the operator answered the prompt', () => {
-    const action = decideBranchPhase({
-      plan: { candidates: [contentMergedRemoteOnly], skipped: [] },
-      opts: parseCleanupArgs(['--remote', '--execute']),
-      cwd: '/repo',
-    });
-    assert.equal(action.kind, 'prompt-then-execute');
-    assert.match(action.promptMessage, /1 content-merged — weaker signal/);
-    assert.equal(action.executeArgs.skipWeakSignal, undefined);
+  it('the interactive path does not arm the guard — the operator answered the prompt', async () => {
+    const asked = [];
+    const deleted = [];
+    await runBranchPhase(
+      parseCleanupArgs(['--remote', '--execute']),
+      '/repo',
+      'main',
+      {
+        ...planSeams(contentMergedRemoteOnly),
+        prompt: async (q) => {
+          asked.push(q);
+          return true;
+        },
+        deleteRemoteFn: (branch) => {
+          deleted.push(branch);
+          return { deleted: true, reason: 'deleted' };
+        },
+        pruneRemoteFn: () => ({ ok: true, pruned: [] }),
+        logger: { info() {}, warn() {}, error() {} },
+      },
+    );
+    assert.match(asked[0], /1 content-merged — weaker signal/);
+    assert.deepEqual(deleted, ['fix/orphan']);
   });
 
   it('renders a withheld remote entry as skipped, never as a completed reap', () => {

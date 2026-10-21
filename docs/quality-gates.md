@@ -401,8 +401,9 @@ If you're a consumer repo that installed the framework via the
 
 ### First-run behavior — bootstrap before the first push
 
-As of Story #791 the gate is hard-enforcing across all three firing sites
-(close-validation, pre-push, CI). With `crap.enabled: true` and no
+The gate is hard-enforcing at all four firing sites — pre-commit (staged
+files, via `quality:preview`), pre-push (diff vs `origin/main`), Story close
+validation, and CI. With `crap.enabled: true` and no
 `baselines/crap.json` on disk, the CRAP gate (`npm run crap:check`)
 prints:
 
@@ -466,8 +467,8 @@ If your repo doesn't run coverage, set `enabled: false` in your
 }
 ```
 
-All three gate sites self-skip with `[CRAP] gate skipped (disabled)` — no
-source edits required. The maintainability ratchet keeps running.
+The three `crap:check` sites (pre-push, close validation, CI) self-skip with
+`[CRAP] gate skipped (disabled)` — no source edits required. The maintainability ratchet keeps running.
 
 ### Extending `targetDirs` without re-listing framework defaults
 

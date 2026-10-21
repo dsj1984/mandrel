@@ -972,30 +972,6 @@
       "symbol": "defaultGhRunner"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "decideBranchPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "decideFastForwardPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "decideStashPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "executeBranchPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "executeFastForwardPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "symbol": "executeStashPhase"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/prompts.js",
       "symbol": "decideStashAnswer"
     },
