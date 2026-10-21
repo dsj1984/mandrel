@@ -18,8 +18,29 @@ import { readJsonc } from './read.js';
 
 const PROBE_TIMEOUT_MS = 180_000;
 
+// .native expands Windows 8.3 short names.
+const realOrSelf = (p) => {
+  const plain = p.replace(/^\\\\\?\\/, '');
+  try {
+    return fs.realpathSync.native(plain);
+  } catch {
+    return plain;
+  }
+};
+
+// GitHub workflow-command property escaping (Windows drive colons arrive as %3A).
+const unescapeProperty = (v) =>
+  v
+    .replace(/%2C/gi, ',')
+    .replace(/%3A/gi, ':')
+    .replace(/%0D/gi, '\r')
+    .replace(/%0A/gi, '\n')
+    .replace(/%25/g, '%');
+
 const relTo = (root, file) =>
-  toPosix(path.relative(root, path.resolve(root, file)));
+  toPosix(
+    path.relative(realOrSelf(root), realOrSelf(path.resolve(root, file))),
+  );
 
 /** Each tool: package + bin, when it applies, its args, and how to read hits. */
 const TOOLS = Object.freeze([
@@ -36,7 +57,7 @@ const TOOLS = Object.freeze([
           /^::\w+ title=suppressions\/unused,file=([^,]+),line=(\d+)/gm,
         ),
       ].map((m) => ({
-        file: relTo(root, m[1]),
+        file: relTo(root, unescapeProperty(m[1])),
         line: Number(m[2]),
       })),
   },

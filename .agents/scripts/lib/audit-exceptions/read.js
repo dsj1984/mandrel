@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 
 /**
  * @param {string} root
@@ -94,7 +94,7 @@ export function readYaml(root, rel) {
   const text = readText(root, rel);
   if (text === null) return null;
   try {
-    return yaml.load(text) ?? null;
+    return load(text) ?? null;
   } catch {
     return null;
   }

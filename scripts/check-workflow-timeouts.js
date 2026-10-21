@@ -36,7 +36,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 
 /**
@@ -152,7 +152,7 @@ function judgeJobTimeout(body) {
  * @param {(s: string) => unknown} [parse] YAML parser; injected in tests.
  * @returns {Array<{ file: string, job: string, timeout: number | null, reason: string }>}
  */
-export function scanWorkflowText(file, text, parse = yaml.load) {
+export function scanWorkflowText(file, text, parse = load) {
   const { jobs, error } = readJobs(text, parse);
   if (error) {
     return [
@@ -200,7 +200,7 @@ export function renderReport(violations, jobsScanned) {
  * @param {(s: string) => unknown} [parse]
  * @returns {number}
  */
-export function countJobs(text, parse = yaml.load) {
+export function countJobs(text, parse = load) {
   const { jobs } = readJobs(text, parse);
   return jobs ? Object.keys(jobs).length : 0;
 }

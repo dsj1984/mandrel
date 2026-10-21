@@ -24,7 +24,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 
 const REPO_ROOT = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -37,7 +37,7 @@ const WORKFLOW_PATH = path.join(
 );
 
 const source = readFileSync(WORKFLOW_PATH, 'utf8');
-const workflow = yaml.load(source);
+const workflow = load(source);
 const job = workflow.jobs['maintainability-drift'];
 /** The step that runs the CLI, found by the command rather than by name. */
 const driftStep = job.steps.find((s) =>

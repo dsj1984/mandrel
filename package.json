@@ -100,30 +100,30 @@
     "node": ">=22.22.1 <25"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.0",
-    "@commitlint/cli": "^21.0.2",
-    "@commitlint/config-conventional": "^21.0.2",
+    "@biomejs/biome": "^2.6.2",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@cucumber/gherkin": "^42.0.1",
-    "c8": "^11.0.0",
-    "chokidar": "^5.0.0",
+    "c8": "^12.0.0",
+    "chokidar": "^6.0.0",
     "fast-check": "^4.10.2",
     "husky": "^9.1.7",
-    "jscpd": "^4.2.5",
-    "knip": "^6.17.1",
-    "lint-staged": "^17.0.7",
-    "markdownlint-cli2": "^0.22.1",
-    "memfs": "^4.57.7",
+    "jscpd": "^4.3.0",
+    "knip": "^6.42.1",
+    "lint-staged": "^17.6.0",
+    "markdownlint-cli2": "^0.24.0",
+    "memfs": "^4.80.0",
     "node-pty": "^1.0.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@babel/parser": "^7.29.3",
+    "@babel/parser": "^7.29.9",
     "ajv": "^8.20.0",
     "babel-runtime": "^6.26.0",
     "escomplex-plugin-metrics-module": "^0.1.0",
     "escomplex-plugin-syntax-babylon": "^0.1.0",
-    "js-yaml": "^4.3.2",
-    "picomatch": "^4.0.4",
+    "js-yaml": "^5.4.3",
+    "picomatch": "^4.0.7",
     "typhonjs-ast-walker": "^0.2.1",
     "typhonjs-escomplex-commons": "^0.1.1"
   },
@@ -145,14 +145,16 @@
   },
   "//": {
     "peerDependencies.@cucumber/gherkin": "OPTIONAL peer, mirroring the `typescript` precedent, and deliberately NOT a runtime dependency. `check-gherkin-corpus.js` is the only consumer and it is opt-in behind `qa.gherkinLint`, so a consumer with no BDD tier must gain nothing from an upgrade. The devDependency alongside it is what lets this repository's own suite drive the real parser. The gate resolves it through a require path anchored at the consumer project — `.agents/` reaches a consumer by plain file copy, so a bare specifier would resolve against the consumer's module chain, which under a non-hoisting linker need not hold it.",
-    "overrides.js-yaml": "COUPLED to devDependencies.markdownlint-cli2 — do not bump either alone, and do NOT drop this override. It is load-bearing: markdownlint-cli2 0.22.x pulls js-yaml 4.1.1, which carries GHSA-52cp-r559-cp3m (high) and GHSA-h67p-54hq-rp68 (moderate); removing the override was measured to reintroduce both (1 high + 1 moderate), while with it in place `npm audit` is clean. An npm override also wins over a transitive package's own pin, so this tree-wide ^4.3.2 is imposed on every js-yaml consumer regardless of what they declare — and markdownlint-cli2 0.23.x declares an exact js-yaml 5.2.1. A dry-run bump confirmed the trap: markdownlint-cli2 0.23.1 resolves against js-yaml 4.3.0, two majors off what it declares, silently. The only safe move is to raise this override and bump markdownlint-cli2 in ONE reviewed commit (first confirming cosmiconfig, under @commitlint/cli, tolerates the same major). renovate.json excludes markdownlint-cli2 from devDependency auto-merge so that pair cannot drift apart unattended. The floor has since been raised twice for advisories against the pinned range itself (most recently to ^4.3.2 for GHSA-2883-xcg3-v3hh, whose fix is 4.3.2) — raising it is safe and does NOT touch the coupling above; check-pinned-override-notes.js now fails the build if this sentence and the pin disagree.",
+    "overrides.js-yaml": "COUPLED to devDependencies.markdownlint-cli2 — do not bump either alone, and do NOT drop this override. It is load-bearing: an npm override wins over every transitive package's own pin, so this tree-wide ^5.4.3 is imposed on every js-yaml consumer regardless of what they declare. markdownlint-cli2 0.24.x declares an exact js-yaml 5.4.3, which the override matches; cosmiconfig (under @commitlint/cli) declares ^4.1.0 and was confirmed to load commitlint config under js-yaml 5 before this pin moved. Earlier pins existed for advisories against 4.x (GHSA-52cp-r559-cp3m, GHSA-h67p-54hq-rp68, GHSA-2883-xcg3-v3hh); letting any consumer fall back to 4.x reintroduces that history. js-yaml 5 has no default export, so framework code imports the named `load`. The only safe move is to raise this override and bump markdownlint-cli2 in ONE reviewed commit, re-checking cosmiconfig; renovate.json excludes markdownlint-cli2 from devDependency auto-merge so that pair cannot drift apart unattended. check-pinned-override-notes.js fails the build if this sentence and the pin disagree.",
     "dependencies.js-yaml": "States the SAME range as overrides.js-yaml above. The two are deliberate duplicates — npm has no way to reference the direct range from the overrides block — so they MUST move in lockstep; changing one without the other silently splits the direct and transitive resolutions.",
-    "overrides.markdown-it": "Load-bearing: markdownlint-cli2 0.22.1 declares an EXACT markdown-it 14.1.1, which carries GHSA-253c-mchw-3w2r (moderate — quadratic linkify paths block the event loop) and GHSA-gfr2-rv44-r23c (high — quadratic-time rendering of a multi-line link reference definition, a regression since 14.0). The latter’s vulnerable range is everything >=14.1.0 <14.3.3, so this tree-wide ^14.3.3 pin is what clears both (the floor was ^14.3.1 for the first advisory alone). npm’s own `audit fix --force` instead proposes markdownlint-cli2 0.23.3, a breaking bump coupled to the js-yaml major above; do not take it. `npm run lint` is what must be re-run if this pin moves.",
-    "overrides.smol-toml": "Load-bearing: markdownlint-cli2 0.22.1 declares an EXACT smol-toml 1.6.1, which carries GHSA-7w5x-hrqm-74c2 (high — denial of service via malformed TOML). The advisory’s vulnerable range is everything <= 1.7.0, so no lockfile-only resolution reaches a patched version and the pin first cleared it at a 1.7.1 floor; it has since been raised to ^1.9.0 for GHSA-r4xh-jqrq-34v2 (moderate — quadratic-time parse() from parseKey rescanning, vulnerable <= 1.8.0). npm’s own `audit fix --force` instead proposes markdownlint-cli2 0.21.0 — a DOWNGRADE presented as a breaking change; do not take it. An npm override wins over a transitive package’s own exact pin, so markdownlint-cli2 runs against a minor it never declared: `npm run lint` was confirmed green under the forced version and is what must be re-run if this pin moves. knip declares ^1.6.1 and is satisfied natively. smol-toml is NOT a direct dependency, so unlike overrides.js-yaml there is no lockstep duplicate range to keep in sync."
+    "overrides.markdown-it": "Load-bearing: markdownlint-cli2 0.24.x declares an EXACT markdown-it 15.0.3, and this tree-wide ^15.0.3 pin keeps every markdown-it consumer on that patched major. The 14.x line carried GHSA-253c-mchw-3w2r (moderate — quadratic linkify paths) and GHSA-gfr2-rv44-r23c (high — quadratic-time rendering of a multi-line link reference definition, vulnerable >=14.1.0 <14.3.3); the pin's floor tracks markdownlint-cli2's own declaration so the two never split. `npm run lint` is what must be re-run if this pin moves.",
+    "overrides.smol-toml": "Load-bearing: markdownlint-cli2 0.24.x declares an EXACT smol-toml 1.9.1, and this tree-wide ^1.9.1 pin keeps every smol-toml consumer at or above it. Older lines carried GHSA-7w5x-hrqm-74c2 (high — denial of service via malformed TOML, vulnerable <= 1.7.0) and GHSA-r4xh-jqrq-34v2 (moderate — quadratic-time parse(), vulnerable <= 1.8.0). knip declares ^1.6.1 and is satisfied natively. `npm run lint` is what must be re-run if this pin moves. smol-toml is NOT a direct dependency, so unlike overrides.js-yaml there is no lockstep duplicate range to keep in sync.",
+    "overrides.katex": "Clears GHSA-238p-pmpm-9mq7 (low — prototype pollution bypassing trust restrictions, vulnerable >=0.11.0 <0.18.2). katex reaches the tree only through markdownlint (micromark-extension-math declares ^0.16.0, so no lockfile-only resolution reaches the fix). markdownlint imports only the math SYNTAX extension, never the HTML renderer that loads katex, so this tree-wide ^0.18.2 pin changes no executed code; `npm run lint` is what must be re-run if it moves. katex is NOT a direct dependency, so there is no lockstep duplicate range."
   },
   "overrides": {
-    "js-yaml": "^4.3.2",
-    "markdown-it": "^14.3.3",
-    "smol-toml": "^1.9.0"
+    "js-yaml": "^5.4.3",
+    "markdown-it": "^15.0.3",
+    "smol-toml": "^1.9.1",
+    "katex": "^0.18.2"
   }
 }

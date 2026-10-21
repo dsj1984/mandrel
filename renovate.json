@@ -73,13 +73,19 @@
       "enabled": false
     },
     {
+      "description": "jscpd stays on 4.x: jscpd 5 is a Rust rewrite with no Node API, and the duplication scanner (.agents/scripts/lib/baselines/duplication-scanner.js) drives the 4.x Node API and asserts SUPPORTED_JSCPD_MAJOR '^4' at load. The peerDependency range ^4.0.0 is the consumer contract. Adopting 5.x means replacing the scanner, not bumping a range.",
+      "matchPackageNames": ["jscpd"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "description": "Do not touch the Node engines constraint; it is hand-managed",
       "matchManagers": ["npm"],
       "matchDepTypes": ["engines"],
       "enabled": false
     },
     {
-      "description": "markdownlint-cli2 is COUPLED to the tree-wide `overrides.js-yaml` pin in package.json (see the `//` note there). npm applies an override ahead of a transitive package's own pin, and markdownlint-cli2 0.23.x declares an exact `js-yaml` 5.2.1 — a dry-run bump resolved 0.23.1 against js-yaml 4.3.0, two majors off, silently. The override cannot simply be dropped either: it is what keeps GHSA-52cp-r559-cp3m (high) out of the tree. So exclude markdownlint-cli2 from the devDependency patch/minor auto-merge rule above — the override and the bump must land together in one commit, under human review.",
+      "description": "markdownlint-cli2 is COUPLED to the tree-wide `overrides.js-yaml`, `overrides.markdown-it` and `overrides.smol-toml` pins in package.json (see the `//` notes there). npm applies an override ahead of a transitive package's own pin, and each markdownlint-cli2 release declares EXACT versions of all three — an override left behind silently runs it against a version it never declared (0.23.1 once resolved against js-yaml 4.3.0, two majors off). So exclude markdownlint-cli2 from the devDependency patch/minor auto-merge rule above — the overrides and the bump must land together in one commit, under human review.",
       "matchPackageNames": ["markdownlint-cli2"],
       "automerge": false,
       "platformAutomerge": false,
