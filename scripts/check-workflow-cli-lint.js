@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- contributor lint CLI run by npm run lint, not by the unit suite */
 
 /**
  * check-workflow-cli-lint.js — enforce the "no workflow instructs a

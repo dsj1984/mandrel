@@ -53,6 +53,7 @@ before(async () => {
         '{',
         '  "compilerOptions": {',
         '    "strict": false, // the migration is incremental',
+        '    // "noImplicitAny": false,',
         '    "skipLibCheck": true,',
         '  },',
         '  "exclude": ["node_modules", "old/**"],',
@@ -64,6 +65,7 @@ before(async () => {
         '  "ignore": [',
         '    // vendored shim, removed with #41',
         '    "src/a.js",',
+        '    // "src/old/**",',
         '    "src/allow.js",',
         '    "src/generated/**",',
         '    "tests/fixtures/**"',
@@ -230,6 +232,13 @@ describe('tool-config exemptions', () => {
     assert.equal(shim.verdict, 'live');
     assert.equal(allow.justification, null);
     assert.equal(allow.verdict, 'unjustified');
+  });
+
+  it('a commented-out JSONC entry directly above is not a reason', () => {
+    const of = (file, target) =>
+      env.records.find((r) => r.file === file && r.target === target);
+    assert.equal(of('knip.jsonc', 'src/allow.js').justification, null);
+    assert.equal(of('tsconfig.json', 'skipLibCheck').justification, null);
   });
 
   it('a generated-code or fixture glob is live by design and needs no written reason', () => {

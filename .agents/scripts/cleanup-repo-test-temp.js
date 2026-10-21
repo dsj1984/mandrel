@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- posttest CLI outside the suite */
+/* node:coverage ignore file -- CLI entrypoint convention, see docs/decisions.md */
 
 /**
  * Removes **test-reserved** per-Epic trees under `<repo>/temp/epic-<id>/` after

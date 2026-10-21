@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- contributor CI-mirror driver that spawns every gate; integration-shaped */
 
 /**
  * Local full verification — a true CI mirror for the gates that CAN be proven
