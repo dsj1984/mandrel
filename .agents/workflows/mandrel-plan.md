@@ -172,4 +172,6 @@ source id ([ref](helpers/plan-reference.md)).
 ## See also
 
 [`/mandrel-deliver`](mandrel-deliver.md), [`/audit-to-stories`](audit-to-stories.md),
-[`helpers/plan-reference.md`](helpers/plan-reference.md) (on-demand detail).
+[`/mandrel-leverage`](mandrel-leverage.md) (evidence-cited bets that chain in
+as seeds), [`helpers/plan-reference.md`](helpers/plan-reference.md) (on-demand
+detail).
