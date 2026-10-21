@@ -55,6 +55,7 @@ import {
   runKnip,
 } from '../.agents/scripts/lib/dead-exports-knip.js';
 import { resolveDeadExportsMode } from '../.agents/scripts/lib/dead-exports-mode.js';
+import { writeFileAtomic } from '../.agents/scripts/lib/util/atomic-write.js';
 
 /** `$schema` ref stamped into every dead-export baseline envelope. */
 export const DEAD_EXPORTS_SCHEMA_REF =
@@ -216,8 +217,7 @@ export function describeUnusableReport(envelope) {
  *   runKnipImpl?: typeof runKnip,
  *   readKnipOutputImpl?: typeof readKnipOutput,
  *   readFileImpl?: typeof fs.readFileSync,
- *   writeFileImpl?: typeof fs.writeFileSync,
- *   renameImpl?: typeof fs.renameSync,
+ *   fsImpl?: typeof fs,
  * }} [opts]
  * @returns {Promise<number>} 0 on a written baseline; 1 on any fail-closed path.
  */
@@ -229,8 +229,7 @@ export async function runCli({
   runKnipImpl = runKnip,
   readKnipOutputImpl = readKnipOutput,
   readFileImpl = fs.readFileSync,
-  writeFileImpl = fs.writeFileSync,
-  renameImpl = fs.renameSync,
+  fsImpl = fs,
 } = {}) {
   const { baselinePath, knipOutputPath, production } = parseArgv(argv);
   const { mode, label, baseline } = resolveDeadExportsMode(production);
@@ -263,13 +262,11 @@ export async function runCli({
 
   const rows = normalizeRows(extractRowsFromKnip(report.envelope));
   const envelope = buildEnvelope({ kernelVersion, mode, rows });
-  // Write-then-rename, matching `lib/baselines/writer.js`: a crash or a full
-  // disk mid-write must not leave a truncated envelope behind. An unparseable
-  // baseline reads as empty to `check-dead-exports.js`, which would report
-  // every pre-existing row as newly added.
-  const tmpTarget = `${target}.tmp`;
-  writeFileImpl(tmpTarget, `${JSON.stringify(envelope, null, 2)}\n`, 'utf-8');
-  renameImpl(tmpTarget, target);
+  // Atomic: a truncated baseline reads as empty to `check-dead-exports.js`,
+  // which would report every pre-existing row as newly added.
+  writeFileAtomic(target, `${JSON.stringify(envelope, null, 2)}\n`, {
+    fsImpl,
+  });
   stdout.write(
     `[${label}] ✅ wrote ${rows.length} row(s) to ${target} (kernelVersion=${kernelVersion}).\n`,
   );

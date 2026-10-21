@@ -2152,7 +2152,7 @@
     },
     {
       "path": ".agents/scripts/lib/util/atomic-write.js",
-      "mi": 114.319
+      "mi": 121.965
     },
     {
       "path": ".agents/scripts/lib/util/concurrent-map.js",
@@ -2628,7 +2628,7 @@
     },
     {
       "path": "lib/cli/sync.js",
-      "mi": 92.734
+      "mi": 94.495
     },
     {
       "path": "lib/cli/uninstall.js",

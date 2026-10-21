@@ -329,8 +329,8 @@
     {
       "path": "lib/cli/sync.js",
       "duplicatedLines": 7,
-      "totalLines": 307,
-      "percentage": 2.28
+      "totalLines": 400,
+      "percentage": 1.75
     },
     {
       "path": "scripts/check-action-pinning.js",

@@ -6,7 +6,10 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
-import { writeFileAtomic } from '../../../.agents/scripts/lib/util/atomic-write.js';
+import {
+  copyFileAtomic,
+  writeFileAtomic,
+} from '../../../.agents/scripts/lib/util/atomic-write.js';
 
 const MODULE_URL = pathToFileURL(
   path.resolve(
@@ -107,6 +110,13 @@ describe('writeFileAtomic', () => {
     ]);
   });
 
+  it('writes a Buffer byte-for-byte, including non-UTF-8 bytes', () => {
+    const target = path.join(makeTempDir('atomic-'), 'out.bin');
+    const bytes = Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x0a]);
+    writeFileAtomic(target, bytes);
+    assert.deepEqual(fs.readFileSync(target), bytes);
+  });
+
   it('two writers in different processes never share a tmp name', () => {
     const script = `
       const { writeFileAtomic } = await import(${JSON.stringify(MODULE_URL)});
@@ -123,5 +133,49 @@ describe('writeFileAtomic', () => {
     const [a, b] = [run(), run()];
     assert.match(a, /^\/t\/out\.txt\.\d+\.tmp$/);
     assert.notEqual(a, b);
+  });
+});
+
+describe('copyFileAtomic', () => {
+  it('copies onto a pid-scoped tmp, renames it over the target, and keeps the mode', () => {
+    const dir = makeTempDir('atomic-');
+    const source = path.join(dir, 'src.sh');
+    const target = path.join(dir, 'out', 'dest.sh');
+    fs.writeFileSync(source, '#!/bin/sh\n');
+    fs.chmodSync(source, 0o755);
+    const ops = [];
+    const fsImpl = {
+      ...fs,
+      copyFileSync: (from, to) => {
+        ops.push(['copy', from, to]);
+        return fs.copyFileSync(from, to);
+      },
+      renameSync: (from, to) => {
+        ops.push(['rename', from, to]);
+        return fs.renameSync(from, to);
+      },
+    };
+    copyFileAtomic(source, target, { fsImpl });
+    const tmp = `${target}.${process.pid}.tmp`;
+    assert.deepEqual(ops, [
+      ['copy', source, tmp],
+      ['rename', tmp, target],
+    ]);
+    assert.equal(fs.readFileSync(target, 'utf8'), '#!/bin/sh\n');
+    if (process.platform !== 'win32') {
+      assert.equal(fs.statSync(target).mode & 0o777, 0o755);
+    }
+  });
+
+  it('a failed copy reaps the tmp, leaves the target alone, and rethrows', () => {
+    const dir = makeTempDir('atomic-');
+    const target = path.join(dir, 'out.txt');
+    fs.writeFileSync(target, 'before');
+    assert.throws(
+      () => copyFileAtomic(path.join(dir, 'missing.txt'), target),
+      /ENOENT/,
+    );
+    assert.deepEqual(fs.readdirSync(dir), ['out.txt']);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'before');
   });
 });
