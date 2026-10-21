@@ -25,6 +25,7 @@ import {
   resolveTsTranspilerVersion,
   scanAndScore,
 } from '../crap-utils.js';
+import { isObject } from '../json-utils.js';
 import {
   calculateAll as calculateAllMi,
   isIgnoredByGlobs as isIgnoredByGlobsMi,
@@ -599,12 +600,7 @@ export function readPriorEnvelope(writePath, fs) {
   }
   try {
     const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      !Array.isArray(parsed) &&
-      Array.isArray(parsed.rows)
-    ) {
+    if (isObject(parsed) && Array.isArray(parsed.rows)) {
       return parsed;
     }
     return null;

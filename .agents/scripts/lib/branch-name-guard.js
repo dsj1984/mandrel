@@ -6,6 +6,7 @@
  */
 
 import { isSafeBranchComponent } from './dependency-parser.js';
+import { isObject } from './json-utils.js';
 
 /**
  * Names that must never be forwarded to a destructive git operation.
@@ -53,9 +54,7 @@ export function assertBranchSafe(...args) {
   let names = args;
   const last = args[args.length - 1];
   if (
-    last !== null &&
-    typeof last === 'object' &&
-    !Array.isArray(last) &&
+    isObject(last) &&
     ('protected' in last || Object.keys(last).length === 0)
   ) {
     opts = last;
