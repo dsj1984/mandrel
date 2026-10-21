@@ -26081,6 +26081,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
+      "method": "logRunEpilogue",
+      "startLine": 413,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon runPlanPersist/(s)#0>",
       "startLine": 481,
       "crap": 1,
