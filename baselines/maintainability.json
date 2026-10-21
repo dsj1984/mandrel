@@ -2171,6 +2171,10 @@
       "mi": 101.918
     },
     {
+      "path": ".agents/scripts/lib/util/regex.js",
+      "mi": 151.987
+    },
+    {
       "path": ".agents/scripts/lib/util/sleep.js",
       "mi": 137.411
     },

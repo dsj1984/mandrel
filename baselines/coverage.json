@@ -100,8 +100,8 @@
     },
     {
       "path": ".agents/scripts/check-gherkin-corpus.js",
-      "lines": 97.78,
-      "branches": 84.96,
+      "lines": 97.73,
+      "branches": 84.55,
       "functions": 100
     },
     {
@@ -238,8 +238,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/read.js",
-      "lines": 91.89,
-      "branches": 83.33,
+      "lines": 92.21,
+      "branches": 95,
       "functions": 100
     },
     {
@@ -628,8 +628,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "lines": 96.77,
-      "branches": 78.79,
+      "lines": 96.73,
+      "branches": 78.46,
       "functions": 100
     },
     {
@@ -754,8 +754,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "lines": 97.89,
-      "branches": 77.96,
+      "lines": 97.88,
+      "branches": 77.72,
       "functions": 100
     },
     {
@@ -772,8 +772,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "lines": 95.38,
-      "branches": 91.23,
+      "lines": 95.24,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -796,9 +796,9 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-step-index.js",
-      "lines": 95.63,
-      "branches": 92.19,
-      "functions": 90.91
+      "lines": 95.56,
+      "branches": 92.06,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
@@ -911,7 +911,7 @@
     {
       "path": ".agents/scripts/lib/branch-name-guard.js",
       "lines": 100,
-      "branches": 96.43,
+      "branches": 96.15,
       "functions": 100
     },
     {
@@ -1078,8 +1078,8 @@
     },
     {
       "path": ".agents/scripts/lib/codex/skills-projection.js",
-      "lines": 95.71,
-      "branches": 89.47,
+      "lines": 95.59,
+      "branches": 89.29,
       "functions": 100
     },
     {
@@ -1150,8 +1150,8 @@
     },
     {
       "path": ".agents/scripts/lib/config/defaults.js",
-      "lines": 94.44,
-      "branches": 89.29,
+      "lines": 94.51,
+      "branches": 88.46,
       "functions": 100
     },
     {
@@ -1367,7 +1367,7 @@
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
       "lines": 100,
-      "branches": 90.52,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -1456,8 +1456,8 @@
     },
     {
       "path": ".agents/scripts/lib/doc-tiers.js",
-      "lines": 98.5,
-      "branches": 84.62,
+      "lines": 98.61,
+      "branches": 85.29,
       "functions": 100
     },
     {
@@ -1672,8 +1672,8 @@
     },
     {
       "path": ".agents/scripts/lib/import-graph.js",
-      "lines": 96.12,
-      "branches": 84.38,
+      "lines": 97.37,
+      "branches": 84.62,
       "functions": 100
     },
     {
@@ -1726,8 +1726,8 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "lines": 94.64,
-      "branches": 89.83,
+      "lines": 94.34,
+      "branches": 87.23,
       "functions": 100
     },
     {
@@ -1943,7 +1943,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "lines": 99.49,
-      "branches": 88.24,
+      "branches": 88.11,
       "functions": 100
     },
     {
@@ -2447,7 +2447,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "lines": 99.59,
-      "branches": 85.54,
+      "branches": 85.19,
       "functions": 100
     },
     {
@@ -2501,7 +2501,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "lines": 100,
-      "branches": 98.11,
+      "branches": 97.96,
       "functions": 100
     },
     {
@@ -3035,7 +3035,7 @@
     {
       "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
       "lines": 100,
-      "branches": 97.44,
+      "branches": 97.22,
       "functions": 100
     },
     {
@@ -3124,8 +3124,8 @@
     },
     {
       "path": ".agents/scripts/lib/skills/walk-skill-files.js",
-      "lines": 98.53,
-      "branches": 92.86,
+      "lines": 100,
+      "branches": 95,
       "functions": 100
     },
     {
@@ -3276,6 +3276,12 @@
       "path": ".agents/scripts/lib/util/poll-loop.js",
       "lines": 100,
       "branches": 96.88,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/util/regex.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -3869,7 +3875,7 @@
     {
       "path": "lib/cli/doctor-checks/test-credit-path.js",
       "lines": 100,
-      "branches": 97.3,
+      "branches": 97.4,
       "functions": 100
     },
     {
@@ -4139,13 +4145,13 @@
     {
       "path": "scripts/check-lifecycle-lint.js",
       "lines": 100,
-      "branches": 93.1,
+      "branches": 93.55,
       "functions": 100
     },
     {
       "path": "scripts/check-npm-audit.js",
       "lines": 100,
-      "branches": 88.89,
+      "branches": 92.31,
       "functions": 75
     },
     {
@@ -4157,7 +4163,7 @@
     {
       "path": "scripts/check-pinned-override-notes.js",
       "lines": 97.06,
-      "branches": 75,
+      "branches": 80,
       "functions": 50
     },
     {
@@ -4277,7 +4283,7 @@
     {
       "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
       "lines": 100,
-      "branches": 83.33,
+      "branches": 80,
       "functions": 100
     },
     {
@@ -4336,9 +4342,9 @@
     },
     {
       "path": "scripts/lib/knip-entry-sync.js",
-      "lines": 98.04,
-      "branches": 92.19,
-      "functions": 100
+      "lines": 98.46,
+      "branches": 93.65,
+      "functions": 92.31
     },
     {
       "path": "scripts/lib/payload-boundary.js",
@@ -4420,8 +4426,8 @@
     },
     {
       "path": "scripts/lint-label-vocabulary.js",
-      "lines": 95.79,
-      "branches": 89.47,
+      "lines": 97.01,
+      "branches": 88.24,
       "functions": 100
     },
     {
