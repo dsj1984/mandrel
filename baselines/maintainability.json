@@ -1392,7 +1392,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/stashes.js",
-      "mi": 95.16
+      "mi": 95.98
     },
     {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
