@@ -28,11 +28,6 @@
       "maxCyclomatic": 14
     },
     {
-      "file": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
-    },
-    {
       "file": ".agents/scripts/lib/coverage-utils.js",
       "methodsAboveCeiling": 2,
       "maxCyclomatic": 13
