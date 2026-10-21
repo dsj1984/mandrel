@@ -5,7 +5,6 @@ import { describe, it } from 'node:test';
 
 import {
   buildLedgerRecord,
-  InstallLedgerCorruptError,
   ledgerPath,
   readInstallLedger,
   writeInstallLedger,
@@ -50,7 +49,6 @@ describe('install ledger', () => {
     assert.throws(
       () => readInstallLedger(root),
       (err) =>
-        err instanceof InstallLedgerCorruptError &&
         err.name === 'InstallLedgerCorruptError' &&
         err.path === target &&
         err.message.includes(target),

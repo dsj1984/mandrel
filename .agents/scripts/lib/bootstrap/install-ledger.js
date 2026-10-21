@@ -110,7 +110,7 @@ export function writeInstallLedger(projectRoot, record) {
   return { path: target, written: true, entryCount: record.entries.length };
 }
 
-export class InstallLedgerCorruptError extends Error {
+class InstallLedgerCorruptError extends Error {
   constructor(target, cause) {
     super(`${target} is not valid JSON (${cause.message})`, { cause });
     this.name = 'InstallLedgerCorruptError';
