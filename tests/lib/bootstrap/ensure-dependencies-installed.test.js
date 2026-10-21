@@ -16,7 +16,16 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
-import { ensureDependenciesInstalled } from '../../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
+import { applyProjectBootstrap } from '../../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
+
+/** The `install` phase's result, driven through the public entry point. */
+async function ensureDependenciesInstalled(ctx) {
+  const report = await applyProjectBootstrap({
+    ...ctx,
+    onlyPhases: ['install'],
+  });
+  return report.install;
+}
 
 const PROJECT_ROOT = '/consumer';
 const SENTINEL = path.join(PROJECT_ROOT, 'node_modules', 'ajv', 'package.json');
@@ -42,10 +51,10 @@ function makeCtx({ present = [], status = 0 } = {}) {
 }
 
 describe('ensureDependenciesInstalled — skip paths', () => {
-  it('skips when the ajv sentinel is already present', () => {
+  it('skips when the ajv sentinel is already present', async () => {
     const { ctx, spawns } = makeCtx({ present: [SENTINEL] });
 
-    const result = ensureDependenciesInstalled(ctx);
+    const result = await ensureDependenciesInstalled(ctx);
 
     assert.equal(result.ran, false);
     assert.equal(result.skipped, true);
@@ -53,10 +62,13 @@ describe('ensureDependenciesInstalled — skip paths', () => {
     assert.equal(spawns.length, 0);
   });
 
-  it('skips on the skipInstall flag even with no node_modules', () => {
+  it('skips on the skipInstall flag even with no node_modules', async () => {
     const { ctx, spawns } = makeCtx();
 
-    const result = ensureDependenciesInstalled({ ...ctx, skipInstall: true });
+    const result = await ensureDependenciesInstalled({
+      ...ctx,
+      skipInstall: true,
+    });
 
     assert.equal(result.ran, false);
     assert.equal(result.reason, 'skip-install-flag');
@@ -65,10 +77,10 @@ describe('ensureDependenciesInstalled — skip paths', () => {
 });
 
 describe('ensureDependenciesInstalled — install paths', () => {
-  it('runs the detected manager when the sentinel is absent', () => {
+  it('runs the detected manager when the sentinel is absent', async () => {
     const { ctx, spawns } = makeCtx();
 
-    const result = ensureDependenciesInstalled(ctx);
+    const result = await ensureDependenciesInstalled(ctx);
 
     assert.equal(result.ran, true);
     assert.equal(result.skipped, false);
@@ -76,24 +88,24 @@ describe('ensureDependenciesInstalled — install paths', () => {
     assert.deepEqual(spawns[0].args, ['install']);
   });
 
-  it('defaults to npm when no lockfile identifies a manager', () => {
+  it('defaults to npm when no lockfile identifies a manager', async () => {
     const { ctx } = makeCtx();
-    assert.equal(ensureDependenciesInstalled(ctx).manager, 'npm');
+    assert.equal((await ensureDependenciesInstalled(ctx)).manager, 'npm');
   });
 
-  it('selects pnpm from its lockfile', () => {
+  it('selects pnpm from its lockfile', async () => {
     const { ctx, spawns } = makeCtx({
       present: [path.join(PROJECT_ROOT, 'pnpm-lock.yaml')],
     });
 
-    assert.equal(ensureDependenciesInstalled(ctx).manager, 'pnpm');
+    assert.equal((await ensureDependenciesInstalled(ctx)).manager, 'pnpm');
     assert.equal(spawns[0].manager, 'pnpm');
   });
 
-  it('throws with the exit code when the install fails', () => {
+  it('throws with the exit code when the install fails', async () => {
     const { ctx } = makeCtx({ status: 7 });
 
-    assert.throws(() => ensureDependenciesInstalled(ctx), /install failed/);
-    assert.throws(() => ensureDependenciesInstalled(ctx), /exit 7/);
+    await assert.rejects(ensureDependenciesInstalled(ctx), /install failed/);
+    await assert.rejects(ensureDependenciesInstalled(ctx), /exit 7/);
   });
 });
