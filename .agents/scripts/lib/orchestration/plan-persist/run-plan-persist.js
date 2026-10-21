@@ -369,11 +369,15 @@ function persistHeadline(created, primary) {
 }
 
 /**
+ * A dry run wrote nothing, so it claims no ready flip and offers no deliver
+ * command; the per-ticket `dry-run: would …` lines already said what it would do.
+ *
  * @param {{
  *   created: object[],
  *   primary: object,
  *   planRunLabel: string,
  *   planRunLabelApplied: boolean,
+ *   dryRun?: boolean,
  * }} args
  * @returns {void}
  */
@@ -382,7 +386,15 @@ function logPersistEpilogue({
   primary,
   planRunLabel,
   planRunLabelApplied,
+  dryRun = false,
 }) {
+  if (dryRun) {
+    Logger.info(
+      `[plan-persist] dry-run: validated ${created.length} Story(ies); ` +
+        'nothing was written to GitHub.',
+    );
+    return;
+  }
   const adopted = created.filter((story) => story.adopted);
   if (adopted.length > 0) {
     Logger.info(
@@ -602,6 +614,7 @@ export async function runPlanPersist({
     primary,
     planRunLabel,
     planRunLabelApplied,
+    dryRun,
   });
 
   return {

@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { Logger } from '../../.agents/scripts/lib/Logger.js';
 import {
   AGENT_LABELS,
   TYPE_LABELS,
@@ -233,6 +234,25 @@ describe('runPlanPersist — one-for-one rewrite in place (Story #5604)', () => 
     assert.equal(result.stories[0].rewritten, true);
     assert.deepEqual(result.supersede.rewritten, [SOURCE_ID]);
     assert.deepEqual(result.supersede.planned, []);
+  });
+
+  it('a dry run logs only what it would do, never a rewrite or ready flip', async (t) => {
+    const info = [];
+    t.mock.method(Logger, 'info', (m) => info.push(String(m)));
+    await persist(recordingProvider(), { dryRun: true });
+
+    assert.ok(
+      info.includes(
+        `[plan-persist] dry-run: would rewrite #${SOURCE_ID} in place as its Story.`,
+      ),
+    );
+    assert.ok(info.some((m) => m.includes('nothing was written to GitHub')));
+    for (const claim of ['Rewrote #', 'agent::ready', 'Deliver with']) {
+      assert.ok(
+        !info.some((m) => m.includes(claim)),
+        `dry-run log must not claim "${claim}"`,
+      );
+    }
   });
 
   it('a re-run after a failed ready flip adopts the rewritten issue by fingerprint', async () => {
