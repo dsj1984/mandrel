@@ -404,6 +404,24 @@ function logPersistEpilogue({
 }
 
 /**
+ * A dry run wrote nothing, so it claims no ready flip and offers no deliver
+ * command; the per-ticket `dry-run: would …` lines already said what it would do.
+ *
+ * @param {Parameters<typeof logPersistEpilogue>[0] & { dryRun: boolean }} args
+ * @returns {void}
+ */
+function logRunEpilogue({ dryRun, ...epilogue }) {
+  if (!dryRun) {
+    logPersistEpilogue(epilogue);
+    return;
+  }
+  Logger.info(
+    `[plan-persist] dry-run: validated ${epilogue.created.length} Story(ies); ` +
+      'nothing was written to GitHub.',
+  );
+}
+
+/**
  * @param {{
  *   provider: object,
  *   artifacts: {
@@ -597,11 +615,12 @@ export async function runPlanPersist({
   supersede.sourceTicketOrigin = sourceTicketOrigin;
 
   await cleanupPlanDirs({ config, planDir, skipCleanup });
-  logPersistEpilogue({
+  logRunEpilogue({
     created,
     primary,
     planRunLabel,
     planRunLabelApplied,
+    dryRun,
   });
 
   return {
