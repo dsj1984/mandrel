@@ -2,8 +2,8 @@
  * runtime-deps/dep-resolution — is a declared runtime dependency present and
  * the right major. Deps resolve from the consumer's `node_modules`, so a
  * declared range is only enforced by comparing it to what resolved.
- * Major-only and semver-free on purpose: every range is `^`, and a semver
- * dependency would grow the very closure this guards.
+ * Major-only and semver-free on purpose: every range is `^` or a `||` union
+ * of them, and a semver dependency would grow the very closure this guards.
  *
  * @module lib/runtime-deps/dep-resolution
  */
@@ -22,6 +22,20 @@ function majorOf(spec) {
 }
 
 /**
+ * The majors a range admits, one per `||` alternative — or none (not
+ * range-checked) when any alternative is unreadable, the same conservative
+ * miss as a single unreadable range.
+ *
+ * @param {string|null|undefined} range
+ * @returns {number[]}
+ */
+function wantedMajors(range) {
+  if (typeof range !== 'string') return [];
+  const majors = range.split('||').map(majorOf);
+  return majors.includes(null) ? [] : majors;
+}
+
+/**
  * `false` when either side is unreadable. `0.x` minors are not separated —
  * accepted, since the range this enforces is `@babel/parser`'s `^7`.
  *
@@ -30,11 +44,11 @@ function majorOf(spec) {
  * @returns {boolean}
  */
 function majorMismatch(range, resolved) {
-  const want = majorOf(range);
-  if (want === null) return false;
+  const wanted = wantedMajors(range);
+  if (wanted.length === 0) return false;
   const got = majorOf(resolved);
   if (got === null) return false;
-  return want !== got;
+  return !wanted.includes(got);
 }
 
 /**

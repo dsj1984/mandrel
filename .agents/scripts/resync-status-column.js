@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- live board poller */
+/* node:coverage ignore file -- CLI entrypoint convention, see docs/decisions.md */
 
 /**
  * resync-status-column.js — re-assert a ticket's Projects v2 Status after

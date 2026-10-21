@@ -396,6 +396,61 @@ describe('runUninstall — preserves pre-existing content (AC3)', () => {
     assert.deepEqual(cmds, ['echo operator-hook']);
   });
 
+  it('strips the sync hook from a group it shares with an operator hook', () => {
+    const operatorHook = { type: 'command', command: 'echo operator-hook' };
+    const settingsFile = path.join(tmpRoot, '.claude', 'settings.json');
+    writeJson(settingsFile, {
+      hooks: {
+        UserPromptSubmit: [
+          {
+            matcher: '',
+            hooks: [operatorHook, { type: 'command', command: SYNC_COMMAND }],
+          },
+          { matcher: 'idle', hooks: [] },
+        ],
+      },
+    });
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.claude/settings.json', reversible: true }],
+    });
+    const cap = makeCapture();
+
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    assert.deepEqual(readJson(settingsFile), {
+      hooks: {
+        UserPromptSubmit: [
+          { matcher: '', hooks: [operatorHook] },
+          { matcher: 'idle', hooks: [] },
+        ],
+      },
+    });
+    assert.match(
+      cap.text,
+      /reverted \.claude\/settings\.json\s+removed sync hook/,
+    );
+  });
+
+  it('leaves operator hook groups with no hooks untouched when no sync hook is present', () => {
+    const operatorSettings = {
+      hooks: {
+        UserPromptSubmit: [{ matcher: 'a', hooks: [] }, { matcher: 'b' }],
+      },
+    };
+    const settingsFile = path.join(tmpRoot, '.claude', 'settings.json');
+    writeJson(settingsFile, operatorSettings);
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.claude/settings.json', reversible: true }],
+    });
+    const cap = makeCapture();
+
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    assert.deepEqual(readJson(settingsFile), operatorSettings);
+    assert.match(cap.text, /framework wiring absent/);
+    assert.doesNotMatch(cap.text, /removed sync hook/);
+  });
+
   it('keeps operator package.json scripts and an overridden framework key', () => {
     fs.mkdirSync(tmpRoot, { recursive: true });
     writeJson(path.join(tmpRoot, 'package.json'), {

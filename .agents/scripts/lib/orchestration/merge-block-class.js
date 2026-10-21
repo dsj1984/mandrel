@@ -18,7 +18,7 @@ import {
  * `classifyMergeBlock` returns, in priority order; the rest are emitted
  * directly (`merge-queue.js` owns the REST refusal constant).
  */
-const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
+export const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
   CHECKS_FAILED_CLASS,
   'checks-pending-timeout',
   'branch-protection-human-required',

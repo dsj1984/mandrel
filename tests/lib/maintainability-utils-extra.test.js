@@ -179,4 +179,32 @@ describe('scanDirectory — defensive', () => {
     fs.writeFileSync(filePath, '');
     assert.throws(() => scanDirectory(filePath));
   });
+
+  it('skips a subdirectory that vanishes mid-walk', (t) => {
+    const gone = path.join(tmp, 'gone');
+    fs.mkdirSync(gone);
+    fs.writeFileSync(path.join(gone, 'lost.js'), '');
+    fs.writeFileSync(path.join(tmp, 'kept.js'), '');
+    const readdirSync = fs.readdirSync;
+    t.mock.method(fs, 'readdirSync', (dir, options) => {
+      const entries = readdirSync(dir, options);
+      if (dir === tmp) fs.rmSync(gone, { recursive: true });
+      return entries;
+    });
+    assert.deepEqual(scanDirectory(tmp), [path.join(tmp, 'kept.js')]);
+  });
+
+  it('appends a walk too large to spread into push, in place', (t) => {
+    const isFile = () => true;
+    const isDirectory = () => false;
+    const entries = Array.from({ length: 200_000 }, (_, i) => ({
+      name: `f${i}.js`,
+      isFile,
+      isDirectory,
+    }));
+    t.mock.method(fs, 'readdirSync', () => entries);
+    const acc = ['seed.js'];
+    assert.equal(scanDirectory(tmp, acc), acc);
+    assert.equal(acc.length, 200_001);
+  });
 });

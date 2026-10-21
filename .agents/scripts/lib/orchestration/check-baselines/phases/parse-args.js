@@ -82,13 +82,25 @@ function flattenGateTokens(raw) {
   return parts.length === 0 ? null : parts;
 }
 
+/** Out-of-band ratchet kinds this dispatcher never evaluates, and their checkers. */
+const RATCHET_CHECKERS = Object.freeze({
+  'arch-cycles': 'check-arch-cycles.js',
+  'context-budget': 'check-context-budget.js',
+  cyclomatic: 'check-cyclomatic.js',
+  'dead-exports': 'check-dead-exports.js',
+  'dead-exports-production': 'check-dead-exports.js --production',
+});
+
 /** Reject a mistyped kind rather than silently evaluating nothing. */
 function assertKnownKinds(gates) {
   const unknown = (gates ?? []).filter((k) => !KNOWN_KINDS.includes(k));
   if (unknown.length === 0) return;
+  const checkers = Object.entries(RATCHET_CHECKERS)
+    .map(([kind, cmd]) => `${kind} (node .agents/scripts/${cmd})`)
+    .join(', ');
   throw new Error(
     `unknown --gate kind "${unknown.join(', ')}"; valid kinds: ${KNOWN_KINDS.join(', ')}. ` +
-      'cyclomatic and dead-exports run via check-cyclomatic.js and check-dead-exports.js.',
+      `Ratchet kinds run via their own checker: ${checkers}.`,
   );
 }
 

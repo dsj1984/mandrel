@@ -88,7 +88,7 @@ describe('gh-exec — JSON parse-through', () => {
 });
 
 describe('gh-exec — stdin broken pipe (#5804)', () => {
-  function exitBeforeReadingStdin() {
+  function stdinFailsThenExits(errCode) {
     return () => {
       const child = new EventEmitter();
       child.stdout = new EventEmitter();
@@ -96,8 +96,8 @@ describe('gh-exec — stdin broken pipe (#5804)', () => {
       child.stdin = new EventEmitter();
       child.stdin.end = () => {
         queueMicrotask(() => {
-          const err = Object.assign(new Error('write EPIPE'), {
-            code: 'EPIPE',
+          const err = Object.assign(new Error(`write ${errCode}`), {
+            code: errCode,
           });
           child.stdin.emit('error', err);
           child.emit('close', 0, null);
@@ -107,31 +107,28 @@ describe('gh-exec — stdin broken pipe (#5804)', () => {
     };
   }
 
-  it('settles from the exit code when gh exits before reading stdin', async () => {
-    const result = await exec({
-      args: ['api', 'graphql', '--input', '-'],
-      input: '{}',
-      spawnImpl: exitBeforeReadingStdin(),
+  for (const errCode of ['EPIPE', 'EOF']) {
+    it(`settles from the exit code on a broken pipe (${errCode})`, async () => {
+      const result = await exec({
+        args: ['api', 'graphql', '--input', '-'],
+        input: '{}',
+        spawnImpl: stdinFailsThenExits(errCode),
+      });
+      assert.equal(result.code, 0);
     });
-    assert.equal(result.code, 0);
-  });
+  }
 
-  it('still surfaces a stdin error that is not a broken pipe', () => {
-    const { fake } = makeFakeSpawn();
-    let onError;
-    exec({
-      args: ['auth', 'status'],
-      spawnImpl: (...a) => {
-        const child = fake(...a);
-        child.stdin.on = (event, fn) => {
-          if (event === 'error') onError = fn;
-        };
-        return child;
-      },
-    });
-    assert.throws(
-      () => onError(Object.assign(new Error('nope'), { code: 'EACCES' })),
-      /nope/,
+  it('rejects, never throws, on a stdin error that is not a broken pipe', async () => {
+    await assert.rejects(
+      exec({
+        args: ['api', 'graphql', '--input', '-'],
+        input: '{}',
+        spawnImpl: stdinFailsThenExits('EACCES'),
+      }),
+      (err) =>
+        err instanceof GhExecError &&
+        /stdin failed: write EACCES/.test(err.message) &&
+        err.code === 0,
     );
   });
 });

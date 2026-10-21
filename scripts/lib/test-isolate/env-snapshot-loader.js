@@ -1,4 +1,3 @@
-/* node:coverage ignore file -- NODE_OPTIONS preload for test-isolate; it runs inside spawned children, outside coverage */
 /**
  * Preload module for `test-isolate`. Snapshots `process.env` at module load
  * time and writes a diff envelope to the file named in

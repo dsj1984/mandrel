@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- contributor diagnosis CLI that respawns test files one by one; integration-shaped */
 
 /**
  * test-isolate — diagnose test-pollution cascades.

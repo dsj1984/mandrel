@@ -669,20 +669,21 @@ adapter, and an orchestrator that composes them:
   plan, the resolved CLI options, the working directory) and returns a
   plain **action record** `{ kind, ...args }` describing *what* should
   happen — `'skip'`, `'dry-run'`, `'execute'`, `'prompt-then-execute'`,
-  etc. It performs **no I/O**: no git, no stdin, no `fs`. Every branch
-  of the workflow is therefore reachable by calling the function with a
-  hand-built `state` and asserting on the returned record.
-- **`executeXPhase(action)` — impure, thin.** Takes the action record
-  the decider produced and performs the side effects for the
-  non-interactive `kind`s (run the git command, emit the human log
-  lines), returning the phase result. It carries **no branching policy**
-  of its own beyond dispatching on `action.kind`, and throws on an
-  unsupported kind so a mis-wired decider fails loudly.
-- **`runXPhase(opts, …)` — orchestrator.** The sequencer that the
-  coordinator actually calls: it builds the `state` (often by invoking a
-  `planX` helper), calls the decider, threads the interactive prompt
-  between decide and execute when the action's `kind` demands it (e.g.
-  `'prompt-then-execute'`), and otherwise delegates to the adapter.
+  etc. It performs **no I/O**: no git, no stdin, no `fs`.
+- **`executeXPhase(action, seams)` — impure, thin.** Takes the action
+  record `run*` hands it and performs the side effects (run the git
+  command, emit the human log lines), returning the phase result. It
+  carries **no branching policy** of its own beyond reading
+  `action.kind`, and no unsupported-kind guard: the decider is
+  module-private, so only kinds it produces arrive.
+- **`runXPhase(opts, …, deps)` — orchestrator.** The only exported half
+  and the one the coordinator calls: it builds the `state` (often by
+  invoking a `planX` helper), calls the decider, threads the interactive
+  prompt between decide and execute when the action's `kind` demands it
+  (e.g. `'prompt-then-execute'`), and otherwise hands the action to the
+  adapter or returns a no-op kind's result directly. A trailing `deps` bag
+  replaces the prompt and forwards every other key to the plan / execute
+  calls as an injected seam; production passes none.
 
 ### Reference implementation
 
@@ -694,20 +695,24 @@ It drives the git-cleanup phases as three such triples:
 - `decideBranchPhase` / `executeBranchPhase` / `runBranchPhase`
 - `decideStashPhase` / `executeStashPhase` / `runStashPhase`
 
-Each `decide*` returns an action record keyed by `kind` and touches no
-git or stdin; each `execute*` is a thin dispatch on that `kind`; each
-`run*` composes the pair and owns the interactive prompt.
+Only the `run*` drivers are exported. Each `decide*` returns an action
+record keyed by `kind` and touches no git or stdin; each `run*` composes
+the pair, owns the interactive prompt, and takes the `deps` bag.
+[`git-cleanup-phase-drivers.test.js`](../tests/lib/orchestration/git-cleanup-phase-drivers.test.js)
+reaches every branch through `run*Phase(opts, cwd, …, deps)` with fake
+git seams (`fetchFn`, `deleteLocalFn`, `stashListerFn`, …) and a fake
+`prompt` / `promptStash`.
 
 ### Benefits
 
 - **Testable surface (humble object).** The decision logic — the part
-  most worth testing and most prone to regression — is unit-testable on
-  plain `state`, with no git repo, subprocess, or stdin mock. The I/O is
-  quarantined in the thin `execute*` adapter, which has little logic left
-  to test.
+  most worth testing and most prone to regression — is reachable with no
+  git repo, subprocess, or stdin: the `deps` bag swaps out every plan /
+  execute seam and the prompt. The I/O stays behind those seams, and the
+  thin `execute*` adapter has little logic left to test.
 - **Cheap to assert every branch.** Skip, dry-run, declined-prompt, and
-  execute paths are each one direct call to the decider with a different
-  `state`, rather than one integration fixture per path.
+  execute paths are each one `run*` call with different options and
+  fakes, rather than one integration fixture per path.
 - **Local reasoning.** A reviewer reads the decider to understand *what*
   the phase decides and the adapter to understand *how* it acts, without
   untangling the two.
@@ -855,7 +860,7 @@ Both run as kinds of the unified `check-baselines.js` gate, with
 per-kind logic under `lib/baselines/kinds/` (`maintainability.js`,
 `crap.js`).
 
-Both gates run at the same three sites (pre-push, close-validation, CI)
+Both gates run at the same four sites (pre-commit, pre-push, close-validation, CI)
 and emit a shared envelope shape (`{ kernelVersion, summary, violations }`)
 so one parser handles both reports.
 

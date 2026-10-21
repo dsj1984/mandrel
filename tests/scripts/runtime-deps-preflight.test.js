@@ -147,6 +147,40 @@ describe('checkRuntimeDeps', () => {
     assert.equal(probe('^7.0.0', '8.0.0'), 1, 'out-of-range major');
   });
 
+  it('admits a resolved major matching any alternative of a || range', () => {
+    // js-yaml accepts both majors: a consumer's own tooling can keep 4.x at
+    // its root, and the guard must not exit over it.
+    const probe = (range, resolved) =>
+      checkRuntimeDeps({
+        required: ['js-yaml'],
+        resolve: (s) => `/resolved/${s}`,
+        ranges: { 'js-yaml': range },
+        readVersion: () => resolved,
+      }).mismatched;
+
+    const range = '^4.3.2 || ^5.4.3';
+    assert.deepEqual(probe(range, '4.3.2'), [], 'first alternative');
+    assert.deepEqual(probe(range, '5.5.0'), [], 'second alternative');
+    assert.deepEqual(probe(range, '3.14.1'), [
+      { name: 'js-yaml', required: range, resolved: '3.14.1' },
+    ]);
+    assert.equal(probe(range, '6.0.0').length, 1, 'major above every one');
+    assert.deepEqual(probe('* || ^5.4.3', '4.3.2'), [], 'one unreadable');
+    assert.deepEqual(probe('* || latest', '4.3.2'), [], 'none readable');
+    assert.deepEqual(probe(undefined, '4.3.2'), [], 'no declared range');
+  });
+
+  it('ships a js-yaml range that admits a consumer root still on 4.x', () => {
+    const { dependencies } = loadRuntimeDepsManifest();
+    const { mismatched } = checkRuntimeDeps({
+      required: ['js-yaml'],
+      resolve: (s) => `/resolved/${s}`,
+      ranges: dependencies,
+      readVersion: () => '4.3.2',
+    });
+    assert.deepEqual(mismatched, []);
+  });
+
   it('probes the bare specifier before the manifest subpath', () => {
     const seen = [];
     isResolvable('some-pkg', (s) => {

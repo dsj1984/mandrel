@@ -110,10 +110,13 @@ const TS_LOOSENED = Object.freeze({
   skipLibCheck: true,
 });
 
-// A JSONC `//` line directly above an entry is its reason.
+// A JSONC `//` line directly above an entry is its reason, unless it is a
+// commented-out entry (`// "src/old/**",`) rather than prose.
 function commentAbove(text, line) {
   const prev = (text ?? '').split('\n')[line - 2]?.trim() ?? '';
-  return prev.startsWith('//') ? prev.slice(2).trim() || null : null;
+  if (!prev.startsWith('//')) return null;
+  const body = prev.slice(2).trim();
+  return body && !/^[[\]{}"]/.test(body) ? body : null;
 }
 
 function configRecord(

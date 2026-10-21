@@ -219,19 +219,31 @@ runs and the ratchet never moves. So **every Hotspot Cluster and Tightening
 Headroom finding's Recommendation MUST** end the remediation with the ratchet
 tightened and gate-enforced:
 
-1. Lower the floor under `delivery.quality.gates` in `.agentrc.json` to the
-   newly measured level, **or** delete the burnt-down rows from that kind's
-   file under `baselines/`.
-2. Carry `node .agents/scripts/check-baselines.js --gate <kind>` in the
-   remediation Story's `verify[]`, so the tightened floor is enforced by the
-   gate that already exists at that Story's delivery time rather than by prose
-   nobody runs.
+1. For a `gate` kind (its `surface` in `gateSurface[]`), lower the floor
+   under `delivery.quality.gates` in `.agentrc.json` to the newly measured
+   level, **or** delete the burnt-down rows from that kind's file under
+   `baselines/`. A `ratchet` kind has no floor: its shrunken baseline is the
+   tightening, banked at close (`arch-cycles` alone needs its checker's
+   `--update`).
+2. Carry each kind's checker in the remediation Story's `verify[]`, so the
+   tightened ratchet is enforced by the gate that already exists at that
+   Story's delivery time rather than by prose nobody runs. A `gate` kind uses
+   `node .agents/scripts/check-baselines.js --gate <kind>`; that command
+   rejects a `ratchet` kind with exit 3, so a ratchet uses its own checker:
+
+   | Ratchet kind | Checker |
+   | --- | --- |
+   | `arch-cycles` | `node .agents/scripts/check-arch-cycles.js` |
+   | `context-budget` | `node .agents/scripts/check-context-budget.js` |
+   | `cyclomatic` | `node .agents/scripts/check-cyclomatic.js` |
+   | `dead-exports` | `node .agents/scripts/check-dead-exports.js` |
+   | `dead-exports-production` | `node .agents/scripts/check-dead-exports.js --production` |
 
 Use these two Recommendation templates verbatim, substituting the envelope's own
-values for the angle-bracketed slots:
+values for the angle-bracketed slots (`<checker>` is item 2's command per kind):
 
 - **Hotspot Cluster template:**
-  `Burn down the measured debt in <hotspots.path>, an outlier across <gateKinds>. Refactor and add tests until its rows leave that kind's file under baselines/, then regenerate that baseline with the matching update-*-baseline script in a commit whose subject carries the baseline-refresh: tag. Finish by TIGHTENING the ratchet in the same Story — lower the kind's floor under delivery.quality.gates in .agentrc.json to the new measured level, or delete the burnt-down rows — and carry node .agents/scripts/check-baselines.js --gate <kind> in this Story's verify[] so the tightened floor is enforced at delivery.`
+  `Burn down the measured debt in <hotspots.path>, an outlier across <gateKinds>. Refactor and add tests until its rows leave each kind's file under baselines/, then regenerate a gate kind's baseline with the matching update-*-baseline script in a commit whose subject carries the baseline-refresh: tag. Finish by TIGHTENING the ratchet in the same Story — lower each gate kind's floor under delivery.quality.gates in .agentrc.json to the new measured level, or delete the burnt-down rows — and carry each kind's <checker> in this Story's verify[] so the tightened ratchet is enforced at delivery.`
 - **Tightening Headroom template:**
   `The <kind> gate's <axis> floor sits at <floor> while the measured rollup is <measured> (headroom <headroom>, direction <direction>), and that kind's trend is flat or improving. Tighten it: set that axis under delivery.quality.gates in .agentrc.json to the measured level so no slack remains for the next change to re-spend, and carry node .agents/scripts/check-baselines.js --gate <kind> in this Story's verify[] so the new floor is enforced. Regenerate no baseline in this Story — the floor edit is the whole change.`
 
