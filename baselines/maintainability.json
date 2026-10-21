@@ -68,11 +68,11 @@
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
-      "mi": 89.966
+      "mi": 90.686
     },
     {
       "path": ".agents/scripts/check-gherkin-corpus.js",
-      "mi": 98.082
+      "mi": 99.032
     },
     {
       "path": ".agents/scripts/check-test-temp-hygiene.js",
@@ -820,7 +820,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/qa.js",
-      "mi": 111.128
+      "mi": 112.66
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
@@ -1100,7 +1100,7 @@
     },
     {
       "path": ".agents/scripts/lib/import-graph.js",
-      "mi": 104.692
+      "mi": 110.518
     },
     {
       "path": ".agents/scripts/lib/install-cmd-parser.js",
@@ -1136,7 +1136,7 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "mi": 103.335
+      "mi": 106.72
     },
     {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
@@ -1652,7 +1652,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
-      "mi": 94.196
+      "mi": 94.749
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/provider-severity.js",
@@ -2008,7 +2008,7 @@
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
-      "mi": 100.574
+      "mi": 104.382
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",
@@ -2068,7 +2068,7 @@
     },
     {
       "path": ".agents/scripts/lib/skills/walk-skill-files.js",
-      "mi": 102.663
+      "mi": 113.008
     },
     {
       "path": ".agents/scripts/lib/source-extensions.js",
@@ -2768,11 +2768,11 @@
     },
     {
       "path": "scripts/check-lifecycle-lint.js",
-      "mi": 97.514
+      "mi": 99.778
     },
     {
       "path": "scripts/check-npm-audit.js",
-      "mi": 95.241
+      "mi": 96.045
     },
     {
       "path": "scripts/check-payload-boundary.js",
@@ -2780,7 +2780,7 @@
     },
     {
       "path": "scripts/check-pinned-override-notes.js",
-      "mi": 98.349
+      "mi": 100.601
     },
     {
       "path": "scripts/check-schema-references.js",
@@ -2956,7 +2956,7 @@
     },
     {
       "path": "scripts/lint-label-vocabulary.js",
-      "mi": 88.767
+      "mi": 95.614
     },
     {
       "path": "scripts/post-structured-comment.js",
