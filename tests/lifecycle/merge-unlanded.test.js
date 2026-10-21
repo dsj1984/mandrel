@@ -179,16 +179,18 @@ describe('lifecycle/emit-merge-unlanded', () => {
     roots.push(root);
     const config = { project: { paths: { tempRoot: root } } };
 
-    assert.throws(() =>
-      emitMergeUnlanded({
-        scope: 'epic',
-        ticketId: 4425,
-        prNumber: 4440,
-        blockClass: 'not-a-real-class',
-        reason: 'should never be written',
-        elapsedSeconds: 1,
-        config,
-      }),
+    assert.throws(
+      () =>
+        emitMergeUnlanded({
+          scope: 'story',
+          ticketId: 4425,
+          prNumber: 4440,
+          blockClass: 'not-a-real-class',
+          reason: 'should never be written',
+          elapsedSeconds: 1,
+          config,
+        }),
+      /"not-a-real-class" must be one of: .*merge-queue-rest-unsupported/,
     );
   });
 });

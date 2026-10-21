@@ -32,7 +32,10 @@ import path from 'node:path';
 import { describe, it, mock } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { setLevel } from '../../.agents/scripts/lib/Logger.js';
-import { isValidBlockClass } from '../../.agents/scripts/lib/orchestration/merge-block-class.js';
+import {
+  isValidBlockClass,
+  MERGE_UNLANDED_BLOCK_CLASSES,
+} from '../../.agents/scripts/lib/orchestration/merge-block-class.js';
 import { lockWaitPending } from '../../.agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js';
 import {
   buildEscalationTerminal,
@@ -52,19 +55,11 @@ import {
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCHEMA = JSON.parse(
-  fs.readFileSync(
-    path.resolve(
-      __dirname,
-      '..',
-      '..',
-      '.agents',
-      'schemas',
-      'story-deliver-terminal.schema.json',
-    ),
-    'utf8',
-  ),
-);
+const SCHEMAS_DIR = path.resolve(__dirname, '..', '..', '.agents', 'schemas');
+const readSchema = (...segments) =>
+  JSON.parse(fs.readFileSync(path.join(SCHEMAS_DIR, ...segments), 'utf8'));
+const SCHEMA = readSchema('story-deliver-terminal.schema.json');
+const UNLANDED_SCHEMA = readSchema('lifecycle', 'merge.unlanded.schema.json');
 
 const CLEAN_TAIL = {
   followUps: true,
@@ -560,25 +555,21 @@ describe('story-deliver-terminal — blocked / failed', () => {
     // adds a class on one side only. `checks-failed` (Story #4543) is exactly
     // that case; pin the relationship so the next one fails here first.
     const schemaClasses = SCHEMA.properties.blocked.properties.blockClass.enum;
-    const unlandedClasses = [
-      'checks-failed',
-      'checks-pending-timeout',
-      'branch-protection-human-required',
-      'arm-failure',
-      'api-race-other',
-      'predicate-refused',
-      'advisory-gate-red',
-      'advisory-gate-inconclusive',
-      'merge-queue-rest-unsupported',
-    ];
-    for (const cls of unlandedClasses) {
-      assert.ok(
-        isValidBlockClass(cls),
-        `merge-block-class.js rejects "${cls}"`,
-      );
+    const unlandedSchemaClasses = UNLANDED_SCHEMA.properties.blockClass.enum;
+    for (const cls of MERGE_UNLANDED_BLOCK_CLASSES) {
       assert.ok(
         schemaClasses.includes(cls),
         `terminal schema is missing block class "${cls}" from merge-block-class.js`,
+      );
+      assert.ok(
+        unlandedSchemaClasses.includes(cls),
+        `merge.unlanded schema is missing block class "${cls}" from merge-block-class.js`,
+      );
+    }
+    for (const cls of unlandedSchemaClasses) {
+      assert.ok(
+        isValidBlockClass(cls),
+        `merge.unlanded schema class "${cls}" is not a merge-block-class.js attribution`,
       );
     }
     // The merged-flip-failed terminal is not an unlanded attribution (the

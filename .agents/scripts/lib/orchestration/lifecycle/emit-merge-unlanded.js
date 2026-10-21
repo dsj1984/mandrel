@@ -7,7 +7,10 @@
  * value.
  */
 
-import { isValidBlockClass } from '../merge-block-class.js';
+import {
+  isValidBlockClass,
+  MERGE_UNLANDED_BLOCK_CLASSES,
+} from '../merge-block-class.js';
 import {
   appendLedgerEvent,
   assertMergeTerminalFields,
@@ -48,7 +51,7 @@ export function emitMergeUnlanded(opts) {
   });
   if (!isValidBlockClass(blockClass)) {
     throw new Error(
-      `emitMergeUnlanded: blockClass "${blockClass}" is not a recognised merge-block-class value`,
+      `emitMergeUnlanded: blockClass "${blockClass}" must be one of: ${MERGE_UNLANDED_BLOCK_CLASSES.join(', ')}`,
     );
   }
 

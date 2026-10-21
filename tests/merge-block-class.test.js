@@ -18,6 +18,7 @@ import { describe, it } from 'node:test';
 import {
   classifyMergeBlock,
   isValidBlockClass,
+  MERGE_UNLANDED_BLOCK_CLASSES,
 } from '../.agents/scripts/lib/orchestration/merge-block-class.js';
 
 // Every classifyMergeBlock output, in evaluation order.
@@ -29,9 +30,10 @@ const BLOCK_CLASSES = Object.freeze([
   'api-race-other',
 ]);
 
-// Plus the classes emitted directly, never by the classifier.
-const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
-  ...BLOCK_CLASSES,
+// Valid attributions emitted directly by their phases, never by the
+// classifier: predicate-refused (Story #4472), the advisory-gate pair
+// (Stories #5096 / #5266) and the REST merge-queue refusal.
+const DIRECT_ONLY_CLASSES = Object.freeze([
   'predicate-refused',
   'advisory-gate-red',
   'advisory-gate-inconclusive',
@@ -45,23 +47,20 @@ describe('merge-block-class (Story #4426)', () => {
     }
   });
 
+  it('MERGE_UNLANDED_BLOCK_CLASSES is the classifier outputs, then the direct-only attributions', () => {
+    assert.deepEqual(MERGE_UNLANDED_BLOCK_CLASSES, [
+      ...BLOCK_CLASSES,
+      ...DIRECT_ONLY_CLASSES,
+    ]);
+    assert.ok(Object.isFrozen(MERGE_UNLANDED_BLOCK_CLASSES));
+  });
+
   it('isValidBlockClass recognises the full merge.unlanded attribution set', () => {
     for (const cls of MERGE_UNLANDED_BLOCK_CLASSES) {
       assert.equal(isValidBlockClass(cls), true);
     }
     assert.equal(isValidBlockClass('not-a-real-class'), false);
     assert.equal(isValidBlockClass(undefined), false);
-  });
-
-  it('predicate-refused is a valid attribution but NOT a classifyMergeBlock output (Story #4472)', () => {
-    // It is emitted directly by the AutomergePredicate / AutomergeArmer for a
-    // headless refusal that never reached the poll-exhaustion classifier.
-    assert.equal(isValidBlockClass('predicate-refused'), true);
-    assert.equal(BLOCK_CLASSES.includes('predicate-refused'), false);
-    assert.equal(
-      MERGE_UNLANDED_BLOCK_CLASSES.includes('predicate-refused'),
-      true,
-    );
   });
 
   const cases = [
@@ -337,6 +336,45 @@ describe('merge-block-class (Story #4426)', () => {
     assert.match(verdict.reason, /auto-merge/i);
   });
 
+  it('no classifyMergeBlock output is a direct-only attribution (Stories #4472, #5096)', () => {
+    const evidences = [
+      undefined,
+      { requiredRunFailed: true, requiredRunInFlight: false },
+      { requiredRunFailed: false, requiredRunInFlight: true },
+    ];
+    const probes = [undefined, { error: 'ETIMEDOUT' }];
+    for (const checksStatus of ['success', 'failure', 'pending', 'unknown']) {
+      for (const mergeStateStatus of ['BLOCKED', 'UNSTABLE', 'CLEAN']) {
+        for (const requiredRunEvidence of evidences) {
+          probes.push({ checksStatus, mergeStateStatus, requiredRunEvidence });
+        }
+      }
+    }
+    const arms = [
+      undefined,
+      { armed: true },
+      { armed: false, reason: 'gh: rate limit exceeded' },
+      { armed: false, reason: 'Approving review required' },
+    ];
+    const budgets = [undefined, { exhausted: true, elapsedSeconds: 60 }];
+    const produced = new Set(
+      cases.map((c) => classifyMergeBlock(c.input).blockClass),
+    );
+    for (const armResult of arms) {
+      for (const prProbe of probes) {
+        for (const budget of budgets) {
+          produced.add(
+            classifyMergeBlock({ armResult, prProbe, budget }).blockClass,
+          );
+        }
+      }
+    }
+    for (const cls of produced) {
+      assert.equal(isValidBlockClass(cls), true, cls);
+      assert.equal(DIRECT_ONLY_CLASSES.includes(cls), false, cls);
+    }
+  });
+
   it('every canonical block class is reachable from at least one table case', () => {
     const produced = new Set(
       cases.map((c) => classifyMergeBlock(c.input).blockClass),
@@ -451,18 +489,6 @@ describe('head-anchored required-check gating (Story #4695)', () => {
       assert.equal(verdict.blockClass, 'checks-failed');
       assert.match(verdict.reason, new RegExp(`evidence=${evidencePath}`));
     }
-  });
-
-  it('advisory-gate-red is a valid attribution but NOT a classifyMergeBlock output (Story #5096)', () => {
-    // Emitted directly by the arm and merge-wait phases. The classifier
-    // cannot produce it: by construction GitHub is NOT gating the merge
-    // (mergeStateStatus=UNSTABLE), which is the entire condition it names.
-    assert.equal(isValidBlockClass('advisory-gate-red'), true);
-    assert.equal(BLOCK_CLASSES.includes('advisory-gate-red'), false);
-    assert.equal(
-      MERGE_UNLANDED_BLOCK_CLASSES.includes('advisory-gate-red'),
-      true,
-    );
   });
 
   it('a red ADVISORY check is never classified as checks-failed (Story #5096)', () => {
