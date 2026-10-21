@@ -43933,146 +43933,219 @@
     {
       "path": "lib/cli/uninstall.js",
       "method": "resolveProjectRoot",
-      "startLine": 38,
+      "startLine": 41,
       "crap": 1
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "revertEntryDoc",
-      "startLine": 72,
-      "crap": 7.602184797451069
+      "startLine": 81,
+      "crap": 7.052866703754278
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "<anon revertEntryDoc/(line)#0>",
-      "startLine": 96,
-      "crap": 1.0122894856622666,
+      "startLine": 105,
+      "crap": 1.0010789123215158,
       "anonymous": true
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "revertAgentsMd",
-      "startLine": 117,
+      "startLine": 126,
       "crap": 1
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "revertClaudeMd",
-      "startLine": 130,
+      "startLine": 139,
       "crap": 2
     },
     {
       "path": "lib/cli/uninstall.js",
-      "method": "revertClaudeSettings",
-      "startLine": 147,
-      "crap": 14.030955718318758
+      "method": "dropNestedKey",
+      "startLine": 156,
+      "crap": 3
     },
     {
       "path": "lib/cli/uninstall.js",
-      "method": "<anon revertClaudeSettings/(h)#0>",
-      "startLine": 155,
-      "crap": 2,
-      "anonymous": true
+      "method": "isFrameworkHook",
+      "startLine": 167,
+      "crap": 2
     },
     {
       "path": "lib/cli/uninstall.js",
-      "method": "<anon revertClaudeSettings/(group)#0>",
+      "method": "stripSyncHook",
       "startLine": 181,
-      "crap": 1.0001579373383611,
-      "anonymous": true
+      "crap": 4
     },
     {
       "path": "lib/cli/uninstall.js",
-      "method": "<anon revertClaudeSettings/(group)#0/(h)#0>",
-      "startLine": 183,
-      "crap": 1.0001579373383611,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/uninstall.js",
-      "method": "<anon revertClaudeSettings/(group)#1>",
+      "method": "<anon stripSyncHook/(group)#0>",
       "startLine": 185,
-      "crap": 1.0001579373383611,
+      "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "<anon stripSyncHook/(group)#0/(h)#0>",
+      "startLine": 187,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "<anon stripSyncHook/(group)#1>",
+      "startLine": 189,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertClaudeSettings",
+      "startLine": 207,
+      "crap": 4.023883381924199
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "revertClaudeCommands",
-      "startLine": 230,
+      "startLine": 251,
       "crap": 2.0625
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "<anon revertClaudeCommands/(t)#0>",
-      "startLine": 237,
+      "startLine": 258,
       "crap": 1.015625,
       "anonymous": true
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "revertGitignore",
-      "startLine": 264,
+      "startLine": 285,
       "crap": 8.095533527696793
     },
     {
       "path": "lib/cli/uninstall.js",
-      "method": "revertPackageJson",
-      "startLine": 305,
-      "crap": 12.221210741920801
-    },
-    {
-      "path": "lib/cli/uninstall.js",
       "method": "stripPrepare",
-      "startLine": 317,
+      "startLine": 336,
       "crap": 4
     },
     {
       "path": "lib/cli/uninstall.js",
+      "method": "stripFrameworkScripts",
+      "startLine": 355,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "<anon stripFrameworkScripts/(name,cmd)#0>",
+      "startLine": 357,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "<anon stripFrameworkScripts/(name)#0>",
+      "startLine": 358,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertPackageJson",
+      "startLine": 375,
+      "crap": 6.020833333333333
+    },
+    {
+      "path": "lib/cli/uninstall.js",
       "method": "revertAgentrc",
-      "startLine": 368,
+      "startLine": 410,
       "crap": 3
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "revertPreCommitHook",
-      "startLine": 398,
+      "startLine": 440,
       "crap": 4.041986141293206
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "<anon revertPreCommitHook/(line)#0>",
-      "startLine": 418,
+      "startLine": 460,
       "crap": 1.0026241338308253,
       "anonymous": true
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "planUninstall",
-      "startLine": 453,
+      "startLine": 495,
       "crap": 6
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "pad",
-      "startLine": 484,
+      "startLine": 526,
       "crap": 2
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "formatOutcome",
-      "startLine": 493,
+      "startLine": 535,
+      "crap": 5
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "result",
+      "startLine": 554,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "loadLedger",
+      "startLine": 565,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "formatManual",
+      "startLine": 601,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertTarget",
+      "startLine": 618,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "retireLedger",
+      "startLine": 647,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "printDryRun",
+      "startLine": 670,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "applyUninstall",
+      "startLine": 693,
       "crap": 5
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "runUninstall",
-      "startLine": 517,
-      "crap": 12
+      "startLine": 728,
+      "crap": 4
     },
     {
       "path": "lib/cli/uninstall.js",
       "method": "run",
-      "startLine": 675,
+      "startLine": 776,
       "crap": 1
     },
     {

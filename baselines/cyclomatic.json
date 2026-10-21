@@ -83,11 +83,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": "lib/cli/uninstall.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
-    },
-    {
       "file": "scripts/lib/test-profile/parse-tap.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 16
