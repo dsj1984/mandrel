@@ -11,13 +11,14 @@ import path from 'node:path';
 import process from 'node:process';
 import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
-import { readJsonBaseline, writeBaseline } from './lib/gates/baseline-store.js';
+import { readJsonBaseline } from './lib/gates/baseline-store.js';
 import {
   buildGraph,
   collectJsFiles,
   DEFAULT_ROOTS,
   parseRelativeImports,
 } from './lib/import-graph.js';
+import { writeFileAtomic } from './lib/util/atomic-write.js';
 
 // Shared with `audit-baselines.js`; re-exported as part of this module's contract.
 export {
@@ -216,14 +217,12 @@ export async function runCli({
   );
   const { graphRoot, detected } = detectCycles(cwd, rootPath);
   if (update) {
-    writeBaseline({
-      baselinePath: resolvedBaselinePath,
-      data: {
-        $schema: BASELINE_SCHEMA,
-        generatedAt: new Date().toISOString(),
-        cycles: detected,
-      },
-    });
+    const data = {
+      $schema: BASELINE_SCHEMA,
+      generatedAt: new Date().toISOString(),
+      cycles: detected,
+    };
+    writeFileAtomic(resolvedBaselinePath, `${JSON.stringify(data, null, 2)}\n`);
     stdout.write(`[arch-cycles] wrote ${detected.length} cycle(s)\n`);
     return 0;
   }
