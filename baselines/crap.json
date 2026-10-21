@@ -43033,6 +43033,12 @@
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
+      "method": "firstOnPath",
+      "startLine": 37,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "runLlmReviewProvider",
       "startLine": 51,
       "crap": 9
@@ -43129,6 +43135,12 @@
     },
     {
       "path": "lib/cli/doctor-checks/project-access.js",
+      "method": "rungOrder",
+      "startLine": 58,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/project-access.js",
       "method": "probeRung",
       "startLine": 62,
       "crap": 7.06721536351166
@@ -43196,6 +43208,33 @@
       "method": "spawn",
       "startLine": 10,
       "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/spawn.js",
+      "method": "<anon spawn/(resolve)#0>",
+      "startLine": 11,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/spawn.js",
+      "method": "<anon spawn/(resolve)#0/(err,stdout,stderr)#0>",
+      "startLine": 16,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/spawn.js",
+      "method": "createRunner",
+      "startLine": 30,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/spawn.js",
+      "method": "<anon createRunner/(cmd,args,opts)#0>",
+      "startLine": 32,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
@@ -43501,6 +43540,20 @@
       "method": "runDoctor",
       "startLine": 116,
       "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "method": "<anon runDoctor/(check)#0>",
+      "startLine": 136,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "method": "<anon runDoctor/(check)#0/(prior)#0>",
+      "startLine": 138,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": "lib/cli/doctor.js",
