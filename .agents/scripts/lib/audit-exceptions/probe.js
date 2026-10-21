@@ -28,6 +28,15 @@ const realOrSelf = (p) => {
   }
 };
 
+// GitHub workflow-command property escaping (Windows drive colons arrive as %3A).
+const unescapeProperty = (v) =>
+  v
+    .replace(/%2C/gi, ',')
+    .replace(/%3A/gi, ':')
+    .replace(/%0D/gi, '\r')
+    .replace(/%0A/gi, '\n')
+    .replace(/%25/g, '%');
+
 const relTo = (root, file) =>
   toPosix(
     path.relative(realOrSelf(root), realOrSelf(path.resolve(root, file))),
@@ -48,7 +57,7 @@ const TOOLS = Object.freeze([
           /^::\w+ title=suppressions\/unused,file=([^,]+),line=(\d+)/gm,
         ),
       ].map((m) => ({
-        file: relTo(root, m[1]),
+        file: relTo(root, unescapeProperty(m[1])),
         line: Number(m[2]),
       })),
   },

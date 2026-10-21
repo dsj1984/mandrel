@@ -134,6 +134,38 @@ describe('--probe tool reports', () => {
   });
 });
 
+describe("--probe reading biome's github reporter", () => {
+  it('decodes escaped file properties before matching the record', async () => {
+    const root = makeRepo({
+      'biome.json': {},
+      'src/a,b.js': lines(
+        '// biome-ignore lint/suspicious/noDebugger: stale',
+        'export const a = 1;',
+      ),
+    });
+    installManifest(root, 'node_modules/@biomejs/biome', {
+      name: '@biomejs/biome',
+      bin: { biome: 'package.json' },
+    });
+    const file = path.join(root, 'src', 'a,b.js').replace(/,/g, '%2C');
+    const spawn = async () => ({
+      status: 1,
+      stdout: `::warning title=suppressions/unused,file=${file},line=1,endLine=1::x`,
+      stderr: '',
+    });
+    const env = await runEngine({
+      cwd: root,
+      probe: true,
+      today: '2026-10-07',
+      gh: fakeGh({}),
+      spawn,
+    });
+    const record = env.records.find((r) => r.file === 'src/a,b.js');
+    assert.equal(record.verdict, 'dead');
+    assert.equal(record.verdictBasis, 'tool');
+  });
+});
+
 describe('--probe on a failing tool', () => {
   it('degrades rather than flipping anything', async () => {
     const root = makeRepo({
