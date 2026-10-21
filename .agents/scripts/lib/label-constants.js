@@ -17,7 +17,13 @@ export const AGENT_LABELS = {
 export const VALID_TRANSITIONS = {
   'agent::review-spec': ['agent::ready', 'agent::blocked'],
   'agent::ready': ['agent::executing', 'agent::blocked'],
-  'agent::executing': ['agent::closing', 'agent::done', 'agent::blocked'],
+  // `ready`: init's claim rollback after a provisioning failure.
+  'agent::executing': [
+    'agent::ready',
+    'agent::closing',
+    'agent::done',
+    'agent::blocked',
+  ],
   'agent::closing': ['agent::done', 'agent::blocked'],
   'agent::blocked': [
     'agent::ready',

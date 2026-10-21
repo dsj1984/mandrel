@@ -8,8 +8,8 @@
  */
 
 import crypto from 'node:crypto';
-
 import { Logger } from '../Logger.js';
+import { isValidTransition, VALID_TRANSITIONS } from '../label-constants.js';
 import { appendSignal, forEachLine } from './signals-writer.js';
 
 /**
@@ -27,6 +27,8 @@ export const RUNTIME_FRICTION_CATEGORIES = Object.freeze({
   REVIEW_BLOCKED: 'review-blocked',
   /** A human shipped over a review blocker; a rising count means miscalibration. */
   REVIEW_BLOCK_OVERRIDDEN: 'review-block-overridden',
+  /** An `agent::*` flip outside `VALID_TRANSITIONS`; observed, never refused. */
+  INVALID_AGENT_TRANSITION: 'invalid-agent-transition',
 });
 
 /**
@@ -150,6 +152,40 @@ export async function emitBlockRecoveredFriction({
       toState: toState ?? null,
     },
     config,
+  });
+}
+
+/**
+ * Record an `agent::*` flip outside `VALID_TRANSITIONS` — observe-only, the
+ * label write already happened, and this never throws. A self-transition is
+ * an idempotent re-apply (resume, `--steal`, a rollback whose flip never
+ * landed), not a fault. `allowed` names the targets the table admits.
+ *
+ * @param {number} storyId
+ * @param {string|null} fromState  Prior state label, or null.
+ * @param {string} toState
+ * @param {{ config?: object }} [opts]
+ * @returns {Promise<boolean>} true when a record was appended.
+ */
+export async function emitInvalidTransitionFriction(
+  storyId,
+  fromState,
+  toState,
+  opts,
+) {
+  if (fromState === toState || isValidTransition(fromState, toState)) {
+    return false;
+  }
+  return emitRuntimeFriction({
+    storyId,
+    category: RUNTIME_FRICTION_CATEGORIES.INVALID_AGENT_TRANSITION,
+    tool: 'transitionTicketState',
+    details: {
+      fromState,
+      toState,
+      allowed: VALID_TRANSITIONS[fromState] ?? [],
+    },
+    config: opts?.config,
   });
 }
 
