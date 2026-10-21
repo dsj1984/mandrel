@@ -181,12 +181,8 @@ function signatureOverlap(a, b) {
   return overlap;
 }
 
-/**
- * Merge single-finding groups into a same-directory group sharing ≥ 3
- * signature tokens.
- *
- * @returns {Set<string>} keys of the groups absorbed into another.
- */
+// Merge single-finding groups into a same-directory group sharing ≥ 3
+// signature tokens; returns the absorbed keys.
 function mergeSameDirectorySingletons(groupArray, sigBuckets) {
   const merged = new Set();
   for (let i = 0; i < groupArray.length; i += 1) {

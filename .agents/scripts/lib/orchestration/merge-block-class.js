@@ -108,11 +108,8 @@ function classifyArmFailure(armResult) {
   };
 }
 
-/**
- * Step 2: BLOCKED is the steady state while checks run; a slow-CI timeout
- * must not read as human-required. Positive evidence only: `unknown` routes
- * to the fallback; `undefined` (no probe) keeps this mapping.
- */
+// Step 2: a slow-CI timeout must not read as human-required; `unknown`
+// routes to the fallback, `undefined` keeps this mapping.
 function isChecksPendingTimeout(prProbe, budget) {
   if (budget?.exhausted !== true) return false;
   return (
