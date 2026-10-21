@@ -21,6 +21,30 @@ const REQUIRED_SECTIONS = [
   { field: 'verify', label: 'Verify' },
 ];
 
+/** The closed set of section names a comment may print. */
+const SECTION_LABELS = new Map([
+  ['goal', 'Goal'],
+  ['acceptance', 'Acceptance'],
+  ['verify', 'Verify'],
+  ['changes', 'Changes'],
+  ['references', 'References'],
+  ['spec', 'Spec'],
+  ['context', 'Context'],
+  ['slicing', 'Slicing'],
+  ['non_goals', 'Non-Goals'],
+]);
+
+/**
+ * Fixed-vocabulary problem line for a parse failure. `err.message` and
+ * `err.raw` echo issue text, so they go to the run log, never the comment.
+ */
+function parseFailureProblem(err) {
+  const label = SECTION_LABELS.get(err.field);
+  return label
+    ? `The \`## ${label}\` section could not be parsed into the canonical schema.`
+    : 'An unrecognised section could not be parsed into the canonical schema.';
+}
+
 /**
  * Issue Forms render a skipped field as `_No response_`; treat it as absent.
  * @param {string} body
@@ -39,6 +63,7 @@ function stripNoResponseSentinel(body) {
  * @property {string[]} problems
  * @property {string[]} warnings
  * @property {boolean}  parseFailed
+ * @property {string|null} parseError - Full parser message; run log only.
  */
 
 /**
@@ -54,6 +79,7 @@ export function evaluateIssueBody(body) {
       problems: ['The issue body is empty.'],
       warnings: [],
       parseFailed: true,
+      parseError: null,
     };
   }
 
@@ -66,11 +92,10 @@ export function evaluateIssueBody(body) {
     if (err instanceof StoryBodyParseError) {
       return {
         conformant: false,
-        problems: [
-          `The body could not be parsed into the canonical schema: ${err.message}`,
-        ],
+        problems: [parseFailureProblem(err)],
         warnings: [],
         parseFailed: true,
+        parseError: err.message,
       };
     }
     throw err;
@@ -103,10 +128,13 @@ export function evaluateIssueBody(body) {
     problems,
     warnings: result.warnings,
     parseFailed: false,
+    parseError: null,
   };
 }
 
 /**
+ * Built only from fixed strings and the fixed-vocabulary `problems`; warning
+ * text echoes issue content, so only the count is shown.
  * @param {ConformanceVerdict} verdict
  * @returns {string}
  */
@@ -127,11 +155,8 @@ export function renderConformanceComment(verdict) {
   if (verdict.warnings.length > 0) {
     lines.push(
       '',
-      '<details><summary>Parser warnings (non-blocking)</summary>',
-      '',
-      ...verdict.warnings.map((w) => `- ${w}`),
-      '',
-      '</details>',
+      `The parser also raised ${verdict.warnings.length} non-blocking ` +
+        'warning(s); see the workflow run log for the details.',
     );
   }
   return lines.join('\n');
@@ -157,6 +182,34 @@ function gh(args) {
  */
 export function isStoryTicket(labelNames) {
   return Array.isArray(labelNames) && labelNames.includes('type::story');
+}
+
+/**
+ * The bot-authored marker comment to update, or `null`. A human-authored
+ * marker is ignored so an issue author cannot hijack or suppress the lint.
+ */
+function findMarkerCommentId(ghFn, repoPath, issue) {
+  const out = ghFn([
+    'api',
+    `repos/${repoPath}/issues/${issue}/comments`,
+    '--paginate',
+    '--jq',
+    '.[] | {id, login: .user.login, body}',
+  ]);
+  const comments = out.split('\n').filter((line) => line.trim() !== '');
+  return comments.map((line) => JSON.parse(line)).find(isBotMarker)?.id ?? null;
+}
+
+const isBotMarker = (c) =>
+  c.body?.startsWith(LINT_COMMENT_MARKER) && c.login?.endsWith('[bot]');
+
+function upsertArgs(id, issue, repo, comment) {
+  if (id === null) {
+    const repoArgs = repo ? ['--repo', repo] : [];
+    return ['issue', 'comment', String(issue), ...repoArgs, '--body', comment];
+  }
+  const path = `repos/${repo ?? '{owner}/{repo}'}/issues/comments/${id}`;
+  return ['api', '-X', 'PATCH', path, '-f', `body=${comment}`];
 }
 
 /**
@@ -201,6 +254,8 @@ export function runLintIssueBody({
       issue: Number(issue),
       conformant: verdict.conformant,
       problems: verdict.problems,
+      warnings: verdict.warnings,
+      parseError: verdict.parseError,
     })}\n`,
   );
 
@@ -211,8 +266,8 @@ export function runLintIssueBody({
     };
   }
 
-  const comment = renderConformanceComment(verdict);
-  ghFn(['issue', 'comment', String(issue), ...repoArgs, '--body', comment]);
+  const id = findMarkerCommentId(ghFn, repo ?? '{owner}/{repo}', issue);
+  ghFn(upsertArgs(id, issue, repo, renderConformanceComment(verdict)));
   return { conformant: false, problems: verdict.problems };
 }
 
