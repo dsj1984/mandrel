@@ -912,6 +912,64 @@ describe('runUninstall — edge cases', () => {
     assert.match(cap.text, /schema v999 is not supported/);
   });
 
+  it('skips every target whose file is absent and still retires the ledger', () => {
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    writeLedger(tmpRoot, { entries: reversibleEntries() });
+    const cap = makeCapture();
+    const result = runUninstall({
+      projectRoot: tmpRoot,
+      write: cap.write,
+      exit: cap.exit,
+    });
+    assert.equal(cap.exitCode, 0);
+    assert.equal(result.revertedCount, 1);
+    assert.equal(result.parseErrorCount, 0);
+    assert.equal(fs.existsSync(ledgerPath(tmpRoot)), false);
+    for (const detail of [
+      'file absent',
+      'command projection absent',
+      'hook absent',
+    ]) {
+      assert.ok(cap.text.includes(detail), `missing "${detail}"`);
+    }
+  });
+
+  it('skips files that carry no framework wiring, leaving them untouched', () => {
+    fs.mkdirSync(path.join(tmpRoot, '.husky'), { recursive: true });
+    fs.writeFileSync(path.join(tmpRoot, 'CLAUDE.md'), '# Mine\n', 'utf8');
+    fs.writeFileSync(path.join(tmpRoot, '.gitignore'), 'dist/\n', 'utf8');
+    fs.writeFileSync(
+      path.join(tmpRoot, '.husky', 'pre-commit'),
+      'npm test\n',
+      'utf8',
+    );
+    const operatorSettings = {
+      hooks: {
+        UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'mine' }] }],
+      },
+    };
+    writeJson(path.join(tmpRoot, '.claude', 'settings.json'), operatorSettings);
+    writeJson(path.join(tmpRoot, 'package.json'), {
+      scripts: { test: 'node --test' },
+    });
+    writeLedger(tmpRoot, { entries: reversibleEntries() });
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+    for (const detail of [
+      'import already absent',
+      'framework wiring absent',
+      'ignore entries absent',
+      'no framework scripts',
+      'quality line absent',
+    ]) {
+      assert.ok(cap.text.includes(detail), `missing "${detail}"`);
+    }
+    assert.deepEqual(
+      readJson(path.join(tmpRoot, '.claude', 'settings.json')),
+      operatorSettings,
+    );
+  });
+
   it('errors (exit 1) on an unreadable/corrupt ledger', () => {
     fs.mkdirSync(path.join(tmpRoot, '.agents'), { recursive: true });
     fs.writeFileSync(ledgerPath(tmpRoot), '{ not valid json', 'utf8');
