@@ -43870,6 +43870,12 @@
     },
     {
       "path": "lib/cli/sync.js",
+      "method": "installFile",
+      "startLine": 194,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/sync.js",
       "method": "isSameFile",
       "startLine": 195,
       "crap": 2
@@ -43879,6 +43885,12 @@
       "method": "runSync",
       "startLine": 195,
       "crap": 5
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "writeVersionMarker",
+      "startLine": 198,
+      "crap": 2
     },
     {
       "path": "lib/cli/sync.js",
