@@ -56,7 +56,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stripJsComments } from '../../.agents/scripts/lib/source-text/strip-js-comments.js';
-import { walkFiles } from '../../.agents/scripts/lib/util/paths.js';
+import { toPosix, walkFiles } from '../../.agents/scripts/lib/util/paths.js';
 import {
   resolveKnipEntryPatterns,
   __testing as resolverTesting,
@@ -146,7 +146,7 @@ function collectInvocationSurfaces({ repoRoot, fsImpl = fs }) {
       return;
     }
     surfaces.push({
-      path: rel.split(path.sep).join('/'),
+      path: toPosix(rel),
       text: rel.endsWith('.js')
         ? stripStaticImports(stripJsComments(text))
         : text,
@@ -334,7 +334,7 @@ export async function resolveEntrySync({
   const missing = [];
   const stale = [];
   for (const cli of clis) {
-    const self = `${SCRIPTS_DIR.split(path.sep).join('/')}/${cli}`;
+    const self = `${toPosix(SCRIPTS_DIR)}/${cli}`;
     const { pathLiteral, joinedSpawn } = buildInvocationPatterns(cli);
     const invokers = surfaces
       .filter(

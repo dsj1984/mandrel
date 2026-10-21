@@ -8,6 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { toPosix, walkFiles } from './util/paths.js';
 
 /**
  * The npm-published roots, resolved into one graph so cross-root cycles show.
@@ -21,26 +22,11 @@ export const DEFAULT_ROOTS = [path.join('.agents', 'scripts'), 'bin', 'lib'];
  * @returns {string[]} absolute paths, sorted
  */
 export function collectJsFiles(rootDir) {
-  const out = [];
-  const walk = (dir) => {
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name === 'node_modules') continue;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-      } else if (entry.isFile() && entry.name.endsWith('.js')) {
-        out.push(full);
-      }
-    }
-  };
-  walk(rootDir);
-  return out.sort();
+  return walkFiles(rootDir, {
+    skipDirs: ['node_modules'],
+    filter: (abs, dirent) => dirent.isFile() && abs.endsWith('.js'),
+    onError: () => {},
+  }).sort();
 }
 
 const IMPORT_RE = /from\s+['"](\.\.?\/[^'"]+\.js)['"]/g;
@@ -67,11 +53,11 @@ export function parseRelativeImports(source) {
  */
 export function buildGraph(files, rootDir, { readFile } = {}) {
   const read = readFile ?? ((p) => fs.readFileSync(p, 'utf-8'));
-  const toId = (abs) => path.relative(rootDir, abs).split(path.sep).join('/');
-  const idSet = new Set(files.map(toId));
+  const ids = files.map((file) => toPosix(path.relative(rootDir, file)));
+  const idSet = new Set(ids);
   const graph = new Map();
-  for (const file of files) {
-    const id = toId(file);
+  for (const [i, file] of files.entries()) {
+    const id = ids[i];
     let source;
     try {
       source = read(file);
@@ -81,10 +67,9 @@ export function buildGraph(files, rootDir, { readFile } = {}) {
     }
     const edges = [];
     for (const spec of parseRelativeImports(source)) {
-      const target = path
-        .relative(rootDir, path.resolve(path.dirname(file), spec))
-        .split(path.sep)
-        .join('/');
+      const target = toPosix(
+        path.relative(rootDir, path.resolve(path.dirname(file), spec)),
+      );
       if (idSet.has(target) && target !== id) edges.push(target);
     }
     graph.set(id, [...new Set(edges)].sort());

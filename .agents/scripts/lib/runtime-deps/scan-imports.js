@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import { builtinModules } from 'node:module';
 import path from 'node:path';
 import { stripJsComments } from '../source-text/strip-js-comments.js';
+import { walkFiles } from '../util/paths.js';
 
 const BUILTIN_MODULES = new Set([
   ...builtinModules,
@@ -117,16 +118,9 @@ export function extractThirdPartyImports(source) {
  * @returns {string[]}
  */
 export function listJsFiles(dir) {
-  const out = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...listJsFiles(full));
-    } else if (entry.isFile() && entry.name.endsWith('.js')) {
-      out.push(full);
-    }
-  }
-  return out;
+  return walkFiles(dir, {
+    filter: (abs, dirent) => dirent.isFile() && abs.endsWith('.js'),
+  });
 }
 
 /**

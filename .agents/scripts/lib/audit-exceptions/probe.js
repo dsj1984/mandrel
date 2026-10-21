@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnCaptureAsync } from '../child-exec.js';
+import { toPosix } from '../util/paths.js';
 import { readJsonc } from './read.js';
 
 const PROBE_TIMEOUT_MS = 180_000;
@@ -28,10 +29,9 @@ const realOrSelf = (p) => {
 };
 
 const relTo = (root, file) =>
-  path
-    .relative(realOrSelf(root), realOrSelf(path.resolve(root, file)))
-    .split(path.sep)
-    .join('/');
+  toPosix(
+    path.relative(realOrSelf(root), realOrSelf(path.resolve(root, file))),
+  );
 
 /** Each tool: package + bin, when it applies, its args, and how to read hits. */
 const TOOLS = Object.freeze([

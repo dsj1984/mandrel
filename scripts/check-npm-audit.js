@@ -18,6 +18,7 @@
  */
 import process from 'node:process';
 
+import { parseGateArgv } from '../.agents/scripts/lib/cli-args.js';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import { Logger } from '../.agents/scripts/lib/Logger.js';
 import {
@@ -40,11 +41,8 @@ const HELP = {
 };
 
 export function parseArgs(argv) {
-  const out = { cwd: process.cwd() };
-  for (let i = 2; i < argv.length; i += 1) {
-    if (argv[i] === '--cwd') out.cwd = argv[++i] ?? out.cwd;
-  }
-  return out;
+  const { cwd } = parseGateArgv(argv.slice(2), { strings: ['cwd'] });
+  return { cwd: cwd ?? process.cwd() };
 }
 
 function exceptionLine({ exception, status }) {

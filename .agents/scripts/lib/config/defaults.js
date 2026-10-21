@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isObject } from '../json-utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // .agents/scripts/lib/config/ → .agents/
@@ -58,7 +59,7 @@ export function* iterDefaultLeaves(defaults, prefix = '') {
   }
   for (const [key, value] of Object.entries(defaults)) {
     const dotted = prefix ? `${prefix}.${key}` : key;
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    if (isObject(value)) {
       yield* iterDefaultLeaves(value, dotted);
     } else {
       yield [dotted, value];

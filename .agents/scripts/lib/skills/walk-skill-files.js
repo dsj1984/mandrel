@@ -8,6 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { toPosix, walkFiles } from '../util/paths.js';
 
 const TIERS = Object.freeze(['core', 'stack']);
 
@@ -35,27 +36,10 @@ export const SKILL_ID_RE = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+$/;
  * @returns {string[]} absolute paths
  */
 function walkSkillFiles(rootDir) {
-  const out = [];
-  if (!fs.existsSync(rootDir)) return out;
-  const stack = [rootDir];
-  while (stack.length > 0) {
-    const dir = stack.pop();
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(full);
-      } else if (entry.isFile() && entry.name === 'SKILL.md') {
-        out.push(full);
-      }
-    }
-  }
-  return out;
+  return walkFiles(rootDir, {
+    filter: (_abs, dirent) => dirent.isFile() && dirent.name === 'SKILL.md',
+    onError: () => {},
+  });
 }
 
 /**
@@ -65,8 +49,8 @@ function walkSkillFiles(rootDir) {
  */
 function sortByRepoRelative(files, repoRoot) {
   return [...files].sort((a, b) => {
-    const ra = path.relative(repoRoot, a).split(path.sep).join('/');
-    const rb = path.relative(repoRoot, b).split(path.sep).join('/');
+    const ra = toPosix(path.relative(repoRoot, a));
+    const rb = toPosix(path.relative(repoRoot, b));
     return ra < rb ? -1 : ra > rb ? 1 : 0;
   });
 }

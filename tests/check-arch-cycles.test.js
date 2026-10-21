@@ -157,6 +157,11 @@ test('collectJsFiles: walks recursively, skips node_modules and non-js', () => {
   assert.deepEqual(files.sort(), ['a.js', path.join('lib', 'b.js')]);
 });
 
+test('collectJsFiles: an unreadable root yields no files', () => {
+  const { root } = makeFixture({ 'a.js': [] });
+  assert.deepEqual(collectJsFiles(path.join(root, 'a.js')), []);
+});
+
 test('buildGraph: resolves relative imports to posix ids, drops external edges', () => {
   const { root } = makeFixture({
     'a.js': ['./lib/b.js', '../outside.js'],

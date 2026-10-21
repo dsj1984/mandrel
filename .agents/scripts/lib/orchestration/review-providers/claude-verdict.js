@@ -5,6 +5,7 @@
  * @typedef {import('./types.js').Finding} Finding
  */
 
+import { isObject } from '../../json-utils.js';
 import { buildFinding, unwrapEnvelope } from './parse-findings.js';
 
 export const FINDINGS_SCHEMA_JSON = JSON.stringify({
@@ -192,9 +193,7 @@ function failureReason(result, envelope) {
 
 function parseEnvelope(stdout) {
   const parsed = tryParseJson(stdout);
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-    ? parsed
-    : null;
+  return isObject(parsed) ? parsed : null;
 }
 
 function isSuccess(result, envelope) {

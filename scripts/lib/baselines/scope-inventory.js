@@ -35,9 +35,9 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
-
 import { buildScopePredicate } from '../../../.agents/scripts/lib/coverage-baseline.js';
 import { scanDirectory } from '../../../.agents/scripts/lib/maintainability-utils.js';
+import { toPosix } from '../../../.agents/scripts/lib/util/paths.js';
 
 /**
  * Per-kind classification of which divergence directions may be asserted.
@@ -172,9 +172,7 @@ function walkRoots({ cwd, roots, ignoreGlobs = [] }) {
     const abs = path.isAbsolute(root) ? root : path.resolve(cwd, root);
     scanDirectory(abs, absolute, { cwd, ignoreGlobs });
   }
-  return absolute.map((abs) =>
-    path.relative(cwd, abs).split(path.sep).join('/'),
-  );
+  return absolute.map((abs) => toPosix(path.relative(cwd, abs)));
 }
 
 /**

@@ -99,10 +99,6 @@
       "symbol": "DEFAULT_PER_PAGE"
     },
     {
-      "file": "scripts/lib/audit-report-contracts/report-contract-core.js",
-      "symbol": "escapeRegExp"
-    },
-    {
       "file": "scripts/lib/test-isolate/env-snapshot-loader.js",
       "symbol": "*"
     },

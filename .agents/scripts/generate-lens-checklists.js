@@ -14,6 +14,7 @@ import { renderLensChecklist } from './lib/audit-suite/lens-checklist.js';
 import { AUDIT_LENSES } from './lib/audit-to-stories/audit-lenses.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
+import { toPosix } from './lib/util/paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,10 +80,9 @@ function relChecklist(
   checklistsDir = CHECKLISTS_DIR,
   projectRoot = PROJECT_ROOT,
 ) {
-  return path
-    .relative(projectRoot, path.join(checklistsDir, basename))
-    .split(path.sep)
-    .join('/');
+  return toPosix(
+    path.relative(projectRoot, path.join(checklistsDir, basename)),
+  );
 }
 
 /**

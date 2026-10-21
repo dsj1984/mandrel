@@ -11,8 +11,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-
 import { extractDescription } from '../mandrel-catalog.js';
+import { toPosix } from '../util/paths.js';
 
 /** Project-relative POSIX home of the projection. */
 export const CODEX_AGENTS_DIR = '.codex/agents';
@@ -194,10 +194,7 @@ export function expectedCodexAgents({
         role,
         source: fs.readFileSync(sourcePath, 'utf8'),
         baseDir: path.dirname(sourcePath),
-        sourceLabel: path
-          .relative(projectRoot, sourcePath)
-          .split(path.sep)
-          .join('/'),
+        sourceLabel: toPosix(path.relative(projectRoot, sourcePath)),
       }),
     );
   }

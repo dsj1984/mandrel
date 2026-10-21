@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
+import { parseGateArgv } from '../.agents/scripts/lib/cli-args.js';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import { Logger } from '../.agents/scripts/lib/Logger.js';
 import { auditPinnedOverrideNotes } from './lib/pinned-override-notes.js';
@@ -43,12 +44,11 @@ const HELP = {
 };
 
 export function parseArgs(argv) {
-  const out = { cwd: process.cwd(), json: false };
-  for (let i = 2; i < argv.length; i += 1) {
-    if (argv[i] === '--cwd') out.cwd = argv[++i] ?? out.cwd;
-    else if (argv[i] === '--json') out.json = true;
-  }
-  return out;
+  const args = parseGateArgv(argv.slice(2), {
+    strings: ['cwd'],
+    booleans: ['json'],
+  });
+  return { cwd: args.cwd ?? process.cwd(), json: args.json };
 }
 
 /**

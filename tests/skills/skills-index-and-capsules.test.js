@@ -252,6 +252,15 @@ describe('local skills zone — second resolution root (Story #5135)', () => {
     );
   }
 
+  it('treats an unreadable tier root as holding no skills', () => {
+    const root = makeTempDir('mandrel-skill-tier-file-');
+    const tiers = path.join(root, '.agents', 'local', 'skills');
+    fs.mkdirSync(tiers, { recursive: true });
+    fs.writeFileSync(path.join(tiers, 'core'), 'not a directory');
+    assert.deepEqual(collectLocalSkillFiles(root), []);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
   it('collects local skills alongside payload skills, payload-wins on a collision', () => {
     const root = stageFixtureRoot(tmpParent);
     stageLocalSkill(root, 'stack/qa/acme-sso');

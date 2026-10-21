@@ -12,6 +12,7 @@ import picomatch from 'picomatch';
 import { parseStandardCliArgs } from './lib/cli/standard-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
+import { toPosix } from './lib/util/paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -146,7 +147,7 @@ function walkMarkdown(dirAbs, repoRoot, out) {
       if (entry.name === 'node_modules' || entry.name === '.git') continue;
       walkMarkdown(abs, repoRoot, out);
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      const rel = path.relative(repoRoot, abs).split(path.sep).join('/');
+      const rel = toPosix(path.relative(repoRoot, abs));
       if (!isExcludedRelPath(rel)) out.push(abs);
     }
   }
@@ -165,7 +166,7 @@ export function discoverMarkdown(rootAbs, scanRoots, exclude = []) {
   }
   const filtered = exclude.length
     ? out.filter((abs) => {
-        const rel = path.relative(rootAbs, abs).split(path.sep).join('/');
+        const rel = toPosix(path.relative(rootAbs, abs));
         return !exclude.some((g) => picomatch.isMatch(rel, g, { dot: true }));
       })
     : out;
@@ -292,7 +293,7 @@ export function checkFile(absPath, repoRoot) {
   const source = fs.readFileSync(absPath, 'utf8');
   const masked = maskCodeRegions(source);
   const fileDir = path.dirname(absPath);
-  const relFile = path.relative(repoRoot, absPath).split(path.sep).join('/');
+  const relFile = toPosix(path.relative(repoRoot, absPath));
   const workflowsDir = path.join(repoRoot, '.agents', 'workflows');
 
   const slashTokens = extractSlashTokens(masked);
@@ -322,10 +323,7 @@ export function checkFile(absPath, repoRoot) {
       resolved = path.resolve(fileDir, pathOnly);
     }
     // Boundary wins over existence; one link reports one kind.
-    const relTarget = path
-      .relative(repoRoot, resolved)
-      .split(path.sep)
-      .join('/');
+    const relTarget = toPosix(path.relative(repoRoot, resolved));
     if (escapesPayload(relFile, relTarget)) {
       violations.push({
         file: relFile,

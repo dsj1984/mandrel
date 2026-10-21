@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { isObject } from './json-utils.js';
 
 const COVERAGE_INDEX = Symbol('coverage-utils.coverage-index');
 const ENTRY_INDEX = Symbol('coverage-utils.entry-index');
@@ -39,7 +40,7 @@ function stripLeadingDotSlash(p) {
  */
 export function buildCoverageIndex(map) {
   const byNormalizedSuffix = new Map();
-  if (map && typeof map === 'object' && !Array.isArray(map)) {
+  if (isObject(map)) {
     for (const key of Object.keys(map)) {
       byNormalizedSuffix.set(normalizeSep(key), map[key]);
     }
