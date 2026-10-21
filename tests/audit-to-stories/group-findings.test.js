@@ -130,3 +130,96 @@ test('groupFindings handles findings with no concrete file paths via topic key',
   assert.equal(groups.length, 1);
   assert.ok(groups[0].groupKey.startsWith('topic:'));
 });
+
+function topicFinding(title, currentState, dimension = 'privacy') {
+  return {
+    dimension,
+    severity: 'low',
+    title,
+    normalisedTitle: title.toLowerCase(),
+    files: [],
+    currentState,
+    recommendation: '',
+  };
+}
+
+test('groupFindings folds file-less findings sharing ≥3 signature tokens into one topic group', () => {
+  const findings = [
+    topicFinding('Retention policy missing', 'personal records stored forever'),
+    topicFinding(
+      'Retention schedule absent',
+      'personal records stored forever',
+    ),
+  ];
+  const { groups } = groupFindings(findings);
+  assert.equal(groups.length, 1);
+  assert.equal(
+    groups[0].groupKey,
+    'topic:privacy:retention policy missing',
+    'the first finding names the topic key',
+  );
+  assert.equal(
+    groups[0].title,
+    'Retention policy missing & Retention schedule absent',
+  );
+});
+
+test('groupFindings titles a 3+ file-less merge by its first finding plus a count', () => {
+  const state = 'personal records stored forever';
+  const { groups } = groupFindings([
+    topicFinding('Retention policy missing', state),
+    topicFinding('Retention schedule absent', state, 'compliance'),
+    topicFinding('Deletion workflow absent', state),
+  ]);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].title, 'Retention policy missing (+2 related)');
+  assert.deepEqual(groups[0].dimensions, ['compliance', 'privacy']);
+});
+
+test('groupFindings keeps file-less findings with <3 shared tokens in separate topics', () => {
+  const { groups } = groupFindings([
+    topicFinding('Retention policy missing', 'records stored forever'),
+    topicFinding('Consent banner absent', 'cookies placed silently'),
+  ]);
+  assert.equal(groups.length, 2);
+});
+
+test('groupFindings reports null severity when no merged finding states one', () => {
+  const finding = { ...topicFinding('Unclear owner', 'nobody owns it') };
+  delete finding.severity;
+  const { groups } = groupFindings([finding]);
+  assert.equal(groups[0].severity, null);
+});
+
+test('groupFindings rejects a non-array input', () => {
+  assert.throws(() => groupFindings(null), /must be an array/);
+});
+
+test('groupFindings merges same-directory singletons sharing ≥3 signature tokens', () => {
+  const state = 'unbounded retries hammer upstream service';
+  const fileFinding = (file, title) => ({
+    ...topicFinding(title, state, 'performance'),
+    files: [file],
+  });
+  const { groups } = groupFindings([
+    fileFinding('src/net/client.js', 'Retry storm risk'),
+    fileFinding('src/net/pool.js', 'Retry storm in pool'),
+    fileFinding('src/net/cache.js', 'Retry storm in cache'),
+    fileFinding('src/other/x.js', 'Retry storm elsewhere'),
+    fileFinding('src/net/quiet.js', 'Naming drift'),
+  ]);
+  const netGroup = groups.find((g) => g.groupKey === 'file:src/net/client.js');
+  assert.ok(netGroup, 'expected the first same-dir file to anchor the merge');
+  assert.deepEqual(netGroup.files, [
+    'src/net/client.js',
+    'src/net/pool.js',
+    'src/net/cache.js',
+    'src/net/quiet.js',
+  ]);
+  assert.equal(
+    netGroup.title,
+    'Remediate performance findings in src/net/client.js',
+  );
+  assert.ok(groups.some((g) => g.groupKey === 'file:src/other/x.js'));
+  assert.equal(groups.length, 2);
+});

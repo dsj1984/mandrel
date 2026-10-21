@@ -120,10 +120,6 @@
       "symbol": "BASELINE_SCHEMAS_DIR"
     },
     {
-      "file": ".agents/scripts/lib/baselines/components.js",
-      "symbol": "_internals"
-    },
-    {
       "file": ".agents/scripts/lib/baselines/crap-preview-scan.js",
       "symbol": "listCyclomaticAdvisories"
     },
@@ -474,30 +470,6 @@
     {
       "file": ".agents/scripts/lib/config-schema-shared.js",
       "symbol": "SHELL_INJECTION_RE"
-    },
-    {
-      "file": ".agents/scripts/lib/config-schema.js",
-      "symbol": "AGENT_SETTINGS_STRING_FIELDS"
-    },
-    {
-      "file": ".agents/scripts/lib/config-schema.js",
-      "symbol": "COMMENT_EVENT_NAMES"
-    },
-    {
-      "file": ".agents/scripts/lib/config-schema.js",
-      "symbol": "SHELL_INJECTION_PATTERN_STRING"
-    },
-    {
-      "file": ".agents/scripts/lib/config-schema.js",
-      "symbol": "SHELL_INJECTION_RE"
-    },
-    {
-      "file": ".agents/scripts/lib/config-schema.js",
-      "symbol": "WEBHOOK_EVENT_NAMES"
-    },
-    {
-      "file": ".agents/scripts/lib/config-settings-schema.js",
-      "symbol": "AGENT_SETTINGS_STRING_FIELDS"
     },
     {
       "file": ".agents/scripts/lib/config-settings-schema.js",
@@ -950,14 +922,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/light-suitability.js",
       "symbol": "resolveLedgeredVerdict"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "symbol": "BLOCK_CLASSES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "symbol": "MERGE_UNLANDED_BLOCK_CLASSES"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
