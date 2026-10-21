@@ -24163,6 +24163,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/stashes.js",
+      "method": "decide",
+      "startLine": 68,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/stashes.js",
       "method": "executeStashes",
       "startLine": 107,
       "crap": 3

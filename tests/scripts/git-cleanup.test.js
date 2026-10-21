@@ -1658,9 +1658,9 @@ describe('git-cleanup.executeStashes', () => {
     { ref: 'stash@{2}', createdAt: 't2', message: 'm2' },
   ];
 
-  it('drops stashes high-index-first so indices stay stable', () => {
+  it('drops stashes high-index-first so indices stay stable', async () => {
     const order = [];
-    executeStashes({
+    await executeStashes({
       cwd: '/repo',
       stashes,
       decideFn: () => 'drop',
@@ -1673,9 +1673,9 @@ describe('git-cleanup.executeStashes', () => {
     assert.deepEqual(order, ['stash@{2}', 'stash@{1}', 'stash@{0}']);
   });
 
-  it('honours per-stash keep decisions without calling dropFn', () => {
+  it('honours per-stash keep decisions without calling dropFn', async () => {
     let dropCalls = 0;
-    const res = executeStashes({
+    const res = await executeStashes({
       cwd: '/repo',
       stashes,
       decideFn: (s) => (s.ref === 'stash@{1}' ? 'drop' : 'keep'),
@@ -1690,9 +1690,9 @@ describe('git-cleanup.executeStashes', () => {
     assert.equal(res.actions.filter((a) => a.action === 'keep').length, 2);
   });
 
-  it('short-circuits the loop on a quit decision', () => {
+  it('short-circuits the loop on a quit decision', async () => {
     let dropCalls = 0;
-    const res = executeStashes({
+    const res = await executeStashes({
       cwd: '/repo',
       stashes,
       decideFn: (s) => (s.ref === 'stash@{2}' ? 'quit' : 'drop'),
@@ -1709,8 +1709,8 @@ describe('git-cleanup.executeStashes', () => {
     );
   });
 
-  it('records drop failures and flips ok=false', () => {
-    const res = executeStashes({
+  it('records drop failures and flips ok=false', async () => {
+    const res = await executeStashes({
       cwd: '/repo',
       stashes: [stashes[0]],
       decideFn: () => 'drop',
@@ -1722,10 +1722,10 @@ describe('git-cleanup.executeStashes', () => {
     assert.equal(res.failures[0].ref, 'stash@{0}');
   });
 
-  it('routes --drop-stashes <ref> through the allowlist decider', () => {
+  it('routes --drop-stashes <ref> through the allowlist decider', async () => {
     const decide = buildAllowlistDecider(['stash@{1}']);
     let dropped = null;
-    executeStashes({
+    await executeStashes({
       cwd: '/repo',
       stashes,
       decideFn: decide,
