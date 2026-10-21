@@ -348,12 +348,22 @@ export function exec({
       resolve({ stdout, stderr, code });
     });
 
+    // A gh that exits before reading stdin breaks the pipe; its exit still
+    // settles the call, so the write error must not escape as uncaught.
+    child.stdin?.on?.('error', ignoreBrokenPipe);
     if (typeof input === 'string' && child.stdin) {
       child.stdin.end(input);
     } else if (child.stdin) {
       child.stdin.end();
     }
   });
+}
+
+/**
+ * @param {NodeJS.ErrnoException} err
+ */
+function ignoreBrokenPipe(err) {
+  if (err.code !== 'EPIPE') throw err;
 }
 
 /**
