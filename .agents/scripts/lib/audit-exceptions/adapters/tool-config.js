@@ -110,6 +110,19 @@ const TS_LOOSENED = Object.freeze({
   skipLibCheck: true,
 });
 
+/**
+ * A JSONC `//` line directly above an entry is its reason — the JSON-config
+ * twin of the `#` line `ignoreFileRecords` reads.
+ *
+ * @param {string|null} text
+ * @param {number} line - 1-based line of the entry.
+ * @returns {string|null}
+ */
+function commentAbove(text, line) {
+  const prev = (text ?? '').split('\n')[line - 2]?.trim() ?? '';
+  return prev.startsWith('//') ? prev.slice(2).trim() || null : null;
+}
+
 function configRecord(
   ctx,
   {
@@ -125,16 +138,17 @@ function configRecord(
     anchors,
   },
 ) {
+  // Every target is a JSON string or key, so match it quoted.
+  const line = lineOf(text, `"${target}"`, anchors);
   return makeRecord({
     adapter: 'tool-config',
     category: 'config',
     surface,
     file,
-    // Every target is a JSON string or key, so match it quoted.
-    line: lineOf(text, `"${target}"`, anchors),
+    line,
     target,
     rule: `${surface}:${rule}`,
-    justification,
+    justification: justification ?? commentAbove(text, line),
     probe: probe ?? globsProbe(ctx, globs),
     permanentHint,
   });

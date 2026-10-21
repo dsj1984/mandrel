@@ -49,9 +49,23 @@ export function ignoreLineGlobs(line, dir = '') {
 }
 
 /**
+ * A glob under a `generated/` or `fixtures/` directory exempts emitted code or
+ * captured test data — excluded by design, so it needs no written reason (a
+ * JSON config such as `biome.json` cannot hold a comment to carry one).
+ *
+ * @param {string} glob
+ * @returns {string|null}
+ */
+function byDesignHint(glob) {
+  const dir = /(?:^|\/)(generated|fixtures)(?:\/|$)/.exec(glob)?.[1];
+  if (dir === 'generated') return 'generated-path';
+  return dir === 'fixtures' ? 'fixture-path' : null;
+}
+
+/**
  * @param {object} ctx
  * @param {string} glob - repo-relative.
- * @returns {{ verdict: string, basis: string }}
+ * @returns {{ verdict: string, basis: string, permanentHint?: string|null }}
  */
 function probeOne(ctx, glob) {
   const clean = glob.replace(/^\.\//, '').replace(/^!/, '');
@@ -59,7 +73,11 @@ function probeOne(ctx, glob) {
     dot: true,
   });
   if (ctx.scope.files.some((f) => isMatch(f)))
-    return { verdict: 'live', basis: 'matches-tracked' };
+    return {
+      verdict: 'live',
+      basis: 'matches-tracked',
+      permanentHint: byDesignHint(clean),
+    };
   const base = staticBase(clean);
   if (base === '') return { verdict: 'unknown', basis: 'no-static-base' };
   if (fs.existsSync(path.join(ctx.root, base))) {
