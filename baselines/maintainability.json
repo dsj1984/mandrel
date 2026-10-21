@@ -364,7 +364,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
-      "mi": 93.387
+      "mi": 97.033
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/issue-corpus.js",
@@ -408,7 +408,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/components.js",
-      "mi": 94.127
+      "mi": 104.238
     },
     {
       "path": ".agents/scripts/lib/baselines/coverage-refresh-scope.js",
@@ -1420,7 +1420,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "mi": 102.35
+      "mi": 107.411
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",

@@ -13,16 +13,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/lib/audit-to-stories/group-findings.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 15
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/components.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 15
-    },
-    {
       "file": ".agents/scripts/lib/bdd-scenario-scanner.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
@@ -51,11 +41,6 @@
       "file": ".agents/scripts/lib/orchestration/file-assumptions.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 15
     },
     {
       "file": ".agents/scripts/lib/orchestration/retro-proposals.js",

@@ -520,8 +520,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
-      "lines": 94.26,
-      "branches": 77.89,
+      "lines": 100,
+      "branches": 88.79,
       "functions": 100
     },
     {
@@ -2152,8 +2152,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "lines": 98.92,
-      "branches": 84.21,
+      "lines": 99.03,
+      "branches": 85.25,
       "functions": 100
     },
     {
