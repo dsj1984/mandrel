@@ -51,7 +51,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (34)
+## Commands (35)
 
 | Command | Description |
 | --- | --- |

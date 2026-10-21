@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-10-21T16:35:45.582Z",
+  "generatedAt": "2026-10-21T16:46:31.763Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -46,7 +46,7 @@
       ]
     },
     "workflow": {
-      "totalBytes": 344005,
+      "totalBytes": 352932,
       "files": [
         {
           "path": ".agents/workflows/audit-accessibility.md",
@@ -113,8 +113,12 @@
           "bytes": 12163
         },
         {
+          "path": ".agents/workflows/audit-red-team.md",
+          "bytes": 8752
+        },
+        {
           "path": ".agents/workflows/audit-security.md",
-          "bytes": 11250
+          "bytes": 11425
         },
         {
           "path": ".agents/workflows/audit-seo.md",
@@ -216,7 +220,7 @@
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 539203,
+    "reachableTotalBytes": 548130,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -266,7 +270,7 @@
       {
         "path": ".agents/workflows/audit-exceptions.md",
         "mandatoryBytes": 12783,
-        "reachableBytes": 124497
+        "reachableBytes": 124672
       },
       {
         "path": ".agents/workflows/audit-lean.md",
@@ -299,9 +303,14 @@
         "reachableBytes": 75743
       },
       {
+        "path": ".agents/workflows/audit-red-team.md",
+        "mandatoryBytes": 8752,
+        "reachableBytes": 52030
+      },
+      {
         "path": ".agents/workflows/audit-security.md",
-        "mandatoryBytes": 11250,
-        "reachableBytes": 43103
+        "mandatoryBytes": 11425,
+        "reachableBytes": 43278
       },
       {
         "path": ".agents/workflows/audit-seo.md",
@@ -311,7 +320,7 @@
       {
         "path": ".agents/workflows/audit-sre.md",
         "mandatoryBytes": 4649,
-        "reachableBytes": 61853
+        "reachableBytes": 62028
       },
       {
         "path": ".agents/workflows/audit-to-stories.md",
