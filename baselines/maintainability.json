@@ -1264,7 +1264,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "mi": 94.484
+      "mi": 93.624
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
@@ -1356,7 +1356,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
-      "mi": 106.962
+      "mi": 103.526
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
@@ -1372,7 +1372,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
-      "mi": 88.471
+      "mi": 90.138
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/prompts.js",
