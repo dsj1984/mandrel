@@ -100,6 +100,7 @@ test('parseArgv: returns defaults when no flags supplied', () => {
   assert.equal(out.baselinePath, null);
   assert.equal(out.rootPath, null);
   assert.equal(out.json, false);
+  assert.equal(out.update, false);
 });
 
 test('parseArgv: --baseline/--root take the next non-flag token, --json flips', () => {
@@ -461,4 +462,32 @@ test('runCli: default scan tolerates a missing optional root', async () => {
   );
   const code = await runCli({ cwd, stdout: makeSink(), stderr: makeSink() });
   assert.equal(code, 0);
+});
+
+test('runCli: --update rewrites the baseline to the detected cycles with a fresh generatedAt', async () => {
+  const { cwd } = makeFixture(
+    { 'a.js': ['./b.js'], 'b.js': ['./a.js'] },
+    { cycles: [] },
+  );
+  const before = Date.now();
+  const code = await runCli({
+    argv: ['--root', 'scripts', '--update'],
+    cwd,
+    stdout: makeSink(),
+    stderr: makeSink(),
+  });
+  assert.equal(code, 0);
+  const written = JSON.parse(
+    fs.readFileSync(path.join(cwd, 'baselines', 'arch-cycles.json'), 'utf8'),
+  );
+  assert.deepEqual(written.cycles, [['a.js', 'b.js']]);
+  assert.ok(Date.parse(written.generatedAt) >= before - 1000);
+  assert.match(written.$schema, /arch-cycles\.schema\.json$/);
+  const recheck = await runCli({
+    argv: ['--root', 'scripts'],
+    cwd,
+    stdout: makeSink(),
+    stderr: makeSink(),
+  });
+  assert.equal(recheck, 0);
 });

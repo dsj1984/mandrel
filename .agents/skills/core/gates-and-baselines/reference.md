@@ -42,6 +42,7 @@ flagged a signed-off API-surface change. If the underlying change is an
 | Duplication     | `npm run duplication:update`       | `npm run duplication:reanchor`       |
 | Dead-exports    | `npm run dead-exports:update` (regenerates both passes; never hand-edit the JSON) | same — no scope flag applies |
 | Cyclomatic      | `npm run cyclomatic:update`        | same — no scope flag applies         |
+| Arch cycles     | `npm run arch:update`              | same — no scope flag applies         |
 | Context budget  | `node .agents/scripts/check-context-budget.js --update` | same — no scope flag applies |
 
 ## Procedure

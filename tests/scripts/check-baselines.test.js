@@ -80,8 +80,8 @@ describe('check-baselines — parseArgs', () => {
   });
 
   it('accepts --gate as a comma-separated list and repeated flag', () => {
-    const a = parseArgs(['--gate', 'coverage,crap', '--gate', 'lint']);
-    assert.deepEqual(a.gates, ['coverage', 'crap', 'lint']);
+    const a = parseArgs(['--gate', 'coverage,crap', '--gate', 'duplication']);
+    assert.deepEqual(a.gates, ['coverage', 'crap', 'duplication']);
   });
 
   it('--no-friction suppresses friction emission', () => {

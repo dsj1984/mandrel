@@ -33,7 +33,7 @@
     "quality": {
       "gates": {
         "coverage": {
-          "floors": { "*": { "lines": 96, "branches": 88, "functions": 89 } }
+          "floors": { "*": { "lines": 97, "branches": 88, "functions": 91 } }
         },
         "crap": {
           "floors": { "*": { "methodsAbove20": 0 } },
@@ -44,7 +44,7 @@
           ]
         },
         "maintainability": {
-          "floors": { "*": { "min": 81.277 } },
+          "floors": { "*": { "min": 81.391 } },
           "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "tolerance": { "kind": "absolute", "value": 0.5 },
           "ignoreGlobs": [
@@ -56,7 +56,7 @@
           ]
         },
         "duplication": {
-          "floors": { "*": { "percentage": 6.3 } },
+          "floors": { "*": { "percentage": 5.9 } },
           "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "tolerance": { "kind": "absolute", "value": 1 },
           "ignoreGlobs": [
