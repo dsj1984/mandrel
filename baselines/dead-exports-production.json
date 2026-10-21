@@ -300,46 +300,6 @@
       "symbol": "TARGET_MERGE_METHODS"
     },
     {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "BOOTSTRAP_PHASES"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "checkParity"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "detectPackageManager"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "ensureAgentrc"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "ensureDependenciesInstalled"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "ensurePackageJson"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "ensureSystemPromptWiring"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "runPhases"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "SYNC_AGENTS_COMMAND"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "throwIfFatal"
-    },
-    {
       "file": ".agents/scripts/lib/bootstrap/prompt.js",
       "symbol": "inferStoredProjectNumber"
     },
@@ -378,26 +338,6 @@
     {
       "file": ".agents/scripts/lib/bootstrap/prompt.js",
       "symbol": "RESOLVERS"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "symbol": "ensureGuardrailsHelper"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "symbol": "ensurePreCommitHook"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "symbol": "ensureQualityConfigDefaults"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "symbol": "ensureQualityNpmScripts"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "symbol": "pruneLegacyEpicBaselines"
     },
     {
       "file": ".agents/scripts/lib/bootstrap/summary.js",
