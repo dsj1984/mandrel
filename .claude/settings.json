@@ -15,8 +15,21 @@
       "Bash(git reset --hard*)",
       "Bash(git clean *)",
       "Bash(rm -rf *)",
-      "Bash(rmdir *)"
-    ]
+      "Bash(rmdir *)",
+      "Bash(rm -fr *)",
+      "Bash(rm -Rf *)",
+      "Bash(rm -r -f *)",
+      "Bash(rm -f -r *)",
+      "Bash(git -C * reset --hard*)",
+      "Bash(git -C * clean *)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git checkout --force*)",
+      "Bash(git branch -D *)"
+    ],
+    "defaultMode": "acceptEdits"
   },
   "hooks": {
     "PreToolUse": [
@@ -31,6 +44,5 @@
         ]
       }
     ]
-  },
-  "defaultMode": "acceptEdits"
+  }
 }

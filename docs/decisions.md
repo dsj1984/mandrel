@@ -29,13 +29,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (60).** Each governs the surface named beside it; a
+**In force (61).** Each governs the surface named beside it; a
 `Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261021-5844`](#adr-20261021-5844-this-repositorys-claude-code-settings-grant-bash-and-write-broadly-the-deny-list-is-a-guardrail) | This repository's Claude Code settings grant Bash and Write broadly; the deny list is a guardrail | `.claude/settings.json` | Accepted |
 | [`20261020-5793`](#adr-20261020-5793-close-merge-and-confirm-over-repo-scoped-rest-when-graphql-is-blocked) | Close, merge and confirm over repo-scoped REST when GraphQL is blocked | `.agents/scripts/lib/gh-pr-rest.js` | Accepted |
 | [`20261017-5767`](#adr-20261017-5767-hook-injected-session-context-and-a-codebase-map--rejected) | No hook-injected session context and no shipped codebase map | — | Rejected |
 | [`20261017-5755a`](#adr-20261017-5755a-crap-joins-an-unresolved-method-on-the-statements-of-its-own-line-span) | CRAP joins an unresolved method on its own statement span | `.agents/scripts/lib/coverage-utils.js` | Accepted |
@@ -4903,3 +4904,38 @@ public document does, so they cannot be the only way a PR lands.
 - On REST, a PR lands only while a poller watches it unless the CCR arm
   stood. A close that ends `pending` must be resumed (`--wait`) for the merge
   to happen.
+
+## ADR 20261021-5844: This repository's Claude Code settings grant Bash and Write broadly; the deny list is a guardrail
+
+**Status:** Accepted
+**Date:** 2026-10-21
+**Surface:** `.claude/settings.json`
+**Story:** #5844
+
+### Context
+
+A red-team pass flagged this repository's committed Claude Code settings:
+bare `Bash`, `Write`, `Edit` and `mcp__github__*` are allowed, the deny list
+missed common spellings of the commands it names, and a top-level
+`defaultMode` set nothing because Claude Code reads the mode only from
+`permissions`. Headless story-workers and the close tail run `node`, `npm`,
+`npx`, `gh` and `git` invocations no prefix allowlist enumerates, and a
+permission prompt in a headless spawn stalls delivery.
+
+### Decision
+
+- **The broad grant is deliberate** for unattended delivery in this
+  repository. `defaultMode` moves under `permissions`.
+- **The deny list is a guardrail, not a security boundary.** It stops
+  accidental destructive spellings (`rm -fr`, `git -C … reset --hard`,
+  force pushes, `git branch -D`), but any allowed interpreter (`node -e`,
+  `bash -c`) can do the same thing, so it is not extended to interpreters.
+- **The boundary is elsewhere:** per-Story worktree isolation, PR-only
+  landing behind required checks, and the security baseline's rule that
+  tool-observed content is data, never instructions.
+
+### Consequences
+
+- Delivery stays prompt-free; a destructive slip in a common spelling is
+  refused. Reopen this entry if the repository starts running agents on
+  untrusted forks or untrusted issue content without operator attendance.
