@@ -6,7 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 import { toPosix } from '../util/paths.js';
 
 const FRONTMATTER_DELIMITER = '---';
@@ -116,7 +116,7 @@ export function parseSkill(absolutePath, options = {}) {
 
   let frontmatter;
   try {
-    frontmatter = yaml.load(yamlText);
+    frontmatter = load(yamlText);
   } catch (err) {
     throw new Error(
       `SKILL.md frontmatter is not valid YAML at ${absolutePath}: ${err.message}`,

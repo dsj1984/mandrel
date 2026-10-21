@@ -58,7 +58,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 
 /** Repo root, resolved from this file (`tests/contract/` → two levels up). */
 const REPO_ROOT = path.resolve(
@@ -86,7 +86,7 @@ const PLURAL_OUTPUT_KEY = 'releases_created';
 /** Read + YAML-parse the workflow once for the structural assertions. */
 function loadWorkflow() {
   const raw = fs.readFileSync(WORKFLOW_PATH, 'utf8');
-  const doc = yaml.load(raw);
+  const doc = load(raw);
   return { raw, doc };
 }
 

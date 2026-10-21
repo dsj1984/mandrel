@@ -10,7 +10,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 import picomatch from 'picomatch';
 
 import { Logger } from './Logger.js';
@@ -156,7 +156,7 @@ function readWorkspacePatterns(cwd, rootPkg, logger) {
   if (existsSync(yamlPath)) {
     try {
       const raw = readFileSync(yamlPath, 'utf8');
-      const parsed = yaml.load(raw);
+      const parsed = load(raw);
       if (parsed && Array.isArray(parsed.packages)) {
         return parsed.packages.filter((p) => typeof p === 'string');
       }

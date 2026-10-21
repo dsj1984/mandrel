@@ -14,7 +14,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 
 import {
   CODEX_SKILLS_DIR,
@@ -63,7 +63,7 @@ function readSkill(name) {
 }
 
 function frontmatter(text) {
-  return yaml.load(/^---\n([\s\S]*?)\n---/.exec(text)[1]);
+  return load(/^---\n([\s\S]*?)\n---/.exec(text)[1]);
 }
 
 function run(script = CLAUDE_SYNC) {
