@@ -15,6 +15,7 @@ import {
 } from '../../notifications/notifier.js';
 import {
   emitBlockRecoveredFriction,
+  emitInvalidTransitionFriction,
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
 } from '../../observability/runtime-friction.js';
@@ -307,6 +308,7 @@ export async function transitionTicketState(
     _ticketSnapshot: ticketSnapshot,
   });
 
+  await emitInvalidTransitionFriction(ticketId, fromState, newState, opts);
   await emitBlockedFriction(ticketId, fromState, newState, opts);
 
   const boardSync = await syncProjectStatusColumn(
