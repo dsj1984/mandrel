@@ -436,7 +436,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "mi": 95.611
+      "mi": 94.795
     },
     {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
@@ -548,7 +548,7 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-step-index.js",
-      "mi": 94.261
+      "mi": 93.083
     },
     {
       "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
@@ -736,7 +736,7 @@
     },
     {
       "path": ".agents/scripts/lib/codex/skills-projection.js",
-      "mi": 103.653
+      "mi": 102.799
     },
     {
       "path": ".agents/scripts/lib/command-header.js",
@@ -2856,7 +2856,7 @@
     },
     {
       "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
-      "mi": 120.807
+      "mi": 118.441
     },
     {
       "path": "scripts/lib/audit-report-contracts/security-report-contract.js",
@@ -2889,10 +2889,6 @@
     {
       "path": "scripts/lib/comment-ratio-change.js",
       "mi": 97.847
-    },
-    {
-      "path": "scripts/lib/fs-walk.js",
-      "mi": 102.83
     },
     {
       "path": "scripts/lib/knip-config-resolver.js",
