@@ -257,13 +257,16 @@ test('runCli: writes through a temp file and renames, never in place', async () 
   const { code } = await run({
     argv: ['--knip-output', path.relative(cwd, reportPath)],
     cwd,
-    writeFileImpl: (target, body, enc) => {
-      writes.push(target);
-      fs.writeFileSync(target, body, enc);
-    },
-    renameImpl: (from, to) => {
-      renames.push([from, to]);
-      fs.renameSync(from, to);
+    fsImpl: {
+      ...fs,
+      writeFileSync: (target, body, enc) => {
+        writes.push(target);
+        fs.writeFileSync(target, body, enc);
+      },
+      renameSync: (from, to) => {
+        renames.push([from, to]);
+        fs.renameSync(from, to);
+      },
     },
   });
 
@@ -271,9 +274,10 @@ test('runCli: writes through a temp file and renames, never in place', async () 
   // A crash between the write and the rename must leave the committed
   // baseline untouched: an unparseable one reads as empty to
   // check-dead-exports.js, which then reports every existing row as added.
-  assert.deepEqual(writes, [`${defaultBaseline}.tmp`]);
-  assert.deepEqual(renames, [[`${defaultBaseline}.tmp`, defaultBaseline]]);
-  assert.equal(fs.existsSync(`${defaultBaseline}.tmp`), false);
+  const tmp = `${defaultBaseline}.${process.pid}.tmp`;
+  assert.deepEqual(writes, [tmp]);
+  assert.deepEqual(renames, [[tmp, defaultBaseline]]);
+  assert.equal(fs.existsSync(tmp), false);
   assert.deepEqual(JSON.parse(fs.readFileSync(defaultBaseline, 'utf-8')).rows, [
     { file: 'lib/a.js', symbol: '*' },
     { file: 'lib/b.js', symbol: 'alpha' },

@@ -9,6 +9,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { writeFileAtomic } from '../util/atomic-write.js';
+
 /**
  * The `.gitignore` step keys off this exact POSIX path.
  *
@@ -104,17 +106,30 @@ export function buildLedgerRecord(args) {
  */
 export function writeInstallLedger(projectRoot, record) {
   const target = ledgerPath(projectRoot);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+  writeFileAtomic(target, `${JSON.stringify(record, null, 2)}\n`);
   return { path: target, written: true, entryCount: record.entries.length };
+}
+
+class InstallLedgerCorruptError extends Error {
+  constructor(target, cause) {
+    super(`${target} is not valid JSON (${cause.message})`, { cause });
+    this.name = 'InstallLedgerCorruptError';
+    this.path = target;
+  }
 }
 
 /**
  * @param {string} projectRoot
- * @returns {ReturnType<typeof buildLedgerRecord>|null}
+ * @returns {ReturnType<typeof buildLedgerRecord>|null} `null` when absent.
+ * @throws {InstallLedgerCorruptError}
  */
 export function readInstallLedger(projectRoot) {
   const target = ledgerPath(projectRoot);
   if (!fs.existsSync(target)) return null;
-  return JSON.parse(fs.readFileSync(target, 'utf8'));
+  const raw = fs.readFileSync(target, 'utf8');
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new InstallLedgerCorruptError(target, err);
+  }
 }
