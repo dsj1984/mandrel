@@ -87,6 +87,55 @@ describe('gh-exec — JSON parse-through', () => {
   });
 });
 
+describe('gh-exec — stdin broken pipe (#5804)', () => {
+  function exitBeforeReadingStdin() {
+    return () => {
+      const child = new EventEmitter();
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = new EventEmitter();
+      child.stdin.end = () => {
+        queueMicrotask(() => {
+          const err = Object.assign(new Error('write EPIPE'), {
+            code: 'EPIPE',
+          });
+          child.stdin.emit('error', err);
+          child.emit('close', 0, null);
+        });
+      };
+      return child;
+    };
+  }
+
+  it('settles from the exit code when gh exits before reading stdin', async () => {
+    const result = await exec({
+      args: ['api', 'graphql', '--input', '-'],
+      input: '{}',
+      spawnImpl: exitBeforeReadingStdin(),
+    });
+    assert.equal(result.code, 0);
+  });
+
+  it('still surfaces a stdin error that is not a broken pipe', () => {
+    const { fake } = makeFakeSpawn();
+    let onError;
+    exec({
+      args: ['auth', 'status'],
+      spawnImpl: (...a) => {
+        const child = fake(...a);
+        child.stdin.on = (event, fn) => {
+          if (event === 'error') onError = fn;
+        };
+        return child;
+      },
+    });
+    assert.throws(
+      () => onError(Object.assign(new Error('nope'), { code: 'EACCES' })),
+      /nope/,
+    );
+  });
+});
+
 describe('gh-exec — argument shape guard', () => {
   it('rejects when args is not an array', async () => {
     await assert.rejects(
