@@ -200,7 +200,7 @@ describe('check-baselines-pipeline — public exports (Story #2466)', () => {
       '--config',
       '/tmp/x.json',
       '--gate',
-      'coverage,lint',
+      'coverage,crap',
       '--format',
       'text',
       '--no-friction',
@@ -210,7 +210,7 @@ describe('check-baselines-pipeline — public exports (Story #2466)', () => {
       '99',
     ]);
     assert.equal(parsed.configPath, '/tmp/x.json');
-    assert.deepEqual(parsed.gates, ['coverage', 'lint']);
+    assert.deepEqual(parsed.gates, ['coverage', 'crap']);
     assert.equal(parsed.format, 'text');
     assert.equal(parsed.friction, false);
     // Story #2989: migration to `parseStandardCliArgs` coerces ticket

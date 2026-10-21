@@ -125,9 +125,17 @@ export function parseArgs(argv) {
   }
 
   const { values } = parsed;
+  const gates = flattenGateTokens(values.gate);
+  const unknown = gates?.filter((k) => !KNOWN_KINDS.includes(k)) ?? [];
+  if (unknown.length > 0) {
+    throw new Error(
+      `unknown --gate kind "${unknown.join(', ')}"; valid kinds: ${KNOWN_KINDS.join(', ')}. ` +
+        'cyclomatic and dead-exports run via check-cyclomatic.js and check-dead-exports.js.',
+    );
+  }
   const out = {
     configPath: values.configPath ?? null,
-    gates: flattenGateTokens(values.gate),
+    gates,
     format: values.format ?? 'json',
     friction: !values.noFriction,
     storyId: values.storyId,
