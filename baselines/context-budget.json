@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-10-21T16:46:31.763Z",
+  "generatedAt": "2026-10-22T01:40:50.109Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -25,7 +25,7 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 479420,
+      "totalBytes": 482010,
       "files": [
         {
           "path": "docs/architecture.md",
@@ -37,7 +37,7 @@
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 290635
+          "bytes": 293225
         },
         {
           "path": "docs/patterns.md",
