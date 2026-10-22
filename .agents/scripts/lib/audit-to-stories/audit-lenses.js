@@ -24,6 +24,7 @@ export const AUDIT_LENSES = Object.freeze([
   'mobile',
   'navigability',
   'performance',
+  'policies',
   'privacy',
   'quality',
   'red-team',
