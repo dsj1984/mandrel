@@ -197,6 +197,7 @@ than restating it:
 | Required check context     | Produced by                                                    |
 | -------------------------- | -------------------------------------------------------------- |
 | `Validate and Test`        | the `validate` job of `.github/workflows/ci.yml`               |
+| `Dependency Audit`         | the `audit` job of `.github/workflows/ci.yml`                  |
 | `baselines`                | the `baselines` job of `.github/workflows/ci.yml`              |
 | `install (npm / ubuntu-latest)`   | the Gate profile of `.github/workflows/install-matrix.yml` |
 | `install (yarn / windows-latest)` | the Gate profile of `.github/workflows/install-matrix.yml` |
