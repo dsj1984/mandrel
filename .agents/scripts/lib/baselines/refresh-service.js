@@ -58,7 +58,7 @@ const SUPPORTED_KINDS = Object.freeze([
 ]);
 
 /**
- * Widened by the files jscpd reads for `additionalFormats`, as the scan is.
+ * Widened by `additionalFormats`.
  *
  * @param {{ additionalFormats?: string[] }} [opts]
  * @returns {(p: string) => boolean}
@@ -575,9 +575,9 @@ export function fileFilterFor(kind, opts) {
 }
 
 /**
- * The diff-scope filter for `kind`, widened by the duplication gate's
- * configured `additionalFormats` under `cwd`. Config reads are best-effort,
- * like {@link resolveDefaultScorer}: an unreadable config widens nothing.
+ * The diff-scope filter for `kind`.
+ * Best-effort config read:
+ * an unreadable config widens nothing.
  *
  * @param {string} kind
  * @param {string} cwd
