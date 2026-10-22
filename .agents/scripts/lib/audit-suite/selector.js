@@ -7,6 +7,7 @@ import picomatch from 'picomatch';
 import { getPaths, PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
 import { softFailOrThrow } from '../degraded-mode.js';
 import { gitSpawn } from '../git-utils.js';
+import { resolveNavConfig } from '../orchestration/plan-navigation.js';
 import { withTimeout } from '../util/with-timeout.js';
 import { readAuditRulesSync } from './audit-rules-reader.js';
 
@@ -69,15 +70,6 @@ export function selectSensitivePathClasses({
     }
   }
   return matched;
-}
-
-/**
- * @param {object|null|undefined} config Resolved `.agentrc.json` wrapper.
- * @returns {string[]} Route globs, or `[]` when unconfigured.
- */
-function resolveNavigabilityRouteGlobs(config) {
-  const globs = config?.delivery?.quality?.navigability?.routeGlobs;
-  return Array.isArray(globs) ? globs.filter((g) => typeof g === 'string') : [];
 }
 
 /** Matched segment-wise against dependency names (`@angular/core` → `angular`). */
@@ -227,7 +219,7 @@ function scanForWebAssets(root) {
  * @returns {boolean}
  */
 export function hasWebSurface({ config, projectRoot = PROJECT_ROOT } = {}) {
-  if (resolveNavigabilityRouteGlobs(config).length > 0) return true;
+  if (resolveNavConfig(config).routeGlobs.length > 0) return true;
 
   if (_webSurfaceFsCache.has(projectRoot)) {
     return _webSurfaceFsCache.get(projectRoot);

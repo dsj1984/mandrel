@@ -1097,16 +1097,14 @@ const PRIOR_STORY_BODY = serialize({
 //
 // The signal CANNOT fire in this repository (no rendered frontend), which is
 // the point of AC-8 — so exercising it at all needs a synthetic web-surface
-// fixture. `delivery.quality.navigability.routeGlobs` is the cheapest one:
+// fixture. `planning.navigation.routeGlobs` is the cheapest one:
 // `hasWebSurface` treats a configured route-glob set as a determinate web
 // signal and returns before it touches the filesystem, so the fixture needs no
 // temp tree and cannot be perturbed by the process-lifetime fs memo.
 describe('plan-context uiSurface offer (Story #4765)', () => {
   /** Synthetic web-capable consumer config. */
   const WEB_CONFIG = {
-    delivery: {
-      quality: { navigability: { routeGlobs: ['app/**/page.tsx'] } },
-    },
+    planning: { navigation: { routeGlobs: ['app/**/page.tsx'] } },
   };
 
   /** A seed naming paths that match the web lens filePatterns. */

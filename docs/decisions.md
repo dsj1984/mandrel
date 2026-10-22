@@ -596,7 +596,8 @@ from 183 leaf keys to 128.
 | `delivery.feedbackLoop.retroProposals`, `delivery.refactorStage.enabled`, `delivery.quality.requireBaselines`, `delivery.quality.autoRefresh.enabled` | Opt-ins or opt-outs of whole behaviours, not tuning of one. |
 | `incrementalCoverage` `skipWhenUnchanged`, `baselineJoin`, `baseRef` (crap gate) | Independent economies split on purpose by Story #5173; `baseRef` keeps one scope across `.husky/pre-push` (Story #5365). |
 | `delivery.acceptanceEval.maxRounds` | The ceremony bound the deliver digest names as the operator's dial. |
-| per-gate `components`, `bundle-size.bundles`, `delivery.quality.navigability.*`, `github.projectOwner`, `github.followUpRepos.*`, `qa.gherkinLint.stepWaivers`, `project.commands.lint` | Project facts — what the repository contains or where it lives. |
+| per-gate `components`, `bundle-size.bundles`, `github.projectOwner`, `github.followUpRepos.*`, `qa.gherkinLint.stepWaivers`, `project.commands.lint` | Project facts — what the repository contains or where it lives. |
+| per-gate `baselinePath`, `targetDirs.append` / `targetDirs.prepend` (Story #5850) | Project facts — where a committed baseline artifact lives, and the object form of a `targetDirs` key consumers do set. |
 
 **The migration makes the removal safe.** Every affected block is
 `additionalProperties: false`, so a config still carrying a removed key fails
@@ -744,6 +745,52 @@ project that neither the scorable list nor jscpd's own config can supply,
 since jscpd 4 has no project config file the gate reads. No existing key
 displaces it: the scorable list stays the floor the key extends and can never
 narrow, and `ignoreGlobs` stays the only lever for scanning fewer files.
+
+**Re-surveyed and lowered to 140 (2026-10-21, Story #5850).** The ceiling had
+been raised seven times since the cut (128 → 143), so the survey and the
+removal rule above were run again, unchanged.
+
+- **Configs read.** Both `.agentrc.json` and `.agentrc.local.json` in mandrel
+  and in every repository under `~/Development/` that carries one:
+  `areacodetechnologies-site`, `athportal`, `design-system`, `domio`,
+  `dsj.blog`, `mandrel-bench`, `mandrel-platform`, `mandrel-platform-fix`,
+  `Monarch` and `swarm-os` (19 files, all parsed). 78 of the 143 leaf keys are
+  set by at least one; 65 are set by none.
+- **Retired: `delivery.quality.navigability.*`** (`routeGlobs`, `navRegistry`,
+  `journeySuite`). No config set any of them. `journeySuite` and this block's
+  `navRegistry` had no reader at all. `routeGlobs` was a second declaration of
+  `planning.navigation.routeGlobs`: `/audit-navigability` and the plan
+  reachability gate read `planning.navigation` and say it is the one route-tree
+  source, while the audit selector's web-surface probe read this block. The
+  probe now reads `planning.navigation` through `resolveNavConfig()`. For a
+  config that sets neither block nothing changes. A config that set only
+  `planning.navigation.routeGlobs`, like `swarm-os`, now also gets the probe's
+  route-glob signal. It is a web project the probe's dependency and file
+  scans already detect, so its lens selection does not change.
+  The 2.97.0 migration strips the block from both config surfaces. It does not
+  move values into `planning.navigation`, because that would switch on the
+  plan-time reachability gate. Instead it reports any value
+  `planning.navigation` does not already carry as a behaviour change.
+- **Kept although unset.** All 62 other unset keys. Most are already in the
+  kept-unset table above (routing, auto-merge, notification and deletion
+  opt-outs; worktree host facts; per-gate `components`; the
+  `incrementalCoverage` economies; `acceptanceEval.maxRounds`;
+  `followUpRepos`; `projectOwner`; `stepWaivers`). The rest are kept by the
+  raise that admitted them, each of which still holds: `scratch`,
+  `agentModels`, `execution.capacity|workloads`, `coverage.captureScript`,
+  `project.policies.*` and `duplication.additionalFormats`. The table gains
+  one row: the five unset per-gate `baselinePath` keys (bundle-size, crap,
+  duplication, maintainability, mutation) and the `targetDirs.append|prepend`
+  object form. Each records where a committed artifact or scan root lives,
+  which is a project fact, not a tuning constant. `coverage.baselinePath` is
+  set by `domio`.
+- **Consolidation.** No pair of set sibling keys carries one meaning.
+  `project.commands.formatCheck` and `formatWrite` hold the same value in the
+  configs that set them, but they are different commands that happen to agree
+  there, so merging them would change behaviour.
+
+**Go-forward ceiling: 140**, the measured count, with no slack above it. The
+raise-and-record rule is unchanged.
 
 ### Consequences
 

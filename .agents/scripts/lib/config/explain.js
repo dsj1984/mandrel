@@ -86,7 +86,7 @@ const KEY_MEANINGS = Object.freeze({
 
   // planning.*
   'planning.navigation.routeGlobs':
-    'Glob patterns marking paths that add a user-facing route (plan-time reachability gate).',
+    'Glob patterns marking paths that add a user-facing route (plan-time reachability gate, navigability lens, audit web probe).',
   'planning.navigation.navRegistry':
     'Tokens identifying the nav-registry SSOT a route-adding Story is expected to reference.',
 
@@ -127,12 +127,6 @@ const KEY_MEANINGS = Object.freeze({
     'When true, auto-file actionable retro proposals as follow-up issues.',
   'delivery.quality.requireBaselines':
     'When true, absent baseline artifacts fail close-validation instead of skipping cleanly.',
-  'delivery.quality.navigability.routeGlobs':
-    'Glob patterns marking user-facing routes for the navigability lens / journey gate.',
-  'delivery.quality.navigability.navRegistry':
-    'Tokens identifying the nav-registry SSOT the navigability lens expects.',
-  'delivery.quality.navigability.journeySuite':
-    'Optional journey-suite path the post-wave navigability integration gate runs.',
   'delivery.refactorStage.enabled':
     'Whether a dedicated refactor stage runs during delivery.',
   'delivery.acceptanceEval.maxRounds':

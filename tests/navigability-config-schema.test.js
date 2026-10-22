@@ -40,27 +40,6 @@ describe('navigability config — runtime AJV validator accepts the configured p
     );
   });
 
-  it('accepts a populated delivery.quality.navigability block (F2/F3/F1/F4)', () => {
-    const validate = getAgentrcValidator();
-    const ok = validate({
-      project: PROJECT,
-      delivery: {
-        quality: {
-          navigability: {
-            routeGlobs: ['pages/**'],
-            navRegistry: ['src/nav.ts'],
-            journeySuite: 'npm run journeys',
-          },
-        },
-      },
-    });
-    assert.equal(
-      ok,
-      true,
-      `delivery.quality.navigability must validate; errors: ${JSON.stringify(validate.errors)}`,
-    );
-  });
-
   it('still rejects an unknown subkey under planning.navigation (additionalProperties)', () => {
     const validate = getAgentrcValidator();
     const ok = validate({
@@ -70,12 +49,12 @@ describe('navigability config — runtime AJV validator accepts the configured p
     assert.equal(ok, false, 'unknown navigation subkey must be rejected');
   });
 
-  it('still rejects an unknown subkey under delivery.quality.navigability', () => {
+  it('rejects the retired delivery.quality.navigability block (Story #5850)', () => {
     const validate = getAgentrcValidator();
     const ok = validate({
       project: PROJECT,
-      delivery: { quality: { navigability: { bogusKey: true } } },
+      delivery: { quality: { navigability: { routeGlobs: ['pages/**'] } } },
     });
-    assert.equal(ok, false, 'unknown navigability subkey must be rejected');
+    assert.equal(ok, false, 'planning.navigation is the only nav config home');
   });
 });
