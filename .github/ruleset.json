@@ -32,6 +32,10 @@
             "integration_id": 15368
           },
           {
+            "context": "Dependency Audit",
+            "integration_id": 15368
+          },
+          {
             "context": "baselines",
             "integration_id": 15368
           },

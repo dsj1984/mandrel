@@ -1256,25 +1256,30 @@ external test framework dependencies. Tests live under `tests/` with
 
 ## CI/CD Pipeline
 
-The per-change gate is `ci.yml`, which runs on every push and PR with four
+The per-change gate is `ci.yml`, which runs on every push and PR with five
 jobs:
 
-1. **Validate and Test** — the main job, in step order: `npm audit`
-   (SCA), TruffleHog secret scanning, **Lint and Format** via
+1. **Validate and Test** — the main job, in step order: TruffleHog secret
+   scanning, **Lint and Format** via
    `npm run lint` (which folds in the Biome format check — Story #1829),
    and **Run Tests with Coverage** via `npm run test:coverage`. Artifacts:
    `test-results` (test output) and `coverage-final` (c8 coverage map).
-2. **baselines** — `node .agents/scripts/check-baselines.js --format text`,
+2. **Dependency Audit** — `node scripts/check-npm-audit.js` (the
+   exceptions-aware high-severity `npm audit`) plus, on a failed PR run,
+   advisory attribution against the merge base. A required check in its own
+   parallel job, so a stuck advisory endpoint cannot hold back lint and
+   tests; an unreachable endpoint still fails it.
+3. **baselines** — `node .agents/scripts/check-baselines.js --format text`,
    surfaced as its own required status check (Epic #1943 / Story #1981);
    the unified floor + tolerance + schema gate that replaced the retired
    per-kind `check-maintainability` / `check-crap` / `check-mutation`
    scripts. Its Architecture Cycle Check step also runs the CI-side
    ratchets that [`docs/ci-contract.md`](ci-contract.md) enumerates.
-3. **e2e** — the `npm run test:e2e` tier (a real `npm pack` + install and
+4. **e2e** — the `npm run test:e2e` tier (a real `npm pack` + install and
    the interactive-init guard). Advisory: two of its suites degrade to a
    documented skip on a fresh runner, and the required coverage job
    already executes the same files.
-4. **Windows Smoke** — a **required** Windows leg (Story #3389): bootstrap
+5. **Windows Smoke** — a **required** Windows leg (Story #3389): bootstrap
    dry-run, command sync, config resolution, a fast test slice, and the
    worktree-manager real-git contract.
 

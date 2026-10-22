@@ -14,6 +14,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { parseArgs, runCheck } from '../scripts/check-npm-audit.js';
+import { runAuditReport } from '../scripts/lib/audit-advisories.js';
 import {
   auditWithExceptions,
   loadExceptions,
@@ -213,6 +214,38 @@ describe('check-npm-audit — the gate', () => {
     });
     assert.equal(out.exitCode, 1);
     assert.match(out.lines.join('\n'), /could not evaluate the tree: ENOLOCK/);
+  });
+});
+
+describe('runAuditReport — spawn args', () => {
+  // npm's defaults (300s fetch timeout, 2 retries) let a dead advisory
+  // endpoint hold the required check for 5–15 minutes.
+  it('bounds the advisory fetch so an outage fails fast', () => {
+    let seen;
+    runAuditReport('/repo', {
+      spawn: (cmd, args) => {
+        seen = args;
+        return { stdout: JSON.stringify(EMPTY) };
+      },
+    });
+    assert.deepEqual(seen, [
+      'audit',
+      '--json',
+      '--audit-level=high',
+      '--package-lock-only',
+      '--fetch-timeout=30000',
+      '--fetch-retries=1',
+    ]);
+  });
+
+  it('still fails, not passes, when the endpoint is unreachable', () => {
+    assert.throws(
+      () =>
+        runAuditReport('/repo', {
+          spawn: () => ({ stdout: '', stderr: 'ETIMEDOUT' }),
+        }),
+      /could not evaluate the tree: ETIMEDOUT/,
+    );
   });
 });
 

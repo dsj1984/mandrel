@@ -137,6 +137,11 @@ export function diffAdvisories({ head = [], base = null }) {
  * defect than the one it explains. `--json` is what makes two runs comparable
  * at all — the human report says which advisories exist, but only as prose.
  *
+ * `--fetch-timeout` / `--fetch-retries` replace npm's defaults (300s, 2
+ * retries), under which an unresponsive advisory endpoint hangs the audit for
+ * 5–15 minutes. An outage now fails in about a minute — still as a failure,
+ * never a pass: no JSON verdict comes back, so this throws as below.
+ *
  * `omitDev` audits the production closure alone (`--omit=dev`) — the
  * reachability probe the exceptions gate reads.
  *
@@ -149,7 +154,14 @@ export function runAuditReport(
   dir,
   { spawn = spawnCapture, omitDev = false } = {},
 ) {
-  const args = ['audit', '--json', '--audit-level=high', '--package-lock-only'];
+  const args = [
+    'audit',
+    '--json',
+    '--audit-level=high',
+    '--package-lock-only',
+    '--fetch-timeout=30000',
+    '--fetch-retries=1',
+  ];
   if (omitDev) args.push('--omit=dev');
   const result = spawn('npm', args, { cwd: dir });
   const report = parseAuditJson(result?.stdout);
