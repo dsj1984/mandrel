@@ -2453,7 +2453,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "lines": 100,
-      "branches": 90.48,
+      "branches": 91.38,
       "functions": 100
     },
     {
@@ -2478,6 +2478,12 @@
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "lines": 100,
       "branches": 94.74,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/generated-diff.js",
+      "lines": 100,
+      "branches": 92.31,
       "functions": 100
     },
     {
