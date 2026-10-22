@@ -2720,7 +2720,7 @@
     },
     {
       "path": "lib/migrations/steps/2.91.0-retire-duplication-formats.js",
-      "mi": 117.324
+      "mi": 101.891
     },
     {
       "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
