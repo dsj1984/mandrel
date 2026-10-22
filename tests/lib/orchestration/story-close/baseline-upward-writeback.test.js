@@ -28,6 +28,7 @@ import { describe, it } from 'node:test';
 import { gitSync } from '../../../../.agents/scripts/lib/git-utils.js';
 import { runBaselineUpwardWriteback } from '../../../../.agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js';
 import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
+import { installStrictCommitMsgHook } from '../../../fixtures/git-fixture.js';
 
 function makeLogger() {
   const logs = { info: [], warn: [], error: [] };
@@ -620,5 +621,75 @@ describe('runBaselineUpwardWriteback — rollback in a real repository (AC-5)', 
     assert.deepEqual(dirty, [], 'nothing may be left modified');
 
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('runBaselineUpwardWriteback — commitlint body bound (Story #5859 AC-2)', () => {
+  const REL = 'baselines/maintainability.json';
+  const DEEP = `.agents/scripts/lib/${'deeply-nested-module/'.repeat(5)}a.js`;
+
+  function deepPathRepo() {
+    const dir = makeTempDir('writeback-bound-');
+    const run = (...args) =>
+      execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    run('init', '--initial-branch=main');
+    run('config', 'user.email', 'test@example.com');
+    run('config', 'user.name', 'Test');
+    run('config', 'commit.gpgsign', 'false');
+    run('config', 'core.autocrlf', 'false');
+    fs.mkdirSync(path.join(dir, 'baselines'), { recursive: true });
+    fs.writeFileSync(path.join(dir, REL), '{}\n');
+    run('add', '-A');
+    run('commit', '-m', 'chore: seed');
+    run('checkout', '-b', 'story-5859');
+    fs.mkdirSync(path.dirname(path.join(dir, DEEP)), { recursive: true });
+    fs.writeFileSync(path.join(dir, DEEP), 'export const a = 1;\n');
+    run('add', '-A');
+    run('commit', '-m', 'feat: a');
+    installStrictCommitMsgHook(dir);
+    return { dir, run };
+  }
+
+  const writeback = (dir, scored) =>
+    runBaselineUpwardWriteback({
+      cwd: dir,
+      worktreePath: dir,
+      storyId: 5859,
+      baseBranch: 'main',
+      storyBranch: 'story-5859',
+      logger: makeLogger(),
+      loadBaselineRows: () => [{ path: DEEP, mi: 60 }],
+      scoreFiles: () => [{ path: DEEP, mi: scored }],
+      refreshBaseline: async ({ writePath }) => {
+        fs.writeFileSync(writePath, `{"mi":${scored}}\n`);
+        return { wrote: true };
+      },
+      resolveWritePath: ({ cwd }) => path.join(cwd, REL),
+    });
+
+  it('a row over 100 chars re-flows and passes a strict commit-msg hook', async () => {
+    assert.ok(`- ${DEEP}: 60.00 -> 68.00`.length > 100);
+    const { dir, run } = deepPathRepo();
+    const result = await writeback(dir, 68);
+    assert.equal(result.committed, true, JSON.stringify(result));
+    const body = run('log', '-1', '--format=%b').trim();
+    for (const line of body.split('\n')) {
+      assert.ok(line.length <= 100, `${line.length}: ${line}`);
+    }
+    assert.match(body, /^- …\/deeply-nested-module\/.*\/a\.js$/m);
+    assert.match(body, /^ {2}60\.00 -> 68\.00$/m);
+  });
+
+  it('a refusal the hook still makes names the commitlint rule', async () => {
+    const { dir } = deepPathRepo();
+    fs.writeFileSync(
+      path.join(dir, '.githooks', 'commit-msg'),
+      '#!/bin/sh\necho "subject must be lower-case [subject-case]" >&2\nexit 1\n',
+      { mode: 0o755 },
+    );
+    await assert.rejects(
+      writeback(dir, 68),
+      /commit-refused: commit-msg hook refused it \[subject-case\]/,
+    );
   });
 });

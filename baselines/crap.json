@@ -31318,87 +31318,87 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "formatAutofixStep",
-      "startLine": 18,
+      "startLine": 23,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "writebackStep",
-      "startLine": 56,
+      "startLine": 61,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "bestEffort",
-      "startLine": 83,
+      "startLine": 88,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "runPreGateSteps",
-      "startLine": 111,
+      "startLine": 119,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "<anon runPreGateSteps/()#0>",
-      "startLine": 131,
+      "startLine": 149,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "<anon runPreGateSteps/()#1>",
-      "startLine": 137,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
-      "method": "<anon runPreGateSteps/()#1/(w)#0>",
-      "startLine": 142,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
-      "method": "<anon runPreGateSteps/()#2>",
-      "startLine": 150,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
-      "method": "<anon runPreGateSteps/()#2/(w)#0>",
       "startLine": 155,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
+      "method": "<anon runPreGateSteps/()#1/(w)#0>",
+      "startLine": 160,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
+      "method": "<anon runPreGateSteps/()#2>",
+      "startLine": 168,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
+      "method": "<anon runPreGateSteps/()#2/(w)#0>",
+      "startLine": 173,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "<anon runPreGateSteps/()#3>",
-      "startLine": 179,
+      "startLine": 181,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "<anon runPreGateSteps/()#3/(w)#0>",
-      "startLine": 184,
+      "startLine": 186,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "<anon runPreGateSteps/()#4>",
-      "startLine": 192,
+      "startLine": 194,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "<anon runPreGateSteps/()#4/(w)#0>",
-      "startLine": 197,
+      "startLine": 199,
       "crap": 1,
       "anonymous": true
     },
@@ -32438,6 +32438,76 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "truncatePathLeft",
+      "startLine": 20,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "truncateRight",
+      "startLine": 28,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "formatBodyRow",
+      "startLine": 33,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "boundBody",
+      "startLine": 43,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "<anon boundBody/(line)#0>",
+      "startLine": 46,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "describeCommitRefusal",
+      "startLine": 61,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "<anon describeCommitRefusal/(m)#0>",
+      "startLine": 64,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "<anon describeCommitRefusal/(l)#0>",
+      "startLine": 68,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "closeGitSync",
+      "startLine": 81,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "<anon closeGitSync/(arg,i)#0>",
+      "startLine": 83,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "method": "refusalMark",
+      "startLine": 94,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
       "method": "buildCommitSubject",
       "startLine": 38,
@@ -32477,20 +32547,20 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
       "method": "runContextBudgetWriteback",
-      "startLine": 132,
+      "startLine": 141,
       "crap": 10
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
       "method": "<anon runContextBudgetWriteback/(args,opts)#0>",
-      "startLine": 147,
+      "startLine": 157,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
       "method": "<anon runContextBudgetWriteback/(s)#0>",
-      "startLine": 175,
+      "startLine": 186,
       "crap": 1,
       "anonymous": true
     },
@@ -32541,87 +32611,87 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon resolveScope/(f)#0>",
-      "startLine": 109,
+      "startLine": 116,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "diffScopedRows",
-      "startLine": 119,
+      "startLine": 126,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon diffScopedRows/(rows)#0>",
-      "startLine": 120,
+      "startLine": 127,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon diffScopedRows/(rows)#0/(r)#0>",
-      "startLine": 121,
+      "startLine": 128,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "commitBaseline",
-      "startLine": 140,
+      "startLine": 147,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "attempt",
-      "startLine": 160,
+      "startLine": 167,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "runDuplicationCloseRescore",
-      "startLine": 183,
+      "startLine": 190,
       "crap": 12
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon runDuplicationCloseRescore/(args,opts)#0>",
-      "startLine": 199,
+      "startLine": 206,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon runDuplicationCloseRescore/()#0>",
-      "startLine": 203,
+      "startLine": 210,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon runDuplicationCloseRescore/()#1>",
-      "startLine": 212,
+      "startLine": 219,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon runDuplicationCloseRescore/()#2>",
-      "startLine": 221,
+      "startLine": 236,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon runDuplicationCloseRescore/()#3>",
-      "startLine": 241,
+      "startLine": 256,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "<anon runDuplicationCloseRescore/(m)#0>",
-      "startLine": 252,
+      "startLine": 267,
       "crap": 1,
       "anonymous": true
     },
@@ -32843,61 +32913,40 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
       "method": "runRatchetShrinkWriteback",
-      "startLine": 273,
+      "startLine": 274,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
       "method": "<anon runRatchetShrinkWriteback/(p)#0>",
-      "startLine": 292,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
-      "method": "<anon runRatchetShrinkWriteback/(p)#1>",
-      "startLine": 298,
+      "startLine": 300,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
       "method": "<anon runRatchetShrinkWriteback/()#0>",
-      "startLine": 306,
+      "startLine": 308,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
       "method": "<anon runRatchetShrinkWriteback/()#1>",
-      "startLine": 309,
+      "startLine": 311,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
       "method": "<anon runRatchetShrinkWriteback/()#2>",
-      "startLine": 312,
+      "startLine": 314,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
-      "method": "<anon runRatchetShrinkWriteback/(p)#2>",
-      "startLine": 321,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
-      "method": "<anon runRatchetShrinkWriteback/(p)#3/(p)#0>",
-      "startLine": 323,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
-      "method": "<anon runRatchetShrinkWriteback/(p)#3>",
+      "method": "<anon runRatchetShrinkWriteback/(p)#1>",
       "startLine": 323,
       "crap": 1,
       "anonymous": true
@@ -32911,15 +32960,22 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
+      "method": "<anon runRatchetShrinkWriteback/(p)#2>",
+      "startLine": 325,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
       "method": "<anon runRatchetShrinkWriteback/(p,r)#0>",
-      "startLine": 327,
+      "startLine": 329,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
       "method": "<anon runRatchetShrinkWriteback/(s)#0>",
-      "startLine": 333,
+      "startLine": 341,
       "crap": 1,
       "anonymous": true
     },

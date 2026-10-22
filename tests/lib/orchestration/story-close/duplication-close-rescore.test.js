@@ -21,6 +21,7 @@ import { applyRefreshAcknowledgment } from '../../../../.agents/scripts/lib/orch
 import { runPreGateSteps } from '../../../../.agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js';
 import { runDuplicationCloseRescore } from '../../../../.agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js';
 import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
+import { installStrictCommitMsgHook } from '../../../fixtures/git-fixture.js';
 
 const QUIET = { info: () => {}, warn: () => {} };
 const REL = 'baselines/duplication.json';
@@ -160,6 +161,58 @@ describe('runDuplicationCloseRescore — real git (AC-1)', () => {
     assert.match(git('log', '-1', '--format=%b'), /src\/a\.js: 20% -> none/);
     const again = await runDuplicationCloseRescore(args);
     assert.equal(again.reason, 'unchanged');
+  });
+});
+
+describe('runDuplicationCloseRescore — commitlint body bound (Story #5859)', () => {
+  const DEEP =
+    'apps/staff/src/pages/api/v1/finance/training-refund-reviews/[registrationId]/refund.ts';
+  const DEEPER = `packages/${'deeply-nested-module/'.repeat(5)}index.js`;
+
+  function strictHookRepo() {
+    const root = makeTempDir('dup-rescore-hook-');
+    const git = (...args) => gitSync(root, ...args);
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'Test');
+    git('config', 'commit.gpgsign', 'false');
+    for (const file of [DEEP, DEEPER, 'src/a.js']) {
+      fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+      fs.writeFileSync(path.join(root, file), 'export const v = 1;\n');
+    }
+    writeEnvelope(root, [row(DEEP, 11), row(DEEPER, 20), row('src/a.js', 5)]);
+    git('add', '-A');
+    git('commit', '-q', '-m', 'chore: seed');
+    git('checkout', '-q', '-b', 'story-7');
+    for (const file of [DEEP, DEEPER, 'src/a.js']) {
+      fs.writeFileSync(path.join(root, file), 'export const v = 2;\n');
+    }
+    git('commit', '-q', '-am', 'feat: change all');
+    installStrictCommitMsgHook(root);
+    return { root, git };
+  }
+
+  test('AC-1/AC-5: a deep path commits through a strict hook, every row listed', async () => {
+    assert.ok(DEEPER.length > 100);
+    const { root, git } = strictHookRepo();
+    const out = await runDuplicationCloseRescore({
+      cwd: root,
+      storyId: 7,
+      baseBranch: 'main',
+      storyBranch: 'story-7',
+      config: {},
+      logger: QUIET,
+      scorer: () => [],
+    });
+    assert.equal(out.committed, true, JSON.stringify(out));
+    const body = git('log', '-1', '--format=%b');
+    for (const line of body.split('\n')) {
+      assert.ok(line.length <= 100, `${line.length}: ${line}`);
+    }
+    assert.match(body, /^- apps\/staff\/.*\/refund\.ts$/m);
+    assert.match(body, /^ {2}11% -> none$/m);
+    assert.match(body, /^- …\/.*deeply-nested-module\/index\.js$/m);
+    assert.match(body, /^- src\/a\.js: 5% -> none$/m);
   });
 });
 
@@ -360,6 +413,33 @@ describe('runPreGateSteps — the two new close steps', () => {
         /^RATCHET ⏭ No ratchet shrink write-back \(no-shrink\)/.test(l),
       ),
     );
+  });
+
+  test('a refused commit is a warning naming why, not a ⏭ skip (Story #5859 AC-4)', async (t) => {
+    const warn = t.mock.method(console, 'warn', () => {});
+    t.mock.method(console, 'error', () => {});
+    const lines = [];
+    await runPreGateSteps({
+      ...ctx((tag, msg) => lines.push(`${tag} ${msg}`)),
+      runDuplicationCloseRescore: async () => ({
+        ran: false,
+        committed: false,
+        reason:
+          'git-failed: commit-refused: commit-msg hook refused it [body-max-line-length]',
+      }),
+      runRatchetShrinkWriteback: () => ({ committed: false }),
+    });
+    const dup = lines.filter((l) => l.startsWith('DUPLICATION'));
+    assert.equal(dup.length, 1, lines.join('\n'));
+    assert.match(
+      dup[0],
+      /^DUPLICATION ⚠️ No duplication re-score commit \(git-failed: commit-refused: .*\[body-max-line-length\]\)/,
+    );
+    const warned = [...warn.mock.calls, ...console.error.mock.calls]
+      .map((c) => String(c.arguments[0]))
+      .filter((m) => /baseline commit refused/.test(m));
+    assert.equal(warned.length, 1, 'logged once at warning level');
+    assert.match(warned[0], /⚠️ \[DUPLICATION\] .*\[body-max-line-length\]/);
   });
 
   test('skips both without a story branch', async () => {

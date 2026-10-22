@@ -28,10 +28,10 @@ import {
   resolveDefaultScorer,
 } from '../../baselines/refresh-service.js';
 import { getQuality } from '../../config-resolver.js';
-import { gitSync as defaultGitSync } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 import { isScorableSourceFile } from '../../source-extensions.js';
 import { toPosix } from '../../util/paths.js';
+import { closeGitSync as defaultGitSync } from './commit-body.js';
 import {
   currentBranch,
   listChangedFiles,

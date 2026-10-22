@@ -1839,6 +1839,10 @@
       "mi": 96.681
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "mi": 107.192
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
       "mi": 99.886
     },

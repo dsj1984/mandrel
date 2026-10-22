@@ -19,8 +19,8 @@ import {
 } from '../../baselines/refresh-service.js';
 import { getBaselineEpsilon } from '../../config/quality.js';
 import { getQuality } from '../../config-resolver.js';
-import { gitSync as defaultGitSync } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
+import { closeGitSync as defaultGitSync } from './commit-body.js';
 import {
   currentBranch,
   listChangedFiles,

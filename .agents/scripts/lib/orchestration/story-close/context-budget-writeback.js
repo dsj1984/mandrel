@@ -22,8 +22,8 @@ import {
   loadBaseline as defaultLoadBaseline,
 } from '../../../check-context-budget.js';
 import { resolveDocTiers as defaultResolveDocTiers } from '../../doc-tiers.js';
-import { gitSync as defaultGitSync } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
+import { closeGitSync as defaultGitSync } from './commit-body.js';
 
 const TAG = '[context-budget-writeback]';
 
