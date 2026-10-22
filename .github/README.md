@@ -29,6 +29,9 @@ the documented gate set:
 - `Validate and Test` — the `ci.yml` `validate` job (de-matrixed in
   PR #1348; the former `(ubuntu-latest, node 22)` matrix suffix no longer
   exists).
+- `Dependency Audit` — the `ci.yml` `audit` job (the npm advisory audit,
+  split out of `validate` so a stuck advisory endpoint cannot hold back
+  lint and tests).
 - `baselines` — the `ci.yml` `baselines` job.
 - `install (npm / ubuntu-latest)` and `install (yarn / windows-latest)` —
   the two **Install Matrix** gate legs

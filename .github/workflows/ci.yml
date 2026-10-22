@@ -34,8 +34,9 @@ jobs:
     # so a deadlock cost six hours of runner time and — while the run stayed
     # `in_progress` — withheld the logs of the failing required check on the
     # same run. Sized from this job's observed 155s: 20 minutes is ~8x
-    # headroom over the heaviest leg (audit + TruffleHog + node-pty source
-    # build + the full coverage suite) while still catching a hang fast.
+    # headroom over the heaviest leg (TruffleHog + node-pty source build +
+    # the full coverage suite) while still catching a hang fast. The npm audit
+    # moved to the `audit` job below.
     timeout-minutes: 20
     permissions:
       contents: read
@@ -47,39 +48,6 @@ jobs:
 
       - name: Setup Node & Install
         uses: ./.github/actions/setup
-
-      - name: Dependency Vulnerability Audit (SCA)
-        id: sca
-        # The high-severity npm audit, honoring the reviewed, dated
-        # entries in audit-exceptions.json (dev-only advisories with no patched
-        # release; see scripts/lib/audit-exceptions.js). dependency-audit-cron.yml
-        # runs this exact command so the nightly sweep and this required check
-        # can never disagree about what counts as red. Attribution is a
-        # SEPARATE step below rather than a wrapper, so that stays true.
-        run: node scripts/check-npm-audit.js
-
-      - name: Attribute the advisory failure
-        # Runs only once the required step above has already failed, and only
-        # for a pull request — a push build has no merge base to attribute
-        # against and keeps the bare behaviour.
-        #
-        # This does NOT rescue the build. The job is already failing, and the
-        # script exits 1 on both real verdicts: a pre-existing advisory is
-        # still a real advisory, and letting it pass here would let advisories
-        # accumulate on `main` unnoticed, which is what the nightly sweep
-        # exists to prevent. What it buys is the sentence the log was missing
-        # — whether this diff caused the failure — so an author who did not
-        # cause it stops debugging a supply-chain advisory that is not theirs.
-        if: |
-          always() && steps.sca.outcome == 'failure' &&
-          github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        # `continue-on-error` keeps a degraded probe from masking or
-        # compounding the SCA failure; the job's verdict is the audit's.
-        continue-on-error: true
-        run: node scripts/check-audit-attribution.js --base "$BASE_SHA"
 
       - name: Action Pinning Guard
         # Story #4079: fail the build if any third-party `uses:` ref drifts off
@@ -232,6 +200,63 @@ jobs:
           name: coverage-final
           path: coverage/coverage-final.json
           if-no-files-found: warn
+
+  audit:
+    # The npm advisory audit, as its own required check. It used to run first
+    # in `validate`, so when npm's bulk advisory endpoint stopped answering
+    # (2026-10-22) the whole required job sat in this step for 10+ minutes and
+    # lint and tests waited behind it. Run in parallel here, a stuck or red
+    # audit no longer holds back or hides the other checks. It still gates:
+    # an unreachable endpoint fails this job exactly as a real advisory does
+    # (the spawn's bounded fetch timeout makes that fail in about a minute).
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    # Observed well under a minute; 10 is the workflow-timeout gate's floor.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          # The attribution step diffs against the merge base.
+          fetch-depth: 0
+
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
+
+      - name: Dependency Vulnerability Audit (SCA)
+        id: sca
+        # The high-severity npm audit, honoring the reviewed, dated
+        # entries in audit-exceptions.json (dev-only advisories with no patched
+        # release; see scripts/lib/audit-exceptions.js). dependency-audit-cron.yml
+        # runs this exact command so the nightly sweep and this required check
+        # can never disagree about what counts as red. Attribution is a
+        # SEPARATE step below rather than a wrapper, so that stays true.
+        run: node scripts/check-npm-audit.js
+
+      - name: Attribute the advisory failure
+        # Runs only once the required step above has already failed, and only
+        # for a pull request — a push build has no merge base to attribute
+        # against and keeps the bare behaviour.
+        #
+        # This does NOT rescue the build. The job is already failing, and the
+        # script exits 1 on both real verdicts: a pre-existing advisory is
+        # still a real advisory, and letting it pass here would let advisories
+        # accumulate on `main` unnoticed, which is what the nightly sweep
+        # exists to prevent. What it buys is the sentence the log was missing
+        # — whether this diff caused the failure — so an author who did not
+        # cause it stops debugging a supply-chain advisory that is not theirs.
+        if: |
+          always() && steps.sca.outcome == 'failure' &&
+          github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # `continue-on-error` keeps a degraded probe from masking or
+        # compounding the SCA failure; the job's verdict is the audit's.
+        continue-on-error: true
+        run: node scripts/check-audit-attribution.js --base "$BASE_SHA"
 
   baselines:
     # Story #1912 / Task #1914 — surface the unified floor + tolerance +
