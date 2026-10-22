@@ -248,7 +248,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
-      "mi": 102.148
+      "mi": 101.488
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/classify.js",
@@ -2584,7 +2584,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/spawn.js",
-      "mi": 121.293
+      "mi": 118.049
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
@@ -2604,7 +2604,7 @@
     },
     {
       "path": "lib/cli/doctor.js",
-      "mi": 104.154
+      "mi": 104.846
     },
     {
       "path": "lib/cli/explain.js",
