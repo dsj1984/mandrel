@@ -69,11 +69,19 @@
     },
     {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "_resetPolicyCorpusCache"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
       "symbol": "_resetWebSurfaceCache"
     },
     {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
       "symbol": "hasPersistenceLayer"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "hasPolicyCorpus"
     },
     {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
