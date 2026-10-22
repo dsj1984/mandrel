@@ -575,20 +575,23 @@ export function fileFilterFor(kind, opts) {
 }
 
 /**
- * Best-effort, like {@link resolveDefaultScorer}: an unreadable config yields none.
+ * The diff-scope filter for `kind`, widened by the duplication gate's
+ * configured `additionalFormats` under `cwd`. Config reads are best-effort,
+ * like {@link resolveDefaultScorer}: an unreadable config widens nothing.
  *
  * @param {string} kind
  * @param {string} cwd
- * @returns {string[]}
+ * @returns {(p: string) => boolean}
  */
-function additionalFormatsFor(kind, cwd) {
-  if (kind !== 'duplication') return [];
+function diffScopeFilterFor(kind, cwd) {
+  let additionalFormats;
   try {
-    const dup = getQuality(resolveConfig({ cwd }))?.gates?.duplication;
-    return Array.isArray(dup?.additionalFormats) ? dup.additionalFormats : [];
+    additionalFormats = getQuality(resolveConfig({ cwd }))?.gates?.duplication
+      ?.additionalFormats;
   } catch {
-    return [];
+    additionalFormats = undefined;
   }
+  return fileFilterFor(kind, { additionalFormats });
 }
 
 /** Full, then explicit list, then diff-derived. */
@@ -613,9 +616,7 @@ async function resolveScope({
   const files = await deriveScopeFromDiff({
     baseRef,
     headRef,
-    predicate: fileFilterFor(kind, {
-      additionalFormats: additionalFormatsFor(kind, cwd),
-    }),
+    predicate: diffScopeFilterFor(kind, cwd),
     gitDiff,
     cwd,
   });
