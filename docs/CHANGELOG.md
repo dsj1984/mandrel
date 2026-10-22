@@ -15,6 +15,15 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.97.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.96.0...mandrel-v2.97.0) (2026-10-22)
+
+
+### Added
+
+* add /audit-policies: check published customer policies against the implementation in both directions, never editing policy text ([#5848](https://github.com/dsj1984/mandrel/issues/5848)) ([#5851](https://github.com/dsj1984/mandrel/issues/5851)) ([788728a](https://github.com/dsj1984/mandrel/commit/788728a720504722460abd007c90b4ab572dbff2))
+* let the duplication gate scan extra jscpd languages (e.g. Python) on top of the scorable list ([#5849](https://github.com/dsj1984/mandrel/issues/5849)) ([#5853](https://github.com/dsj1984/mandrel/issues/5853)) ([32f8a17](https://github.com/dsj1984/mandrel/commit/32f8a17cfd15dd0f9e909290d69fc162597e20ac))
+* re-survey the .agentrc surface: retire keys nobody sets and reset the leaf-key ceiling to the measured count ([#5850](https://github.com/dsj1984/mandrel/issues/5850)) ([#5854](https://github.com/dsj1984/mandrel/issues/5854)) ([9c3819b](https://github.com/dsj1984/mandrel/commit/9c3819ba5ed17cb9ff325f58368aa70fc62dfb85))
+
 ## [2.96.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.95.0...mandrel-v2.96.0) (2026-10-21)
 
 
