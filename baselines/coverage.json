@@ -466,8 +466,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "lines": 96.4,
-      "branches": 88.41,
+      "lines": 96.93,
+      "branches": 89.67,
       "functions": 100
     },
     {
@@ -4080,6 +4080,12 @@
       "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
       "lines": 100,
       "branches": 83.33,
+      "functions": 100
+    },
+    {
+      "path": "lib/migrations/steps/2.97.0-retire-quality-navigability.js",
+      "lines": 100,
+      "branches": 90.91,
       "functions": 100
     },
     {

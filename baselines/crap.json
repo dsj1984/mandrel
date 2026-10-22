@@ -6810,340 +6810,327 @@
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "resolveLensTier",
-      "startLine": 28,
+      "startLine": 29,
       "crap": 3.0839772561597902
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "selectSensitivePathClasses",
-      "startLine": 57,
+      "startLine": 58,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "resolveNavigabilityRouteGlobs",
-      "startLine": 78,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon resolveNavigabilityRouteGlobs/(g)#0>",
-      "startLine": 80,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "_resetWebSurfaceCache",
-      "startLine": 131,
+      "startLine": 128,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "declaresDependencyIn",
-      "startLine": 143,
+      "startLine": 140,
       "crap": 2.002048
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon declaresDependencyIn/(name)#0>",
-      "startLine": 161,
+      "startLine": 158,
       "crap": 1.000512,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon declaresDependencyIn/(name)#0/(segment)#0>",
-      "startLine": 165,
+      "startLine": 162,
       "crap": 1.000512,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "declaresWebFramework",
-      "startLine": 173,
+      "startLine": 170,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "scanForWebAssets",
-      "startLine": 184,
+      "startLine": 181,
       "crap": 10.026853747776174
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "hasWebSurface",
-      "startLine": 224,
+      "startLine": 221,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "_resetPersistenceLayerCache",
-      "startLine": 278,
+      "startLine": 275,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "declaresOrmDependency",
-      "startLine": 286,
+      "startLine": 283,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "scanForPersistenceArtifacts",
-      "startLine": 297,
-      "crap": 10.05787037037037
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "scanNearRoot",
-      "startLine": 307,
+      "startLine": 299,
       "crap": 9.026569355037108
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "hasPersistenceLayer",
-      "startLine": 341,
-      "crap": 4
+      "method": "scanForPersistenceArtifacts",
+      "startLine": 333,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon scanForPersistenceArtifacts/(dir,name)#0>",
-      "startLine": 343,
+      "startLine": 335,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon scanForPersistenceArtifacts/(_dir,name)#0>",
-      "startLine": 346,
+      "startLine": 338,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "matchesFilePattern",
-      "startLine": 358,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "matchesAnyFilePattern",
-      "startLine": 362,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon matchesAnyFilePattern/(p)#0>",
-      "startLine": 364,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon matchesAnyFilePattern/(file)#0/(m)#0>",
-      "startLine": 365,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon matchesAnyFilePattern/(file)#0>",
-      "startLine": 365,
-      "crap": 1,
-      "anonymous": true
+      "method": "hasPersistenceLayer",
+      "startLine": 350,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "resolvePolicyCorpusGlobs",
-      "startLine": 378,
+      "startLine": 370,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon resolvePolicyCorpusGlobs/(g)#0>",
-      "startLine": 380,
+      "startLine": 372,
       "crap": 1,
       "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "isTestFile",
-      "startLine": 390,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "stemOf",
-      "startLine": 400,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "_resetPolicyCorpusCache",
-      "startLine": 405,
+      "startLine": 397,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "changeSetLacksSiblingTest",
-      "startLine": 412,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon changeSetLacksSiblingTest/(f)#0>",
-      "startLine": 414,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "isPolicyTextFile",
-      "startLine": 414,
+      "startLine": 406,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon changeSetLacksSiblingTest/(f)#1/(f)#0>",
-      "startLine": 417,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon changeSetLacksSiblingTest/(f)#1>",
-      "startLine": 417,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon changeSetLacksSiblingTest/(f)#2>",
-      "startLine": 420,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon isPolicyTextFile/(segment)#0>",
-      "startLine": 420,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "method": "<anon changeSetLacksSiblingTest/(src)#0>",
-      "startLine": 422,
+      "startLine": 412,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "scanForPolicyFiles",
-      "startLine": 428,
+      "startLine": 420,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon scanForPolicyFiles/(dir,name)#0>",
-      "startLine": 430,
+      "startLine": 422,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "hasPolicyCorpus",
-      "startLine": 442,
+      "startLine": 434,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "matchesFilePattern",
+      "startLine": 449,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "matchesAnyFilePattern",
+      "startLine": 453,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon matchesAnyFilePattern/(p)#0>",
+      "startLine": 455,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon matchesAnyFilePattern/(file)#0/(m)#0>",
+      "startLine": 456,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon matchesAnyFilePattern/(file)#0>",
+      "startLine": 456,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "isTestFile",
+      "startLine": 481,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "stemOf",
+      "startLine": 491,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "changeSetLacksSiblingTest",
+      "startLine": 503,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon changeSetLacksSiblingTest/(f)#0>",
+      "startLine": 505,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon changeSetLacksSiblingTest/(f)#1/(f)#0>",
+      "startLine": 508,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon changeSetLacksSiblingTest/(f)#1>",
+      "startLine": 508,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon changeSetLacksSiblingTest/(f)#2>",
+      "startLine": 511,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon changeSetLacksSiblingTest/(src)#0>",
+      "startLine": 513,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "selectAudits",
-      "startLine": 442,
+      "startLine": 535,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon selectAudits/(args)#0>",
-      "startLine": 462,
+      "startLine": 556,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon selectAudits/(f)#0>",
-      "startLine": 479,
+      "startLine": 573,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "loadAuditRules",
-      "startLine": 524,
+      "startLine": 619,
       "crap": 1.0233236151603498
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "ticketSearchText",
-      "startLine": 539,
+      "startLine": 634,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "resolveHeadRefOrDegrade",
-      "startLine": 550,
+      "startLine": 645,
       "crap": 4.35595703125
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "acquireChangedFilesFromDiff",
-      "startLine": 589,
+      "startLine": 684,
       "crap": 3.001125
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon acquireChangedFilesFromDiff/(f)#0>",
-      "startLine": 625,
+      "startLine": 720,
       "crap": 1.000125,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "matchesAnyKeyword",
-      "startLine": 637,
+      "startLine": 732,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon matchesAnyKeyword/(kw)#0>",
-      "startLine": 638,
+      "startLine": 733,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "makeTargetApplicabilityProbe",
-      "startLine": 651,
+      "startLine": 746,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon makeTargetApplicabilityProbe/(target)#0>",
-      "startLine": 661,
+      "startLine": 758,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "lensTriggerFires",
-      "startLine": 676,
+      "startLine": 773,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "matchAuditRules",
-      "startLine": 695,
+      "startLine": 792,
       "crap": 7
     },
     {
@@ -14679,39 +14666,39 @@
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "isSecretKey",
-      "startLine": 199,
+      "startLine": 195,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "<anon isSecretKey/(segment)#0>",
-      "startLine": 202,
+      "startLine": 198,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "<anon isSecretKey/(segment)#0/(pattern)#0>",
-      "startLine": 203,
+      "startLine": 199,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "meaningFor",
-      "startLine": 211,
+      "startLine": 207,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "attribute",
-      "startLine": 236,
+      "startLine": 232,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "explainConfig",
-      "startLine": 254,
+      "startLine": 250,
       "crap": 3
     },
     {
@@ -45064,27 +45051,27 @@
     {
       "path": "lib/migrations/index.js",
       "method": "selectStepsInRange",
-      "startLine": 68,
+      "startLine": 70,
       "crap": 1
     },
     {
       "path": "lib/migrations/index.js",
       "method": "<anon selectStepsInRange/(step)#0>",
-      "startLine": 75,
+      "startLine": 77,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": "lib/migrations/index.js",
       "method": "<anon selectStepsInRange/(a,b)#0>",
-      "startLine": 79,
+      "startLine": 81,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/migrations/index.js",
       "method": "runMigrations",
-      "startLine": 98,
+      "startLine": 100,
       "crap": 2
     },
     {
@@ -45255,6 +45242,19 @@
       "startLine": 51,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": "lib/migrations/steps/2.97.0-retire-quality-navigability.js",
+      "method": "<anon (key)#0>",
+      "startLine": 34,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/migrations/steps/2.97.0-retire-quality-navigability.js",
+      "method": "reportLines",
+      "startLine": 45,
+      "crap": 6
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
@@ -46978,46 +46978,46 @@
     },
     {
       "path": "scripts/lib/agentrc-key-ceiling.js",
-      "method": "branchesOf",
-      "startLine": 33,
-      "crap": 1
-    },
-    {
-      "path": "scripts/lib/agentrc-key-ceiling.js",
-      "method": "declaresProperties",
-      "startLine": 44,
-      "crap": 4
-    },
-    {
-      "path": "scripts/lib/agentrc-key-ceiling.js",
-      "method": "<anon declaresProperties/(branch)#0>",
-      "startLine": 47,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/agentrc-key-ceiling.js",
       "method": "formatCeilingBreach",
       "startLine": 51,
       "crap": 1
     },
     {
       "path": "scripts/lib/agentrc-key-ceiling.js",
+      "method": "branchesOf",
+      "startLine": 61,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agentrc-key-ceiling.js",
+      "method": "declaresProperties",
+      "startLine": 72,
+      "crap": 4
+    },
+    {
+      "path": "scripts/lib/agentrc-key-ceiling.js",
+      "method": "<anon declaresProperties/(branch)#0>",
+      "startLine": 75,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agentrc-key-ceiling.js",
       "method": "collectLeafKeys",
-      "startLine": 56,
+      "startLine": 84,
       "crap": 1
     },
     {
       "path": "scripts/lib/agentrc-key-ceiling.js",
       "method": "<anon collectLeafKeys/(node,prefix)#0>",
-      "startLine": 58,
+      "startLine": 86,
       "crap": 5,
       "anonymous": true
     },
     {
       "path": "scripts/lib/agentrc-key-ceiling.js",
       "method": "checkLeafKeyCeiling",
-      "startLine": 78,
+      "startLine": 106,
       "crap": 1
     },
     {

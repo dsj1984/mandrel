@@ -2727,6 +2727,10 @@
       "mi": 105.231
     },
     {
+      "path": "lib/migrations/steps/2.97.0-retire-quality-navigability.js",
+      "mi": 92.069
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "mi": 94.524
     },
