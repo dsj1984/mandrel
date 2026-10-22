@@ -14,7 +14,6 @@ import {
   resolveDetectClones,
   resolveFormatExtensions,
   scanDuplication,
-  scanFormatsFor,
 } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
 import { jscpdFormatsFor } from '../../.agents/scripts/lib/source-extensions.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -148,19 +147,26 @@ describe('scanDuplication — cwd differs from process.cwd() (Story #5636)', () 
   });
 
   it('extends, never narrows, the scorable formats (Story #5849)', async () => {
-    const seen = [];
-    await scanDuplication({
-      targetDirs: ['src'],
-      cwd: scanTree,
-      additionalFormats: ['python', 'javascript', 'go'],
-      detect: async (opts) => {
-        seen.push(opts);
-        return [];
-      },
-    });
-    assert.deepEqual(seen[0].format, [...jscpdFormatsFor(), 'python', 'go']);
-    assert.deepEqual(scanFormatsFor(['javascript']), jscpdFormatsFor());
-    assert.deepEqual(scanFormatsFor(undefined), jscpdFormatsFor());
+    const formatsFor = async (additionalFormats) => {
+      const seen = [];
+      await scanDuplication({
+        targetDirs: ['src'],
+        cwd: scanTree,
+        additionalFormats,
+        detect: async (opts) => {
+          seen.push(opts);
+          return [];
+        },
+      });
+      return seen[0].format;
+    };
+    assert.deepEqual(await formatsFor(['python', 'javascript', 'go']), [
+      ...jscpdFormatsFor(),
+      'python',
+      'go',
+    ]);
+    assert.deepEqual(await formatsFor(['javascript']), jscpdFormatsFor());
+    assert.deepEqual(await formatsFor(undefined), jscpdFormatsFor());
   });
 
   it('AC-3: when cwd === process.cwd(), rows match the relative-path scan', async () => {

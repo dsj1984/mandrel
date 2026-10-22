@@ -46,7 +46,7 @@ function loadJscpd(requireFn) {
  * @param {unknown} additionalFormats
  * @returns {string[]}
  */
-export function scanFormatsFor(additionalFormats) {
+function scanFormatsFor(additionalFormats) {
   const extra = Array.isArray(additionalFormats) ? additionalFormats : [];
   return [...new Set([...jscpdFormatsFor(), ...extra])];
 }
