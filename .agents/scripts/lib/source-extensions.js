@@ -3,9 +3,8 @@
  * coverage-freshness check, the refresh scope predicates, the close-time
  * CRAP/MI projections, native review and the duplication scanner's jscpd
  * formats must all agree: a narrower selector makes a gate green while
- * measuring nothing. Not configurable, for the same reason. The one sanctioned
- * superset is duplication's `additionalFormats`: jscpd reads languages the
- * engines cannot, so that gate may scan more than this list, never less.
+ * measuring nothing. Not configurable, for the same reason; only duplication's
+ * `additionalFormats` may scan more (jscpd reads what the engines cannot).
  *
  * MUST import only `node:` builtins — it runs on the pre-push path and must
  * not drag the scoring engines in.

@@ -68,8 +68,7 @@ const KIND_FILE_PREDICATES = Object.freeze({
   maintainability: isScorableSourceFile,
   crap: isScorableSourceFile,
   coverage: isScorableSourceFile,
-  // The scan always reads this set; `fileFilterFor` widens it by the
-  // configured `additionalFormats`, so the scope still matches the scan.
+  // `fileFilterFor` widens this by `additionalFormats`, as the scan does.
   duplication: isScorableSourceFile,
   // Bundle names are not paths: no changed file scopes a bundle row.
   'bundle-size': () => false,
@@ -568,8 +567,7 @@ export function fileFilterFor(kind, { additionalFormats } = {}) {
 }
 
 /**
- * The configured duplication `additionalFormats` under `cwd`. Best-effort,
- * like {@link resolveDefaultScorer}: an unreadable config yields none.
+ * Best-effort, like {@link resolveDefaultScorer}: an unreadable config yields none.
  *
  * @param {string} kind
  * @param {string} cwd

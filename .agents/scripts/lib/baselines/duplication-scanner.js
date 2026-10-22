@@ -41,9 +41,7 @@ function loadJscpd(requireFn) {
 }
 
 /**
- * The jscpd formats one scan reads: the scorable formats first, then each
- * `additionalFormats` entry not already present. Extend-only — no input can
- * drop a scorable format.
+ * Extend-only: no input can drop a scorable format.
  *
  * @param {unknown} additionalFormats
  * @returns {string[]}
@@ -54,10 +52,9 @@ export function scanFormatsFor(additionalFormats) {
 }
 
 /**
- * The lowercase, dot-prefixed extensions jscpd reads for each named format,
- * from jscpd's own format table. `@jscpd/tokenizer` is resolved through the
- * jscpd install, not imported: it is transitive, so a pnpm-isolated consumer
- * does not hoist it. An unknown name throws rather than scanning nothing.
+ * Dot-prefixed extensions from jscpd's own format table. The tokenizer is
+ * resolved through jscpd: it is transitive, so pnpm-isolated installs do not
+ * hoist it. An unknown name throws rather than scanning nothing.
  *
  * @param {string[]} formats
  * @param {NodeJS.Require} [requireFn] substitutes the module resolver
