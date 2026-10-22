@@ -58,20 +58,32 @@ const SUPPORTED_KINDS = Object.freeze([
 ]);
 
 /**
+ * Widened by the files jscpd reads for `additionalFormats`, as the scan is.
+ *
+ * @param {{ additionalFormats?: string[] }} [opts]
+ * @returns {(p: string) => boolean}
+ */
+function duplicationFileFilter({ additionalFormats } = {}) {
+  const extra = resolveFormatExtensions(additionalFormats);
+  if (extra.size === 0) return isScorableSourceFile;
+  return (p) =>
+    isScorableSourceFile(p) || extra.has(path.extname(p).toLowerCase());
+}
+
+/**
  * Per-kind extension filter for diff-derived scope, over canonical POSIX paths.
  *
- * @type {Record<string, (p: string) => boolean>}
+ * @type {Record<string, (opts: object) => (p: string) => boolean>}
  */
-const KIND_FILE_PREDICATES = Object.freeze({
+const KIND_FILE_FILTERS = Object.freeze({
   // The scanner walks exactly this set, so a scoped file it never scores
   // cannot trip the "produced no baseline rows" refusal.
-  maintainability: isScorableSourceFile,
-  crap: isScorableSourceFile,
-  coverage: isScorableSourceFile,
-  // `fileFilterFor` widens this by `additionalFormats`, as the scan does.
-  duplication: isScorableSourceFile,
+  maintainability: () => isScorableSourceFile,
+  crap: () => isScorableSourceFile,
+  coverage: () => isScorableSourceFile,
+  duplication: duplicationFileFilter,
   // Bundle names are not paths: no changed file scopes a bundle row.
-  'bundle-size': () => false,
+  'bundle-size': () => () => false,
 });
 
 /**
@@ -546,24 +558,20 @@ export async function deriveScopeFromDiff({
 }
 
 /**
- * `additionalFormats` widens only the duplication predicate, by the files
- * jscpd reads for those formats; every other kind ignores it.
+ * `opts.additionalFormats` widens only the duplication filter.
  *
  * @param {string} kind
  * @param {{ additionalFormats?: string[] }} [opts]
  * @returns {(p: string) => boolean}
  */
-export function fileFilterFor(kind, { additionalFormats } = {}) {
-  const pred = KIND_FILE_PREDICATES[kind];
-  if (!pred) {
+export function fileFilterFor(kind, opts) {
+  const build = KIND_FILE_FILTERS[kind];
+  if (!build) {
     throw new Error(
       `fileFilterFor: no predicate registered for kind "${kind}"`,
     );
   }
-  if (kind !== 'duplication') return pred;
-  const extra = resolveFormatExtensions(additionalFormats);
-  if (extra.size === 0) return pred;
-  return (p) => pred(p) || extra.has(path.extname(p).toLowerCase());
+  return build(opts);
 }
 
 /**
@@ -678,16 +686,13 @@ function buildDefaultDuplicationScorer({ cwd, config, quality, detect } = {}) {
   const ignoreGlobs = Array.isArray(dupCfg.ignoreGlobs)
     ? dupCfg.ignoreGlobs
     : [];
-  const additionalFormats = Array.isArray(dupCfg.additionalFormats)
-    ? dupCfg.additionalFormats
-    : [];
   return async (_files, opts) => {
     const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
     return scanDuplication({
       targetDirs,
       cwd: effectiveCwd,
       ignoreGlobs,
-      additionalFormats,
+      additionalFormats: dupCfg.additionalFormats,
       detect: detect ?? resolveDetectClones(),
     });
   };
