@@ -141,6 +141,36 @@ const PROJECT_SCHEMA = {
       ],
     },
     commands: COMMANDS_SCHEMA,
+    policies: {
+      type: 'object',
+      description:
+        'Published customer-facing policy corpus read by `/audit-policies`. Optional: absent means the lens and its applicability probe fall back to conventional policy file names (files under `policies/` or `legal/`, or basenames such as `privacy-policy` or `terms-of-service`).',
+      properties: {
+        corpusGlobs: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Globs naming where the published policy text lives (markdown, HTML, Astro or similar). Non-empty makes the project applicable for `/audit-policies` without a filesystem scan.',
+        },
+        impactMap: {
+          ...SAFE_STRING,
+          description:
+            'Repo-relative path to a JSON object mapping code globs to arrays of policy paths; focuses a change-set-scoped `/audit-policies` run on the policies a change can invalidate.',
+        },
+        backingDocs: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Runbook or SOP globs. A policy claim a documented manual procedure honors is reported as backed, not as a finding.',
+        },
+        acceptedFindings: {
+          ...SAFE_STRING,
+          description:
+            'Repo-relative path to a JSON array of `{ policy, quote, reason, reviewBy }` entries (`reviewBy` is `YYYY-MM-DD`). A matching unexpired entry suppresses the finding; an expired one is reported.',
+        },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 };
