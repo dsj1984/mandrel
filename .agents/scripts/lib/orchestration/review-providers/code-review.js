@@ -30,11 +30,11 @@ import { gitSpawn } from '../../git-utils.js';
 import { PROJECT_ROOT } from '../../project-root.js';
 import { buildCallersSection } from './callers-context.js';
 import {
-  clip,
   FINDINGS_SCHEMA_JSON,
   readAuthStatus,
   resolveVerdict,
 } from './claude-verdict.js';
+import { readDiff } from './generated-diff.js';
 import { renderDepthDirective } from './review-depth.js';
 import { probeClaudeCli } from './security-review.js';
 
@@ -211,18 +211,6 @@ async function reviewInTempDir(prompt, deps) {
   }
 }
 
-/**
- * @returns {{ reason: string } | { text: string }}
- */
-function readDiff(gitSpawnFn, { baseRef, headRef }) {
-  const range = `${baseRef}...${headRef}`;
-  const diff = gitSpawnFn(PROJECT_ROOT, 'diff', '--no-color', range);
-  if (diff.status === 0) return { text: diff.stdout };
-  return {
-    reason: `git diff ${range} failed: ${clip(diff.stderr) || '<no output>'}`,
-  };
-}
-
 function assertCliPresent(probeFn) {
   if (probeFn()) return;
   throw new Error(
@@ -269,7 +257,7 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
     async runReview(input) {
       degradations = [];
       assertInput(input);
-      const diff = readDiff(gitSpawnFn, input);
+      const diff = readDiff(gitSpawnFn, input, PROJECT_ROOT);
       if ('reason' in diff) return settle(diff);
       if (diff.text.trim().length === 0) return [];
       const truncation = truncationReason(diff.text);
