@@ -298,17 +298,7 @@ export function seedGitIdentity(
   );
 }
 
-/**
- * Give a fixture repository a `commit-msg` hook that refuses any message line
- * over `maxLine` characters, printing commitlint's rule tag the way
- * `@commitlint/config-conventional` does (`[body-max-line-length]`). It
- * measures with JavaScript `length`, as commitlint does — a byte-counting
- * `awk` would read a 100-char line holding `…` as 102.
- *
- * @param {string} repoDir - a repository created by `git init`.
- * @param {object} [opts]
- * @param {number} [opts.maxLine]
- */
+/** A `commit-msg` hook refusing lines over `maxLine` chars, as commitlint counts. */
 export function installStrictCommitMsgHook(repoDir, { maxLine = 100 } = {}) {
   const hooks = path.join(repoDir, '.githooks');
   mkdirSync(hooks, { recursive: true });

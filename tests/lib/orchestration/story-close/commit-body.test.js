@@ -1,9 +1,4 @@
-// tests/lib/orchestration/story-close/commit-body.test.js
-//
-// Story #5859 — the close-time git bounds every commit body line to
-// commitlint config-conventional's `body-max-line-length` (100), so a deep
-// path no longer gets a baseline commit refused; a refusal the hook still
-// makes names the rule and is reported as a warning.
+// Story #5859 — close-time commit bodies stay within commitlint's 100 chars.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -20,7 +15,6 @@ import {
   seedGitIdentity,
 } from '../../../fixtures/git-fixture.js';
 
-/** The path that refused the consumer commit: 86 chars, 106 as one row. */
 const CONSUMER_PATH =
   'apps/staff/src/pages/api/v1/finance/training-refund-reviews/[registrationId]/refund.ts';
 
@@ -31,7 +25,6 @@ function strictRepo() {
   return dir;
 }
 
-/** Commit `body` through the close git and read back what was committed. */
 function committedBody(dir, body) {
   closeGitSync(dir, 'commit', '--allow-empty', '-m', 'chore: s', '-m', body);
   const lines = closeGitSync(dir, 'log', '-1', '--format=%b').split('\n');

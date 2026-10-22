@@ -165,12 +165,10 @@ describe('runDuplicationCloseRescore — real git (AC-1)', () => {
 });
 
 describe('runDuplicationCloseRescore — commitlint body bound (Story #5859)', () => {
-  // The path that refused the consumer commit (86 chars; 106 as one row).
   const DEEP =
     'apps/staff/src/pages/api/v1/finance/training-refund-reviews/[registrationId]/refund.ts';
   const DEEPER = `packages/${'deeply-nested-module/'.repeat(5)}index.js`;
 
-  /** A real repo whose `commit-msg` hook refuses any line over 100 chars. */
   function strictHookRepo() {
     const root = makeTempDir('dup-rescore-hook-');
     const git = (...args) => gitSync(root, ...args);

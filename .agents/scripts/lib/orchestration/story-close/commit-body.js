@@ -1,12 +1,7 @@
 /**
- * commit-body.js — the git every close-time baseline write-back commits with.
- *
- * {@link closeGitSync} is a drop-in `gitSync` whose `git commit` bounds each
- * body line to commitlint `config-conventional`'s `body-max-line-length`
- * (100). A consumer's `commit-msg` hook is the authority, so a deep path is
- * re-flowed rather than the hook bypassed. A commit the hook still refuses
- * throws with {@link COMMIT_REFUSED} and the rule, which {@link refusalMark}
- * reports as a warning rather than a quiet skip.
+ * commit-body.js — the git close-time baseline write-backs commit with: each
+ * body line bounded to commitlint's `body-max-line-length` (100), never by
+ * bypassing the consumer's hook; a refusal names the rule and warns.
  */
 
 import { gitSync } from '../../git-utils.js';
@@ -14,24 +9,14 @@ import { Logger } from '../../Logger.js';
 
 const BODY_LINE_MAX = 100;
 
-/**
- * Leads a refused commit's message, so it survives each writer's own
- * `<label>: <message>` skip reason for the close step to recognise.
- */
+/** Survives each writer's own `<label>: <message>` skip reason. */
 const COMMIT_REFUSED = 'commit-refused:';
 
 const ROW_PREFIX = '- ';
 const CONTINUATION = '  ';
 const LEFT_ELLIPSIS = '…/';
 
-/**
- * Keep the tail of a path (the file name is what a reader needs), cut at a
- * segment boundary when one falls inside the kept span.
- *
- * @param {string} rowPath
- * @param {number} max
- * @returns {string}
- */
+/** Keep the path's tail, cut at a segment boundary. */
 function truncatePathLeft(rowPath, max) {
   if (rowPath.length <= max) return rowPath;
   const tail = rowPath.slice(rowPath.length - (max - LEFT_ELLIPSIS.length));
@@ -40,24 +25,11 @@ function truncatePathLeft(rowPath, max) {
   return `${LEFT_ELLIPSIS}${kept}`;
 }
 
-/**
- * @param {string} text
- * @param {number} max
- * @returns {string}
- */
 function truncateRight(text, max) {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
-/**
- * One body row, `- <path>: <detail>`, as one line when it fits; otherwise the
- * path on its own line (left-truncated past 98 chars) and the detail on an
- * indented continuation line. Every returned line is ≤ {@link BODY_LINE_MAX}.
- *
- * @param {string} rowPath
- * @param {string} detail
- * @returns {string[]}
- */
+/** `- <path>: <detail>`, or the path then an indented detail line. */
 function formatBodyRow(rowPath, detail) {
   const oneLine = `${ROW_PREFIX}${rowPath}: ${detail}`;
   if (oneLine.length <= BODY_LINE_MAX) return [oneLine];
@@ -67,15 +39,7 @@ function formatBodyRow(rowPath, detail) {
   ];
 }
 
-/**
- * Bound every line of a body: an over-long `- <path>: <detail>` row is
- * re-flowed by {@link formatBodyRow} (split at its last `: `, since a detail
- * never carries one); any other over-long line is cut on the right. Rows that
- * fit pass through unchanged.
- *
- * @param {string} body
- * @returns {string}
- */
+/** Re-flow over-long rows (split at the last `: `); cut other long lines. */
 function boundBody(body) {
   return body
     .split('\n')
@@ -93,15 +57,7 @@ function boundBody(body) {
     .join('\n');
 }
 
-/**
- * Name why `git commit` was refused: the bracketed commitlint rule(s) when the
- * hook printed any, else the last line it printed (husky's summary). Reads the
- * hook's stderr, not the error message, which echoes the commit argv — a
- * `[slug]` route segment in a body path is not a rule.
- *
- * @param {unknown} err
- * @returns {string}
- */
+/** The commitlint rule(s) from hook stderr — not the message, which echoes argv. */
 function describeCommitRefusal(err) {
   const text = String(err?.stderr || err?.message || err || '');
   const rules = [
@@ -115,23 +71,13 @@ function describeCommitRefusal(err) {
 
 /** `git commit` itself failed (a hook refused it), not a write or `git add`. */
 class CommitRefusedError extends Error {
-  /** @param {unknown} cause */
   constructor(cause) {
     super(`${COMMIT_REFUSED} ${describeCommitRefusal(cause)}`, { cause });
     this.name = 'CommitRefusedError';
   }
 }
 
-/**
- * `gitSync` for close-time write-backs. A `git commit` (hooks enabled) gets
- * every `-m` paragraph bounded by {@link boundBody} — a subject already fits —
- * and a failure throws {@link CommitRefusedError}; any other command passes
- * straight through.
- *
- * @param {string} cwd
- * @param {...string} args
- * @returns {string} trimmed stdout
- */
+/** Drop-in `gitSync`: a `git commit` gets bounded `-m` paragraphs. */
 export function closeGitSync(cwd, ...args) {
   if (args[0] !== 'commit') return gitSync(cwd, ...args);
   const bounded = args.map((arg, i) =>
@@ -144,15 +90,7 @@ export function closeGitSync(cwd, ...args) {
   }
 }
 
-/**
- * The close step's mark for a write-back that did not commit: `⚠️`, logged at
- * warning level, when a hook refused the commit (its rows stay stale — the
- * drift the write-back exists to prevent), else the plain `⏭` skip.
- *
- * @param {string} tag the close step's log tag
- * @param {string|undefined} reason the write-back's skip reason or error
- * @returns {'⚠️'|'⏭'}
- */
+/** `⚠️` plus a warn-level log for a refused commit, else `⏭`. */
 export function refusalMark(tag, reason) {
   if (!String(reason ?? '').includes(COMMIT_REFUSED)) return '⏭';
   Logger.warn(

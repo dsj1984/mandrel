@@ -628,7 +628,6 @@ describe('runBaselineUpwardWriteback — commitlint body bound (Story #5859 AC-2
   const REL = 'baselines/maintainability.json';
   const DEEP = `.agents/scripts/lib/${'deeply-nested-module/'.repeat(5)}a.js`;
 
-  /** `story-5859` changed a file deep enough to overflow a body row. */
   function deepPathRepo() {
     const dir = makeTempDir('writeback-bound-');
     const run = (...args) =>
@@ -659,7 +658,6 @@ describe('runBaselineUpwardWriteback — commitlint body bound (Story #5859 AC-2
       baseBranch: 'main',
       storyBranch: 'story-5859',
       logger: makeLogger(),
-      // No `gitSync`: the step's default is the close git that bounds bodies.
       loadBaselineRows: () => [{ path: DEEP, mi: 60 }],
       scoreFiles: () => [{ path: DEEP, mi: scored }],
       refreshBaseline: async ({ writePath }) => {
