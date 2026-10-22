@@ -2781,6 +2781,12 @@
       "functions": 94.12
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-close/commit-body.js",
+      "lines": 100,
+      "branches": 88.37,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
       "lines": 100,
       "branches": 89.74,
