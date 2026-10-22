@@ -10248,6 +10248,12 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "diffScopeFilterFor",
+      "startLine": 586,
+      "crap": 1.008
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "readPriorEnvelope",
       "startLine": 592,
       "crap": 5.150262960180315
