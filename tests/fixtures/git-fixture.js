@@ -18,6 +18,7 @@ import {
   appendFileSync,
   cpSync,
   existsSync,
+  mkdirSync,
   readFileSync,
   statSync,
   writeFileSync,
@@ -295,4 +296,27 @@ export function seedGitIdentity(
     gitConfigPath(repoDir),
     `[user]\n\temail = ${email}\n\tname = ${name}\n[commit]\n\tgpgsign = false\n`,
   );
+}
+
+/**
+ * Give a fixture repository a `commit-msg` hook that refuses any message line
+ * over `maxLine` characters, printing commitlint's rule tag the way
+ * `@commitlint/config-conventional` does (`[body-max-line-length]`). It
+ * measures with JavaScript `length`, as commitlint does — a byte-counting
+ * `awk` would read a 100-char line holding `…` as 102.
+ *
+ * @param {string} repoDir - a repository created by `git init`.
+ * @param {object} [opts]
+ * @param {number} [opts.maxLine]
+ */
+export function installStrictCommitMsgHook(repoDir, { maxLine = 100 } = {}) {
+  const hooks = path.join(repoDir, '.githooks');
+  mkdirSync(hooks, { recursive: true });
+  const check = `const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\\n"); if (lines.some((l) => l.length > ${maxLine})) { console.error("line too long [body-max-line-length]"); process.exit(1); }`;
+  writeFileSync(
+    path.join(hooks, 'commit-msg'),
+    `#!/bin/sh\nexec node -e '${check}' "$1"\n`,
+    { mode: 0o755 },
+  );
+  appendFileSync(gitConfigPath(repoDir), '[core]\n\thooksPath = .githooks\n');
 }

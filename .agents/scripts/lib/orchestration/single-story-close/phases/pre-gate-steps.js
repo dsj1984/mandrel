@@ -10,6 +10,7 @@
 
 import { Logger } from '../../../Logger.js';
 import { runBaselineUpwardWriteback as defaultRunBaselineUpwardWriteback } from '../../story-close/baseline-upward-writeback.js';
+import { refusalMark } from '../../story-close/commit-body.js';
 import { runContextBudgetWriteback as defaultRunContextBudgetWriteback } from '../../story-close/context-budget-writeback.js';
 import { runDuplicationCloseRescore as defaultRunDuplicationCloseRescore } from '../../story-close/duplication-close-rescore.js';
 import { runScopedFormatAutofix as defaultRunScopedFormatAutofix } from '../../story-close/format-autofix.js';
@@ -74,7 +75,7 @@ async function writebackStep(
     tag,
     writeback?.committed
       ? `✅ ${describe(writeback)} as ${writeback.sha} on ${storyBranch}.`
-      : `⏭ No ${noun} (${writeback?.reason ?? 'nothing to write'}).`,
+      : `${refusalMark(tag, writeback?.reason)} No ${noun} (${writeback?.reason ?? 'nothing to write'}).`,
   );
 }
 
@@ -88,6 +89,7 @@ async function bestEffort({ tag, label, progress, run }) {
   try {
     await run();
   } catch (err) {
+    refusalMark(tag, err?.message);
     progress(
       tag,
       `⚠️ ${label} failed (close continues; the gate chain is authoritative): ${err?.message ?? err}`,

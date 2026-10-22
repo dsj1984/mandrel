@@ -28,9 +28,9 @@ import {
   extractRowsFromKnip,
 } from '../../dead-exports-knip.js';
 import { resolveDeadExportsMode } from '../../dead-exports-mode.js';
-import { gitSync as defaultGitSync } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 import { toPosix } from '../../util/paths.js';
+import { closeGitSync as defaultGitSync } from './commit-body.js';
 import { currentBranch, listDirtyPaths } from './format-autofix.js';
 
 const TAG = '[ratchet-shrink]';
