@@ -10,8 +10,6 @@ import { jscpdFormatsFor } from '../source-extensions.js';
 import { toPosix } from '../util/paths.js';
 
 const DEFAULT_MIN_TOKENS = 50;
-/** Derived from the scorable-extension SSOT; deliberately not configurable. */
-const SCAN_FORMATS = Object.freeze(jscpdFormatsFor());
 
 const require = createRequire(import.meta.url);
 
@@ -40,6 +38,48 @@ function loadJscpd(requireFn) {
     missing.code = JSCPD_MISSING;
     throw missing;
   }
+}
+
+/**
+ * The jscpd formats one scan reads: the scorable formats first, then each
+ * `additionalFormats` entry not already present. Extend-only — no input can
+ * drop a scorable format.
+ *
+ * @param {unknown} additionalFormats
+ * @returns {string[]}
+ */
+export function scanFormatsFor(additionalFormats) {
+  const extra = Array.isArray(additionalFormats) ? additionalFormats : [];
+  return [...new Set([...jscpdFormatsFor(), ...extra])];
+}
+
+/**
+ * The lowercase, dot-prefixed extensions jscpd reads for each named format,
+ * from jscpd's own format table. `@jscpd/tokenizer` is resolved through the
+ * jscpd install, not imported: it is transitive, so a pnpm-isolated consumer
+ * does not hoist it. An unknown name throws rather than scanning nothing.
+ *
+ * @param {string[]} formats
+ * @param {NodeJS.Require} [requireFn] substitutes the module resolver
+ * @returns {Set<string>}
+ */
+export function resolveFormatExtensions(formats, requireFn = require) {
+  if (!Array.isArray(formats) || formats.length === 0) return new Set();
+  loadJscpd(requireFn);
+  const { FORMATS } = createRequire(requireFn.resolve('jscpd'))(
+    '@jscpd/tokenizer',
+  );
+  const unknown = formats.filter((name) => !Object.hasOwn(FORMATS, name));
+  if (unknown.length > 0) {
+    throw new Error(
+      `[Duplication] unknown jscpd format(s) in duplication.additionalFormats: ${unknown.join(', ')}`,
+    );
+  }
+  return new Set(
+    formats.flatMap((name) =>
+      FORMATS[name].exts.map((ext) => `.${ext.toLowerCase()}`),
+    ),
+  );
 }
 
 /**
@@ -213,6 +253,7 @@ function anchorIgnoreGlobs(ignoreGlobs, cwd) {
  *   cwd?: string,
  *   minTokens?: number,
  *   ignoreGlobs?: string[],
+ *   additionalFormats?: string[],
  *   detect: (opts: object) => Promise<Array<object>>,
  *   readLineCount?: (absPath: string) => number,
  * }} params
@@ -223,6 +264,7 @@ export async function scanDuplication({
   cwd = process.cwd(),
   minTokens = DEFAULT_MIN_TOKENS,
   ignoreGlobs = [],
+  additionalFormats = [],
   detect,
   readLineCount: readLineCountFn = readLineCount,
 }) {
@@ -230,13 +272,15 @@ export async function scanDuplication({
     throw new TypeError('scanDuplication: detect must be a function');
   }
   const dirs = Array.isArray(targetDirs) ? targetDirs : [];
+  // jscpd skips a format it does not know; refuse it instead.
+  resolveFormatExtensions(additionalFormats);
   const clones = await detect({
     path: dirs.map((dir) => toPosix(path.resolve(cwd, dir))),
     cwd,
     silent: true,
     gitignore: false,
     reporters: [],
-    format: [...SCAN_FORMATS],
+    format: scanFormatsFor(additionalFormats),
     minTokens,
     ignore: anchorIgnoreGlobs(ignoreGlobs, cwd),
   });

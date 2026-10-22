@@ -3,7 +3,9 @@
  * coverage-freshness check, the refresh scope predicates, the close-time
  * CRAP/MI projections, native review and the duplication scanner's jscpd
  * formats must all agree: a narrower selector makes a gate green while
- * measuring nothing. Not configurable, for the same reason.
+ * measuring nothing. Not configurable, for the same reason. The one sanctioned
+ * superset is duplication's `additionalFormats`: jscpd reads languages the
+ * engines cannot, so that gate may scan more than this list, never less.
  *
  * MUST import only `node:` builtins — it runs on the pre-push path and must
  * not drag the scoring engines in.
@@ -51,7 +53,7 @@ export function isScorableSourceFile(filePath) {
 
 /**
  * The jscpd formats covering the scorable list. Derived, never declared: the
- * duplication gate scans exactly the files the other gates score.
+ * duplication gate always scans the files the other gates score.
  *
  * @returns {string[]}
  */

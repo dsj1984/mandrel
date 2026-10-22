@@ -12,7 +12,9 @@ import {
   collectVisitedFiles,
   readLineCount,
   resolveDetectClones,
+  resolveFormatExtensions,
   scanDuplication,
+  scanFormatsFor,
 } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
 import { jscpdFormatsFor } from '../../.agents/scripts/lib/source-extensions.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -145,6 +147,22 @@ describe('scanDuplication — cwd differs from process.cwd() (Story #5636)', () 
     ]);
   });
 
+  it('extends, never narrows, the scorable formats (Story #5849)', async () => {
+    const seen = [];
+    await scanDuplication({
+      targetDirs: ['src'],
+      cwd: scanTree,
+      additionalFormats: ['python', 'javascript', 'go'],
+      detect: async (opts) => {
+        seen.push(opts);
+        return [];
+      },
+    });
+    assert.deepEqual(seen[0].format, [...jscpdFormatsFor(), 'python', 'go']);
+    assert.deepEqual(scanFormatsFor(['javascript']), jscpdFormatsFor());
+    assert.deepEqual(scanFormatsFor(undefined), jscpdFormatsFor());
+  });
+
   it('AC-3: when cwd === process.cwd(), rows match the relative-path scan', async () => {
     process.chdir(scanTree);
     const cwd = process.cwd();
@@ -174,5 +192,39 @@ describe('scanDuplication — cwd differs from process.cwd() (Story #5636)', () 
       ]),
     );
     assert.deepEqual(rows, buildDuplicationRows(clones, counts, cwd));
+  });
+});
+
+describe('resolveFormatExtensions (Story #5849)', () => {
+  it("reads each format's extensions from jscpd's own table", () => {
+    const exts = resolveFormatExtensions(['python']);
+    assert.ok(exts.has('.py'));
+    assert.equal(exts.has('.ts'), false);
+  });
+
+  it('returns no extensions for no formats, without loading jscpd', () => {
+    const requireFn = () => {
+      throw new Error('jscpd must not load');
+    };
+    assert.equal(resolveFormatExtensions([], requireFn).size, 0);
+  });
+
+  it('names every unknown format', () => {
+    assert.throws(
+      () => resolveFormatExtensions(['python', 'klingon', 'vulcan']),
+      /unknown jscpd format\(s\) in duplication\.additionalFormats: klingon, vulcan/,
+    );
+  });
+
+  it('surfaces the missing-install refusal when jscpd is absent', () => {
+    const requireFn = () => {
+      const err = new Error('nope');
+      err.code = 'MODULE_NOT_FOUND';
+      throw err;
+    };
+    assert.throws(
+      () => resolveFormatExtensions(['python'], requireFn),
+      (err) => err.code === 'JSCPD_MISSING',
+    );
   });
 });

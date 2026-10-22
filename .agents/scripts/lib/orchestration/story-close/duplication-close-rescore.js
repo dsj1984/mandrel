@@ -90,17 +90,24 @@ function resolveScopeBase({ workTree, git, baseBranch }) {
  * Guards plus the scoped file list. A dirty baseline file would otherwise be
  * swept into the commit.
  *
- * @param {{ workTree: string, baseBranch: string, storyBranch: string, git: Function, relPath: string }} ctx
+ * @param {{ workTree: string, baseBranch: string, storyBranch: string, git: Function, relPath: string, additionalFormats?: string[] }} ctx
  * @returns {{ reason: string } | { files: string[] }}
  */
-function resolveScope({ workTree, baseBranch, storyBranch, git, relPath }) {
+function resolveScope({
+  workTree,
+  baseBranch,
+  storyBranch,
+  git,
+  relPath,
+  additionalFormats,
+}) {
   if (currentBranch(workTree, git) !== storyBranch) {
     return { reason: 'wrong-branch' };
   }
   if (listDirtyPaths(workTree, git).includes(relPath)) {
     return { reason: 'dirty-tree' };
   }
-  const isScorable = fileFilterFor(KIND);
+  const isScorable = fileFilterFor(KIND, { additionalFormats });
   const files = listChangedFiles({
     cwd: workTree,
     baseBranch: resolveScopeBase({ workTree, git, baseBranch }),
@@ -209,7 +216,15 @@ export async function runDuplicationCloseRescore({
   const relPath = gate.value.baselinePath ?? DEFAULT_BASELINE_REL_PATH;
   const writePath = path.resolve(workTree, relPath);
   const scope = await attempt(
-    () => resolveScope({ workTree, baseBranch, storyBranch, git, relPath }),
+    () =>
+      resolveScope({
+        workTree,
+        baseBranch,
+        storyBranch,
+        git,
+        relPath,
+        additionalFormats: gate.value.additionalFormats,
+      }),
     'git-failed',
   );
   if (scope.reason) return skip(logger, scope.reason);

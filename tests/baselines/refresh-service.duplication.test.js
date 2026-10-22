@@ -31,6 +31,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { resolveDetectClones } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
 import { getKindModule } from '../../.agents/scripts/lib/baselines/kernel.js';
 import {
+  fileFilterFor,
   refreshBaseline,
   resolveDefaultScorer,
 } from '../../.agents/scripts/lib/baselines/refresh-service.js';
@@ -446,5 +447,178 @@ describe('default duplication scorer — derived jscpd formats (Stories #5605, #
       'src/e.jsx',
       'src/f.jsx',
     ]);
+  });
+});
+
+/**
+ * Story #5849 — `additionalFormats` extends the scan past the scorable list,
+ * so a polyglot consumer's Python clones are measured again. Real scorer,
+ * real jscpd, over cloned Python and TS pairs.
+ */
+describe('default duplication scorer — additionalFormats (Story #5849)', () => {
+  let workDir;
+
+  beforeEach(() => {
+    workDir = makeTempDir('mandrel-dup-extra-');
+  });
+
+  afterEach(() => {
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  function clonedPython(salt) {
+    return Array.from(
+      { length: 6 },
+      (_, i) =>
+        `def compute_${salt}${i}(alpha, beta):\n` +
+        `    total = alpha * beta + ${i}\n` +
+        '    if total > 100:\n' +
+        '        return total - alpha\n' +
+        `    return total + beta * ${i}\n`,
+    ).join('\n');
+  }
+
+  function clonedTs(salt) {
+    return Array.from(
+      { length: 6 },
+      (_, i) =>
+        `export function compute${salt}${i}(alpha: number, beta: number) {\n` +
+        `  const total = alpha * beta + ${i};\n` +
+        '  if (total > 100) { return total - alpha; }\n' +
+        `  return total + beta * ${i};\n` +
+        '}\n',
+    ).join('\n');
+  }
+
+  /** Writes the fixture tree and its `.agentrc.json`; returns its src dir. */
+  function seedFixture(duplicationExtras = {}) {
+    const srcDir = path.join(workDir, 'src');
+    mkdirSync(srcDir, { recursive: true });
+    for (const f of ['a.py', 'b.py']) {
+      writeFileSync(path.join(srcDir, f), clonedPython('p'));
+    }
+    for (const f of ['c.ts', 'd.ts']) {
+      writeFileSync(path.join(srcDir, f), clonedTs('T'));
+    }
+    writeFileSync(
+      path.join(workDir, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          paths: {
+            agentRoot: '.agents',
+            docsRoot: 'docs',
+            tempRoot: path.join(workDir, 'temp'),
+          },
+        },
+        delivery: {
+          quality: {
+            gates: {
+              duplication: {
+                targetDirs: [srcDir.split(path.sep).join('/')],
+                ...duplicationExtras,
+              },
+            },
+          },
+        },
+      }),
+    );
+    return srcDir;
+  }
+
+  async function scannedPaths(duplicationExtras) {
+    seedFixture(duplicationExtras);
+    const scorer = resolveDefaultScorer('duplication', { cwd: workDir });
+    const rows = await scorer([], { cwd: workDir });
+    return rows.map((r) => r.path).sort();
+  }
+
+  it('without the key, Python is not scanned', async () => {
+    assert.deepEqual(await scannedPaths(), ['src/c.ts', 'src/d.ts']);
+  });
+
+  it('additionalFormats: ["python"] adds the .py rows beside the scorable ones', async () => {
+    assert.deepEqual(await scannedPaths({ additionalFormats: ['python'] }), [
+      'src/a.py',
+      'src/b.py',
+      'src/c.ts',
+      'src/d.ts',
+    ]);
+  });
+
+  it('a full-scope refresh writes the .py rows to the baseline', async () => {
+    seedFixture({ additionalFormats: ['python'] });
+    const writePath = path.join(workDir, 'baselines', 'duplication.json');
+    await refreshBaseline({
+      kind: 'duplication',
+      cwd: workDir,
+      writePath,
+      fullScope: true,
+    });
+    const rows = JSON.parse(readFileSync(writePath, 'utf8')).rows;
+    assert.ok(rows.some((r) => r.path === 'src/a.py'));
+  });
+
+  /** Config resolution caches per cwd, so each case seeds its own tree. */
+  async function diffScopedRefresh(duplicationExtras) {
+    seedFixture(duplicationExtras);
+    const writePath = path.join(workDir, 'baselines', 'duplication.json');
+    const result = await refreshBaseline({
+      kind: 'duplication',
+      cwd: workDir,
+      writePath,
+      gitDiff: async () => ['src/a.py', 'src/c.ts'],
+    });
+    const rows = JSON.parse(readFileSync(writePath, 'utf8')).rows;
+    return { files: result.scope.files, paths: rows.map((r) => r.path) };
+  }
+
+  it('a diff-scoped refresh leaves a changed .py file out by default', async () => {
+    const { files } = await diffScopedRefresh();
+    // Clone partners widen the scope, so assert on membership.
+    assert.ok(files.includes('src/c.ts'));
+    assert.equal(files.includes('src/a.py'), false);
+  });
+
+  it('a diff-scoped refresh rewrites a changed .py row once python is configured', async () => {
+    const { files, paths } = await diffScopedRefresh({
+      additionalFormats: ['python'],
+    });
+    assert.ok(files.includes('src/a.py'));
+    assert.ok(paths.includes('src/a.py'));
+  });
+
+  it('an unknown format fails the scan, naming it', async () => {
+    await assert.rejects(
+      () => scannedPaths({ additionalFormats: ['python', 'klingon'] }),
+      /unknown jscpd format\(s\).*klingon/,
+    );
+  });
+});
+
+describe('fileFilterFor — additionalFormats widens duplication only (Story #5849)', () => {
+  it('duplication admits .py once python is configured', () => {
+    assert.equal(fileFilterFor('duplication')('src/a.py'), false);
+    const pred = fileFilterFor('duplication', {
+      additionalFormats: ['python'],
+    });
+    assert.equal(pred('src/a.py'), true);
+    assert.equal(pred('src/A.PY'), true);
+    assert.equal(pred('src/b.ts'), true);
+    assert.equal(pred('README.md'), false);
+  });
+
+  for (const kind of ['maintainability', 'crap', 'coverage']) {
+    it(`${kind} still rejects .py whatever the duplication config says`, () => {
+      const pred = fileFilterFor(kind, { additionalFormats: ['python'] });
+      assert.equal(pred('src/a.py'), false);
+      assert.equal(pred('src/b.ts'), true);
+    });
+  }
+
+  it('an unknown format is refused rather than matching nothing', () => {
+    assert.throws(
+      () => fileFilterFor('duplication', { additionalFormats: ['klingon'] }),
+      /unknown jscpd format\(s\).*klingon/,
+    );
   });
 });

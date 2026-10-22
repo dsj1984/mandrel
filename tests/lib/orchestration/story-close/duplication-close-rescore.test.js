@@ -221,6 +221,26 @@ describe('runDuplicationCloseRescore — named skips (AC-2)', () => {
     );
   });
 
+  test('a changed .py file is re-scored only once python is configured (Story #5849)', async () => {
+    const pyOnly = () => gitStub({ changed: 'src/a.py' });
+    assert.equal((await stubbed({ git: pyOnly() })).reason, 'no-changed-files');
+    const scoped = [];
+    const python = {
+      delivery: {
+        quality: { gates: { duplication: { additionalFormats: ['python'] } } },
+      },
+    };
+    await stubbed({
+      git: pyOnly(),
+      config: python,
+      refreshBaseline: async ({ scopeFiles }) => {
+        scoped.push(...scopeFiles);
+        return { wrote: false };
+      },
+    });
+    assert.deepEqual(scoped, ['src/a.py']);
+  });
+
   test('a disabled gate skips; an unreadable config is a named skip', async () => {
     const disabled = {
       delivery: { quality: { gates: { duplication: { enabled: false } } } },
