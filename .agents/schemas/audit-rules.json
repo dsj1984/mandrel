@@ -110,6 +110,38 @@
       "scope": "local",
       "substitutionKeys": []
     },
+    "audit-policies": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "policy",
+          "policies",
+          "terms of service",
+          "privacy policy",
+          "cookie notice",
+          "refund policy",
+          "cancellation policy",
+          "waiver",
+          "consent form",
+          "legal text"
+        ],
+        "filePatterns": [
+          "**/policies/**",
+          "**/legal/**",
+          "**/*privacy-policy*",
+          "**/*cookie-policy*",
+          "**/*cookie-notice*",
+          "**/*refund-policy*",
+          "**/*cancellation-policy*",
+          "**/*terms-of-service*",
+          "**/*terms-of-use*",
+          "**/*terms-and-conditions*"
+        ]
+      },
+      "target": "policies",
+      "scope": "cumulative",
+      "substitutionKeys": []
+    },
     "audit-accessibility": {
       "triggers": {
         "gates": ["gate2", "gate3"],

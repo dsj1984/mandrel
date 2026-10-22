@@ -51,7 +51,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (35)
+## Commands (36)
 
 | Command | Description |
 | --- | --- |
@@ -69,6 +69,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-mobile` | Audit mobile and tablet UX — layout and viewport correctness, touch ergonomics, responsive assets, and whether anything actually verifies them at a small viewport (static-first, with an optional runtime viewport pass) |
 | `/audit-navigability` | Audit the whole route tree against the consumer's nav-registry SSOT — every route has a persona nav door and no nav href is dead. A deliberately-global lens exempt from the cross-epic-leak guard and routed onto route-adding change sets. |
 | `/audit-performance` | Audit performance by measuring first — profile hot paths, I/O, memory, and payload against the repo's own numbers — and audit interleaving/partial-failure correctness (TOCTOU, unawaited promises, non-atomic writes) as a first-class dimension. |
+| `/audit-policies` | Audit a project's published customer-facing policies (Terms, Privacy, Cookie, refund and cancellation, consent and waiver text) against what the code actually does, in both directions — promises the system does not keep and practices no policy discloses. Never edits policy text; every finding names a decision. |
 | `/audit-privacy` | Audit logs, telemetry, and persistence paths for PII leakage and retention violations; surface secrets exposure and consent gaps. |
 | `/audit-quality` | Audit test coverage gaps, flaky tests, missing assertions, and test-pyramid balance; recommend a remediation batch. |
 | `/audit-red-team` | Audit the project as a goal-directed adversary — attack paths that chain two or more crossings, abuse of intended features, agent exposure to hostile repository or inbound content, hostile operations and operator hazards — graded under a reproduced-or-reasoned evidence bar. A deliberately-global lens that runs on any project. |

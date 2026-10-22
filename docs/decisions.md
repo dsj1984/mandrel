@@ -723,6 +723,17 @@ Stories are its worked examples:
 
 The ceiling number does not change here.
 
+**Raised to 142 (2026-10-21, Story #5848)** for the closed `project.policies`
+block read by `/audit-policies`: `corpusGlobs`, `impactMap`, `backingDocs` and
+`acceptedFindings`. Where a project keeps its published policy text, which
+code each policy describes, which manual procedures honor a commitment, and
+which text/code divergences an operator has accepted are facts about one
+project's content. No tool config, manifest or existing key holds them: the
+probe's conventional file names cover the common layout, which is why every
+key is optional, but cannot name a corpus kept elsewhere, and the other three
+have no source to derive from at all. A holistic re-survey of the `.agentrc`
+surface and the go-forward ceiling is Story #5850.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,
