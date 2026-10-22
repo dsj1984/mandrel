@@ -17,6 +17,11 @@
  *     the selected roster for the Mandrel checkout even when the change set
  *     matches its `filePatterns`, and IS selected once the probe reports a
  *     persistence layer.
+ *
+ * The `target: "policies"` gate's `hasPolicyCorpus` probe (Story #5848) is
+ * pinned the same way: configured corpus globs or a conventional policy file
+ * make a project applicable, a bare `privacy.md` does not, and the Mandrel
+ * checkout self-skips `audit-policies`.
  */
 
 import assert from 'node:assert/strict';
@@ -27,7 +32,9 @@ import { fileURLToPath } from 'node:url';
 import { makeTempDir } from '../../test-temp.js';
 import {
   _resetPersistenceLayerCache,
+  _resetPolicyCorpusCache,
   hasPersistenceLayer,
+  hasPolicyCorpus,
   selectAudits,
 } from '../selector.js';
 
@@ -52,6 +59,7 @@ function writeUnder(root, relPath, contents) {
 
 afterEach(() => {
   _resetPersistenceLayerCache();
+  _resetPolicyCorpusCache();
 });
 
 describe('hasPersistenceLayer (Story #4633)', () => {
@@ -155,6 +163,88 @@ describe('selectAudits routing gate for audit-data-model (Story #4633)', () => {
     assert.ok(
       selectedAudits.includes('audit-data-model'),
       `expected audit-data-model to be selected for a persistence-layer project; got ${selectedAudits.join(', ')}`,
+    );
+  });
+});
+
+describe('hasPolicyCorpus (Story #5848)', () => {
+  it('resolves applicable from configured corpusGlobs without scanning the filesystem', () => {
+    // A readable root with no policy file: the scan alone would say false.
+    const root = makeFixture((r) => {
+      writeUnder(r, 'src/index.js', 'export const x = 1;\n');
+    });
+    const config = { project: { policies: { corpusGlobs: ['site/**/*.md'] } } };
+    assert.equal(hasPolicyCorpus({ config, projectRoot: root }), true);
+    // The configured answer short-circuits before the scan, so nothing was
+    // cached for this root: the unconfigured probe now scans and says false.
+    assert.equal(hasPolicyCorpus({ config: null, projectRoot: root }), false);
+  });
+
+  it('resolves applicable for a policy file under a legal/ directory', () => {
+    const root = makeFixture((r) => {
+      writeUnder(r, 'site/legal/terms.astro', '<h1>Terms</h1>\n');
+    });
+    assert.equal(hasPolicyCorpus({ projectRoot: root }), true);
+  });
+
+  it('resolves applicable for a privacy-policy.md basename anywhere near the root', () => {
+    const root = makeFixture((r) => {
+      writeUnder(r, 'content/privacy-policy.md', '# Privacy Policy\n');
+    });
+    assert.equal(hasPolicyCorpus({ projectRoot: root }), true);
+  });
+
+  it('resolves NOT applicable for a bare privacy.md outside a policy directory', () => {
+    const root = makeFixture((r) => {
+      writeUnder(r, 'docs/privacy.md', '# Privacy notes\n');
+      writeUnder(r, 'src/index.js', 'export const x = 1;\n');
+    });
+    assert.equal(hasPolicyCorpus({ projectRoot: root }), false);
+  });
+
+  it('fails OPEN when the project root is unreadable', () => {
+    const missingRoot = path.join(makeTempDir('policy-probe-'), 'absent');
+    assert.equal(hasPolicyCorpus({ projectRoot: missingRoot }), true);
+  });
+
+  it('self-skips: the Mandrel checkout resolves NOT applicable', () => {
+    assert.equal(hasPolicyCorpus({ projectRoot: MANDREL_ROOT }), false);
+  });
+});
+
+describe('selectAudits routing gate for audit-policies (Story #5848)', () => {
+  const provider = {
+    getTicket: async () => ({
+      title: 'Change the refund window',
+      body: 'Updates the refund policy page and the checkout code.',
+    }),
+  };
+
+  it('filters audit-policies out when the probe reports no corpus, even when the change set matches its filePatterns', async () => {
+    const { selectedAudits } = await selectAudits({
+      ticketId: 1,
+      gate: 'gate1',
+      provider,
+      changedFiles: ['site/legal/refund-policy.md'],
+      hasPolicyCorpusFn: () => false,
+    });
+    assert.ok(
+      !selectedAudits.includes('audit-policies'),
+      `expected audit-policies to skip a policy-less project; got ${selectedAudits.join(', ')}`,
+    );
+  });
+
+  it('selects audit-policies when the probe reports a corpus and the change set matches', async () => {
+    const { selectedAudits } = await selectAudits({
+      ticketId: 1,
+      gate: 'gate1',
+      provider,
+      changedFiles: ['site/legal/refund-policy.md'],
+      hasPolicyCorpusFn: () => true,
+    });
+    assert.ok(
+      selectedAudits.includes('audit-policies'),
+      `expected audit-policies to be selected for a policy-corpus project; got ${selectedAudits.join(', ')}`,
     );
   });
 });

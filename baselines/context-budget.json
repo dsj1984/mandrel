@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-10-22T01:40:50.109Z",
+  "generatedAt": "2026-10-22T01:54:16.736Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -25,7 +25,7 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 482010,
+      "totalBytes": 482750,
       "files": [
         {
           "path": "docs/architecture.md",
@@ -37,7 +37,7 @@
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 293225
+          "bytes": 293965
         },
         {
           "path": "docs/patterns.md",
@@ -46,7 +46,7 @@
       ]
     },
     "workflow": {
-      "totalBytes": 352932,
+      "totalBytes": 363412,
       "files": [
         {
           "path": ".agents/workflows/audit-accessibility.md",
@@ -82,7 +82,7 @@
         },
         {
           "path": ".agents/workflows/audit-documentation.md",
-          "bytes": 12552
+          "bytes": 12837
         },
         {
           "path": ".agents/workflows/audit-exceptions.md",
@@ -103,6 +103,10 @@
         {
           "path": ".agents/workflows/audit-performance.md",
           "bytes": 10917
+        },
+        {
+          "path": ".agents/workflows/audit-policies.md",
+          "bytes": 10195
         },
         {
           "path": ".agents/workflows/audit-privacy.md",
@@ -220,7 +224,7 @@
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 548130,
+    "reachableTotalBytes": 558610,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -230,7 +234,7 @@
       {
         "path": ".agents/workflows/audit-adrs.md",
         "mandatoryBytes": 13411,
-        "reachableBytes": 393626
+        "reachableBytes": 456313
       },
       {
         "path": ".agents/workflows/audit-architecture.md",
@@ -264,8 +268,8 @@
       },
       {
         "path": ".agents/workflows/audit-documentation.md",
-        "mandatoryBytes": 12552,
-        "reachableBytes": 393626
+        "mandatoryBytes": 12837,
+        "reachableBytes": 456313
       },
       {
         "path": ".agents/workflows/audit-exceptions.md",
@@ -291,6 +295,11 @@
         "path": ".agents/workflows/audit-performance.md",
         "mandatoryBytes": 10917,
         "reachableBytes": 42770
+      },
+      {
+        "path": ".agents/workflows/audit-policies.md",
+        "mandatoryBytes": 10195,
+        "reachableBytes": 456313
       },
       {
         "path": ".agents/workflows/audit-privacy.md",

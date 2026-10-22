@@ -34,6 +34,11 @@ union of:
    escape hatch for everything outside 1–3; there is no dedicated config
    key for it.
 
+**The published policy corpus is excluded.** Files matched by
+`project.policies.corpusGlobs`, or the conventional policy files when it is
+unset, are audited by [`/audit-policies`](audit-policies.md) — their fix is a
+decision, not an edit — and never enter this lens's target set.
+
 **Generated docs are excluded from per-doc semantic review.** The output of
 `generate-config-docs.js` and `generate-workflows-doc.js`, and the synced
 `.claude/commands/` mirrors, are generator-owned: hand-editing them is never

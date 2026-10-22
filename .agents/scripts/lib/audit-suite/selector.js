@@ -293,13 +293,18 @@ function declaresOrmDependency(root) {
 }
 
 /**
- * Unlike the web scan, an exhausted budget is `false` (these artifacts live
- * near the root); only an unreadable root is `null`.
+ * Bounded near-root walk shared by the persistence and policy probes. Unlike
+ * the web scan, an exhausted budget is `false` (these artifacts live near the
+ * root); only an unreadable root is `null`.
  *
  * @param {string} root
+ * @param {{
+ *   isMarkerDir?: (dir: string, name: string) => boolean,
+ *   isMarkerFile: (dir: string, name: string) => boolean,
+ * }} matchers `dir` is the entry's parent directory.
  * @returns {boolean|null}
  */
-function scanForPersistenceArtifacts(root) {
+function scanNearRoot(root, { isMarkerDir = () => false, isMarkerFile }) {
   let budget = WEB_SCAN_MAX_ENTRIES;
   const queue = [{ dir: root, depth: 0 }];
 
@@ -315,25 +320,32 @@ function scanForPersistenceArtifacts(root) {
 
     for (const entry of entries) {
       if (budget-- <= 0) return false; // bounded near-root scan exhausted
-      if (entry.isDirectory()) {
-        if (WEB_SCAN_SKIP_DIRS.includes(entry.name)) continue;
-        if (
-          MIGRATION_DIR_NAMES.includes(entry.name) &&
-          DB_MIGRATION_PARENTS.includes(path.basename(dir))
-        ) {
-          return true;
-        }
-        if (depth + 1 <= WEB_SCAN_MAX_DEPTH) {
-          queue.push({ dir: path.join(dir, entry.name), depth: depth + 1 });
-        }
+      if (!entry.isDirectory()) {
+        if (isMarkerFile(dir, entry.name)) return true;
         continue;
       }
-      if (PERSISTENCE_SCHEMA_EXTENSIONS.includes(path.extname(entry.name))) {
-        return true;
+      if (WEB_SCAN_SKIP_DIRS.includes(entry.name)) continue;
+      if (isMarkerDir(dir, entry.name)) return true;
+      if (depth + 1 <= WEB_SCAN_MAX_DEPTH) {
+        queue.push({ dir: path.join(dir, entry.name), depth: depth + 1 });
       }
     }
   }
   return false;
+}
+
+/**
+ * @param {string} root
+ * @returns {boolean|null}
+ */
+function scanForPersistenceArtifacts(root) {
+  return scanNearRoot(root, {
+    isMarkerDir: (dir, name) =>
+      MIGRATION_DIR_NAMES.includes(name) &&
+      DB_MIGRATION_PARENTS.includes(path.basename(dir)),
+    isMarkerFile: (_dir, name) =>
+      PERSISTENCE_SCHEMA_EXTENSIONS.includes(path.extname(name)),
+  });
 }
 
 /**
@@ -356,6 +368,88 @@ export function hasPersistenceLayer({ projectRoot = PROJECT_ROOT } = {}) {
       : scanForPersistenceArtifacts(projectRoot) !== false;
 
   _persistenceFsCache.set(projectRoot, result);
+  return result;
+}
+
+/**
+ * @param {object|null|undefined} config Resolved `.agentrc.json` wrapper.
+ * @returns {string[]} Policy corpus globs, or `[]` when unconfigured.
+ */
+function resolvePolicyCorpusGlobs(config) {
+  const globs = config?.project?.policies?.corpusGlobs;
+  return Array.isArray(globs) ? globs.filter((g) => typeof g === 'string') : [];
+}
+
+const POLICY_TEXT_EXTENSIONS = Object.freeze([
+  '.md',
+  '.mdx',
+  '.html',
+  '.htm',
+  '.astro',
+  '.txt',
+]);
+
+const POLICY_DIR_NAMES = Object.freeze(['policies', 'legal']);
+
+/**
+ * A bare `privacy.md` is not enough: only an explicit compound names a
+ * published policy rather than, say, a lens checklist about privacy.
+ */
+const POLICY_BASENAME_PATTERN =
+  /(privacy[-_]policy|cookie[-_](policy|notice)|refund[-_]policy|cancellation[-_]policy|terms[-_]of[-_](service|use)|terms[-_]and[-_]conditions)/i;
+
+/** @type {Map<string, boolean>} */
+const _policyCorpusFsCache = new Map();
+
+/** Test-only. */
+export function _resetPolicyCorpusCache() {
+  _policyCorpusFsCache.clear();
+}
+
+/**
+ * @param {string} dir Directory holding `name`.
+ * @param {string} name File basename.
+ * @returns {boolean}
+ */
+function isPolicyTextFile(dir, name) {
+  if (!POLICY_TEXT_EXTENSIONS.includes(path.extname(name).toLowerCase())) {
+    return false;
+  }
+  const underPolicyDir = dir
+    .split(path.sep)
+    .some((segment) => POLICY_DIR_NAMES.includes(segment.toLowerCase()));
+  return underPolicyDir || POLICY_BASENAME_PATTERN.test(name);
+}
+
+/**
+ * @param {string} root
+ * @returns {boolean|null}
+ */
+function scanForPolicyFiles(root) {
+  return scanNearRoot(root, {
+    isMarkerFile: (dir, name) =>
+      isPolicyTextFile(path.relative(root, dir), name),
+  });
+}
+
+/**
+ * Applicability predicate for `target: "policies"` lenses: configured corpus
+ * globs, or a conventional policy file. Fails OPEN like {@link hasWebSurface}.
+ *
+ * @param {{ config?: object|null, projectRoot?: string }} [params]
+ * @returns {boolean}
+ */
+export function hasPolicyCorpus({ config, projectRoot = PROJECT_ROOT } = {}) {
+  if (resolvePolicyCorpusGlobs(config).length > 0) return true;
+
+  if (_policyCorpusFsCache.has(projectRoot)) {
+    return _policyCorpusFsCache.get(projectRoot);
+  }
+
+  // `null` is indeterminate, not false — fail open.
+  const result = scanForPolicyFiles(projectRoot) !== false;
+
+  _policyCorpusFsCache.set(projectRoot, result);
   return result;
 }
 
@@ -443,6 +537,8 @@ export function changeSetLacksSiblingTest(changedFiles) {
  * @param {number} [params.gitTimeoutMsOverride]
  * @param {{ argv?: string[], env?: NodeJS.ProcessEnv }} [params.gateModeOpts]
  * @param {typeof hasWebSurface} [params.hasWebSurfaceFn]
+ * @param {typeof hasPersistenceLayer} [params.hasPersistenceLayerFn]
+ * @param {typeof hasPolicyCorpus} [params.hasPolicyCorpusFn]
  */
 export async function selectAudits({
   ticketId,
@@ -456,6 +552,7 @@ export async function selectAudits({
   gateModeOpts,
   hasWebSurfaceFn = hasWebSurface,
   hasPersistenceLayerFn = hasPersistenceLayer,
+  hasPolicyCorpusFn = hasPolicyCorpus,
 }) {
   const config = resolveConfig();
   const timeoutMs = gitTimeoutMsOverride ?? DEFAULT_GIT_TIMEOUT_MS;
@@ -504,6 +601,7 @@ export async function selectAudits({
       config,
       hasWebSurfaceFn,
       hasPersistenceLayerFn,
+      hasPolicyCorpusFn,
     }),
   });
 
@@ -650,17 +748,19 @@ function matchesAnyKeyword(keywords, content) {
  * Lazily memoized per target, so a roster without a `web` lens never pays the
  * filesystem scan.
  *
- * @param {{ config: object, hasWebSurfaceFn: Function, hasPersistenceLayerFn: Function }} params
+ * @param {{ config: object, hasWebSurfaceFn: Function, hasPersistenceLayerFn: Function, hasPolicyCorpusFn: Function }} params
  * @returns {(target: string) => boolean}
  */
 function makeTargetApplicabilityProbe({
   config,
   hasWebSurfaceFn,
   hasPersistenceLayerFn,
+  hasPolicyCorpusFn,
 }) {
   const probes = {
     web: hasWebSurfaceFn,
     'data-model': hasPersistenceLayerFn,
+    policies: hasPolicyCorpusFn,
   };
   const memo = new Map();
   return (target) => {

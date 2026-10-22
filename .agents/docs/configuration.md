@@ -90,6 +90,11 @@ Project identity, filesystem roots, planner docs context, and the commands the c
 | `commands.lint` | No | `string` \| `null` | `"npm run lint"` | Lint command run as a close-validation gate and by the handoff preflight. An explicit `null` disables both (skip reason `lint-disabled`). Point it at the scoped command your hooks already run to stop paying for a third whole-repo lint at close — the gate still lints the diff, and CI still owns whole-repo drift. |
 | `commands.formatCheck` | No | `string` \| `null` | `"npx biome format ."` | Non-mutating format verification run as a close-validation gate. An explicit `null` disables the gate (skip reason `format-disabled`). |
 | `commands.formatWrite` | No | `string` | `"npx biome format --write ."` | Mutating format command the close-time format-autofix step spawns. |
+| `policies` | No | `object` | — | Published customer-facing policy corpus read by `/audit-policies`. Optional: absent means the lens and its applicability probe fall back to conventional policy file names (files under `policies/` or `legal/`, or basenames such as `privacy-policy` or `terms-of-service`). |
+| `policies.corpusGlobs` | No | `array<string>` | — | Globs naming where the published policy text lives (markdown, HTML, Astro or similar). Non-empty makes the project applicable for `/audit-policies` without a filesystem scan. |
+| `policies.impactMap` | No | `string` | — | Repo-relative path to a JSON object mapping code globs to arrays of policy paths; focuses a change-set-scoped `/audit-policies` run on the policies a change can invalidate. |
+| `policies.backingDocs` | No | `array<string>` | — | Runbook or SOP globs. A policy claim a documented manual procedure honors is reported as backed, not as a finding. |
+| `policies.acceptedFindings` | No | `string` | — | Repo-relative path to a JSON array of `{ policy, quote, reason, reviewBy }` entries (`reviewBy` is `YYYY-MM-DD`). A matching unexpired entry suppresses the finding; an expired one is reported. |
 
 ### `github` (optional)
 

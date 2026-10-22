@@ -6896,9 +6896,29 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "scanNearRoot",
+      "startLine": 307,
+      "crap": 9.026569355037108
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "hasPersistenceLayer",
       "startLine": 341,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon scanForPersistenceArtifacts/(dir,name)#0>",
+      "startLine": 343,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon scanForPersistenceArtifacts/(_dir,name)#0>",
+      "startLine": 346,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
@@ -6935,6 +6955,19 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "resolvePolicyCorpusGlobs",
+      "startLine": 378,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon resolvePolicyCorpusGlobs/(g)#0>",
+      "startLine": 380,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "isTestFile",
       "startLine": 390,
       "crap": 2
@@ -6943,6 +6976,12 @@
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "stemOf",
       "startLine": 400,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "_resetPolicyCorpusCache",
+      "startLine": 405,
       "crap": 1
     },
     {
@@ -6957,6 +6996,12 @@
       "startLine": 414,
       "crap": 2,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "isPolicyTextFile",
+      "startLine": 414,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
@@ -6981,10 +7026,36 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon isPolicyTextFile/(segment)#0>",
+      "startLine": 420,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "<anon changeSetLacksSiblingTest/(src)#0>",
       "startLine": 422,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "scanForPolicyFiles",
+      "startLine": 428,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon scanForPolicyFiles/(dir,name)#0>",
+      "startLine": 430,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "hasPolicyCorpus",
+      "startLine": 442,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
