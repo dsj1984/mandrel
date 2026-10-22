@@ -93,6 +93,8 @@ describe('seatKeyFor / selectMissingRows', () => {
       'x.js',
     );
     assert.throws(() => seatKeyFor('coverage'), /unsupported kind/);
+    // Duplication rows are never seated, so its diff scope never reaches here.
+    assert.throws(() => seatKeyFor('duplication'), /unsupported kind/);
   });
 });
 

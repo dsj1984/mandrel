@@ -436,7 +436,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "mi": 94.795
+      "mi": 97.665
     },
     {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
@@ -520,7 +520,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "mi": 96.453
+      "mi": 98.297
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -2720,7 +2720,7 @@
     },
     {
       "path": "lib/migrations/steps/2.91.0-retire-duplication-formats.js",
-      "mi": 117.324
+      "mi": 101.891
     },
     {
       "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",

@@ -209,6 +209,7 @@
             }
           },
           "targetDirs": ["src"],
+          "additionalFormats": [],
           "ignoreGlobs": []
         }
       },

@@ -734,6 +734,17 @@ key is optional, but cannot name a corpus kept elsewhere, and the other three
 have no source to derive from at all. A holistic re-survey of the `.agentrc`
 surface and the go-forward ceiling is Story #5850.
 
+**Raised to 143 (2026-10-21, Story #5849)** for
+`delivery.quality.gates.duplication.additionalFormats`. Deriving the jscpd
+formats from the scorable-extension list (Story #5738) also dropped every
+language jscpd can read but the CRAP and MI engines cannot parse: a polyglot
+consumer lost its Python duplication rows (1195 → 254) and had to re-seat its
+floors upward. Which other languages a project writes is a fact about that
+project that neither the scorable list nor jscpd's own config can supply,
+since jscpd 4 has no project config file the gate reads. No existing key
+displaces it: the scorable list stays the floor the key extends and can never
+narrow, and `ignoreGlobs` stays the only lever for scanning fewer files.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

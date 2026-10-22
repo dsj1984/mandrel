@@ -34,7 +34,11 @@ import {
 import { isScorableSourceFile } from '../source-extensions.js';
 import { toPosix } from '../util/paths.js';
 import { buildBundleSizeScorer } from './bundle-size-scorer.js';
-import { resolveDetectClones, scanDuplication } from './duplication-scanner.js';
+import {
+  resolveDetectClones,
+  resolveFormatExtensions,
+  scanDuplication,
+} from './duplication-scanner.js';
 import { getKindModule } from './kernel.js';
 import { filterExcludedRows } from './kinds/maintainability.js';
 import { canonicalizeBaselinePath } from './path-canon.js';
@@ -54,20 +58,32 @@ const SUPPORTED_KINDS = Object.freeze([
 ]);
 
 /**
+ * Widened by `additionalFormats`.
+ *
+ * @param {{ additionalFormats?: string[] }} [opts]
+ * @returns {(p: string) => boolean}
+ */
+function duplicationFileFilter({ additionalFormats } = {}) {
+  const extra = resolveFormatExtensions(additionalFormats);
+  if (extra.size === 0) return isScorableSourceFile;
+  return (p) =>
+    isScorableSourceFile(p) || extra.has(path.extname(p).toLowerCase());
+}
+
+/**
  * Per-kind extension filter for diff-derived scope, over canonical POSIX paths.
  *
- * @type {Record<string, (p: string) => boolean>}
+ * @type {Record<string, (opts: object) => (p: string) => boolean>}
  */
-const KIND_FILE_PREDICATES = Object.freeze({
+const KIND_FILE_FILTERS = Object.freeze({
   // The scanner walks exactly this set, so a scoped file it never scores
   // cannot trip the "produced no baseline rows" refusal.
-  maintainability: isScorableSourceFile,
-  crap: isScorableSourceFile,
-  coverage: isScorableSourceFile,
-  // jscpd's formats derive from the same set, so the scope matches the scan.
-  duplication: isScorableSourceFile,
+  maintainability: () => isScorableSourceFile,
+  crap: () => isScorableSourceFile,
+  coverage: () => isScorableSourceFile,
+  duplication: duplicationFileFilter,
   // Bundle names are not paths: no changed file scopes a bundle row.
-  'bundle-size': () => false,
+  'bundle-size': () => () => false,
 });
 
 /**
@@ -542,17 +558,40 @@ export async function deriveScopeFromDiff({
 }
 
 /**
+ * `opts.additionalFormats` widens only the duplication filter.
+ *
  * @param {string} kind
+ * @param {{ additionalFormats?: string[] }} [opts]
  * @returns {(p: string) => boolean}
  */
-export function fileFilterFor(kind) {
-  const pred = KIND_FILE_PREDICATES[kind];
-  if (!pred) {
+export function fileFilterFor(kind, opts) {
+  const build = KIND_FILE_FILTERS[kind];
+  if (!build) {
     throw new Error(
       `fileFilterFor: no predicate registered for kind "${kind}"`,
     );
   }
-  return pred;
+  return build(opts);
+}
+
+/**
+ * The diff-scope filter for `kind`.
+ * Best-effort config read:
+ * an unreadable config widens nothing.
+ *
+ * @param {string} kind
+ * @param {string} cwd
+ * @returns {(p: string) => boolean}
+ */
+function diffScopeFilterFor(kind, cwd) {
+  let additionalFormats;
+  try {
+    additionalFormats = getQuality(resolveConfig({ cwd }))?.gates?.duplication
+      ?.additionalFormats;
+  } catch {
+    additionalFormats = undefined;
+  }
+  return fileFilterFor(kind, { additionalFormats });
 }
 
 /** Full, then explicit list, then diff-derived. */
@@ -577,7 +616,7 @@ async function resolveScope({
   const files = await deriveScopeFromDiff({
     baseRef,
     headRef,
-    predicate: fileFilterFor(kind),
+    predicate: diffScopeFilterFor(kind, cwd),
     gitDiff,
     cwd,
   });
@@ -654,6 +693,7 @@ function buildDefaultDuplicationScorer({ cwd, config, quality, detect } = {}) {
       targetDirs,
       cwd: effectiveCwd,
       ignoreGlobs,
+      additionalFormats: dupCfg.additionalFormats,
       detect: detect ?? resolveDetectClones(),
     });
   };
