@@ -169,16 +169,15 @@ describe('selectAudits routing gate for audit-data-model (Story #4633)', () => {
 
 describe('hasPolicyCorpus (Story #5848)', () => {
   it('resolves applicable from configured corpusGlobs without scanning the filesystem', () => {
-    const missingRoot = path.join(makeTempDir('policy-probe-'), 'absent');
+    // A readable root with no policy file: the scan alone would say false.
+    const root = makeFixture((r) => {
+      writeUnder(r, 'src/index.js', 'export const x = 1;\n');
+    });
     const config = { project: { policies: { corpusGlobs: ['site/**/*.md'] } } };
-    assert.equal(hasPolicyCorpus({ config, projectRoot: missingRoot }), true);
-    // The configured answer short-circuits: no scan, so nothing is cached.
-    _resetPolicyCorpusCache();
-    assert.equal(
-      hasPolicyCorpus({ config: null, projectRoot: missingRoot }),
-      true,
-      'an unreadable root still fails open once the config is gone',
-    );
+    assert.equal(hasPolicyCorpus({ config, projectRoot: root }), true);
+    // The configured answer short-circuits before the scan, so nothing was
+    // cached for this root: the unconfigured probe now scans and says false.
+    assert.equal(hasPolicyCorpus({ config: null, projectRoot: root }), false);
   });
 
   it('resolves applicable for a policy file under a legal/ directory', () => {
