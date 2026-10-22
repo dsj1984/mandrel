@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.98.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.97.0...mandrel-v2.98.0) (2026-10-22)
+
+
+### Fixed
+
+* close-time baseline commits stay under commitlint's 100-char body line limit, so a deep file path no longer silently drops the re-score ([#5859](https://github.com/dsj1984/mandrel/issues/5859)) ([#5860](https://github.com/dsj1984/mandrel/issues/5860)) ([3f85ed8](https://github.com/dsj1984/mandrel/commit/3f85ed88a0f6a0f8eafbb3d328f0353e1f4f00ed))
+
 ## [2.97.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.96.0...mandrel-v2.97.0) (2026-10-22)
 
 
