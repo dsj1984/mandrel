@@ -21,3 +21,13 @@
 # and never splices rows neither side scored.
 # The driver command itself is per-clone git config — `mandrel doctor` checks it.
 baselines/*.json merge=mandrel-baseline
+
+# Generated or tool-written: each is held by its own --check gate, so the
+# code-review provider shows the reviewer a one-line stub instead of the
+# content, and GitHub collapses them in PR diffs. The validator is a single
+# ~270 KB line that alone overruns the review's diff cap.
+.agents/scripts/lib/generated/** linguist-generated=true
+.agents/schemas/agentrc.schema.json linguist-generated=true
+.agents/docs/agentrc-reference.json linguist-generated=true
+baselines/*.json linguist-generated=true
+package-lock.json linguist-generated=true

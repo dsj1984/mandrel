@@ -35,33 +35,6 @@ export const QUALITY_SCHEMA = {
         'Story #4495. Fail-closed baseline-enforcement policy for the unified check-baselines close-validation gate. When false (default), a consumer that enables baseline gates (crap/maintainability/…) but has not committed the corresponding baseline artifacts under baselines/ gets a clean skip-with-reason instead of a deterministic first-try close failure. Set true to keep the gate registered so an absent baseline artifact fails close-validation with a preflight hint naming the fix (the fail-closed posture).',
       default: false,
     },
-    navigability: {
-      type: 'object',
-      description:
-        "Navigability lens + journey-suite config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and /mandrel-deliver's per-Story ceremony (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
-      properties: {
-        routeGlobs: {
-          type: 'array',
-          items: { type: 'string' },
-          description:
-            'Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route — the route-tree SSOT the navigability lens enumerates and the route-added routing predicate matches against.',
-          default: [],
-        },
-        navRegistry: {
-          type: 'array',
-          items: { type: 'string' },
-          description:
-            'Tokens identifying the nav-registry SSOT the navigability lens checks every route resolves a nav door against.',
-          default: [],
-        },
-        journeySuite: {
-          type: 'string',
-          description:
-            "Path or command for the per-persona journey suite /mandrel-deliver's per-Story ceremony runs.",
-        },
-      },
-      additionalProperties: false,
-    },
   },
   additionalProperties: false,
 };

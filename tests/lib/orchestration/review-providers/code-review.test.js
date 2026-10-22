@@ -66,6 +66,9 @@ function harness(opts = {}) {
         calls.push({ kind: 'grep', cwd, args });
         return opts.grep?.(args) ?? { status: 1, stdout: '', stderr: '' };
       }
+      if (args[0] === 'check-attr') {
+        return opts.attr?.(args) ?? { status: 0, stdout: '', stderr: '' };
+      }
       calls.push({ kind: 'diff', cwd, args });
       return opts.diff ?? { status: 0, stdout: DIFF, stderr: '' };
     },
@@ -497,6 +500,30 @@ test('an oversized diff is truncated and the reviewer is told', async () => {
   const { prompt } = invokeCall(calls);
   assert.match(prompt, /diff truncated at 200000 characters/);
   assert.ok(prompt.length < big.length);
+});
+
+test('a generated file is stubbed before the cap, so it cannot truncate the review', async () => {
+  const generated = `diff --git a/gen/v.js b/gen/v.js\n+${'x'.repeat(250_000)}\n`;
+  const { provider, calls } = harness({
+    diff: { status: 0, stdout: `${DIFF}${generated}`, stderr: '' },
+    attr: (args) => ({
+      status: 0,
+      stdout: args
+        .slice(args.indexOf('--') + 1)
+        .map(
+          (p) =>
+            `${p}\0linguist-generated\0${p === 'gen/v.js' ? 'true' : 'unspecified'}\0`,
+        )
+        .join(''),
+      stderr: '',
+    }),
+  });
+  await provider.runReview(INPUT);
+  const { prompt } = invokeCall(calls);
+  assert.doesNotMatch(prompt, /diff truncated/);
+  assert.match(prompt, /gen\/v\.js\n\[generated file: changed/);
+  assert.ok(prompt.includes(DIFF));
+  assert.deepEqual(provider.getDegradations(), []);
 });
 
 test('runReview rejects a missing range or a bad ticket id', async () => {

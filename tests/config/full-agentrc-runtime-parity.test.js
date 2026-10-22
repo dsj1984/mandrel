@@ -66,7 +66,6 @@ const AGENT_READ_ONLY_PREFIXES = Object.freeze([
   'delivery.quality.gates.bundle-size',
   'delivery.quality.gates.duplication',
   'delivery.quality.autoRefresh',
-  'delivery.quality.navigability',
   'delivery.quality.requireBaselines',
   'delivery.codeReview.providers',
   'delivery.refactorStage',

@@ -1,11 +1,10 @@
 /**
  * tests/deliver-integration-gate.test.js
  *
- * Epic #4131 (F1/F4 / AC-1, AC-5) — after the Stage 4 delivery collapse, the
- * navigability journey-suite contract lives in the unified `/mandrel-deliver` per-Story
- * ceremony and configuration docs, not the deleted `deliver-epic.md` Phase 6.5
- * helper. This spec pins that documentation surface without reading retired
- * workflow files.
+ * Epic #4131 (F1/F4 / AC-1, AC-5) pinned a navigability journey-suite contract
+ * here. Nothing ever ran the suite, and Story #5850 retired its config key with
+ * the rest of `delivery.quality.navigability`, so this spec now guards that the
+ * configuration docs do not advertise it again.
  *
  * Story #4542 re-pointed the ceremony wording: it is routed off the change level
  * derived from the Story diff, not a planner-authored risk verdict, and the
@@ -40,17 +39,12 @@ const CONFIG_DOC_PATH = path.join(
 const source = readFileSync(WORKFLOW_PATH, 'utf8');
 const configDoc = readFileSync(CONFIG_DOC_PATH, 'utf8');
 
-describe('/mandrel-deliver navigability journey-suite contract (Epic #4131 F1/F4)', () => {
-  it('keeps navigability journey-suite config tied to the per-Story ceremony', () => {
-    assertDocMentions(
+describe('/mandrel-deliver ceremony documentation (Epic #4131 F1/F4)', () => {
+  it('never advertises the retired navigability journey suite (Story #5850)', () => {
+    assertDocOmits(
       configDoc,
-      /quality\.navigability.*per-Story ceremony/,
-      'configuration docs must tie navigability to the per-Story ceremony',
-    );
-    assertDocMentions(
-      configDoc,
-      /journey suite|journeySuite/,
-      'configuration docs must still name the journey suite',
+      /quality\.navigability|journeySuite/,
+      'configuration docs must not name the retired delivery.quality.navigability block',
     );
   });
 

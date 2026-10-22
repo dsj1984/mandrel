@@ -1639,6 +1639,10 @@
       "mi": 97.791
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/generated-diff.js",
+      "mi": 103.259
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
       "mi": 111.506
     },
@@ -2725,6 +2729,10 @@
     {
       "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
       "mi": 105.231
+    },
+    {
+      "path": "lib/migrations/steps/2.97.0-retire-quality-navigability.js",
+      "mi": 92.069
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",

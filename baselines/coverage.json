@@ -466,8 +466,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "lines": 96.4,
-      "branches": 88.41,
+      "lines": 96.93,
+      "branches": 89.67,
       "functions": 100
     },
     {
@@ -2453,7 +2453,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "lines": 100,
-      "branches": 90.48,
+      "branches": 91.38,
       "functions": 100
     },
     {
@@ -2478,6 +2478,12 @@
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "lines": 100,
       "branches": 94.74,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/generated-diff.js",
+      "lines": 100,
+      "branches": 92.31,
       "functions": 100
     },
     {
@@ -4080,6 +4086,12 @@
       "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
       "lines": 100,
       "branches": 83.33,
+      "functions": 100
+    },
+    {
+      "path": "lib/migrations/steps/2.97.0-retire-quality-navigability.js",
+      "lines": 100,
+      "branches": 90.91,
       "functions": 100
     },
     {

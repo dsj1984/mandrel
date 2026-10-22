@@ -216,11 +216,7 @@
       "autoRefresh": {
         "enabled": true
       },
-      "requireBaselines": false,
-      "navigability": {
-        "routeGlobs": [],
-        "navRegistry": []
-      }
+      "requireBaselines": false
     },
     "mergeWatch": {
       "maxBudgetSeconds": 3600

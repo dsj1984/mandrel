@@ -156,10 +156,10 @@ test('selector: THIS repo has no web surface — the real probe agrees', () => {
 //     driven independently.
 // ---------------------------------------------------------------------------
 
-test('probe signal 1: configured navigability routeGlobs mark the project web-capable', () => {
+test('probe signal 1: configured planning.navigation routeGlobs mark the project web-capable', () => {
   const root = fixtureRoot({ 'package.json': JSON.stringify({ name: 'cli' }) });
   const config = {
-    delivery: { quality: { navigability: { routeGlobs: ['app/routes/**'] } } },
+    planning: { navigation: { routeGlobs: ['app/routes/**'] } },
   };
   assert.equal(hasWebSurface({ config, projectRoot: root }), true);
 });
