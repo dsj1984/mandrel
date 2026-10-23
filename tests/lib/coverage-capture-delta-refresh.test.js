@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { before, describe, it } from 'node:test';
 
 import { getChangedFiles } from '../../.agents/scripts/lib/changed-files.js';
 import {
@@ -19,7 +18,12 @@ import {
 } from '../../.agents/scripts/lib/coverage-capture-delta.js';
 import { runFullScopeCapture } from '../../.agents/scripts/lib/coverage-capture-fullscope.js';
 import { tryIncrementalCapture } from '../../.agents/scripts/lib/coverage-capture-incremental.js';
-import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import {
+  copyGitRepo,
+  makeGitTemplate,
+  runGit,
+  writeFiles,
+} from '../fixtures/git-fixture.js';
 
 // Story #5487 — a base-sync that merges main commits sharing no file with the
 // Story re-measures only main's delta. Real git fixture repos; the suite
@@ -42,49 +46,92 @@ const SHARED_LINES = Array.from(
   (_, i) => `export const v${i} = ${i};`,
 );
 
-function fixtureRepo() {
-  const dir = makeTempDir('delta-refresh-');
-  const git = (...args) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
-  const write = (rel, body) => {
-    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
-    fs.writeFileSync(path.join(dir, rel), body);
-  };
+const UNRELATED = { 'src/b.js': 'export const b = 2;\n' };
+const SHARED_ON_MAIN = [...SHARED_LINES];
+SHARED_ON_MAIN[11] = 'export const v11 = "main";';
+const CONFIGS = [
+  'package.json',
+  'package-lock.json',
+  'tsconfig.json',
+  'vitest.config.js',
+];
+/** Each base-sync's main-side commit, prebuilt once on a `sync/<name>` branch. */
+const SYNCS = {
+  unrelated: UNRELATED,
+  shared: { 'src/shared.js': `${SHARED_ON_MAIN.join('\n')}\n` },
+  ...Object.fromEntries(
+    CONFIGS.map((config) => [config, { ...UNRELATED, [config]: '{}\n' }]),
+  ),
+};
+
+let template;
+let stamped;
+
+before(async () => {
+  template = makeGitTemplate({
+    prefix: 'delta-refresh-',
+    files: {
+      '.gitignore': 'coverage/\n',
+      'src/a.js': 'export const a = 1;\n',
+      'src/b.js': 'export const b = 1;\n',
+      'src/shared.js': `${SHARED_LINES.join('\n')}\n`,
+    },
+  });
+  const t = repoAt(template);
+  for (const [name, files] of Object.entries(SYNCS)) {
+    t.git('checkout', '-q', '-b', `sync/${name}`, 'main');
+    writeFiles(template, files);
+    t.commit('main moves');
+  }
+  t.git('checkout', '-q', '-b', 'story', 'main');
+  writeFiles(template, { 'src/a.js': 'export const a = 2;\n' });
+  const lines = [...SHARED_LINES];
+  lines[0] = 'export const v0 = "story";';
+  writeFiles(template, { 'src/shared.js': `${lines.join('\n')}\n` });
+  t.commit('story work');
+  stamped = copyGitRepo(template);
+  await capture(stamped);
+});
+
+/** Helpers bound to the repository at `dir`. */
+function repoAt(dir) {
+  const git = (...args) => runGit(dir, ...args);
+  const write = (rel, body) => writeFiles(dir, { [rel]: body });
   const commit = (msg) => {
     git('add', '-A');
     git('commit', '-q', '-m', msg);
     return git('rev-parse', 'HEAD');
   };
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 'fixture@example.test');
-  git('config', 'user.name', 'Fixture');
-  git('config', 'commit.gpgsign', 'false');
-  write('.gitignore', 'coverage/\n');
-  write('src/a.js', 'export const a = 1;\n');
-  write('src/b.js', 'export const b = 1;\n');
-  write('src/shared.js', `${SHARED_LINES.join('\n')}\n`);
-  commit('base');
-  git('checkout', '-q', '-b', 'story');
-  write('src/a.js', 'export const a = 2;\n');
-  const lines = [...SHARED_LINES];
-  lines[0] = 'export const v0 = "story";';
-  write('src/shared.js', `${lines.join('\n')}\n`);
-  commit('story work');
-
-  /** Commit `files` on main, then merge main into the Story branch. */
-  const baseSync = (files) => {
-    git('checkout', '-q', 'main');
-    for (const [rel, body] of Object.entries(files)) write(rel, body);
-    commit('main moves');
-    git('checkout', '-q', 'story');
+  /** Move main to a prebuilt `sync/<name>` commit, then merge it into the Story branch. */
+  const baseSync = (name) => {
+    git('branch', '-f', 'main', `sync/${name}`);
     git('merge', '-q', '--no-edit', 'main');
-    return git('rev-parse', 'HEAD');
   };
   const stampPath = captureStampPath(dir, CRAP.coveragePath);
   const readStamp = () => JSON.parse(fs.readFileSync(stampPath, 'utf8'));
   const editStamp = (fn) =>
     fs.writeFileSync(stampPath, JSON.stringify(fn(readStamp())));
   return { dir, git, write, commit, baseSync, readStamp, editStamp };
+}
+
+/**
+ * A private copy of the fixture: on `story`, one commit ahead of `main`, and
+ * — when `captured` — already holding the first affected capture's stamp.
+ */
+function fixtureRepo({ captured = false } = {}) {
+  const dir = copyGitRepo(captured ? stamped : template);
+  if (captured) writeArtifact(dir, 1);
+  return repoAt(dir);
+}
+
+/** The stub suite's artifact, keyed by this repository's own paths. */
+function writeArtifact(dir, run) {
+  const artifact = path.join(dir, CRAP.coveragePath);
+  fs.mkdirSync(path.dirname(artifact), { recursive: true });
+  fs.writeFileSync(
+    artifact,
+    JSON.stringify({ [path.join(dir, 'src/b.js')]: { s: { 0: run } } }),
+  );
 }
 
 async function capture(
@@ -110,14 +157,7 @@ async function capture(
     isCoverageFreshImpl: isCoverageFresh,
     runCaptureImpl: async (opts) => {
       calls.push(opts);
-      const artifact = path.join(dir, CRAP.coveragePath);
-      fs.mkdirSync(path.dirname(artifact), { recursive: true });
-      fs.writeFileSync(
-        artifact,
-        JSON.stringify({
-          [path.join(dir, 'src/b.js')]: { s: { 0: calls.length } },
-        }),
-      );
+      writeArtifact(dir, calls.length);
       return code;
     },
     computeContentDigestImpl: computeContentDigest,
@@ -146,10 +186,10 @@ describe('delta refresh after a base-sync (captureScope: affected)', () => {
   });
 
   it('AC-2: an unrelated base-sync runs the affected runner keyed on the stamped commit', async () => {
-    const repo = fixtureRepo();
-    await capture(repo.dir);
+    const repo = fixtureRepo({ captured: true });
     const stamped = repo.readStamp().commit;
-    const merged = repo.baseSync({ 'src/b.js': 'export const b = 2;\n' });
+    repo.baseSync('unrelated');
+    const merged = repo.git('rev-parse', 'HEAD');
 
     assert.equal(freshAffected(repo.dir), false);
     const second = await capture(repo.dir);
@@ -167,10 +207,9 @@ describe('delta refresh after a base-sync (captureScope: affected)', () => {
   });
 
   it('AC-4: a failing delta refresh is a red capture, never a fallback', async () => {
-    const repo = fixtureRepo();
-    await capture(repo.dir);
+    const repo = fixtureRepo({ captured: true });
     const stamped = repo.readStamp().commit;
-    repo.baseSync({ 'src/b.js': 'export const b = 2;\n' });
+    repo.baseSync('unrelated');
     const second = await capture(repo.dir, { code: 1 });
     assert.equal(second.result, 1);
     assert.equal(second.calls.length, 1);
@@ -195,8 +234,6 @@ describe('delta refresh after a base-sync (captureScope: affected)', () => {
 });
 
 describe('delta refresh eligibility falls back to today’s capture (AC-3)', () => {
-  const unrelated = { 'src/b.js': 'export const b = 2;\n' };
-
   async function assertFallback(repo, reason) {
     const second = await capture(repo.dir);
     assert.equal(second.result, 0);
@@ -207,61 +244,48 @@ describe('delta refresh eligibility falls back to today’s capture (AC-3)', () 
   }
 
   it('the delta shares a path with the Story change set', async () => {
-    const repo = fixtureRepo();
-    await capture(repo.dir);
-    const lines = [...SHARED_LINES];
-    lines[11] = 'export const v11 = "main";';
-    repo.baseSync({ 'src/shared.js': `${lines.join('\n')}\n` });
+    const repo = fixtureRepo({ captured: true });
+    repo.baseSync('shared');
     await assertFallback(repo, /shares src\/shared\.js/);
   });
 
-  for (const config of [
-    'package.json',
-    'package-lock.json',
-    'tsconfig.json',
-    'vitest.config.js',
-  ]) {
+  for (const config of CONFIGS) {
     it(`the delta touches ${config}`, async () => {
-      const repo = fixtureRepo();
-      await capture(repo.dir);
-      repo.baseSync({ ...unrelated, [config]: '{}\n' });
+      const repo = fixtureRepo({ captured: true });
+      repo.baseSync(config);
       await assertFallback(repo, /coverage-determining config/);
     });
   }
 
   it('the stamp records no commit', async () => {
-    const repo = fixtureRepo();
-    await capture(repo.dir);
+    const repo = fixtureRepo({ captured: true });
     repo.editStamp(({ commit: _drop, ...rest }) => rest);
-    repo.baseSync(unrelated);
+    repo.baseSync('unrelated');
     await assertFallback(repo, /no commit/);
   });
 
   it('the stamped commit is not an ancestor of HEAD', async () => {
-    const repo = fixtureRepo();
-    await capture(repo.dir);
+    const repo = fixtureRepo({ captured: true });
     repo.git('checkout', '-q', '-b', 'elsewhere', 'main');
     repo.write('src/elsewhere.js', 'export const e = 1;\n');
     const foreign = repo.commit('elsewhere');
     repo.git('checkout', '-q', 'story');
     repo.editStamp((stamp) => ({ ...stamp, commit: foreign }));
-    repo.baseSync(unrelated);
+    repo.baseSync('unrelated');
     await assertFallback(repo, /not an ancestor/);
   });
 
   it('the affected script is absent', async () => {
-    const repo = fixtureRepo();
-    await capture(repo.dir);
-    repo.baseSync(unrelated);
+    const repo = fixtureRepo({ captured: true });
+    repo.baseSync('unrelated');
     const second = await capture(repo.dir, { hasScript: false });
     assert.equal(second.result, null);
     assert.equal(second.calls.length, 0);
   });
 
   it('captureScope is full', async () => {
-    const repo = fixtureRepo();
-    await capture(repo.dir);
-    repo.baseSync(unrelated);
+    const repo = fixtureRepo({ captured: true });
+    repo.baseSync('unrelated');
     const second = await capture(repo.dir, { captureScope: 'full' });
     assert.equal(second.result, null);
     assert.equal(second.calls.length, 0);

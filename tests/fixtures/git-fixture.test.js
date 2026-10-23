@@ -31,7 +31,13 @@ import {
   _currentSuiteTempRoot,
   makeTempDir,
 } from '../../.agents/scripts/lib/test-temp.js';
-import { copyGitRepo, makeGitRepo, seedGitIdentity } from './git-fixture.js';
+import {
+  copyGitRepo,
+  makeGitRepo,
+  makeGitTemplate,
+  runGit,
+  seedGitIdentity,
+} from './git-fixture.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
@@ -258,5 +264,33 @@ describe('git-fixture — makeGitRepo', () => {
       encoding: 'utf-8',
     }).trim();
     assert.equal(files, 'x.json');
+  });
+});
+
+describe('git-fixture — makeGitTemplate', () => {
+  it('commits the given files, and each copy commits independently', () => {
+    const template = makeGitTemplate({
+      prefix: 'tpl-',
+      branch: 'trunk',
+      files: { 'src/a.js': 'a\n' },
+    });
+    assert.equal(runGit(template, 'branch', '--show-current'), 'trunk');
+    assert.equal(
+      runGit(template, 'ls-tree', '-r', '--name-only', 'HEAD'),
+      'src/a.js',
+    );
+
+    const copy = copyGitRepo(template);
+    writeFileSync(path.join(copy, 'b.txt'), 'b');
+    runGit(copy, 'add', '-A');
+    runGit(copy, 'commit', '-q', '-m', 'copy only');
+    assert.equal(runGit(copy, 'rev-list', '--count', 'HEAD'), '2');
+    assert.equal(runGit(template, 'rev-list', '--count', 'HEAD'), '1');
+  });
+
+  it('leaves the branch unborn when no files are given', () => {
+    const template = makeGitTemplate({ prefix: 'tpl-empty-' });
+    assert.equal(runGit(template, 'status', '--porcelain'), '');
+    assert.throws(() => runGit(template, 'rev-parse', '--verify', 'HEAD'));
   });
 });
