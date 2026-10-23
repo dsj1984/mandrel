@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { load } from 'js-yaml';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CI_WORKFLOW = join(__dirname, '..', '.github', 'workflows', 'ci.yml');
@@ -89,16 +90,43 @@ test('the worktree-manager real-git contract executes in a CI job', () => {
 });
 
 test('the Windows leg is where the win32-gated guard runs', () => {
-  const source = readFileSync(CI_WORKFLOW, 'utf8');
-  const windowsJob = source.slice(source.indexOf('  windows-smoke:'));
+  const { jobs } = load(readFileSync(CI_WORKFLOW, 'utf8'));
+  const shard = jobs['windows-smoke-shard'];
+  assert.equal(shard['runs-on'], 'windows-latest');
   assert.ok(
-    windowsJob.length > 0,
-    'windows-smoke job not found in .github/workflows/ci.yml',
-  );
-  assert.match(
-    windowsJob,
-    /tests\/lib\/worktree-manager\.integration\.test\.js/,
-    'the worktree-manager contract must run on the Windows leg — its ' +
+    shard.steps.some((step) =>
+      /tests\/lib\/worktree-manager\.integration\.test\.js/.test(step.run),
+    ),
+    'the worktree-manager contract must run on a windows-latest job — its ' +
       'drive-letter-case regression only reproduces there',
+  );
+});
+
+// Story #5866 — the required `Windows Smoke` check is an ubuntu fan-in over
+// two Windows shard jobs.
+test('the Windows Smoke fan-in fails unless every shard succeeded', () => {
+  const { jobs } = load(readFileSync(CI_WORKFLOW, 'utf8'));
+  const fanIn = jobs['windows-smoke'];
+  assert.equal(fanIn.name, 'Windows Smoke', 'the required check name');
+  assert.equal(fanIn['runs-on'], 'ubuntu-latest');
+  assert.deepEqual([fanIn.needs].flat(), ['windows-smoke-shard']);
+  // Without always() a failed or cancelled shard SKIPS the fan-in, and a
+  // skipped required check does not block the merge.
+  assert.equal(fanIn.if, 'always()');
+  const script = fanIn.steps.map((s) => `${s.run ?? ''}`).join('\n');
+  const env = Object.assign({}, ...fanIn.steps.map((s) => s.env ?? {}));
+  assert.equal(env.SHARD_RESULT, '${{ needs.windows-smoke-shard.result }}');
+  assert.match(script, /test "\$SHARD_RESULT" = "success"/);
+});
+
+test('the shard job splits the quick tier across two Windows runners', () => {
+  const { jobs } = load(readFileSync(CI_WORKFLOW, 'utf8'));
+  const shard = jobs['windows-smoke-shard'];
+  assert.deepEqual(shard.strategy.matrix.shard, [1, 2]);
+  assert.equal(shard.strategy['fail-fast'], false);
+  assert.ok(
+    shard.steps.some(
+      (s) => s.run === 'npm run test:quick -- --shard ${{ matrix.shard }}/2',
+    ),
   );
 });

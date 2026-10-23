@@ -4185,6 +4185,12 @@
       "functions": 50
     },
     {
+      "path": "scripts/check-ruleset-drift.js",
+      "lines": 94.05,
+      "branches": 94.44,
+      "functions": 60
+    },
+    {
       "path": "scripts/check-schema-references.js",
       "lines": 99.44,
       "branches": 89.06,

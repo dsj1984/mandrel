@@ -93,6 +93,17 @@ const CI_RATCHETS_NOT_MIRRORED_LOCALLY = new Map([
   // ratchet through the `test` step, so a verify step would have double-paid
   // it. Demoting it to a report ended that: the test asserts the report, and
   // the verify step is now the only local surface that prints the count.
+  // Story #5866 moved the two static guards from `validate` into this job.
+  // Neither is a ratchet: each is a whole-tree scan with no baseline, and
+  // neither was ever mirrored locally while it ran in `validate`.
+  [
+    'check-action-pinning.js',
+    'Static workflow-pinning guard, not a ratchet; CI-only since Story #4079.',
+  ],
+  [
+    'check-test-portability.js',
+    'Static test-portability guard, not a ratchet; CI-only since Story #5284.',
+  ],
   [
     'check-baseline-scope.js',
     'Row-set honesty gate — meaningful only against a fully-scored tree; reachable as `npm run baselines:scope`.',

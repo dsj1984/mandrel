@@ -1,21 +1,47 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { Writable } from 'node:stream';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import fc from 'fast-check';
 import { respondToHelp } from '../../.agents/scripts/lib/cli-usage.js';
 import { listTestFilesForTier } from '../../.agents/scripts/lib/test-tiers.js';
 import {
   buildNodeTestArgs,
-  chunkTestTargets,
-  MAX_TARGET_CHARS,
-  POSIX_MAX_TARGET_CHARS,
-  resolveMaxTargetChars,
+  extractShard,
   resolveTestConcurrency,
+  runNodeTests,
   runTestSuite,
+  shardTestFiles,
   TEST_CONCURRENCY_MAX,
   TEST_CONCURRENCY_MIN,
   TEST_RUNNER_FLAGS,
+  toRunOptions,
   USAGE,
 } from '../../.agents/scripts/run-tests.js';
+import { fcParams } from '../helpers/fast-check-config.js';
+
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+);
+const FIXTURES = 'tests/fixtures/run-tests';
+
+/** Stub every runTestSuite seam; `runTests` defaults to a green run. */
+function suiteDeps(overrides = {}) {
+  return {
+    cwd: '/repo',
+    runTests: async () => 0,
+    cleanup: () => {},
+    fixtureStreamGuard: () => 0,
+    preflight: () => 0,
+    depositCredit: () => ({ deposited: false, reason: 'stub' }),
+    listTargets: () => ['tests/a.test.js'],
+    ...overrides,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // resolveTestConcurrency — host-aware clamping
@@ -133,26 +159,17 @@ test('buildNodeTestArgs quick tier resolves explicit file targets', () => {
   assert.ok(!args.includes('tests/hook-chain-reflog-invariant.test.js'));
 });
 
-test('runTestSuite deposits the close test credit after a green full run (Story #5313)', () => {
+test('runTestSuite deposits the close test credit after a green full run (Story #5313)', async () => {
   const deposits = [];
-  const status = runTestSuite({
-    argv: [],
-    cwd: '/repo',
-    spawn: () => ({ status: 0 }),
-    cleanup: () => {},
-    fixtureStreamGuard: () => 0,
-    preflight: () => 0,
-    listTargets: () => ['tests/a.test.js'],
-    depositCredit: (args) => {
-      deposits.push(args);
-      return {
-        deposited: true,
-        reason: 'recorded',
-        storyId: 7,
-        sha: 'abcdef0',
-      };
-    },
-  });
+  const status = await runTestSuite(
+    suiteDeps({
+      argv: [],
+      depositCredit: (args) => {
+        deposits.push(args);
+        return { deposited: true, reason: 'recorded', storyId: 7, sha: 'a' };
+      },
+    }),
+  );
   assert.equal(status, 0);
   assert.equal(deposits.length, 1);
   assert.equal(deposits[0].cwd, '/repo');
@@ -161,231 +178,318 @@ test('runTestSuite deposits the close test credit after a green full run (Story 
   assert.ok(Number.isInteger(deposits[0].durationMs));
 });
 
-test('runTestSuite hands a red run to the depositor and keeps its exit code', () => {
+test('runTestSuite hands a red run to the depositor and keeps its exit code', async () => {
   const seen = [];
-  const status = runTestSuite({
-    argv: [],
-    cwd: '/repo',
-    spawn: () => ({ status: 3 }),
-    cleanup: () => {},
-    fixtureStreamGuard: () => 0,
-    preflight: () => 0,
-    listTargets: () => ['tests/a.test.js'],
-    depositCredit: (args) => {
-      seen.push(args.status);
-      return { deposited: false, reason: 'run-not-green' };
-    },
-  });
-  assert.equal(status, 3);
-  assert.deepEqual(seen, [3]);
+  const status = await runTestSuite(
+    suiteDeps({
+      argv: [],
+      runTests: async () => 1,
+      depositCredit: (args) => {
+        seen.push(args.status);
+        return { deposited: false, reason: 'run-not-green' };
+      },
+    }),
+  );
+  assert.equal(status, 1);
+  assert.deepEqual(seen, [1]);
 });
 
-test('runTestSuite cleans reserved temp even when the test process fails', () => {
+test('a sharded run deposits no credit: a shard is not a full run', async () => {
+  let deposited = false;
+  await runTestSuite(
+    suiteDeps({
+      argv: ['--shard', '1/2'],
+      depositCredit: () => {
+        deposited = true;
+      },
+    }),
+  );
+  assert.equal(deposited, false);
+});
+
+test('runTestSuite cleans reserved temp after a failing run, then guards fixture streams', async () => {
   const calls = [];
-  const status = runTestSuite({
-    argv: ['tests/failing.test.js'],
-    cwd: '/repo',
-    spawn: (_cmd, args, opts) => {
-      calls.push({ kind: 'spawn', args, opts });
-      return { status: 12 };
-    },
-    cleanup: (opts) => {
-      calls.push({ kind: 'cleanup', opts });
-    },
-    preflight: () => 0,
-  });
-
-  assert.equal(status, 12);
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0].kind, 'spawn');
-  assert.equal(calls[1].kind, 'cleanup');
-  assert.deepEqual(calls[1].opts, { repoRoot: '/repo' });
-});
-
-// ---------------------------------------------------------------------------
-// chunkTestTargets — Windows arg-length guard (the run-tests.js spawnSync
-// ENAMETOOLONG regression: the `quick` tier crossed the Windows ~32 767-char
-// CreateProcess ceiling once the enumerated target list grew past it).
-// ---------------------------------------------------------------------------
-
-test('chunkTestTargets keeps a short list in a single chunk', () => {
-  const targets = ['tests/a.test.js', 'tests/b.test.js'];
-  assert.deepEqual(chunkTestTargets(targets, 8000), [targets]);
-});
-
-test('chunkTestTargets yields one empty chunk for an empty list (single spawn)', () => {
-  assert.deepEqual(chunkTestTargets([], 8000), [[]]);
-});
-
-test('chunkTestTargets splits a large list into chunks bounded by maxChars, preserving order', () => {
-  // 729-ish realistic paths well past the Windows ceiling.
-  const targets = Array.from(
-    { length: 800 },
-    (_, i) =>
-      `tests/some/nested/dir/file-${String(i).padStart(4, '0')}.test.js`,
+  const status = await runTestSuite(
+    suiteDeps({
+      argv: [],
+      runTests: async () => {
+        calls.push('run');
+        return 1;
+      },
+      cleanup: (opts) => calls.push(`cleanup:${opts.repoRoot}`),
+      fixtureStreamGuard: () => {
+        calls.push('guard');
+        return 0;
+      },
+    }),
   );
-  const maxChars = 8000;
-  const chunks = chunkTestTargets(targets, maxChars);
-
-  assert.ok(chunks.length > 1, 'a large list must split into multiple chunks');
-
-  // Every chunk's joined length stays within budget.
-  for (const chunk of chunks) {
-    const joinedLen = chunk.join(' ').length;
-    assert.ok(
-      joinedLen <= maxChars,
-      `chunk joined length ${joinedLen} exceeds budget ${maxChars}`,
-    );
-  }
-
-  // Order and completeness preserved across chunks.
-  assert.deepEqual(chunks.flat(), targets);
+  assert.equal(status, 1);
+  assert.deepEqual(calls, ['run', 'cleanup:/repo', 'guard']);
 });
 
-test('chunkTestTargets places an over-budget single target in its own chunk', () => {
-  const huge = `tests/${'x'.repeat(50)}.test.js`;
-  const chunks = chunkTestTargets([huge], 10);
-  assert.deepEqual(chunks, [[huge]]);
-});
-
-test('the real quick tier never exceeds the Windows arg budget per chunk', () => {
-  // Regression guard: with the live quick-tier file set, every spawned chunk
-  // must stay under MAX_TARGET_CHARS so spawnSync cannot throw ENAMETOOLONG
-  // on Windows. (This is the exact failure that reddened the Windows Smoke
-  // CI job — see run-tests.js header.)
-  const targets = listTestFilesForTier('quick', process.cwd());
-  const chunks = chunkTestTargets(targets, MAX_TARGET_CHARS);
-  for (const chunk of chunks) {
-    assert.ok(
-      chunk.join(' ').length <= MAX_TARGET_CHARS,
-      'a quick-tier chunk exceeded the Windows arg budget',
-    );
-  }
-  // Sanity: all live targets are still covered.
-  assert.equal(chunks.flat().length, targets.length);
-});
-
-// ---------------------------------------------------------------------------
-// resolveMaxTargetChars — platform-aware target budget (Story #3989): the
-// 8 000-char Windows CreateProcess guard must not serialize POSIX runs.
-// ---------------------------------------------------------------------------
-
-test('resolveMaxTargetChars keeps the Windows budget on win32', () => {
-  assert.equal(resolveMaxTargetChars('win32'), MAX_TARGET_CHARS);
-});
-
-test('resolveMaxTargetChars uses the larger POSIX budget elsewhere', () => {
-  assert.equal(resolveMaxTargetChars('darwin'), POSIX_MAX_TARGET_CHARS);
-  assert.equal(resolveMaxTargetChars('linux'), POSIX_MAX_TARGET_CHARS);
-  assert.ok(POSIX_MAX_TARGET_CHARS > MAX_TARGET_CHARS);
-});
-
-test('the real quick tier collapses to a single chunk under the POSIX budget', () => {
-  const targets = listTestFilesForTier('quick', process.cwd());
-  const chunks = chunkTestTargets(targets, POSIX_MAX_TARGET_CHARS);
-  assert.equal(chunks.length, 1, 'POSIX quick tier must be a single spawn');
-  assert.deepEqual(chunks.flat(), targets);
-});
-
-test('runTestSuite issues one spawn per chunk and never builds an unbounded argv', () => {
-  // Inject a target list that spans multiple chunks.
-  const targets = Array.from(
-    { length: 600 },
-    (_, i) => `tests/dir/file-${String(i).padStart(4, '0')}.test.js`,
-  );
-  const spawns = [];
-  const status = runTestSuite({
-    argv: [], // full tier — but listTargets is injected below
-    cwd: '/repo',
-    listTargets: () => targets,
-    maxTargetChars: 8000,
-    spawn: (_cmd, args) => {
-      spawns.push(args);
-      return { status: 0 };
-    },
-    cleanup: () => {},
-    preflight: () => 0,
-  });
-
-  assert.equal(status, 0);
-  assert.ok(spawns.length > 1, 'large target set must fan out across spawns');
-
-  for (const args of spawns) {
-    // Fixed flags lead every spawn.
-    for (const flag of TEST_RUNNER_FLAGS) assert.ok(args.includes(flag));
-    // The target portion (args minus the fixed flags) stays bounded.
-    const targetPortion = args.filter((a) => a.startsWith('tests/'));
-    assert.ok(
-      targetPortion.join(' ').length <= 8000,
-      'a spawn argv exceeded the target char budget',
-    );
-  }
-  // Completeness: union of all spawned targets equals the input set.
-  const spawnedTargets = spawns.flatMap((a) =>
-    a.filter((x) => x.startsWith('tests/')),
-  );
-  assert.deepEqual(spawnedTargets, targets);
-});
-
-test('runTestSuite spawns pass-through flags ahead of the chunk targets', () => {
-  let spawnedArgs = null;
-  runTestSuite({
-    argv: ['--test-name-pattern', 'foo'],
-    cwd: '/repo',
-    listTargets: () => ['tests/a.test.js'],
-    spawn: (_cmd, args) => {
-      spawnedArgs = args;
-      return { status: 0 };
-    },
-    cleanup: () => {},
-    preflight: () => 0,
-  });
-
-  assert.ok(
-    spawnedArgs.indexOf('--test-name-pattern') <
-      spawnedArgs.indexOf('tests/a.test.js'),
-    'a flag after a target is silently read as another file pattern',
-  );
-});
-
-test('runTestSuite returns the first non-zero chunk exit code', () => {
-  const targets = Array.from(
-    { length: 600 },
-    (_, i) => `tests/dir/file-${String(i).padStart(4, '0')}.test.js`,
-  );
-  let call = 0;
-  const status = runTestSuite({
-    argv: [],
-    cwd: '/repo',
-    listTargets: () => targets,
-    maxTargetChars: 8000,
-    spawn: () => {
-      call += 1;
-      return { status: call === 2 ? 7 : 0 };
-    },
-    cleanup: () => {},
-    preflight: () => 0,
-  });
-  assert.equal(status, 7);
-});
-
-test('runTestSuite cleans up then throws on a spawn error', () => {
+test('runTestSuite cleans up then rethrows when the runner throws', async () => {
   let cleaned = false;
-  assert.throws(
-    () =>
-      runTestSuite({
-        argv: ['tests/x.test.js'],
-        cwd: '/repo',
-        listTargets: () => ['tests/x.test.js'],
-        spawn: () => ({ error: new Error('ENOENT') }),
+  await assert.rejects(
+    runTestSuite(
+      suiteDeps({
+        argv: [],
+        runTests: async () => {
+          throw new Error('ENOENT');
+        },
         cleanup: () => {
           cleaned = true;
         },
-        preflight: () => 0,
       }),
+    ),
     /ENOENT/,
   );
-  assert.ok(cleaned, 'cleanup must run before the throw');
+  assert.ok(cleaned, 'cleanup must run before the rethrow');
+});
+
+test('a polluted fixture stream fails an otherwise green run', async () => {
+  const status = await runTestSuite(
+    suiteDeps({ argv: [], fixtureStreamGuard: () => 4 }),
+  );
+  assert.equal(status, 4);
+});
+
+test('runTestSuite makes one runner call over the whole tier, with the safe env', async () => {
+  const targets = Array.from(
+    { length: 900 },
+    (_, i) => `tests/dir/file-${String(i).padStart(4, '0')}.test.js`,
+  );
+  const calls = [];
+  await runTestSuite(
+    suiteDeps({
+      argv: ['--tier', 'quick'],
+      listTargets: () => targets,
+      runTests: async (opts) => {
+        calls.push(opts);
+        return 0;
+      },
+    }),
+  );
+  assert.equal(calls.length, 1, 'one run() call, never an argv chunk loop');
+  assert.deepEqual(calls[0].files, targets);
+  assert.equal(calls[0].cwd, '/repo');
+  assert.equal(calls[0].only, false);
+  assert.equal('testNamePatterns' in calls[0], false);
+  assert.ok(calls[0].env.NODE_ENV, 'the child env carries NODE_ENV');
+  assert.equal(
+    Object.keys(calls[0].env).some((k) => k.startsWith('GIT_')),
+    false,
+  );
+});
+
+test('runTestSuite maps the pass-through flags onto run() options', async () => {
+  let seen = null;
+  await runTestSuite(
+    suiteDeps({
+      argv: [
+        '--test-name-pattern',
+        'foo',
+        '--test-name-pattern=bar',
+        '--test-only',
+      ],
+      runTests: async (opts) => {
+        seen = opts;
+        return 0;
+      },
+    }),
+  );
+  assert.deepEqual(seen.testNamePatterns, ['foo', 'bar']);
+  assert.equal(seen.only, true);
+  assert.deepEqual(seen.files, ['tests/a.test.js']);
+});
+
+test('runTestSuite runs only its shard of the tier', async () => {
+  let seen = null;
+  await runTestSuite(
+    suiteDeps({
+      argv: ['--shard=2/3'],
+      listTargets: () => ['a', 'b', 'c', 'd', 'e'],
+      runTests: async (opts) => {
+        seen = opts.files;
+        return 0;
+      },
+    }),
+  );
+  assert.deepEqual(seen, ['b', 'e']);
+});
+
+test('a malformed --shard fails before the preflight or any file runs', async () => {
+  let ran = false;
+  await assert.rejects(
+    runTestSuite(
+      suiteDeps({
+        argv: ['--shard', '3/2'],
+        preflight: () => {
+          ran = true;
+          return 0;
+        },
+        runTests: async () => {
+          ran = true;
+          return 0;
+        },
+      }),
+    ),
+    /unrecognized argument/,
+  );
+  assert.equal(ran, false);
+});
+
+// ---------------------------------------------------------------------------
+// toRunOptions / shardTestFiles — pure argv and partition helpers.
+// ---------------------------------------------------------------------------
+
+test('toRunOptions keeps a bare positional as an extra file target', () => {
+  assert.deepEqual(toRunOptions(['tests/x.test.js']), {
+    only: false,
+    files: ['tests/x.test.js'],
+  });
+});
+
+test('extractShard extracts --shard in both spellings', () => {
+  assert.deepEqual(extractShard(['--tier', 'quick', '--shard', '1/2']), {
+    shard: { index: 1, total: 2 },
+    argv: ['--tier', 'quick'],
+  });
+  assert.deepEqual(extractShard(['--shard=2/2', '--test-only']), {
+    shard: { index: 2, total: 2 },
+    argv: ['--test-only'],
+  });
+  assert.deepEqual(extractShard(['--test-only']), {
+    shard: null,
+    argv: ['--test-only'],
+  });
+});
+
+test('extractShard rejects a malformed --shard with the unrecognized-argument error', () => {
+  for (const argv of [
+    ['--shard'],
+    ['--shard', '0/2'],
+    ['--shard', '3/2'],
+    ['--shard=1-2'],
+    ['--shard', 'x/2'],
+    ['--shard=1/0'],
+  ]) {
+    assert.throws(
+      () => extractShard(argv),
+      /unrecognized argument.*--shard/,
+      `${argv.join(' ')} must be rejected`,
+    );
+  }
+});
+
+test('shardTestFiles returns the list unchanged without a shard', () => {
+  assert.deepEqual(shardTestFiles(['a', 'b'], null), ['a', 'b']);
+});
+
+test('shardTestFiles: the n shards are pairwise disjoint and their union is the list', () => {
+  fc.assert(
+    fc.property(
+      fc.uniqueArray(fc.string({ minLength: 1, maxLength: 6 }), {
+        maxLength: 40,
+      }),
+      fc.integer({ min: 1, max: 8 }),
+      (raw, total) => {
+        const files = [...raw].sort();
+        const shards = Array.from({ length: total }, (_, i) =>
+          shardTestFiles(files, { index: i + 1, total }),
+        );
+        const seen = shards.flat();
+        assert.equal(seen.length, files.length, 'no file in two shards');
+        assert.deepEqual([...seen].sort(), files, 'every file in a shard');
+      },
+    ),
+    fcParams(),
+  );
+});
+
+test('the live quick tier splits into two disjoint, complete shards', () => {
+  const files = listTestFilesForTier('quick', REPO_ROOT);
+  const one = shardTestFiles(files, { index: 1, total: 2 });
+  const two = shardTestFiles(files, { index: 2, total: 2 });
+  assert.ok(one.length > 0 && two.length > 0);
+  assert.deepEqual([...one, ...two].sort(), files);
+});
+
+// ---------------------------------------------------------------------------
+// runNodeTests — the real in-process run() over fixture files. Exit status
+// and filtering must match what `node --test` produced before the rewrite.
+// ---------------------------------------------------------------------------
+
+/** The parent env minus NODE_TEST_CONTEXT, whose presence makes run() refuse to recurse. */
+function childEnv(extra = {}) {
+  const { NODE_TEST_CONTEXT: _nested, ...env } = process.env;
+  return { ...env, ...extra };
+}
+
+async function runFixtures(names, opts = {}) {
+  let text = '';
+  const stdout = new Writable({
+    write(chunk, _enc, done) {
+      text += chunk;
+      done();
+    },
+  });
+  const status = await runNodeTests({
+    files: names.map((n) => `${FIXTURES}/${n}.fixture.js`),
+    cwd: REPO_ROOT,
+    env: childEnv(),
+    stdout,
+    ...opts,
+  });
+  return { status, text };
+}
+
+test('runNodeTests exits 0 on a green file and reports TAP off a TTY', async () => {
+  const { status, text } = await runFixtures(['pass']);
+  assert.equal(status, 0);
+  assert.match(text, /^TAP version 13/m);
+  assert.match(text, /ok \d+ - alpha-kept/);
+});
+
+test('runNodeTests exits 1 on a failing test', async () => {
+  const { status, text } = await runFixtures(['pass', 'fail']);
+  assert.equal(status, 1);
+  assert.match(text, /not ok \d+ - fails/);
+});
+
+test('runNodeTests exits 1 on a file that crashes at load', async () => {
+  const { status } = await runFixtures(['crash']);
+  assert.equal(status, 1);
+});
+
+test('runNodeTests does not fail the run on a failing todo test', async () => {
+  const { status } = await runFixtures(['todo']);
+  assert.equal(status, 0);
+});
+
+test('runNodeTests applies --test-name-pattern', async () => {
+  const { status, text } = await runFixtures(['pass'], {
+    testNamePatterns: ['alpha'],
+  });
+  assert.equal(status, 0);
+  assert.match(text, /ok \d+ - alpha-kept/);
+  assert.doesNotMatch(text, /ok \d+ - beta-dropped/);
+});
+
+test('runNodeTests applies --test-only', async () => {
+  const { status, text } = await runFixtures(['only'], { only: true });
+  assert.equal(status, 0);
+  assert.match(text, /ok \d+ - focused/);
+  assert.doesNotMatch(text, /ok \d+ - unfocused/);
+});
+
+test('runNodeTests restores the parent env and cwd after the run', async () => {
+  const cwd = process.cwd();
+  const before = process.env.RUN_TESTS_PROBE;
+  await runFixtures(['pass'], {
+    env: childEnv({ RUN_TESTS_PROBE: 'set-for-children' }),
+  });
+  assert.equal(process.cwd(), cwd);
+  assert.equal(process.env.RUN_TESTS_PROBE, before);
 });
 
 // ---------------------------------------------------------------------------
@@ -396,62 +500,57 @@ test('runTestSuite cleans up then throws on a spawn error', () => {
 // invocation now; these are the assertions that hold it to that.
 // ---------------------------------------------------------------------------
 
-test('runTestSuite runs the preflight for the tier before spawning the suite', () => {
+test('runTestSuite runs the preflight for the tier before running the suite', async () => {
   const order = [];
-  const status = runTestSuite({
-    argv: ['--tier', 'quick'],
-    cwd: '/repo',
-    listTargets: () => ['tests/a.test.js'],
-    preflight: (opts) => {
-      order.push(`preflight:${opts.tier}:${opts.repoRoot}`);
-      return 0;
-    },
-    spawn: () => {
-      order.push('spawn');
-      return { status: 0 };
-    },
-    cleanup: () => {},
-  });
-
-  assert.equal(status, 0);
-  assert.deepEqual(order, ['preflight:quick:/repo', 'spawn']);
-});
-
-test('runTestSuite passes each tier through to the preflight', () => {
-  for (const tier of ['full', 'quick', 'integration']) {
-    const seen = [];
-    runTestSuite({
-      argv: ['--tier', tier],
-      cwd: '/repo',
-      listTargets: () => [],
+  const status = await runTestSuite(
+    suiteDeps({
+      argv: ['--tier', 'quick'],
       preflight: (opts) => {
-        seen.push(opts.tier);
+        order.push(`preflight:${opts.tier}:${opts.repoRoot}`);
         return 0;
       },
-      spawn: () => ({ status: 0 }),
-      cleanup: () => {},
-    });
+      runTests: async () => {
+        order.push('run');
+        return 0;
+      },
+    }),
+  );
+  assert.equal(status, 0);
+  assert.deepEqual(order, ['preflight:quick:/repo', 'run']);
+});
+
+test('runTestSuite passes each tier through to the preflight', async () => {
+  for (const tier of ['full', 'quick', 'integration']) {
+    const seen = [];
+    await runTestSuite(
+      suiteDeps({
+        argv: ['--tier', tier],
+        listTargets: () => [],
+        preflight: (opts) => {
+          seen.push(opts.tier);
+          return 0;
+        },
+      }),
+    );
     assert.deepEqual(seen, [tier], `tier ${tier} must reach the preflight`);
   }
 });
 
-test('a refused preflight aborts before the test runner is ever spawned', () => {
-  let spawned = false;
-  const status = runTestSuite({
-    argv: [],
-    cwd: '/repo',
-    listTargets: () => ['tests/a.test.js'],
-    // 2 is the project-wide "preflight refused" reservation.
-    preflight: () => 2,
-    spawn: () => {
-      spawned = true;
-      return { status: 0 };
-    },
-    cleanup: () => {},
-  });
-
+test('a refused preflight aborts before the test runner is ever called', async () => {
+  let ran = false;
+  const status = await runTestSuite(
+    suiteDeps({
+      argv: [],
+      // 2 is the project-wide "preflight refused" reservation.
+      preflight: () => 2,
+      runTests: async () => {
+        ran = true;
+        return 0;
+      },
+    }),
+  );
   assert.equal(status, 2, 'the preflight exit code must propagate');
-  assert.equal(spawned, false, 'no suite may run behind a refused preflight');
+  assert.equal(ran, false, 'no suite may run behind a refused preflight');
 });
 
 // ---------------------------------------------------------------------------
@@ -462,7 +561,7 @@ test('a refused preflight aborts before the test runner is ever spawned', () => 
 // effects" half holds structurally.
 // ---------------------------------------------------------------------------
 
-test('--help short-circuits: usage on stdout, and zero runner spawns', () => {
+test('--help short-circuits: usage on stdout, and zero runner calls', async () => {
   for (const flag of ['--help', '-h']) {
     let printed = '';
     let spawns = 0;
@@ -475,17 +574,15 @@ test('--help short-circuits: usage on stdout, and zero runner spawns', () => {
     // The exact composition `runAsCli` performs: the help gate runs first,
     // and main is never invoked when it answers.
     if (!respondToHelp([flag], USAGE, out)) {
-      runTestSuite({
-        argv: [flag],
-        cwd: '/repo',
-        listTargets: () => ['tests/a.test.js'],
-        spawn: () => {
-          spawns += 1;
-          return { status: 0 };
-        },
-        cleanup: () => {},
-        preflight: () => 0,
-      });
+      await runTestSuite(
+        suiteDeps({
+          argv: [flag],
+          runTests: async () => {
+            spawns += 1;
+            return 0;
+          },
+        }),
+      );
     }
 
     assert.equal(spawns, 0, `${flag} must spawn no test runner`);
