@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.99.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.98.0...mandrel-v2.99.0) (2026-10-23)
+
+
+### Added
+
+* adopt verification-discipline rules: bug-fix behaviour delta, write-time property tests with failure witnesses, caller obligations ([#5863](https://github.com/dsj1984/mandrel/issues/5863)) ([#5864](https://github.com/dsj1984/mandrel/issues/5864)) ([d746c14](https://github.com/dsj1984/mandrel/commit/d746c1442808f3c4d7f39996027e0d57df500b94))
+* cut the required-CI critical path: one-pass node:test orchestrator, sharded Windows Smoke, leaner validate job, ruleset drift guard ([#5866](https://github.com/dsj1984/mandrel/issues/5866)) ([#5871](https://github.com/dsj1984/mandrel/issues/5871)) ([64f01a1](https://github.com/dsj1984/mandrel/commit/64f01a1c6b730c22e48a8fc004490dd613c700e2))
+
 ## [2.98.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.97.0...mandrel-v2.98.0) (2026-10-22)
 
 
