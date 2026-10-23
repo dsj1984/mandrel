@@ -235,8 +235,8 @@ A second confusion is worth stating just as plainly:
 > `baselines` → `node .agents/scripts/check-baselines.js`). GitHub reports a
 > status under the *job's display name*, which is a different string:
 > `npm run lint` runs **inside** the job GitHub reports as `baselines` and the
-> test suite inside `Validate and Test`, so there is no `lint` context and no
-> `test` context to require. Configuring branch protection from the `.agentrc.json` names would
+> test suite inside `Validate and Test`, so there is
+> no `lint` context and no `test` context to require. Configuring branch protection from the `.agentrc.json` names would
 > register up to two contexts that no workflow ever reports — GitHub would
 > hold every PR forever, or, if the ruleset were removed to unstick it, leave
 > the `trust-ci` arm with nothing to gate. Read the contexts off the live
