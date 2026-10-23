@@ -647,13 +647,21 @@ describe('runSingleStoryClose orchestration', () => {
     // probe is the 3rd gh call. Story #5395 adds the merge-queue probe (a
     // `pr view --json id` ahead of its GraphQL read); this fake refuses both
     // reads, so they fail open and the arm keeps the non-queue spelling, last.
-    assert.equal(ghCalls.length, 5);
-    assert.equal(ghCalls[2][1], 'view');
-    assert.deepEqual(ghCalls[3].slice(1), ['view', '123', '--json', 'id']);
-    assert.equal(ghCalls[4][1], 'merge');
-    assert.ok(ghCalls[4].includes('--auto'));
-    assert.ok(ghCalls[4].includes('--squash'));
-    assert.ok(ghCalls[4].includes('--delete-branch'));
+    // Story #5877 — the landed-PR probe is the 1st gh call.
+    assert.equal(ghCalls.length, 6);
+    assert.deepEqual(ghCalls[0].slice(1, 6), [
+      'list',
+      '--head',
+      'story-1234',
+      '--state',
+      'all',
+    ]);
+    assert.equal(ghCalls[3][1], 'view');
+    assert.deepEqual(ghCalls[4].slice(1), ['view', '123', '--json', 'id']);
+    assert.equal(ghCalls[5][1], 'merge');
+    assert.ok(ghCalls[5].includes('--auto'));
+    assert.ok(ghCalls[5].includes('--squash'));
+    assert.ok(ghCalls[5].includes('--delete-branch'));
 
     // Story #3385 — the close path now rests the Story at `agent::closing`,
     // NOT `agent::done`. The flip still routes through
@@ -1047,7 +1055,7 @@ describe('runSingleStoryClose orchestration', () => {
       result.note,
       /operator owns the land: merge via the GitHub UI/,
     );
-    assert.equal(ghCalls.length, 2);
+    assert.equal(ghCalls.length, 3);
   });
 
   it('skips auto-merge under delivery.ci.autoMerge="strict" (operator merges)', async (t) => {
@@ -1087,8 +1095,8 @@ describe('runSingleStoryClose orchestration', () => {
 
     assert.equal(result.autoMergeEnabled, false);
     assert.equal(result.autoMergeReason, 'disabled-by-policy-strict');
-    // The gh merge call is never made — only list + create ran.
-    assert.equal(ghCalls.length, 2);
+    // The gh merge call is never made — only probe, list + create ran.
+    assert.equal(ghCalls.length, 3);
   });
 
   it('reports pr-number-unparseable when the PR URL has no /pull/<n>', async (t) => {
@@ -2587,11 +2595,11 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     );
   });
 
-  // Two guards, each sufficient: an OPEN PR on the head (the remote branch
-  // and local ref already swept), and a surviving local ref (unpushed work).
+  // An OPEN PR on the head (a re-delivery) wins over an old merged one, and
+  // a surviving tip the merged PR never held is unlanded work (Story #5877).
   for (const [variant, localRef, remoteBranch] of [
     ['an OPEN PR beside an old merged one', false, false],
-    ['a surviving local story ref', true, false],
+    ['a surviving local story ref past the merged head', true, false],
     ['new work pushed to origin only, no PR yet', false, true],
   ])
     it(`Story #5533: a re-delivery with ${variant} never short-circuits`, async (t) => {
@@ -2643,18 +2651,15 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       });
       const gh = makeFakeGh((args) => {
         if (args[1] === 'list') {
+          const merged = {
+            url: 'https://github.com/owner/repo/pull/10',
+            state: 'MERGED',
+            headRefOid: 'old-merged-tip',
+          };
           return localRef || remoteBranch
-            ? [
-                {
-                  url: 'https://github.com/owner/repo/pull/10',
-                  state: 'MERGED',
-                },
-              ]
+            ? [merged]
             : [
-                {
-                  url: 'https://github.com/owner/repo/pull/10',
-                  state: 'MERGED',
-                },
+                merged,
                 { url: 'https://github.com/owner/repo/pull/11', state: 'OPEN' },
               ];
         }
@@ -2691,6 +2696,125 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       assert.ok(order.includes('ensure'), 'the worktree is restored as usual');
       assert.ok(order.includes(`push @ ${wtPath}`), 'the new work is pushed');
     });
+
+  it('Story #5877: a surviving branch and worktree whose head already MERGED settles through the land tail', async (t) => {
+    // The land tail's reap is pending or failed, so the worktree and branch
+    // outlived the merge. Branch survival is not unlanded work.
+    const order = [];
+    mkdirSync(path.join(tempRoot, '.worktrees', 'story-5877'), {
+      recursive: true,
+    });
+    t.mock.module(GIT_UTILS_URL, {
+      namedExports: {
+        ...defaultGitUtilsMock().namedExports,
+        // Both refs survive, at the tip the merged PR carried.
+        gitSpawn: (cwd, ...args) => {
+          if (args[0] === 'show-ref')
+            return { status: 0, stdout: 'abc5539 refs/heads/story-5877\n' };
+          if (args[0] === 'ls-remote')
+            return { status: 0, stdout: 'abc5539\trefs/heads/story-5877\n' };
+          return defaultGitUtilsMock().namedExports.gitSpawn(cwd, ...args);
+        },
+        gitSync: (cwd, ...args) => {
+          order.push(`${args[0]} @ ${cwd}`);
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      },
+    });
+    mockCloseValidation(t, {
+      namedExports: {
+        buildDefaultGates: () => [],
+        runCloseValidation: async () => {
+          order.push('validation');
+          return { ok: true, failed: [] };
+        },
+      },
+    });
+    t.mock.module(WORKTREE_MANAGER_URL, {
+      namedExports: {
+        WorktreeManager: class {
+          async ensure() {
+            order.push('ensure');
+            throw new Error('restore must not run for a landed PR');
+          }
+        },
+        parseWorktreePorcelain: (..._args) => [],
+      },
+    });
+    mockConfirmMergePhase(t, {
+      confirmed: true,
+      terminal: 'landed',
+      action: 'done',
+      tail: {
+        followUps: true,
+        statusResync: true,
+        worktreeReap: true,
+        refCleanup: true,
+        baseFastForward: true,
+        tempPurge: true,
+        leaseRelease: true,
+        epicRollup: true,
+        details: {},
+      },
+      prProbe: { state: 'MERGED', checksStatus: 'success' },
+    });
+    const ghCalls = [];
+    const gh = makeFakeGh((args) => {
+      ghCalls.push(args.slice());
+      if (args[1] === 'list') {
+        return [
+          {
+            url: 'https://github.com/owner/repo/pull/5539',
+            state: 'MERGED',
+            mergedAt: '2026-10-23T16:35:01Z',
+            headRefOid: 'abc5539',
+          },
+        ];
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=5877-surviving-merged`
+    );
+    const { terminal, result } = await runSingleStoryClose({
+      storyId: 5877,
+      cwd: tempRoot,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5877,
+          state: 'open',
+          title: 'merged, reap pending',
+          labels: ['agent::closing'],
+        },
+      }),
+      injectedConfig: fakeConfig({
+        worktreeRoot: '.worktrees',
+        worktreeEnabled: true,
+      }),
+      injectedGh: gh,
+      injectedRunCodeReview: async () => {
+        throw new Error('a landed PR is not reviewed again');
+      },
+    });
+
+    assert.deepEqual(order, [], 'no restore, sync, validation or push');
+    assert.deepEqual(ghCalls, [
+      [
+        'pr',
+        'list',
+        '--head',
+        'story-5877',
+        '--state',
+        'all',
+        '--json',
+        'url,state,mergedAt,headRefOid',
+      ],
+    ]);
+    assert.equal(terminal.status, 'landed');
+    assert.equal(terminal.gates.validation, 'skipped');
+    assert.equal(terminal.gates.baseSync, 'skipped');
+    assert.equal(result.prNumber, 5539);
+  });
 
   it('Story #5533: a closed Story short-circuits before any worktree restore', async (t) => {
     const order = [];
@@ -3132,10 +3256,12 @@ describe('runSingleStoryClose — pipeline endings past the PR phase', () => {
     });
 
     assert.equal(reviewRan, false, 'an already-merged PR is never reviewed');
+    // Story #5877 — the landed probe cannot read the branch tip here, so it
+    // declines; the PR phase's own probe then reports the merge.
     assert.equal(
       ghCalls.length,
-      1,
-      'only the PR probe runs — no create, no merge',
+      2,
+      'only the two PR probes run — no create, no merge',
     );
     assert.equal(result.prNumber, 88);
     assert.equal(result.autoMergeEnabled, true);

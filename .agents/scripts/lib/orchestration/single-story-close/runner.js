@@ -1,7 +1,6 @@
 import { buildDefaultGates } from '../../close-validation/gates.js';
 import { runCloseValidation } from '../../close-validation/runner.js';
 import { getCiDelivery } from '../../config/ci.js';
-import { resolveWorktreeEnabled } from '../../config/runtime.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { gh as defaultGh } from '../../gh-exec.js';
 import { getStoryBranch, gitSpawn, gitSync } from '../../git-utils.js';
@@ -38,10 +37,7 @@ import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
 import { runPrePushPhases } from './phases/pre-push.js';
 import { pickHeadPullRequest } from './phases/pull-request.js';
 import { reconcileDoneLabel } from './phases/reconcile-done.js';
-import {
-  existingWorktreePath,
-  resolveStoryWorktree,
-} from './phases/worktree-restore.js';
+import { resolveStoryWorktree } from './phases/worktree-restore.js';
 import {
   alreadyClosedResult,
   closeEnvelopeGates,
@@ -260,16 +256,28 @@ async function resolveBasePhase(ctx, deps) {
   return null;
 }
 
+/** First SHA of a `show-ref` / `ls-remote` line; `''` on an empty read. */
+function firstSha(stdout) {
+  return String(stdout ?? '')
+    .trim()
+    .split(/\s+/)[0];
+}
+
 /**
- * A surviving local ref, or a branch still on origin, may carry work no PR
- * holds yet. Only `ls-remote`'s "no such ref" (exit 2) proves the remote
- * branch gone — a read failure counts as surviving.
+ * Tip SHAs of the surviving story refs (local, then origin). Only
+ * `ls-remote`'s "no such ref" (exit 2) proves the remote gone; any other
+ * failure yields `''`, which matches no PR head.
  */
-function storyBranchSurvives(ctx) {
+function survivingStoryHeads(ctx) {
   const cwd = ctx.options.cwd;
-  const ref = `refs/heads/${ctx.storyBranch}`;
-  const local = gitSpawn(cwd, 'show-ref', '--verify', '--quiet', ref);
-  if (local.status === 0) return true;
+  const heads = [];
+  const local = gitSpawn(
+    cwd,
+    'show-ref',
+    '--verify',
+    `refs/heads/${ctx.storyBranch}`,
+  );
+  if (local.status === 0) heads.push(firstSha(local.stdout));
   const remote = gitSpawn(
     cwd,
     'ls-remote',
@@ -278,28 +286,38 @@ function storyBranchSurvives(ctx) {
     'origin',
     ctx.storyBranch,
   );
-  return remote.status !== 2;
+  if (remote.status !== 2)
+    heads.push(remote.status === 0 ? firstSha(remote.stdout) : '');
+  return heads;
 }
 
 /**
- * The Story's PR, when it already merged and nothing newer is in flight — a
- * re-run after the land, whose branch `--delete-branch` and a sweep removed.
- * An OPEN PR on the head wins (a re-delivery), as `ensurePullRequestWith`
- * decides, and a surviving branch means there may be work to deliver.
- * Any read failure reads as "not merged": the normal path then decides.
+ * The Story's PR, when it already merged and nothing newer is in flight. A
+ * surviving branch is not evidence of unlanded work (the land tail's reap may
+ * be pending or failed), but a surviving tip past the merged PR's head is: it
+ * takes the normal path. An OPEN PR on the head wins (a re-delivery), as
+ * `ensurePullRequestWith` decides. Any read failure reads as "not merged".
  *
- * @returns {Promise<{ prUrl: string, prNumber: number|null }|null>}
+ * @returns {Promise<{ prUrl: string, prNumber: number|null, mergedAt: string }|null>}
  */
 async function findLandedPr(ctx, deps) {
-  if (storyBranchSurvives(ctx)) return null;
   try {
     const rows = await (deps.gh ?? defaultGh).pr.list(
       ['--head', ctx.storyBranch, '--state', 'all'],
-      ['url', 'state', 'mergedAt'],
+      ['url', 'state', 'mergedAt', 'headRefOid'],
     );
     const head = pickHeadPullRequest(rows);
-    return head?.state === 'MERGED'
-      ? { prUrl: head.url, prNumber: parsePrNumber(head.url) }
+    if (head?.state !== 'MERGED') return null;
+    const row = rows.find((r) => String(r?.url ?? '').trim() === head.url);
+    const landed = survivingStoryHeads(ctx).every(
+      (sha) => sha === row.headRefOid,
+    );
+    return landed
+      ? {
+          prUrl: head.url,
+          prNumber: parsePrNumber(head.url),
+          mergedAt: row.mergedAt ?? 'an unknown time',
+        }
       : null;
   } catch {
     return null;
@@ -307,22 +325,17 @@ async function findLandedPr(ctx, deps) {
 }
 
 /**
- * A missing worktree is recreated — unless the PR already merged, which
- * short-circuits to the confirm before any restore is attempted.
+ * A head whose PR already merged short-circuits to the confirm before any
+ * worktree restore; otherwise a missing worktree is recreated.
  */
 async function resolveCloseWorktree(ctx, deps) {
-  const cwd = ctx.options.cwd;
-  const wtIsolation = deps.config.delivery?.worktreeIsolation;
-  const missing =
-    !existingWorktreePath({ cwd, wtIsolation, storyId: ctx.storyId }) &&
-    resolveWorktreeEnabled({ config: deps.config });
-  ctx.landedPr = missing ? await findLandedPr(ctx, deps) : null;
+  ctx.landedPr = await findLandedPr(ctx, deps);
   if (ctx.landedPr) {
     ctx.recordPrNumber(ctx.landedPr.prNumber);
     return null;
   }
   return await resolveStoryWorktree({
-    cwd,
+    cwd: ctx.options.cwd,
     config: deps.config,
     storyId: ctx.storyId,
     storyBranch: ctx.storyBranch,
@@ -340,7 +353,7 @@ function unlessLanded(phase, onLanded) {
 function landedPrePush(ctx) {
   progress(
     'INIT',
-    `⏭  PR ${ctx.landedPr.prUrl} already merged — skipping validation, sync and push.`,
+    `⏭  PR ${ctx.landedPr.prUrl} already merged at ${ctx.landedPr.mergedAt} — skipping validation, sync and push.`,
   );
   ctx.options = { ...ctx.options, skipValidation: true, skipSync: true };
   ctx.prePush = {
