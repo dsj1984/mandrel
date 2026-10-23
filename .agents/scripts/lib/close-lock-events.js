@@ -91,19 +91,32 @@ export function claimLockEventSink(env = process.env, { fsImpl = fs } = {}) {
 }
 
 /**
- * Waits sum, an expiry sticks, the last holder wins; timings are the last.
+ * Waits sum, an expiry sticks, the last holder wins; `spawns` keeps every
+ * suite's timings in order and `suiteTimings` is the last of them.
  *
  * @param {object[]} events
- * @returns {{ lockWait: object|null, suiteTimings: object|null }}
+ * @returns {{ lockWait: object|null, suiteTimings: object|null, spawns: object[] }}
  */
 export function summarizeLockEvents(events) {
   let lockWait = null;
-  let suiteTimings = null;
+  const spawns = [];
   for (const event of events.filter((e) => e.kind !== 'lock-progress')) {
     if (event.kind === 'lock-wait') lockWait = mergeLockWait(lockWait, event);
-    else suiteTimings = timingsOf(event);
+    else spawns.push(timingsOf(event));
   }
-  return { lockWait, suiteTimings };
+  return { lockWait, suiteTimings: spawns.at(-1) ?? null, spawns };
+}
+
+/**
+ * The envelope's `suiteTimings`: the last spawn tagged with the run it came
+ * from, beside every spawn; `null` when the run spawned none.
+ *
+ * @param {{ suiteTimings: object|null, spawns: object[] }} summary
+ * @param {'close'|'credited-run'} source
+ * @returns {object|null}
+ */
+export function sourcedTimings({ suiteTimings, spawns }, source) {
+  return suiteTimings && { ...suiteTimings, source, spawns };
 }
 
 function mergeLockWait(tally, event) {

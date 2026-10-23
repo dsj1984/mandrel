@@ -116,7 +116,7 @@ function compact(obj) {
  * @param {object|null} [args.waitBudget]
  * @param {{ waitedSeconds: number, expired: boolean, holder?: object }|null} [args.lockWait]
  *   Full-suite lock wait; `waitBudget` is merge-wait only.
- * @param {{ lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }|null} [args.suiteTimings]
+ * @param {{ lockWaitMs: number, hostWaitMs: number|null, testRunMs: number, source: 'close'|'credited-run', spawns: object[] }|null} [args.suiteTimings]
  * @param {Record<string, number>|null} [args.phaseDurations] Seconds per phase.
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]

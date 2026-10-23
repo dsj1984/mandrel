@@ -227,12 +227,26 @@
     },
     "suiteTimings": {
       "type": ["object", "null"],
-      "description": "Story #5485 — the close's one full-suite run split into three separate figures: lockWaitMs (queued on the host full-suite lock), hostWaitMs (spawn until the suite signalled MANDREL_SUITE_READY_FILE; null when it did not use the handshake) and testRunMs (the test phase the coverage.timeoutMs kill bound applies to). null when no full suite ran in this close.",
-      "required": ["lockWaitMs", "hostWaitMs", "testRunMs"],
+      "description": "Story #5485 — the last full-suite run split into three separate figures: lockWaitMs (queued on the host full-suite lock), hostWaitMs (spawn until the suite signalled MANDREL_SUITE_READY_FILE; null when it did not use the handshake) and testRunMs (the test phase the coverage.timeoutMs kill bound applies to). Story #5879 — source says which run: close (this close spawned the suite) or credited-run (close honoured the handoff's credited run, whose figures these are); spawns lists every suite spawn of that run in order. null when neither ran a full suite.",
+      "required": ["lockWaitMs", "hostWaitMs", "testRunMs", "source", "spawns"],
       "properties": {
         "lockWaitMs": { "type": "number", "minimum": 0 },
         "hostWaitMs": { "type": ["number", "null"], "minimum": 0 },
-        "testRunMs": { "type": "number", "minimum": 0 }
+        "testRunMs": { "type": "number", "minimum": 0 },
+        "source": { "enum": ["close", "credited-run"] },
+        "spawns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["lockWaitMs", "hostWaitMs", "testRunMs"],
+            "properties": {
+              "lockWaitMs": { "type": "number", "minimum": 0 },
+              "hostWaitMs": { "type": ["number", "null"], "minimum": 0 },
+              "testRunMs": { "type": "number", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     },

@@ -1171,6 +1171,59 @@ describe('story-handoff — live lock progress for the credited run (Story #5662
     );
   });
 
+  test("Story #5879 AC-2: the credited run's lock wait and suite timings reach the envelope and the state, keyed to the credited head", async () => {
+    const spawn = {
+      lockWaitMs: 1_619_401,
+      hostWaitMs: null,
+      testRunMs: 562_035,
+    };
+    const h = liveHarness(async ({ emit }) => {
+      emit({ kind: 'lock-wait', waitedSeconds: 1619, expired: false });
+      emit({ kind: 'suite-timings', ...spawn });
+      return {
+        status: 0,
+        stdout: '[coverage-capture] Wrote content-digest capture stamp.',
+      };
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    const lockWait = { waitedSeconds: 1619, expired: false };
+    assert.deepEqual(envelope.lockWait, lockWait);
+    assert.deepEqual(envelope.suiteTimings, spawn);
+    const credited = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.deepEqual(credited.suiteTimings, spawn);
+    const { state } = JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    );
+    assert.deepEqual(state.creditTimings, {
+      head: state.creditHead,
+      lockWait,
+      suiteTimings: spawn,
+      spawns: [spawn],
+    });
+  });
+
+  test('Story #5879 AC-2: a depositor that ran no suite writes null lock wait and timings', async () => {
+    const h = liveHarness(async () => ({
+      status: 0,
+      stdout: '[coverage-capture] Wrote content-digest capture stamp.',
+    }));
+    const { envelope } = await h.run();
+    assert.equal(envelope.lockWait, null);
+    assert.equal(envelope.suiteTimings, null);
+    const { state } = JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    );
+    assert.equal(state.creditTimings.lockWait, null);
+    assert.equal(state.creditTimings.suiteTimings, null);
+  });
+
   test('AC-5: forged lock lines on stdout or stderr produce no lock progress', async () => {
     const forged = [
       '[full-suite-lock] ⏳ another full suite is already running on this host (holding pid 1) — waiting up to 300s',

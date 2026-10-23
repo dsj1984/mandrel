@@ -23,7 +23,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { spawnStreamAsync } from '../child-exec.js';
-import { createLockEventChannel } from '../close-lock-events.js';
+import {
+  createLockEventChannel,
+  summarizeLockEvents,
+} from '../close-lock-events.js';
 import {
   resolveGateCommand,
   resolveTestGateArgv,
@@ -48,6 +51,7 @@ import { describeBlocking } from '../suite-admission.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
 import { defaultSleep } from '../util/sleep.js';
 import { runStreamed } from './evidence-stream.js';
+import { handoffStatePath } from './handoff-state.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
 import {
@@ -254,11 +258,16 @@ function durations({ waitMs, executionMs }) {
 /**
  * Tail a fresh lock-event channel while `run(env)` runs, forwarding each
  * `lock-progress` event once; never the child's output, which can be forged.
+ * `timings` summarizes every event drained (the lock wait and suite spawns).
+ *
+ * @returns {Promise<{ result: any, timings: ReturnType<typeof summarizeLockEvents> }>}
  */
 async function withLockProgress(ctx, run) {
   const channel = ctx.createLockChannel();
+  const events = [];
   const forward = () => {
     for (const event of channel.drain()) {
+      events.push(event);
       if (event.kind === 'lock-progress') {
         ctx.progress('LOCK', describeLockProgress(event));
       }
@@ -272,13 +281,15 @@ async function withLockProgress(ctx, run) {
       if (running) forward();
     }
   })().catch(() => {});
+  let result;
   try {
-    return await run({ ...ctx.env, ...channel.env });
+    result = await run({ ...ctx.env, ...channel.env });
   } finally {
     running = false;
     forward();
     channel.dispose();
   }
+  return { result, timings: summarizeLockEvents(events) };
 }
 
 /**
@@ -477,22 +488,29 @@ async function stepCreditedRun(ctx) {
         // Close's `test` gate argv, so the deposit keys on its credit identity.
         ...testGateArgv(ctx.config),
       ];
-  const run = await withLockProgress(ctx, (env) =>
+  const { result: run, timings } = await withLockProgress(ctx, (env) =>
     runLogged(ctx, 'credited-run', 'node', args, env),
   );
-  const extra = { evidencePath: run.evidencePath, depositor: ctx.depositor };
+  const { lockWait, suiteTimings, spawns } = timings;
+  const extra = {
+    evidencePath: run.evidencePath,
+    depositor: ctx.depositor,
+    lockWait,
+    suiteTimings,
+  };
   if (run.status !== 0) {
     return fixRequired(name, describeSuiteFailure(run.status), extra);
   }
   const [ranSignal, freshSignal] = capture
     ? [SIGNALS.captureRan, SIGNALS.captureFresh]
     : [SIGNALS.testRan, SIGNALS.testFresh];
+  const credit = { head: ctx.head, lockWait, suiteTimings, spawns };
   if (ranSignal.test(run.output)) {
-    ctx.state.creditHead = ctx.head;
+    recordCredit(ctx, credit);
     return ran(name, `${ctx.depositor} deposited credit`, extra);
   }
   if (freshSignal.test(run.output)) {
-    ctx.state.creditHead = ctx.head;
+    recordCredit(ctx, credit);
     return skipped(name, `${ctx.depositor} credit already fresh`, extra);
   }
   return fixRequired(
@@ -500,6 +518,12 @@ async function stepCreditedRun(ctx) {
     `${ctx.depositor} exited 0 but printed no credit signal, so it deposited nothing`,
     extra,
   );
+}
+
+/** Credit and its run's figures move together, keyed by the credited head. */
+function recordCredit(ctx, creditTimings) {
+  ctx.state.creditHead = creditTimings.head;
+  ctx.state.creditTimings = creditTimings;
 }
 
 /**
@@ -547,7 +571,7 @@ async function commitSeatedRows(ctx, total, evidencePath) {
   // Both capture-stamp digests leave `baselines/` out, so a baseline-JSON-only
   // commit keeps the credit it already holds.
   if (creditedPrior && ctx.depositor === 'coverage-capture') {
-    ctx.state.creditHead = ctx.head;
+    recordCredit(ctx, { ...ctx.state.creditTimings, head: ctx.head });
   }
   return ran(name, `seated ${total} row(s) and committed them`, {
     evidencePath,
@@ -822,7 +846,7 @@ function precheck(ctx) {
  *
  * @param {string} statePath
  * @param {(tag: string, msg: string) => void} progress
- * @returns {{ preflightHead?: string, creditHead?: string, seatHead?: string }}
+ * @returns {{ preflightHead?: string, creditHead?: string, creditTimings?: object, seatHead?: string }}
  */
 function readState(statePath, progress) {
   let raw;
@@ -934,7 +958,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
         warn: (m) => progress('BLOCK', m),
       }));
   fs.mkdirSync(logDir, { recursive: true });
-  const statePath = path.join(logDir, `story-handoff-${storyId}.json`);
+  const statePath = handoffStatePath(logDir, storyId);
   const branch = getStoryBranch(storyId);
   const evidencePathFor = (name) =>
     path.join(logDir, `story-handoff-${storyId}-${name}.log`);
@@ -1001,6 +1025,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   }
 
   const status = stop?.stop ?? HANDOFF_STATUS.READY;
+  const credited = steps.find((s) => s.name === 'credited-run');
   if (status === HANDOFF_STATUS.BLOCKED) {
     await block({ storyId, config, reason: stop.reason, detail: stop.detail });
   }
@@ -1013,6 +1038,8 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     depositor: ctx.depositor,
     steps: steps.map(({ stop: _stop, ...rest }) => rest),
     review: ctx.review,
+    lockWait: credited?.lockWait ?? null,
+    suiteTimings: credited?.suiteTimings ?? null,
     ...(stop
       ? {
           failedStep: stop.name,

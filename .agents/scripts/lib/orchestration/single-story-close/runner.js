@@ -1,3 +1,4 @@
+import { sourcedTimings } from '../../close-lock-events.js';
 import { buildDefaultGates } from '../../close-validation/gates.js';
 import { runCloseValidation } from '../../close-validation/runner.js';
 import { getCiDelivery } from '../../config/ci.js';
@@ -14,6 +15,7 @@ import { createProvider } from '../../provider-factory.js';
 import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
 import { WorktreeManager } from '../../worktree-manager.js';
 import { runCodeReview as runCodeReviewDefault } from '../code-review.js';
+import { readCreditTimings } from '../handoff-state.js';
 import { resolveOperatorFromCandidates } from '../lease-guard-shared.js';
 import { resolveRunScopedConfig } from '../run-scoped-config.js';
 import {
@@ -446,7 +448,7 @@ function buildPrContext(ctx, deps) {
     phaseTimer: ctx.phaseTimer,
     worker: ctx.worker,
     lockWait: ctx.prePush.lockWait,
-    suiteTimings: ctx.prePush.suiteTimings,
+    suiteTimings: envelopeSuiteTimings(ctx, deps),
     gates: closeEnvelopeGates(
       options,
       ctx.prePush.validationGates,
@@ -454,6 +456,17 @@ function buildPrContext(ctx, deps) {
       ctx.pr.reviewDegraded,
     ),
   };
+}
+
+/**
+ * The suite close spawned (`source: 'close'`), else — when its gates ran and
+ * honoured the handoff's credit — the credited run's figures.
+ */
+function envelopeSuiteTimings(ctx, deps) {
+  const { validationGates, suiteTimings } = ctx.prePush;
+  if (suiteTimings || !validationGates) return suiteTimings;
+  const credit = readCreditTimings(ctx.storyId, deps.config);
+  return credit && sourcedTimings(credit, 'credited-run');
 }
 
 function decideWaitForMerge(ctx, deps) {

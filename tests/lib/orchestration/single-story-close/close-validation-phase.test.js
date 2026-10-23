@@ -240,10 +240,11 @@ describe('runCloseValidationPhase — full-suite lock waits (Story #5377)', () =
       return { ok: true, failed: [], skipped: [] };
     });
     assert.deepEqual(waited.lockWait, { waitedSeconds: 15, expired: false });
+    const spawn = { lockWaitMs: 5000, hostWaitMs: null, testRunMs: 900 };
     assert.deepEqual(waited.suiteTimings, {
-      lockWaitMs: 5000,
-      hostWaitMs: null,
-      testRunMs: 900,
+      ...spawn,
+      source: 'close',
+      spawns: [spawn],
     });
     assert.equal(waited.pending, false);
     const quiet = await phaseWith(async () => ({
