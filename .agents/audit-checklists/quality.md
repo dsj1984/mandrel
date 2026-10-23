@@ -23,4 +23,5 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] An optional field nothing populates
 - [ ] Property-Based Coverage — Invariants Tested Only by Examples.
 - [ ] Toolchain by ecosystem, never one library.
+- [ ] Vacuous property tests.
 - [ ] Name the property.

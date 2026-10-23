@@ -229,6 +229,16 @@ spec decision, a swallowed error on a real failure path) is a 🔴.
   disabled-code block removed to make a diff look clean, or a lint-suppression
   comment (`biome-ignore`, `eslint-disable`, `@ts-expect-error`) added to mute
   a real diagnostic instead of fixing it.
+- **Over-broad fixes** — a bug fix that reaches green by changing more than
+  the bug: the fix commit's body carries no `Behaviour delta:` line, or the
+  diff changes behaviour for inputs outside the stated delta (a widened
+  guard, a new early return, a catch-all branch, a default that now applies
+  everywhere), or the regression test asserts no input just outside the
+  delta unchanged.
+- **Vacuous properties** — a new property test that constrains nothing: no
+  `Failure witness:` line records a mutant it was seen to fail against, its
+  generator cannot reach the inputs the stated invariant constrains, or its
+  assertion would hold for any implementation.
 
 For every hit, name the file and line, the taxonomy category, and *why the
 code — not the check — should have changed*. A finding here is legitimate only
