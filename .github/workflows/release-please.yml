@@ -75,26 +75,33 @@ jobs:
       # rebuild; no CSV diff means no commit. Push-to-main only: a
       # `workflow_dispatch` re-publish run produces no release PR.
       #
+      # `env:` is evaluated before `if:`, so every `fromJSON` here needs the
+      # `|| '{}'` fallback for runs with no release PR. The steps never fail
+      # the job: `npm-publish` needs it, and a tracker must not block a release.
+      #
       # Checked out and pushed with RELEASE_PLEASE_TOKEN (persisted by
       # actions/checkout): a GITHUB_TOKEN push would not re-run the release
       # PR's required checks, leaving it unmergeable.
       - name: Checkout release PR branch
         if: ${{ github.event_name == 'push' && steps.release.outputs.prs_created == 'true' }}
+        continue-on-error: true
         uses: actions/checkout@v4
         with:
-          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          ref: ${{ fromJSON(steps.release.outputs.pr || '{}').headBranchName }}
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         if: ${{ github.event_name == 'push' && steps.release.outputs.prs_created == 'true' }}
+        continue-on-error: true
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
 
       - name: Record .agents LOC baseline row on the release PR
         if: ${{ github.event_name == 'push' && steps.release.outputs.prs_created == 'true' }}
+        continue-on-error: true
         env:
-          RELEASE_BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          RELEASE_BRANCH: ${{ fromJSON(steps.release.outputs.pr || '{}').headBranchName }}
         run: |
           node baselines/agents-loc-baseline.mjs
           if git diff --quiet -- baselines/agents-loc.csv; then
