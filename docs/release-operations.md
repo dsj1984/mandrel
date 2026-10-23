@@ -227,23 +227,24 @@ already-present version, so a dispatch can only publish the current
 existing one. Fix the root cause first (Trusted Publisher fields, or the npm
 pin above), then dispatch.
 
-#### The `update-loc-baseline` post-release PR
+#### The `.agents` LOC baseline row rides the release PR
 
-After a root release is cut, the `update-loc-baseline` job regenerates
-`baselines/agents-loc.csv` (the `.agents/` payload LOC/bytes tracker, produced
-by `baselines/agents-loc-baseline.mjs`) with a row for the freshly released
-version. If the file changed, the job opens a **CSV-only, auto-merged PR**
-titled `chore(baselines): record .agents loc/bytes for mandrel-vX.Y.Z` from
-branch `chore/loc-baseline-<tag>`, authored by `github-actions[bot]` under
-`RELEASE_PLEASE_TOKEN`.
+Each time release-please opens or updates the release PR (a `push` to `main`
+with `prs_created == 'true'`), the `release-please` job checks out the release
+PR's head branch, runs `baselines/agents-loc-baseline.mjs` — which upserts a row
+in `baselines/agents-loc.csv` (the `.agents/` payload LOC/bytes tracker) for
+`package.json`'s version, already the version being cut on that branch — and,
+only if the CSV changed, pushes a
+`chore(baselines): record .agents loc/bytes for mandrel-vX.Y.Z` commit authored
+by `github-actions[bot]` onto that branch. The row therefore lands inside the
+release commit itself; there is no post-release baseline PR.
 
-It goes through a PR rather than a direct push because `main` is
-branch-protected; it is opened under the PAT (not the default `GITHUB_TOKEN`)
-for the same reason the release PR is — a `GITHUB_TOKEN`-authored PR does not
-trigger `Validate and Test` / `baselines`, so auto-merge could never satisfy
-branch protection. **This bot PR is expected after every release** and needs no
-operator action; if the baseline did not change, the job logs that and exits
-without opening one.
+release-please rebuilds its branch on every run, so the step re-applies the row
+after each rebuild; when the row is already current there is no diff and no
+commit. The push uses `RELEASE_PLEASE_TOKEN` (not the default `GITHUB_TOKEN`) so
+the release PR's required `Validate and Test` / `baselines` checks re-run on the
+new head. A `workflow_dispatch` re-publish run produces no release PR and skips
+the step. No operator action is needed.
 
 ### Versioning policy
 
