@@ -15,8 +15,8 @@ import {
 } from './ci-rerun-guard.js';
 
 /**
- * The first-red handling every required-check red goes through — the
- * watcher's red path and the close's `checks-failed` fail-fast alike: disarm
+ * The first-red handling every red goes through — the watcher's red path,
+ * the close's `checks-failed` fail-fast and its advisory-gate block alike: disarm
  * auto-merge FIRST (the race-free moment), then write the digest keyed to the
  * red head SHA. One implementation, so the guard cannot drift per path.
  * Never throws: a digest-write failure is returned as `digestError`.
@@ -25,7 +25,8 @@ import {
  * @param {number|string|null} [opts.storyId]
  * @param {number} opts.prNumber
  * @param {string} opts.prRef
- * @param {Array<{name:string, outcome:string}>} opts.failures
+ * @param {Array<{name:string, outcome:string, required?:boolean}>} opts.failures
+ *   `required: false` marks an advisory red; absent reads as required.
  * @param {string} opts.tempRoot
  * @param {string} opts.cwd
  * @param {(args: { prRef: string }) => Promise<{ disarmed: boolean, alreadyUnarmed?: boolean, detail: string }>} opts.disarmFn

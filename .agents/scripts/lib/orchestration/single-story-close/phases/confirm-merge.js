@@ -31,7 +31,11 @@ import {
 import { pollUntil } from '../../../util/poll-loop.js';
 import { defaultSleep } from '../../../util/sleep.js';
 import { applyBehindUpdate } from '../../behind-recovery.js';
-import { isRerunPermitted } from '../../check-state.js';
+import {
+  checkVerdict,
+  classifyRollupEntry,
+  isRerunPermitted,
+} from '../../check-state.js';
 import { recordRequiredRed as defaultRecordRequiredRed } from '../../ci-red-handling.js';
 import {
   emitMergeFlipFailed as defaultEmitMergeFlipFailed,
@@ -54,6 +58,7 @@ import {
   parseWorkflowRunId,
   pollIntervalMs,
   probeSettlesAsyncWait,
+  readRunName,
   readRunSummary,
   resolveAdvisoryGateVerdict,
 } from '../../merge-poll.js';
@@ -179,6 +184,37 @@ async function readInMergeQueue({
   return typeof queue?.inQueue === 'boolean' ? queue.inQueue : undefined;
 }
 
+const CHECK_STATE_OF_VERDICT = Object.freeze({
+  pass: 'success',
+  pending: 'pending',
+  fail: 'failure',
+});
+
+/**
+ * `name → success|pending|failure` for the head's rollup, the red-fix guard's
+ * `checks` input. A name seen twice keeps its worst state.
+ *
+ * @param {unknown} statusCheckRollup
+ * @returns {Record<string, string>}
+ */
+function deriveCheckStates(statusCheckRollup) {
+  const rank = ['success', 'pending', 'failure'];
+  const states = {};
+  for (const check of Array.isArray(statusCheckRollup)
+    ? statusCheckRollup
+    : []) {
+    const name = readRunName(check);
+    if (!name) continue;
+    const state =
+      CHECK_STATE_OF_VERDICT[checkVerdict(classifyRollupEntry(check))];
+    const prior = states[name];
+    if (!prior || rank.indexOf(state) > rank.indexOf(prior)) {
+      states[name] = state;
+    }
+  }
+  return states;
+}
+
 /**
  * One probe per poll iteration. A failed or timed-out read degrades to
  * `{ checksStatus: 'pending', error }` so a flaky read is never a verdict.
@@ -235,6 +271,7 @@ export async function readPrWaitProbe({
         readFn: readRequiredCheckNamesFn,
       }),
       redHeadRuns: deriveRedHeadRuns(view?.statusCheckRollup),
+      checkStates: deriveCheckStates(view?.statusCheckRollup),
       headSha: readString(view?.headRefOid),
       autoMergeArmed: readAutoMergeArmed(view),
     };
@@ -327,7 +364,7 @@ export function resolveBudgetAnchorMs({ createdAt, enabledAt, fallbackMs }) {
  * @param {{ storyId: number, blockClass: string }} args
  * @returns {string}
  */
-function advisoryGateRemedy({ storyId, blockClass }) {
+function advisoryGateRemedy({ storyId, blockClass, redRecord }) {
   const mergeable =
     'GitHub reports this PR **mergeable regardless** ' +
     '(`mergeStateStatus=UNSTABLE`) — the check that blocked is **advisory** ' +
@@ -348,9 +385,19 @@ function advisoryGateRemedy({ storyId, blockClass }) {
         '`delivery.ci.rerunAdvisory`) if you believe it flaked, or exempt ' +
         'the job via `delivery.ci.advisoryAllowlist`.';
   return (
-    `${mergeable}\n\n${act}\n\nThen resume the land:\n\n` +
+    `${mergeable}\n\n${disarmedOn(redRecord)}${act}\n\n` +
+    'Then resume the land — once every disarming check reads green on this ' +
+    'head, the resume re-arms auto-merge and lands it:\n\n' +
     `\`\`\`bash\n${NEXT_COMMANDS.resumeLand(storyId)}\n\`\`\``
   );
+}
+
+/** The disarming checks the advisory digest recorded, as a remedy line. */
+function disarmedOn(redRecord) {
+  const failures = redRecord?.failures ?? [];
+  if (failures.length === 0) return '';
+  const named = failures.map((f) => `\`${f.name}\`=${f.outcome}`).join(', ');
+  return `**Disarming check(s):** ${named}.\n\n`;
 }
 
 /**
@@ -365,7 +412,7 @@ function unlandedRemedy({ storyId, prNumber, blockClass, redRecord }) {
     blockClass === ADVISORY_GATE_INCONCLUSIVE_CLASS ||
     blockClass === ADVISORY_GATE_RED_CLASS
   ) {
-    return advisoryGateRemedy({ storyId, blockClass });
+    return advisoryGateRemedy({ storyId, blockClass, redRecord });
   }
   return (
     `Resolve the underlying condition (branch protection, required checks, ` +
@@ -707,18 +754,16 @@ async function maybeRerunAdvisory({
  * already re-ran, enriches the rest, spends any rerun allowance, and disarms
  * BEFORE returning a block so the PR cannot merge out from under it.
  */
-async function resolveAdvisoryUnlanded({
-  probe,
-  blockOnAdvisoryFailure,
-  advisoryAllowlist,
-  rerunState,
-  prNumber,
-  gh,
-  ghTimeoutMs,
-  progress,
-  disarmAutoMergeFn,
-  elapsedSeconds,
-}) {
+async function resolveAdvisoryUnlanded(ctx, probe, elapsedSeconds) {
+  const {
+    blockOnAdvisoryFailure,
+    advisoryAllowlist,
+    rerunState,
+    prNumber,
+    ghTimeoutMs,
+    progress,
+  } = ctx;
+  const gh = ctx.injectedGh;
   const advisory = decideAdvisoryGateBlock({
     probe,
     blockOnAdvisoryFailure,
@@ -752,13 +797,32 @@ async function resolveAdvisoryUnlanded({
     rerunAllowance: rerunState.allowance,
   });
   progress?.('CONFIRM', `🛑 PR #${prNumber}: ${verdict.reason}`);
-  await disarmAutoMergeFn({ prNumber, gh, progress });
+  // Advisory digest: a same-head re-arm waits for these checks to go green.
+  const failures = blockingRuns.map((run) => ({
+    ...failureOfRun(run),
+    required: false,
+  }));
+  const redRecord = await recordRed(ctx, probe, failures);
   return {
     prProbe: probe,
     budget: { exhausted: false, elapsedSeconds },
     blockClassOverride: verdict.blockClass,
-    reasonOverride: verdict.reason,
+    reasonOverride: `${verdict.reason} Disarming check(s): ${describeFailures(failures)}.`,
+    redRecord: { ...redRecord, failures },
   };
+}
+
+/** `{ name, outcome }` of a red rollup run, as the CI digest records it. */
+function failureOfRun(run) {
+  return {
+    name: run?.name ?? 'unknown',
+    outcome: String(run?.conclusion ?? 'failure').toLowerCase(),
+  };
+}
+
+/** `policy-impact=failure, …` — the checks a block names. */
+function describeFailures(failures) {
+  return failures.map((f) => `${f.name}=${f.outcome}`).join(', ');
 }
 
 /**
@@ -774,27 +838,23 @@ function queuedExhaustionVerdict(probe, cumulativeMs) {
 }
 
 /**
- * A `checks-failed` fail-fast is a required-check red, so it gets the same
- * first-red handling as the watcher: disarm, then write the CI digest
- * `file-ci-gap.js` reads. Never throws — the block stands regardless.
+ * A `checks-failed` fail-fast or an advisory block gets the same first-red
+ * handling as the watcher: disarm, then write the CI digest `file-ci-gap.js`
+ * and the re-arm guard read. Never throws — the block stands regardless.
  *
  * @returns {Promise<object>} the `recordRequiredRed` outcome.
  */
-async function recordChecksFailedRed({
-  storyId,
-  prNumber,
-  probe,
-  cwd,
-  config,
-  gh,
-  progress,
-  disarmAutoMergeFn,
-  recordRequiredRedFn,
-}) {
-  const failures = (probe?.redHeadRuns ?? []).map((run) => ({
-    name: run.name ?? 'unknown',
-    outcome: String(run.conclusion ?? 'failure').toLowerCase(),
-  }));
+async function recordRed(ctx, probe, failures) {
+  const {
+    storyId,
+    prNumber,
+    cwd,
+    config,
+    progress,
+    disarmAutoMergeFn,
+    recordRequiredRedFn,
+  } = ctx;
+  const gh = ctx.injectedGh;
   try {
     const record = await recordRequiredRedFn({
       storyId,
@@ -1200,17 +1260,11 @@ async function settleChecksFailed(ctx, decision, probe) {
     budget: { exhausted: false, elapsedSeconds: decision.elapsedSeconds },
     blockClassOverride: failFast.blockClass,
     reasonOverride: failFast.reason,
-    redRecord: await recordChecksFailedRed({
-      storyId: ctx.storyId,
-      prNumber: ctx.prNumber,
+    redRecord: await recordRed(
+      ctx,
       probe,
-      cwd: ctx.cwd,
-      config: ctx.config,
-      gh: ctx.injectedGh,
-      progress: ctx.progress,
-      disarmAutoMergeFn: ctx.disarmAutoMergeFn,
-      recordRequiredRedFn: ctx.recordRequiredRedFn,
-    }),
+      (probe?.redHeadRuns ?? []).map(failureOfRun),
+    ),
   });
 }
 
@@ -1273,18 +1327,11 @@ async function settleProvisional(ctx, decision, probe) {
  * @returns {Promise<{ state: object, outcome: object|null }>}
  */
 async function recoverOpenPr(ctx, decision, probe) {
-  const advisory = await resolveAdvisoryUnlanded({
+  const advisory = await resolveAdvisoryUnlanded(
+    ctx,
     probe,
-    blockOnAdvisoryFailure: ctx.blockOnAdvisoryFailure,
-    advisoryAllowlist: ctx.advisoryAllowlist,
-    rerunState: ctx.rerunState,
-    prNumber: ctx.prNumber,
-    gh: ctx.injectedGh,
-    ghTimeoutMs: ctx.ghTimeoutMs,
-    progress: ctx.progress,
-    disarmAutoMergeFn: ctx.disarmAutoMergeFn,
-    elapsedSeconds: decision.elapsedSeconds,
-  });
+    decision.elapsedSeconds,
+  );
   if (advisory) {
     return { state: decision.state, outcome: await blockWith(ctx, advisory) };
   }

@@ -476,4 +476,109 @@ describe('single-story-confirm-merge --wait — the shared wait recovery (Story 
       'armed once for the one head it saw',
     );
   });
+
+  /** A PR an advisory red disarmed on head `feedface`; the gh fake lands it once re-armed. */
+  function advisoryGh({ merges, policyImpact }) {
+    let armed = false;
+    return {
+      pr: {
+        list: async () => [{ number: 77, url: 'https://example/pull/77' }],
+        view: async () => ({
+          state: armed ? 'MERGED' : 'OPEN',
+          mergedAt: armed ? new Date().toISOString() : null,
+          createdAt: new Date().toISOString(),
+          mergeStateStatus: 'BLOCKED',
+          statusCheckRollup: [
+            { name: 'validate', status: 'COMPLETED', conclusion: 'SUCCESS' },
+            { name: 'policy-impact', ...policyImpact },
+          ],
+          headRefOid: 'feedface',
+          autoMergeRequest: null,
+        }),
+        merge: async (id, flags) => {
+          merges.push([id, ...flags]);
+          armed = true;
+          return { stdout: '', stderr: '' };
+        },
+      },
+    };
+  }
+
+  async function resumeAdvisoryBlocked(policyImpact) {
+    const { runConfirmMergePhase } = await import(
+      '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js'
+    );
+    const { writeCiDigest } = await import(
+      '../.agents/scripts/lib/orchestration/ci-rerun-guard.js'
+    );
+    writeCiDigest({
+      storyId: 555,
+      prNumber: 77,
+      headSha: 'feedface',
+      failures: [
+        { name: 'policy-impact', outcome: 'failure', required: false },
+      ],
+      tempRoot,
+      cwd: tempRoot,
+      prRef: '77',
+      checkRunFn: () => ({}),
+      logTailFn: () => '',
+    });
+    const merges = [];
+    const { terminal } = await runConfirmMerge({
+      storyId: 555,
+      cwd: tempRoot,
+      pr: 77,
+      wait: true,
+      maxWaitSeconds: 60,
+      injectedProvider: makeProvider(OPEN_STORY),
+      injectedConfig: {
+        ...fakeConfig(),
+        project: { baseBranch: 'main', paths: { tempRoot } },
+      },
+      injectedGh: advisoryGh({ merges, policyImpact }),
+      injectedNotify: async () => {},
+      readCloseEnvelopeFn: envelopeFor({
+        number: 77,
+        autoMergeEnabled: true,
+        autoMergeReason: null,
+      }),
+      runConfirmMergePhaseFn: (args) =>
+        runConfirmMergePhase({
+          ...args,
+          maxWaitSeconds: 1,
+          sleepFn: async () => {},
+          confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+          runPostLandTailFn: async () => ({
+            followUps: true,
+            statusResync: true,
+            worktreeReap: true,
+            refCleanup: true,
+            baseFastForward: true,
+            tempPurge: true,
+            leaseRelease: true,
+            epicRollup: true,
+            details: {},
+          }),
+        }),
+    });
+    return { terminal, merges };
+  }
+
+  it('Story #5876: resuming an advisory-blocked Story re-arms and lands once the check is green, no hand merge', async () => {
+    const { terminal, merges } = await resumeAdvisoryBlocked({
+      status: 'COMPLETED',
+      conclusion: 'SUCCESS',
+    });
+    assert.deepEqual(merges, [['77', '--auto', '--squash', '--delete-branch']]);
+    assert.equal(terminal.status, 'landed');
+  });
+
+  it('Story #5876: the resume does not re-arm while the advisory check is still running on that head', async () => {
+    const { terminal, merges } = await resumeAdvisoryBlocked({
+      status: 'IN_PROGRESS',
+    });
+    assert.deepEqual(merges, []);
+    assert.equal(terminal.status, 'pending');
+  });
 });
