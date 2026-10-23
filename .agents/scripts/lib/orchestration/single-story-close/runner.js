@@ -263,7 +263,7 @@ async function resolveBasePhase(ctx, deps) {
  * `ensurePullRequestWith` decides. Any read failure reads as "not merged":
  * the normal path then decides.
  *
- * @returns {Promise<{ prUrl: string, prNumber: number|null, mergedAt: string|null }|null>}
+ * @returns {Promise<{ prUrl: string, prNumber: number|null, mergedAt: string }|null>}
  */
 async function findLandedPr(ctx, deps) {
   try {
@@ -277,7 +277,7 @@ async function findLandedPr(ctx, deps) {
     return {
       prUrl: head.url,
       prNumber: parsePrNumber(head.url),
-      mergedAt: row?.mergedAt ?? null,
+      mergedAt: row?.mergedAt ?? 'an unknown time',
     };
   } catch {
     return null;
@@ -313,7 +313,7 @@ function unlessLanded(phase, onLanded) {
 function landedPrePush(ctx) {
   progress(
     'INIT',
-    `⏭  PR ${ctx.landedPr.prUrl} already merged${ctx.landedPr.mergedAt ? ` at ${ctx.landedPr.mergedAt}` : ''} — skipping validation, sync and push.`,
+    `⏭  PR ${ctx.landedPr.prUrl} already merged at ${ctx.landedPr.mergedAt} — skipping validation, sync and push.`,
   );
   ctx.options = { ...ctx.options, skipValidation: true, skipSync: true };
   ctx.prePush = {
