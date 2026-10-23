@@ -6993,15 +6993,45 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "_resetExternalDependenciesCache",
+      "startLine": 469,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "readHead",
+      "startLine": 476,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "isTestFile",
       "startLine": 481,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "hasOutboundCall",
+      "startLine": 484,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
       "method": "stemOf",
       "startLine": 491,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "isIntegrationMarker",
+      "startLine": 492,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "probeExternalDependencies",
+      "startLine": 497,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
@@ -7036,6 +7066,12 @@
       "startLine": 511,
       "crap": 2,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "hasExternalDependencies",
+      "startLine": 512,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
