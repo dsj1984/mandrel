@@ -116,8 +116,8 @@ function unmergedPaths(gitSpawn, cwd) {
  *
  * @returns {Promise<
  *   | { synced: true, kind: 'noop-already-current', changedPaths: string[] }
- *   | { synced: true, kind: 'fast-forward', changedPaths: string[] }
- *   | { synced: true, kind: 'merge-commit', changedPaths: string[], resolvedBaselineFiles?: string[] }
+ *   | { synced: true, kind: 'fast-forward', changedPaths: string[], preSyncHead: string|null }
+ *   | { synced: true, kind: 'merge-commit', changedPaths: string[], preSyncHead: string|null, resolvedBaselineFiles?: string[] }
  *   | { synced: false, kind: 'fetch-failed', stderr: string }
  *   | { synced: false, kind: 'conflict', conflictFiles: string[] }
  *   | { synced: false, kind: 'merge-failed', stderr: string }
@@ -195,6 +195,7 @@ export async function syncBranchFromBase({
       synced: true,
       kind: willFastForward ? 'fast-forward' : 'merge-commit',
       changedPaths: diffPaths(gitSpawn, cwd, preMergeHead),
+      preSyncHead: preMergeHead,
     };
   }
 
@@ -243,6 +244,7 @@ function resolveBaselineOnlyConflict({
     synced: true,
     kind: 'merge-commit',
     changedPaths: diffPaths(gitSpawn, cwd, preMergeHead),
+    preSyncHead: preMergeHead,
     resolvedBaselineFiles: conflictFiles,
   };
 }

@@ -496,3 +496,24 @@ cue for `delivery.execution.workloads`. The
 that writes `$MANDREL_SUITE_READY_FILE` when its tests start (after a
 consumer load gate) gets a fresh bound for them, so worst-case wall is lock
 wait + 2 × `timeoutMs`.
+
+**Delta re-credit after a base move.** When close's base sync merged
+incoming paths (`BASE MOVED`), the `test` gate is the suite gate, the
+pre-sync head holds `test` credit and `project.commands.testChanged` is set,
+close runs that command instead of the full suite, with the pre-sync head in
+`MANDREL_CHANGED_SINCE`, under the full-suite lock. Its log and progress line
+read `test (delta since <sha12>, <n> incoming path(s))`; a green run deposits
+`test` evidence for the merged tree (`scope: delta`, `since: <sha>`) under
+the full-suite identity, so a re-close is credited, and a red one fails the
+close like a red full run. An incoming coverage-config file or Story file,
+no credit, no command, or coverage-capture running the suite logs
+`test delta re-credit not eligible (<reason>)` and runs the full suite — the
+same delta rules as the coverage capture's own delta refresh.
+
+**PR-body trailers.** Close appends each git trailer named in
+`delivery.pullRequest.bodyTrailers` (last branch commit carrying it wins) to
+the PR body it opens; workers record one with `git commit --trailer`.
+
+**Early merged-PR probe.** Before any sync or gate, close reads the head's
+pull requests; a merged one whose head every surviving branch tip equals
+short-circuits to the land tail instead of re-validating landed work.

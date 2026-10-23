@@ -35,6 +35,7 @@ import {
  *   resolveConfigImpl?: typeof resolveConfig,
  *   progress: (tag: string, msg: string) => void,
  * }} args
+ * @returns {Promise<{ changedPaths: string[], creditedCommit: string|null }>} The pre-sync head is the credited commit.
  */
 export async function runBaseSyncPhase({
   cwd,
@@ -89,6 +90,12 @@ export async function runBaseSyncPhase({
   })) {
     progress('SYNC', line);
   }
+  return {
+    changedPaths: Array.isArray(syncResult.changedPaths)
+      ? syncResult.changedPaths
+      : [],
+    creditedCommit: syncResult.preSyncHead ?? null,
+  };
 }
 
 /** A handed-back conflict re-runs close next (`closeNextCommand`). */

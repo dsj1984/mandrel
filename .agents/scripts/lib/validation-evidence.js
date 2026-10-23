@@ -165,6 +165,8 @@ export function loadEvidence(scopeId, opts = {}) {
  *   configHash: string,
  *   exitCode?: number,
  *   durationMs?: number|null,
+ *   scope?: 'full'|'delta',
+ *   since?: string,
  * }} input
  * @param {{ cwd?: string, tempDir?: string, standalone?: boolean, fs?: object, now?: Function }} opts
  * @returns {object} The persisted record.
@@ -178,6 +180,8 @@ export function recordPass(
     exitCode = 0,
     durationMs = null,
     inputFingerprint = null,
+    scope,
+    since,
   },
   opts = {},
 ) {
@@ -201,6 +205,8 @@ export function recordPass(
     inputFingerprint: isNonEmptyString(inputFingerprint)
       ? inputFingerprint
       : null,
+    ...(scope ? { scope } : {}),
+    ...(since ? { since } : {}),
     timestamp: resolved.now().toISOString(),
   };
   doc.records = [...doc.records.filter((r) => r.gateName !== gateName), record];

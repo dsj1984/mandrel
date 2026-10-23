@@ -1628,3 +1628,40 @@ describe('runSingleStoryClose — GraphQL preflight (Story #5355)', () => {
     assert.equal(out.terminal.status, 'pending');
   });
 });
+
+describe('runBaseSyncPhase — the result the gate chain reads (Story #5880)', () => {
+  const run = (result) =>
+    runBaseSyncPhase({
+      cwd: '/repo',
+      worktreePath: '/repo/.worktrees/story-5880',
+      baseBranch: 'main',
+      storyBranch: 'story-5880',
+      storyId: 5880,
+      provider: {},
+      injectedSync: async () => result,
+      resolveConfigImpl: () => ({}),
+      progress: () => {},
+    });
+
+  it('exposes the incoming paths and the pre-sync head as the credited commit', async () => {
+    const out = await run({
+      synced: true,
+      kind: 'merge-commit',
+      changedPaths: ['lib/a.js'],
+      preSyncHead: 'c'.repeat(40),
+    });
+    assert.deepEqual(out, {
+      changedPaths: ['lib/a.js'],
+      creditedCommit: 'c'.repeat(40),
+    });
+  });
+
+  it('a no-op sync reports no incoming path and no credited commit', async () => {
+    const out = await run({
+      synced: true,
+      kind: 'noop-already-current',
+      changedPaths: [],
+    });
+    assert.deepEqual(out, { changedPaths: [], creditedCommit: null });
+  });
+});

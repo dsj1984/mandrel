@@ -72,6 +72,16 @@
             "type": ["string", "null"],
             "description": "Optional sha256 (or other stable digest) of the byte-identical inputs the gate consumed. When present, shouldSkip() will match on this even if the commit SHA has moved — letting docs-only or whitespace-only commits skip an unchanged gate."
           },
+          "scope": {
+            "type": "string",
+            "enum": ["full", "delta"],
+            "description": "Optional note on how the pass was earned. `delta` is close's `test` delta re-credit: after a base sync, only the tests affected by the commits since `since` ran (`project.commands.testChanged`), and the record credits the merged tree under the full-suite identity."
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,64}$",
+            "description": "With `scope: delta`, the credited commit the affected-tests run was keyed on."
+          },
           "timestamp": {
             "type": "string",
             "format": "date-time",
