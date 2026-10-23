@@ -45877,6 +45877,12 @@
       "anonymous": true
     },
     {
+      "path": "scripts/check-comment-policy.js",
+      "method": "checkCommentPolicy",
+      "startLine": 329,
+      "crap": 2
+    },
+    {
       "path": "scripts/check-generated-validator.js",
       "method": "generateValidatorSource",
       "startLine": 99,
