@@ -1,19 +1,17 @@
 #!/usr/bin/env node
-// cli-opt-out: top-level-await driver with no main() function — runAsCli wraps an async main, which doesn't apply here.
-/* node:coverage ignore file */
 
 /**
  * Cross-platform parallel driver for `npm run lint`.
  *
- * Spawns `biome ci .` and `markdownlint-cli2` concurrently. They share
- * no state, so running them in series (the prior `&&` form) wasted
- * wall-clock time on every developer save and pre-push. Stdout/stderr
- * stream through unchanged so error context survives. Exit code is
- * non-zero if either tool fails.
+ * Spawns every lint task concurrently; they share no state. Stdout/stderr
+ * stream through unchanged so error context survives. Once all tasks settle,
+ * one `[run-lint] ✗` line names each failed task, so a gate log that keeps
+ * only the exit code still says which tool failed and how.
  */
 
 import { spawn } from 'node:child_process';
 import process from 'node:process';
+import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 
 // On Windows, npm/npx shims are `.cmd` batch files. Since Node 20,
 // these can only be spawned through a shell (CWE-78 mitigation closing
@@ -52,6 +50,8 @@ const tasks = [
     name: 'biome',
     cmd: 'npx',
     args: ['biome', 'ci', '.'],
+    // A Biome panic exits 101; keep its backtrace for the next occurrence.
+    env: { RUST_BACKTRACE: '1' },
   },
   {
     // `docs/**/*.md` sat outside these globs until PR #4970's follow-up,
@@ -123,24 +123,57 @@ const tasks = [
   nodeGate('comment-policy', 'scripts/check-comment-policy.js'),
 ];
 
-function runTask({ name, cmd, args }) {
+function runTask({ name, cmd, args, env }, spawnFn) {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: 'inherit', shell: useShell });
+    const child = spawnFn(cmd, args, {
+      stdio: 'inherit',
+      shell: useShell,
+      ...(env && { env: { ...process.env, ...env } }),
+    });
     child.on('error', (err) => {
       process.stderr.write(`[run-lint:${name}] spawn error: ${err.message}\n`);
-      resolve(1);
+      resolve({ code: 1, signal: null });
     });
-    child.on('exit', (code, signal) => {
-      if (signal) {
-        process.stderr.write(`[run-lint:${name}] killed by ${signal}\n`);
-        resolve(1);
-        return;
-      }
-      resolve(code ?? 1);
-    });
+    child.on('exit', (code, signal) => resolve({ code, signal }));
   });
 }
 
-const results = await Promise.all(tasks.map(runTask));
-const failed = results.findIndex((code) => code !== 0);
-process.exit(failed === -1 ? 0 : results[failed]);
+const EXIT_NOTES = {
+  101: ' (Rust panic exit: the tool crashed; see its stderr above)',
+};
+
+function failureLine({ name, code, signal }) {
+  if (signal) return `[run-lint] ✗ ${name} killed by ${signal}`;
+  return `[run-lint] ✗ ${name} exited ${code}${EXIT_NOTES[code] ?? ''}`;
+}
+
+/**
+ * Run every lint task in parallel, then name each failure in roster order.
+ * The exit code is the first failure's code (1 for a signal), else 0.
+ *
+ * @param {{ spawn?: typeof spawn, write?: (line: string) => void }} [deps]
+ * @returns {Promise<{ exitCode: number, failures: Array<{ name: string, code: number|null, signal: string|null }> }>}
+ */
+export async function runLintTasks({
+  spawn: spawnFn = spawn,
+  write = (line) => process.stderr.write(`${line}\n`),
+} = {}) {
+  const results = await Promise.all(tasks.map((t) => runTask(t, spawnFn)));
+  const failures = tasks
+    .map((task, i) => ({ name: task.name, ...results[i] }))
+    .filter(({ code }) => code !== 0);
+  for (const failure of failures) write(failureLine(failure));
+  // A signal leaves `code` null, which exits 1.
+  const exitCode = failures.length === 0 ? 0 : (failures[0].code ?? 1);
+  return { exitCode, failures };
+}
+
+runAsCli(import.meta.url, async () => (await runLintTasks()).exitCode, {
+  source: 'run-lint',
+  propagateExitCode: true,
+  usage: {
+    invocation: 'node scripts/run-lint.js',
+    summary:
+      'Run every lint task in parallel (biome, markdownlint, the repo ratchets) and name each one that failed.',
+  },
+});
