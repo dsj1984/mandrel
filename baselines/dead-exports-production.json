@@ -65,6 +65,10 @@
     },
     {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "_resetExternalDependenciesCache"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
       "symbol": "_resetPersistenceLayerCache"
     },
     {
@@ -74,6 +78,10 @@
     {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
       "symbol": "_resetWebSurfaceCache"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "hasExternalDependencies"
     },
     {
       "file": ".agents/scripts/lib/audit-suite/selector.js",

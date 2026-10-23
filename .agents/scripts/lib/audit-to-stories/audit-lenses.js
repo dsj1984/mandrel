@@ -28,6 +28,7 @@ export const AUDIT_LENSES = Object.freeze([
   'privacy',
   'quality',
   'red-team',
+  'resilience',
   'security',
   'seo',
   'sre',

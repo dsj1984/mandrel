@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-10-22T02:13:28.870Z",
+  "generatedAt": "2026-10-23T20:39:04.301Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -25,11 +25,11 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 485925,
+      "totalBytes": 487397,
       "files": [
         {
           "path": "docs/architecture.md",
-          "bytes": 98399
+          "bytes": 98718
         },
         {
           "path": "docs/data-dictionary.md",
@@ -37,7 +37,7 @@
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 297140
+          "bytes": 298293
         },
         {
           "path": "docs/patterns.md",
@@ -46,7 +46,7 @@
       ]
     },
     "workflow": {
-      "totalBytes": 363412,
+      "totalBytes": 376549,
       "files": [
         {
           "path": ".agents/workflows/audit-accessibility.md",
@@ -114,11 +114,15 @@
         },
         {
           "path": ".agents/workflows/audit-quality.md",
-          "bytes": 12163
+          "bytes": 12611
         },
         {
           "path": ".agents/workflows/audit-red-team.md",
           "bytes": 8752
+        },
+        {
+          "path": ".agents/workflows/audit-resilience.md",
+          "bytes": 13277
         },
         {
           "path": ".agents/workflows/audit-security.md",
@@ -130,7 +134,7 @@
         },
         {
           "path": ".agents/workflows/audit-sre.md",
-          "bytes": 4649
+          "bytes": 4061
         },
         {
           "path": ".agents/workflows/audit-to-stories.md",
@@ -219,12 +223,12 @@
       },
       {
         "path": ".agents/agents/story-worker.md",
-        "bytes": 8882
+        "bytes": 9239
       }
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 558610,
+    "reachableTotalBytes": 573478,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -234,7 +238,7 @@
       {
         "path": ".agents/workflows/audit-adrs.md",
         "mandatoryBytes": 13411,
-        "reachableBytes": 456313
+        "reachableBytes": 458492
       },
       {
         "path": ".agents/workflows/audit-architecture.md",
@@ -269,12 +273,12 @@
       {
         "path": ".agents/workflows/audit-documentation.md",
         "mandatoryBytes": 12837,
-        "reachableBytes": 456313
+        "reachableBytes": 458492
       },
       {
         "path": ".agents/workflows/audit-exceptions.md",
         "mandatoryBytes": 12783,
-        "reachableBytes": 124672
+        "reachableBytes": 125120
       },
       {
         "path": ".agents/workflows/audit-lean.md",
@@ -284,7 +288,7 @@
       {
         "path": ".agents/workflows/audit-mobile.md",
         "mandatoryBytes": 12006,
-        "reachableBytes": 111918
+        "reachableBytes": 112366
       },
       {
         "path": ".agents/workflows/audit-navigability.md",
@@ -299,7 +303,7 @@
       {
         "path": ".agents/workflows/audit-policies.md",
         "mandatoryBytes": 10195,
-        "reachableBytes": 456313
+        "reachableBytes": 458492
       },
       {
         "path": ".agents/workflows/audit-privacy.md",
@@ -308,13 +312,18 @@
       },
       {
         "path": ".agents/workflows/audit-quality.md",
-        "mandatoryBytes": 12163,
-        "reachableBytes": 75743
+        "mandatoryBytes": 12611,
+        "reachableBytes": 76191
       },
       {
         "path": ".agents/workflows/audit-red-team.md",
         "mandatoryBytes": 8752,
         "reachableBytes": 52030
+      },
+      {
+        "path": ".agents/workflows/audit-resilience.md",
+        "mandatoryBytes": 13277,
+        "reachableBytes": 45130
       },
       {
         "path": ".agents/workflows/audit-security.md",
@@ -328,18 +337,18 @@
       },
       {
         "path": ".agents/workflows/audit-sre.md",
-        "mandatoryBytes": 4649,
-        "reachableBytes": 62028
+        "mandatoryBytes": 4061,
+        "reachableBytes": 74717
       },
       {
         "path": ".agents/workflows/audit-to-stories.md",
         "mandatoryBytes": 21853,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/audit-ux-ui.md",
         "mandatoryBytes": 4953,
-        "reachableBytes": 111918
+        "reachableBytes": 112366
       },
       {
         "path": ".agents/workflows/clean-git.md",
@@ -359,27 +368,27 @@
       {
         "path": ".agents/workflows/git-deliver.md",
         "mandatoryBytes": 7762,
-        "reachableBytes": 392512
+        "reachableBytes": 394691
       },
       {
         "path": ".agents/workflows/helpers/deliver-story.md",
         "mandatoryBytes": 18064,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/mandrel-deliver.md",
         "mandatoryBytes": 9701,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/mandrel-leverage.md",
         "mandatoryBytes": 9245,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/mandrel-plan.md",
         "mandatoryBytes": 8531,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/mandrel-update.md",
@@ -389,27 +398,27 @@
       {
         "path": ".agents/workflows/memory-consolidate.md",
         "mandatoryBytes": 5950,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/prototype.md",
         "mandatoryBytes": 5180,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/qa-assist.md",
         "mandatoryBytes": 13933,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/qa-explore.md",
         "mandatoryBytes": 11074,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       },
       {
         "path": ".agents/workflows/qa-run.md",
         "mandatoryBytes": 12872,
-        "reachableBytes": 367663
+        "reachableBytes": 369842
       }
     ]
   }

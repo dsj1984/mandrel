@@ -196,8 +196,7 @@
           "rollback",
           "error budget",
           "on-call",
-          "incident",
-          "resilience"
+          "incident"
         ],
         "filePatterns": [
           "**/Dockerfile",
@@ -480,6 +479,49 @@
           "blast radius"
         ]
       },
+      "scope": "global",
+      "substitutionKeys": []
+    },
+    "audit-resilience": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "resilience",
+          "graceful degradation",
+          "fallback",
+          "timeout",
+          "retry",
+          "backoff",
+          "idempotency",
+          "idempotent",
+          "circuit breaker",
+          "outage",
+          "upstream",
+          "webhook",
+          "reconcile",
+          "reconciliation",
+          "dead letter",
+          "alerting",
+          "pager",
+          "on-call"
+        ],
+        "filePatterns": [
+          "**/webhooks/**",
+          "**/webhook/**",
+          "**/integrations/**",
+          "**/adapters/**",
+          "**/providers/**",
+          "**/*outbox*",
+          "**/*retry*",
+          "**/*queue*",
+          "**/wrangler.toml",
+          "**/wrangler.json",
+          "**/wrangler.jsonc",
+          "**/serverless.yml",
+          "**/serverless.yaml"
+        ]
+      },
+      "target": "integrations",
       "scope": "global",
       "substitutionKeys": []
     }

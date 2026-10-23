@@ -445,6 +445,80 @@ export function hasPolicyCorpus({ config, projectRoot = PROJECT_ROOT } = {}) {
   return result;
 }
 
+/** Integration families, matched segment-wise like {@link WEB_FRAMEWORK_PACKAGES}. */
+const INTEGRATION_PACKAGES = Object.freeze(
+  'stripe clerk auth0 resend sendgrid postmark mailgun nodemailer twilio telnyx aws-sdk google-cloud pinecone openai anthropic-ai sentry axios got node-fetch undici ky'.split(
+    ' ',
+  ),
+);
+
+const BINDING_CONFIG_FILE_PATTERN =
+  /^(wrangler\.(toml|jsonc?)|serverless\.(ya?ml|ts)|Chart\.yaml)$/;
+
+const OUTBOUND_SOURCE_PATTERN = /\.(c?js|mjs|tsx?|py|go)$/;
+
+const OUTBOUND_CALL_PATTERN =
+  /\bfetch\(|\bhttps?\.request\(|\brequests\.(get|post|put|patch|delete)\(|\bhttpx\.|\bhttp\.Get\(/;
+
+const OUTBOUND_SNIFF_BYTES = 64 * 1024;
+
+/** @type {Map<string, boolean>} */
+const _externalDepsFsCache = new Map();
+
+/** Test-only. */
+export function _resetExternalDependenciesCache() {
+  _externalDepsFsCache.clear();
+}
+
+const TEST_FILE_PATTERN = /\.(test|spec)\./;
+
+/** First {@link OUTBOUND_SNIFF_BYTES} of a file, or `''` when unreadable. */
+function readHead(file) {
+  try {
+    return readFileSync(file, 'utf8').slice(0, OUTBOUND_SNIFF_BYTES);
+  } catch {
+    return '';
+  }
+}
+
+function hasOutboundCall(dir, name) {
+  return (
+    OUTBOUND_SOURCE_PATTERN.test(name) &&
+    !TEST_FILE_PATTERN.test(name) &&
+    OUTBOUND_CALL_PATTERN.test(readHead(path.join(dir, name)))
+  );
+}
+
+function isIntegrationMarker(dir, name) {
+  return BINDING_CONFIG_FILE_PATTERN.test(name) || hasOutboundCall(dir, name);
+}
+
+/** `null` from either signal is indeterminate, not false — fail open. */
+function probeExternalDependencies(root) {
+  return (
+    declaresDependencyIn(root, INTEGRATION_PACKAGES) !== false ||
+    scanNearRoot(root, { isMarkerFile: isIntegrationMarker }) !== false
+  );
+}
+
+/**
+ * Applicability predicate for `target: "integrations"` lenses: an integration
+ * SDK or HTTP-client dependency, a platform-binding config, or an outbound call
+ * in non-test source. Fails OPEN like {@link hasWebSurface}.
+ *
+ * @param {{ config?: object|null, projectRoot?: string }} [params]
+ * @returns {boolean}
+ */
+export function hasExternalDependencies({ projectRoot = PROJECT_ROOT } = {}) {
+  if (!_externalDepsFsCache.has(projectRoot)) {
+    _externalDepsFsCache.set(
+      projectRoot,
+      probeExternalDependencies(projectRoot),
+    );
+  }
+  return _externalDepsFsCache.get(projectRoot);
+}
+
 /** Single file × single glob, with the project's matcher semantics (`dot: true`). */
 export function matchesFilePattern(pattern, file) {
   return picomatch(pattern, { dot: true })(file);
@@ -531,6 +605,7 @@ export function changeSetLacksSiblingTest(changedFiles) {
  * @param {typeof hasWebSurface} [params.hasWebSurfaceFn]
  * @param {typeof hasPersistenceLayer} [params.hasPersistenceLayerFn]
  * @param {typeof hasPolicyCorpus} [params.hasPolicyCorpusFn]
+ * @param {typeof hasExternalDependencies} [params.hasExternalDependenciesFn]
  */
 export async function selectAudits({
   ticketId,
@@ -545,6 +620,7 @@ export async function selectAudits({
   hasWebSurfaceFn = hasWebSurface,
   hasPersistenceLayerFn = hasPersistenceLayer,
   hasPolicyCorpusFn = hasPolicyCorpus,
+  hasExternalDependenciesFn = hasExternalDependencies,
 }) {
   const config = resolveConfig();
   const timeoutMs = gitTimeoutMsOverride ?? DEFAULT_GIT_TIMEOUT_MS;
@@ -594,6 +670,7 @@ export async function selectAudits({
       hasWebSurfaceFn,
       hasPersistenceLayerFn,
       hasPolicyCorpusFn,
+      hasExternalDependenciesFn,
     }),
   });
 
@@ -740,7 +817,7 @@ function matchesAnyKeyword(keywords, content) {
  * Lazily memoized per target, so a roster without a `web` lens never pays the
  * filesystem scan.
  *
- * @param {{ config: object, hasWebSurfaceFn: Function, hasPersistenceLayerFn: Function, hasPolicyCorpusFn: Function }} params
+ * @param {{ config: object, hasWebSurfaceFn: Function, hasPersistenceLayerFn: Function, hasPolicyCorpusFn: Function, hasExternalDependenciesFn: Function }} params
  * @returns {(target: string) => boolean}
  */
 function makeTargetApplicabilityProbe({
@@ -748,11 +825,13 @@ function makeTargetApplicabilityProbe({
   hasWebSurfaceFn,
   hasPersistenceLayerFn,
   hasPolicyCorpusFn,
+  hasExternalDependenciesFn,
 }) {
   const probes = {
     web: hasWebSurfaceFn,
     'data-model': hasPersistenceLayerFn,
     policies: hasPolicyCorpusFn,
+    integrations: hasExternalDependenciesFn,
   };
   const memo = new Map();
   return (target) => {
