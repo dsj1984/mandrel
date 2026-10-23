@@ -10,17 +10,15 @@
 
 Self-check your change against this lens's concerns before you ship:
 
-- [ ] Run the resilience battery.
+- [ ] Run the readiness battery.
 - [ ] Rollback Path
 - [ ] Migration Reversibility
 - [ ] Feature-Flag Kill Switch
 - [ ] Structured Logging
 - [ ] Metrics & Tracing
 - [ ] Alerting & SLOs
-- [ ] Timeouts & Cancellation
-- [ ] Retry & Backoff
 - [ ] Graceful Shutdown
-- [ ] Error Boundaries
+- [ ] Dependency barriers
 - [ ] Runbook Coverage
 - [ ] Health & Readiness
 - [ ] On-Call Escalation

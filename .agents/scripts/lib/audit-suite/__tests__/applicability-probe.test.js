@@ -22,6 +22,10 @@
  * pinned the same way: configured corpus globs or a conventional policy file
  * make a project applicable, a bare `privacy.md` does not, and the Mandrel
  * checkout self-skips `audit-policies`.
+ *
+ * The `target: "integrations"` gate's `hasExternalDependencies` probe (Story
+ * #5892) is pinned likewise: an integration SDK, a platform-binding config or
+ * an outbound call in non-test source makes a project applicable.
  */
 
 import assert from 'node:assert/strict';
@@ -31,8 +35,10 @@ import { afterEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { makeTempDir } from '../../test-temp.js';
 import {
+  _resetExternalDependenciesCache,
   _resetPersistenceLayerCache,
   _resetPolicyCorpusCache,
+  hasExternalDependencies,
   hasPersistenceLayer,
   hasPolicyCorpus,
   selectAudits,
@@ -60,6 +66,7 @@ function writeUnder(root, relPath, contents) {
 afterEach(() => {
   _resetPersistenceLayerCache();
   _resetPolicyCorpusCache();
+  _resetExternalDependenciesCache();
 });
 
 describe('hasPersistenceLayer (Story #4633)', () => {
@@ -246,5 +253,99 @@ describe('selectAudits routing gate for audit-policies (Story #5848)', () => {
       selectedAudits.includes('audit-policies'),
       `expected audit-policies to be selected for a policy-corpus project; got ${selectedAudits.join(', ')}`,
     );
+  });
+});
+
+describe('hasExternalDependencies (Story #5892)', () => {
+  it('resolves applicable when package.json declares an integration SDK', () => {
+    const root = makeFixture((r) => {
+      writeUnder(
+        r,
+        'package.json',
+        JSON.stringify({ dependencies: { '@sentry/node': '^8.0.0' } }),
+      );
+    });
+    assert.equal(hasExternalDependencies({ projectRoot: root }), true);
+  });
+
+  it('resolves applicable for a platform-binding config near the root', () => {
+    const root = makeFixture((r) => {
+      writeUnder(r, 'apps/api/wrangler.toml', 'name = "api"\n');
+    });
+    assert.equal(hasExternalDependencies({ projectRoot: root }), true);
+  });
+
+  it('resolves applicable for an outbound fetch( in non-test source', () => {
+    const root = makeFixture((r) => {
+      writeUnder(
+        r,
+        'src/notify.js',
+        'export const ping = () => fetch("https://example.com");\n',
+      );
+    });
+    assert.equal(hasExternalDependencies({ projectRoot: root }), true);
+  });
+
+  it('resolves NOT applicable when the only outbound call is in a test file', () => {
+    const root = makeFixture((r) => {
+      writeUnder(r, 'package.json', JSON.stringify({ dependencies: {} }));
+      writeUnder(r, 'src/sum.js', 'export const sum = (a, b) => a + b;\n');
+      writeUnder(r, 'src/sum.test.js', 'await fetch("https://example.com");\n');
+    });
+    assert.equal(hasExternalDependencies({ projectRoot: root }), false);
+  });
+
+  it('fails OPEN when package.json is unparseable', () => {
+    const root = makeFixture((r) => {
+      writeUnder(r, 'package.json', '{ not json');
+    });
+    assert.equal(hasExternalDependencies({ projectRoot: root }), true);
+  });
+
+  it('fails OPEN when the project root is unreadable', () => {
+    const missingRoot = path.join(makeTempDir('integrations-probe-'), 'absent');
+    assert.equal(hasExternalDependencies({ projectRoot: missingRoot }), true);
+  });
+});
+
+describe('selectAudits routing gate for audit-resilience (Story #5892)', () => {
+  const provider = {
+    getTicket: async () => ({ title: 'Tidy the docs', body: 'Copy edits.' }),
+  };
+
+  it('routes audit-resilience for a webhooks/ change when the probe reports integrations', async () => {
+    const { selectedAudits } = await selectAudits({
+      ticketId: 1,
+      gate: 'gate1',
+      provider,
+      changedFiles: ['apps/api/src/webhooks/stripe.ts'],
+      hasExternalDependenciesFn: () => true,
+    });
+    assert.ok(
+      selectedAudits.includes('audit-resilience'),
+      `expected audit-resilience to route; got ${selectedAudits.join(', ')}`,
+    );
+  });
+
+  it('does not route audit-resilience for a docs-only change set', async () => {
+    const { selectedAudits } = await selectAudits({
+      ticketId: 1,
+      gate: 'gate1',
+      provider,
+      changedFiles: ['docs/guide.md'],
+      hasExternalDependenciesFn: () => true,
+    });
+    assert.ok(!selectedAudits.includes('audit-resilience'));
+  });
+
+  it('filters audit-resilience out when the probe reports no integrations, even on a matching change set', async () => {
+    const { selectedAudits } = await selectAudits({
+      ticketId: 1,
+      gate: 'gate1',
+      provider,
+      changedFiles: ['apps/api/src/webhooks/stripe.ts'],
+      hasExternalDependenciesFn: () => false,
+    });
+    assert.ok(!selectedAudits.includes('audit-resilience'));
   });
 });
