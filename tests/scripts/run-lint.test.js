@@ -79,8 +79,11 @@ test('only the biome task gets RUST_BACKTRACE=1; other tasks inherit the env', a
   const { calls } = await run();
   const biome = calls.filter((c) => c.argv.includes('biome ci'));
   assert.equal(biome.length, 1);
-  assert.equal(biome[0].opts.env.RUST_BACKTRACE, '1');
-  assert.equal(biome[0].opts.env.PATH, process.env.PATH);
+  const { RUST_BACKTRACE, ...inherited } = biome[0].opts.env;
+  assert.equal(RUST_BACKTRACE, '1');
+  // Compare whole objects: Windows spells it `Path`, so `.PATH` misses.
+  const { RUST_BACKTRACE: _, ...expected } = { ...process.env };
+  assert.deepEqual(inherited, expected);
   for (const call of calls.filter((c) => !c.argv.includes('biome ci'))) {
     assert.equal(call.opts.env, undefined, `${call.argv} must inherit env`);
   }
