@@ -2595,9 +2595,12 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     );
   });
 
-  // An OPEN PR on the head is a re-delivery: it wins over an old merged one.
+  // An OPEN PR on the head (a re-delivery) wins over an old merged one, and
+  // a surviving tip the merged PR never held is unlanded work (Story #5877).
   for (const [variant, localRef, remoteBranch] of [
     ['an OPEN PR beside an old merged one', false, false],
+    ['a surviving local story ref past the merged head', true, false],
+    ['new work pushed to origin only, no PR yet', false, true],
   ])
     it(`Story #5533: a re-delivery with ${variant} never short-circuits`, async (t) => {
       const order = [];
@@ -2648,10 +2651,17 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       });
       const gh = makeFakeGh((args) => {
         if (args[1] === 'list') {
-          return [
-            { url: 'https://github.com/owner/repo/pull/10', state: 'MERGED' },
-            { url: 'https://github.com/owner/repo/pull/11', state: 'OPEN' },
-          ];
+          const merged = {
+            url: 'https://github.com/owner/repo/pull/10',
+            state: 'MERGED',
+            headRefOid: 'old-merged-tip',
+          };
+          return localRef || remoteBranch
+            ? [merged]
+            : [
+                merged,
+                { url: 'https://github.com/owner/repo/pull/11', state: 'OPEN' },
+              ];
         }
         if (args[1] === 'merge') return 'ok';
         throw new Error(`unexpected gh: ${args.join(' ')}`);
@@ -2679,7 +2689,9 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
         injectedGh: gh,
         injectedRunCodeReview: noopReview(),
       });
-      assert.equal(result.prNumber, 11, 'the OPEN PR is the one waited on');
+      if (!localRef && !remoteBranch) {
+        assert.equal(result.prNumber, 11, 'the OPEN PR is the one waited on');
+      }
       assert.equal(terminal.status, 'pending', 'never landed off the old PR');
       assert.ok(order.includes('ensure'), 'the worktree is restored as usual');
       assert.ok(order.includes(`push @ ${wtPath}`), 'the new work is pushed');
@@ -2695,9 +2707,12 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     t.mock.module(GIT_UTILS_URL, {
       namedExports: {
         ...defaultGitUtilsMock().namedExports,
+        // Both refs survive, at the tip the merged PR carried.
         gitSpawn: (cwd, ...args) => {
-          if (args[0] === 'show-ref' || args[0] === 'ls-remote')
-            return { status: 0, stdout: '', stderr: '' };
+          if (args[0] === 'show-ref')
+            return { status: 0, stdout: 'abc5539 refs/heads/story-5877\n' };
+          if (args[0] === 'ls-remote')
+            return { status: 0, stdout: 'abc5539\trefs/heads/story-5877\n' };
           return defaultGitUtilsMock().namedExports.gitSpawn(cwd, ...args);
         },
         gitSync: (cwd, ...args) => {
@@ -2752,6 +2767,7 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
             url: 'https://github.com/owner/repo/pull/5539',
             state: 'MERGED',
             mergedAt: '2026-10-23T16:35:01Z',
+            headRefOid: 'abc5539',
           },
         ];
       }
@@ -2791,7 +2807,7 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
         '--state',
         'all',
         '--json',
-        'url,state,mergedAt',
+        'url,state,mergedAt,headRefOid',
       ],
     ]);
     assert.equal(terminal.status, 'landed');
@@ -3240,10 +3256,12 @@ describe('runSingleStoryClose — pipeline endings past the PR phase', () => {
     });
 
     assert.equal(reviewRan, false, 'an already-merged PR is never reviewed');
+    // Story #5877 — the landed probe cannot read the branch tip here, so it
+    // declines; the PR phase's own probe then reports the merge.
     assert.equal(
       ghCalls.length,
-      1,
-      'only the PR probe runs — no create, no merge',
+      2,
+      'only the two PR probes run — no create, no merge',
     );
     assert.equal(result.prNumber, 88);
     assert.equal(result.autoMergeEnabled, true);

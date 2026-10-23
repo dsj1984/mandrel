@@ -256,12 +256,47 @@ async function resolveBasePhase(ctx, deps) {
   return null;
 }
 
+/** First SHA of a `show-ref` / `ls-remote` line; `''` on an empty read. */
+function firstSha(stdout) {
+  return String(stdout ?? '')
+    .trim()
+    .split(/\s+/)[0];
+}
+
+/**
+ * Tip SHAs of the surviving story refs (local, then origin). Only
+ * `ls-remote`'s "no such ref" (exit 2) proves the remote gone; any other
+ * failure yields `''`, which matches no PR head.
+ */
+function survivingStoryHeads(ctx) {
+  const cwd = ctx.options.cwd;
+  const heads = [];
+  const local = gitSpawn(
+    cwd,
+    'show-ref',
+    '--verify',
+    `refs/heads/${ctx.storyBranch}`,
+  );
+  if (local.status === 0) heads.push(firstSha(local.stdout));
+  const remote = gitSpawn(
+    cwd,
+    'ls-remote',
+    '--exit-code',
+    '--heads',
+    'origin',
+    ctx.storyBranch,
+  );
+  if (remote.status !== 2)
+    heads.push(remote.status === 0 ? firstSha(remote.stdout) : '');
+  return heads;
+}
+
 /**
  * The Story's PR, when it already merged and nothing newer is in flight. A
- * surviving branch is not evidence of unlanded work: the land tail's reap may
- * still be pending or failed. An OPEN PR on the head wins (a re-delivery), as
- * `ensurePullRequestWith` decides. Any read failure reads as "not merged":
- * the normal path then decides.
+ * surviving branch is not evidence of unlanded work (the land tail's reap may
+ * be pending or failed), but a surviving tip past the merged PR's head is: it
+ * takes the normal path. An OPEN PR on the head wins (a re-delivery), as
+ * `ensurePullRequestWith` decides. Any read failure reads as "not merged".
  *
  * @returns {Promise<{ prUrl: string, prNumber: number|null, mergedAt: string }|null>}
  */
@@ -269,16 +304,21 @@ async function findLandedPr(ctx, deps) {
   try {
     const rows = await (deps.gh ?? defaultGh).pr.list(
       ['--head', ctx.storyBranch, '--state', 'all'],
-      ['url', 'state', 'mergedAt'],
+      ['url', 'state', 'mergedAt', 'headRefOid'],
     );
     const head = pickHeadPullRequest(rows);
     if (head?.state !== 'MERGED') return null;
     const row = rows.find((r) => String(r?.url ?? '').trim() === head.url);
-    return {
-      prUrl: head.url,
-      prNumber: parsePrNumber(head.url),
-      mergedAt: row?.mergedAt ?? 'an unknown time',
-    };
+    const landed = survivingStoryHeads(ctx).every(
+      (sha) => sha === row.headRefOid,
+    );
+    return landed
+      ? {
+          prUrl: head.url,
+          prNumber: parsePrNumber(head.url),
+          mergedAt: row.mergedAt ?? 'an unknown time',
+        }
+      : null;
   } catch {
     return null;
   }
