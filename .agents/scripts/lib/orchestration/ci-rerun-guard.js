@@ -451,6 +451,36 @@ function clearedAdvisoryFailures(digest, checks) {
 }
 
 /**
+ * A green on the head the red was recorded against: `advisory-cleared`, the
+ * allowance's one rerun, or a forbidden rerun.
+ *
+ * @returns {{ verdict: string, reason: string }}
+ */
+function sameHeadVerdict(digest, headSha, checks) {
+  const cleared = clearedAdvisoryFailures(digest, checks);
+  if (cleared) {
+    return {
+      verdict: 'advisory-cleared',
+      reason: `advisory check(s) ${cleared.map((f) => `\`${f.name}\``).join(', ')} now green on head ${headSha}`,
+    };
+  }
+  // Not cleared: an advisory red still red keeps the required-red rule.
+  const allowance = allowanceFor(digest, headSha);
+  return isRerunPermitted({
+    required: true,
+    allowanceRecorded: allowance !== null,
+  })
+    ? {
+        verdict: 'rerun-permitted',
+        reason: `one rerun admitted: \`${allowance.verdict}\` verdict recorded for this head SHA (${headSha})`,
+      }
+    : {
+        verdict: 'rerun',
+        reason: `green on the SAME head SHA the red was recorded against (${headSha})`,
+      };
+}
+
+/**
  * Adjudicate an all-green watch against the scope's digest (see header).
  * `checks` — the probe's per-check states (`name → success|failure|pending`)
  * for the current head — admits `advisory-cleared`.
@@ -458,7 +488,7 @@ function clearedAdvisoryFailures(digest, checks) {
  * @param {{ digest: object|null, headSha: string|null, checks?: Record<string, string>|null }} opts
  * @returns {{ verdict: 'clean'|'fix-at-source'|'rerun-permitted'|'rerun'|'unverifiable'|'advisory-cleared', reason: string }}
  */
-export function classifyGreenVerdict({ digest, headSha, checks = null }) {
+export function classifyGreenVerdict({ digest, headSha, checks }) {
   if (!digest) return { verdict: 'clean', reason: 'no digest for this scope' };
   const recorded = digest.headSha ?? null;
   if (!recorded || !headSha) {
@@ -467,29 +497,7 @@ export function classifyGreenVerdict({ digest, headSha, checks = null }) {
       reason: `cannot prove the red was fixed at source (digest head=${recorded ?? 'unknown'}, current head=${headSha ?? 'unresolved'})`,
     };
   }
-  if (recorded === headSha) {
-    const cleared = clearedAdvisoryFailures(digest, checks);
-    if (cleared) {
-      return {
-        verdict: 'advisory-cleared',
-        reason: `advisory check(s) ${cleared.map((f) => `\`${f.name}\``).join(', ')} now green on head ${headSha}`,
-      };
-    }
-    // Not cleared: an advisory red still red keeps the required-red rule.
-    const allowance = allowanceFor(digest, headSha);
-    return isRerunPermitted({
-      required: true,
-      allowanceRecorded: allowance !== null,
-    })
-      ? {
-          verdict: 'rerun-permitted',
-          reason: `one rerun admitted: \`${allowance.verdict}\` verdict recorded for this head SHA (${headSha})`,
-        }
-      : {
-          verdict: 'rerun',
-          reason: `green on the SAME head SHA the red was recorded against (${headSha})`,
-        };
-  }
+  if (recorded === headSha) return sameHeadVerdict(digest, headSha, checks);
   return {
     verdict: 'fix-at-source',
     reason: `head SHA moved ${recorded} → ${headSha}`,
