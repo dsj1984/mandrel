@@ -1066,9 +1066,15 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "lines": 93.04,
-      "branches": 86.44,
-      "functions": 88.89
+      "lines": 93.05,
+      "branches": 86.78,
+      "functions": 89.47
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/test-delta.js",
+      "lines": 100,
+      "branches": 92.86,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
@@ -2603,7 +2609,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
       "lines": 100,
-      "branches": 87.5,
+      "branches": 88,
       "functions": 93.75
     },
     {
@@ -3238,8 +3244,8 @@
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
-      "lines": 98.33,
-      "branches": 91.07,
+      "lines": 98.5,
+      "branches": 91.67,
       "functions": 100
     },
     {
@@ -3334,8 +3340,8 @@
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
-      "lines": 98.68,
-      "branches": 92.11,
+      "lines": 98.69,
+      "branches": 92.5,
       "functions": 100
     },
     {
