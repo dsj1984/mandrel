@@ -33,6 +33,18 @@ never read a skipped test as coverage for its tier.
   `.spec.` suffix.
 - **Coverage.** Unit tests are where line and branch coverage targets are
   met. Mutation testing, when configured, runs at this tier.
+- **Property tests.** A unit whose correctness rests on an invariant — a
+  round-trip (`decode(encode(x)) === x`), idempotency, an ordering, a state
+  machine, or a documented "always"/"never" claim — states that invariant as a
+  property test with the stack's property-based library (`fast-check` for
+  JS/TS, `hypothesis` for Python, `proptest` for Rust). Keep a few example
+  tests beside it as readable witnesses; examples alone cannot reach the
+  inputs nobody thought to pick. Pin or print the seed so a red reproduces.
+- **Failure witness.** A new property test counts only after it was seen to
+  fail against a deliberately broken implementation (a mutant: an off-by-one,
+  a dropped branch, a swapped comparison). Record the mutation in one
+  commit-body line beginning `Failure witness:`. A property no mutant can
+  fail constrains nothing.
 
 ### Contract — data crossing a boundary
 
@@ -146,7 +158,13 @@ first, then the minimum code that makes it pass, then refactoring with the
 suite green; skip it only for configuration, documentation, or static-content
 changes. For a bug fix the **Prove-It Pattern** binds — write the reproduction
 test and watch it fail *before* implementing the fix; a fix without a
-failing-then-passing reproduction is not done. Assert on outcomes rather than
+failing-then-passing reproduction is not done. The fix also states its
+**behaviour delta** — which inputs now behave differently, and how — in one
+commit-body line beginning `Behaviour delta:` (wrap it under commitlint's
+100-character body-line limit). The regression test covers exactly that
+delta: inputs inside it fail before the fix and pass after, and at least one
+input just outside it is asserted unchanged. A fix that changes behaviour
+beyond its stated delta reached green by being broader than the bug. Assert on outcomes rather than
 on which internal methods were called, prefer real implementations **> fakes >
 stubs > mocks** within [§ Mocking & Isolation](#mocking--isolation), and favour
 DAMP over DRY so each test reads as a self-contained story named after the

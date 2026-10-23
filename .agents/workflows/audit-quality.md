@@ -187,6 +187,13 @@ Evaluate the gathered context against the following test quality dimensions:
    - Category: file under `Coverage`. A property test whose seed is
      neither pinned nor printed on failure goes under `Flakiness`: a red that
      cannot be reproduced breaks the reproducibility the rubric demands.
+   - **Vacuous property tests.** An existing property test is itself a
+     finding when its generator cannot reach the inputs the stated
+     invariant constrains (a domain that excludes the edge, a filter that
+     discards it), or when its assertion would hold for any implementation.
+     File it under `Coverage` at **Medium**, or **High** under the High
+     conditions above. Name the unreachable input or the trivially true
+     assertion.
    - **Name the property.** Each finding states the invariant as a testable
      property (e.g. `decode(encode(x)) === x`; "no transition leaves a
      terminal state") plus its generator shape (the input domain to draw

@@ -16,7 +16,7 @@ description:
 - Apply the **five-axis review** to every change: **Correctness, Readability & Simplicity, Architecture, Security, Performance**.
 - Flag dead code artifacts (`_unused` vars, backwards-compat shims, `// removed` comments) and require their removal before merge.
 - Defer to `.agents/rules/security-baseline.md` and the `security-and-hardening` skill for security review; explicit checks include input validation, no hardcoded secrets, parameterized queries, encoded output, authn+authz, and treating external data as untrusted.
-- Bug-fix reviews cover **both** the fix and the regression test; a fix without a failing-then-passing test is not approvable.
+- Bug-fix reviews cover **both** the fix and the regression test; a fix without a failing-then-passing test is not approvable, and neither is one whose commit body states no `Behaviour delta:` or whose diff changes behaviour outside it (`rules/testing-standards.md` § Applying the Standards).
 - **Refactoring is post-green and behaviour-preserving.** Run the refactor pass only when the suite is already green and gates pass; inputs, outputs, side effects, error semantics, and ordering MUST be identical before and after, and existing tests MUST keep passing **without modification** (if a test had to change, behaviour changed — revert).
 - **Lower CRAP by lowering complexity, and remove duplication at the root.** Target the highest-CRAP well-covered functions and the largest verbatim duplications by measurement (`check-baselines.js`), not by smell; extract one well-named helper rather than leaving near-copies. CRAP must not rise and maintainability must not fall on any touched file, and no gate, floor, or threshold may be retuned to make the pass "succeed".
 

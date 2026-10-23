@@ -108,4 +108,8 @@ Before opening a PR that adds or edits an API surface:
       removal is unavoidable, use expand–contract: ship the replacement,
       migrate consumers, then delete the old surface in a later release.
 - [ ] Naming follows [§ Payload Formatting](#payload-formatting).
+- [ ] Every public function or endpoint states its caller obligations
+      (input preconditions, required call ordering, ownership) in its
+      JSDoc/TSDoc or schema, and the contract tier carries a negative test
+      for each obligation the surface rejects.
 - [ ] API documentation or types are committed alongside the implementation.
