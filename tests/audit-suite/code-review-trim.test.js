@@ -79,6 +79,8 @@ test('code-review.md adds Pillar 4 (Anti-Gaming / Shortcut Detection) enumeratin
     /stub returns/i,
     /fake renames/i,
     /comment-deletion-as-fix/i,
+    /over-broad fixes/i,
+    /vacuous properties/i,
   ]) {
     assert.match(
       section,
