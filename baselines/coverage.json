@@ -1251,6 +1251,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/config/pull-request.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/config/qa.js",
       "lines": 100,
       "branches": 100,
@@ -2645,7 +2651,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "lines": 100,
-      "branches": 83.87,
+      "branches": 84.38,
       "functions": 100
     },
     {
@@ -2667,6 +2673,12 @@
       "functions": 89.66
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pr-body-trailers.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "lines": 100,
       "branches": 86.21,
@@ -2681,7 +2693,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
       "lines": 100,
-      "branches": 78.05,
+      "branches": 78.57,
       "functions": 100
     },
     {
