@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.102.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.101.0...mandrel-v2.102.0) (2026-10-23)
+
+
+### Added
+
+* add /audit-resilience: a global lens that inventories every external dependency and follows each failure through its barrier to a human ([#5892](https://github.com/dsj1984/mandrel/issues/5892)) ([#5893](https://github.com/dsj1984/mandrel/issues/5893)) ([7a52cfc](https://github.com/dsj1984/mandrel/commit/7a52cfc123670a2b91d08c6310c9d26c8bc25988))
+
 ## [2.101.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.100.0...mandrel-v2.101.0) (2026-10-23)
 
 
