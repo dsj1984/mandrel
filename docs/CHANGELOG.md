@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.100.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.99.0...mandrel-v2.100.0) (2026-10-23)
+
+
+### Fixed
+
+* **ci:** guard fromJSON on the release PR output so a release merge can publish (refs [#5872](https://github.com/dsj1984/mandrel/issues/5872)) ([#5873](https://github.com/dsj1984/mandrel/issues/5873)) ([bcf11b9](https://github.com/dsj1984/mandrel/commit/bcf11b9722fe47f42a832218909bdb3cc5495a45))
+
 ## [2.99.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.98.0...mandrel-v2.99.0) (2026-10-23)
 
 
