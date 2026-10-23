@@ -54,12 +54,20 @@ Nor are the architecture ratchets, for the same reason:
 
 ## CI-only gates `npm run verify` cannot prove locally
 
+Since Story #5866 the static guards — action pinning, TruffleHog, `npm run
+lint` and the test-portability guard (`scripts/check-test-portability.js`) —
+run in the required `baselines` job rather than ahead of the coverage suite in
+`validate`, so they no longer lengthen the longest required job. The
+`validate` and `e2e` jobs restore the node-pty addon from an `actions/cache`
+entry keyed on the runner OS, `.nvmrc` and `package-lock.json`, and skip its
+source build on a hit.
+
 | CI gate                                  | CI step / command                                                                     | Why it is CI-only                                                                                                                                                                       |
 | ---------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Action pinning                           | `node scripts/check-action-pinning.js` (`.github/workflows/ci.yml`)           | Guards that every third-party `uses:` ref stays pinned to a full 40-char commit SHA. It gates the workflow-file supply chain — a concern that only exists in the CI/CD surface itself, and there is no `verify` step for it.  |
-| TruffleHog secret scan                   | `trufflesecurity/trufflehog@…` action with `--only-verified` (`.github/workflows/ci.yml`) | A pinned third-party GitHub Action that scans the *full fetched git history* for verified secrets. It needs the Actions runner and the action's own container — there is no local `verify` equivalent.                        |
+| Action pinning                           | `node scripts/check-action-pinning.js` in the `baselines` job (`.github/workflows/ci.yml`) | Guards that every third-party `uses:` ref stays pinned to a full 40-char commit SHA. It gates the workflow-file supply chain — a concern that only exists in the CI/CD surface itself, and there is no `verify` step for it.  |
+| TruffleHog secret scan                   | `trufflesecurity/trufflehog@…` action with `--only-verified`, in the `baselines` job (`.github/workflows/ci.yml`) | A pinned third-party GitHub Action that scans the *full fetched git history* for verified secrets. It needs the Actions runner and the action's own container — there is no local `verify` equivalent.                        |
 | Test-temp hygiene (`--snapshot` / `--assert`) | `node .agents/scripts/check-test-temp-hygiene.js --snapshot` before the test run, `--assert` after (`.github/workflows/ci.yml`) | Brackets the CI test run (Story #4696): fingerprints the friction / lifecycle / trace NDJSON streams under `temp/` pre-test and fails the build if any stream file was added or grew — catching a test writer that bypasses the scratch seam and pollutes real telemetry. `npm run verify` does not bracket its test run with this snapshot/assert pair. |
-| `Windows Smoke` (required) | the `windows-smoke` job of `.github/workflows/ci.yml` — `bootstrap.js --dry-run --assume-yes --skip-github`, `npm run sync:commands`, the config-resolution slice (`tests/shipped-configs-validate.test.js` + `tests/lib/config-resolver.test.js`), then `npm run test:quick` | The only `windows-latest` surface in the repo (Story #3389). It catches Windows-only regressions in worktree path handling, PowerShell/npm wiring, and platform-conditional code — the largest gap a local green on macOS/Linux structurally cannot cover, since no local run executes on Windows. It is **required**: the job is in the branch-protection required-status-check set, so a red `Windows Smoke` blocks the merge. It was advisory until 2026-09-10, deliberately kept out to avoid reintroducing the c8/timing baseline flap that retired the full Windows matrix leg (#1270) — but advisory meant auto-merge landed Windows-only reds on `main` unnoticed: on 2026-09-10 alone `main` went red seven times, and **every** red CI run in that window was this job — two of them from Epic #5286's own Stories, and one of those was only discovered because it failed the 2.55.0 release PR. The flap risk is real and now shows up as a blocked merge rather than a red `main`; if a timing-sensitive assertion starts flapping, fix or quarantine that assertion rather than demoting the leg again. |
+| `Windows Smoke` (required) | the `windows-smoke` fan-in job of `.github/workflows/ci.yml` over two `windows-smoke-shard` jobs (`windows-latest`, `fail-fast: false`). Each shard runs `npm run test:quick -- --shard <i>/2`; shard 1 also runs `bootstrap.js --dry-run --assume-yes --skip-github`, `npm run sync:commands`, the config-resolution slice (`tests/shipped-configs-validate.test.js` + `tests/lib/config-resolver.test.js`) and the worktree-manager real-git contract. The fan-in runs on `ubuntu-latest` with `if: always()` and fails unless the shard job's result is `success`, so a failed, cancelled or skipped shard fails the required check | Story #5866 split the leg: the quick tier took 326s there as seven serial argv-chunked spawns, and `run-tests.js` now runs a tier through one in-process `node:test` `run()` call, so `--shard` can divide it across runners. The only `windows-latest` surface in the repo (Story #3389). It catches Windows-only regressions in worktree path handling, PowerShell/npm wiring, and platform-conditional code — the largest gap a local green on macOS/Linux structurally cannot cover, since no local run executes on Windows. It is **required**: the job is in the branch-protection required-status-check set, so a red `Windows Smoke` blocks the merge. It was advisory until 2026-09-10, deliberately kept out to avoid reintroducing the c8/timing baseline flap that retired the full Windows matrix leg (#1270) — but advisory meant auto-merge landed Windows-only reds on `main` unnoticed: on 2026-09-10 alone `main` went red seven times, and **every** red CI run in that window was this job — two of them from Epic #5286's own Stories, and one of those was only discovered because it failed the 2.55.0 release PR. The flap risk is real and now shows up as a blocked merge rather than a red `main`; if a timing-sensitive assertion starts flapping, fix or quarantine that assertion rather than demoting the leg again. |
 | OS-temp-root hygiene (same bracket) | the same `--assert` step, plus `--lint-globs` (`.github/workflows/ci.yml`) | Two further dimensions added in Story #4808, riding the bracket above. **Runtime:** the snapshot also records the `mandrel-suite-*` roots already present in `os.tmpdir()`, and `--assert` fails on any that appeared during the run and survived — i.e. a process minted a suite root and exited without reaping it. Diffing against the snapshot (rather than asserting an empty set) is what keeps a concurrent suite in another checkout from failing this one. **Static:** `--lint-globs` fails when a test file calls `mkdtemp` against `os.tmpdir()` directly instead of `makeTempDir()` from `.agents/scripts/lib/test-temp.js`, catching the next leaking file at authoring time. Both are CI-only for the same reason as the row above; the static one is additionally **off unless `--lint-globs` is passed**, because this script ships in the materialized `.agents/` payload and the rule must not fire on a consumer's tests. |
 | Baseline scope | `node scripts/check-baseline-scope.js` in the Architecture Cycle Check step of the `baselines` job (`.github/workflows/ci.yml`) | **Not mirrored by `verify`** (`scripts/run-verify.js` says so in its header). It checks whether each baseline's row set still describes the tree, and is in no local aggregate command — [`known-tooling-behavior.md`](contributing/known-tooling-behavior.md) entry 2 carries the coverage table. |
 
@@ -114,9 +122,9 @@ whether the recorded numbers are still true.
 
 ## Scheduled sweeps that run off the per-PR path
 
-Two gates in this repository are **time-triggered rather than diff-triggered**,
+Three gates in this repository are **time-triggered rather than diff-triggered**,
 because the thing they check can go wrong without anybody's diff causing it.
-Both follow the same shape: one reusable tracking issue keyed by **label**
+All three follow the same shape: one reusable tracking issue keyed by **label**
 (never a title search — GitHub's issue search index lags, and a lookup that
 misses opens a duplicate every night), the issue closed automatically once the
 condition clears, and the run failing **last** so a failed scheduled run is the
@@ -125,6 +133,7 @@ notification while the issue is the durable surface.
 | Workflow | Cadence | What it catches |
 | --- | --- | --- |
 | [`baseline-drift.yml`](../.github/workflows/baseline-drift.yml) | 05:43 UTC nightly | Baseline rows that no longer describe the tree, in files no recent branch touched — invisible to every diff-scoped enforcement site. |
+| [`baseline-drift.yml`](../.github/workflows/baseline-drift.yml), `ruleset-drift` job | 05:43 UTC nightly | A required-status-check context present in only one of `.github/ruleset.json` and the live `main` rules (`node scripts/check-ruleset-drift.js`, Story #5866). The snapshot is not enforcement, so a context missing from the live ruleset stops gating merges silently. Tracking label `meta::ruleset-drift`. |
 | [`dependency-audit-cron.yml`](../.github/workflows/dependency-audit-cron.yml) | 04:11 UTC nightly | A high-severity npm advisory published against an already-installed package, which reds `main` between PRs. |
 
 ### Why the dependency sweep is not just the required check
@@ -201,7 +210,7 @@ than restating it:
 | `baselines`                | the `baselines` job of `.github/workflows/ci.yml`              |
 | `install (npm / ubuntu-latest)`   | the Gate profile of `.github/workflows/install-matrix.yml` |
 | `install (yarn / windows-latest)` | the Gate profile of `.github/workflows/install-matrix.yml` |
-| `Windows Smoke`            | the `windows-smoke` job of `.github/workflows/ci.yml`          |
+| `Windows Smoke`            | the `windows-smoke` fan-in job of `.github/workflows/ci.yml` (over the two `windows-smoke-shard` jobs) |
 
 > **`.github/ruleset.json` is a non-enforcing snapshot, not the declaration.**
 > It is a committed *record* of the live `Protect Main` ruleset (id
@@ -213,6 +222,9 @@ than restating it:
 > [`.github/README.md`](../.github/README.md) for the full procedure. Read the
 > authoritative set off the live ruleset
 > (`gh api repos/{owner}/{repo}/rulesets`) whenever it matters.
+> `node scripts/check-ruleset-drift.js` compares the two sets of required
+> contexts. It exits 1 and names each context found on only one side, and
+> `baseline-drift.yml` runs it nightly.
 
 A second confusion is worth stating just as plainly:
 
@@ -222,9 +234,9 @@ A second confusion is worth stating just as plainly:
 > runs on your machine (`lint` → `npm run lint`, `test` → `npm test`,
 > `baselines` → `node .agents/scripts/check-baselines.js`). GitHub reports a
 > status under the *job's display name*, which is a different string:
-> `npm run lint` and `npm test` both run **inside** the job GitHub reports as
-> `Validate and Test`, so there is no `lint` context and no `test` context to
-> require. Configuring branch protection from the `.agentrc.json` names would
+> `npm run lint` runs **inside** the job GitHub reports as `baselines` and the
+> test suite inside `Validate and Test`, so there is no `lint` context and no
+> `test` context to require. Configuring branch protection from the `.agentrc.json` names would
 > register up to two contexts that no workflow ever reports — GitHub would
 > hold every PR forever, or, if the ruleset were removed to unstick it, leave
 > the `trust-ci` arm with nothing to gate. Read the contexts off the live

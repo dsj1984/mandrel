@@ -121,7 +121,6 @@ const ALLOWLIST = new Set([
   '.agents/scripts/mandrel-update-preflight.js',
   '.agents/scripts/providers/github/auth.js',
   '.agents/scripts/quality-watch.js',
-  '.agents/scripts/run-tests.js',
   'lib/cli/doctor-checks/spawn.js',
   'lib/cli/guarded-sync.js',
   'lib/cli/init.js',
@@ -236,10 +235,6 @@ const RAW_CAPTURE_SITES = {
   '.agents/scripts/quality-watch.js': {
     reason: 'streaming spawn() seam for the watch loop; no buffer to overflow',
     sites: { 'spawn (seam)': 1 },
-  },
-  '.agents/scripts/run-tests.js': {
-    reason: `${SEAM_REASON} (suite runner)`,
-    sites: { 'spawnSync (seam)': 1 },
   },
   'lib/cli/doctor-checks/spawn.js': {
     reason: "doctor's version / presence probes; small captures",

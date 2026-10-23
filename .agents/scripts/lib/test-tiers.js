@@ -28,10 +28,10 @@ const matchesE2E = picomatch(E2E_INCLUDE, { dot: true });
 const TIERS = ['full', 'quick', 'integration', 'e2e'];
 
 /**
- * The only flags forwarded to `node --test`; any other `--flag` is rejected,
- * since `node --test` reads it as a file pattern and exits 0 having run nothing.
+ * The only `node --test` flags passed through; any other `--flag` is rejected,
+ * so a typo can never run nothing and exit 0.
  */
-const PASSTHROUGH_FLAGS = ['--test-name-pattern', '--test-only'];
+export const PASSTHROUGH_FLAGS = ['--test-name-pattern', '--test-only'];
 
 /** Roots scanned for `*.test.js`, including colocated `__tests__` trees. */
 const TEST_WALK_ROOTS = ['tests', 'lib', '.agents/scripts'];
@@ -115,6 +115,16 @@ export function listTestFilesForTier(tier, repoRoot, fsLike = fs) {
   return splitBySpeed(rest, tier);
 }
 
+/** The one unrecognized-argument error every run-tests flag check throws. */
+export function unrecognizedArgument(args) {
+  return new Error(
+    `[run-tests] unrecognized argument(s): ${args.join(', ')}. ` +
+      `Accepted: --tier <${TIERS.join('|')}>, ${PASSTHROUGH_FLAGS.join(', ')}, --shard <i>/<n>, --help. ` +
+      'Unrecognized flags are not forwarded: `node --test` would read them as ' +
+      'file patterns and exit 0 having run nothing.',
+  );
+}
+
 /**
  * @param {string[]} rest
  * @throws {Error} naming both the accepted tiers and the accepted flags.
@@ -126,13 +136,7 @@ function assertKnownFlags(rest) {
       !PASSTHROUGH_FLAGS.includes(arg) &&
       !PASSTHROUGH_FLAGS.some((flag) => arg.startsWith(`${flag}=`)),
   );
-  if (unknown.length === 0) return;
-  throw new Error(
-    `[run-tests] unrecognized argument(s): ${unknown.join(', ')}. ` +
-      `Accepted: --tier <${TIERS.join('|')}>, ${PASSTHROUGH_FLAGS.join(', ')}, --help. ` +
-      'Unrecognized flags are not forwarded: `node --test` would read them as ' +
-      'file patterns and exit 0 having run nothing.',
-  );
+  if (unknown.length > 0) throw unrecognizedArgument(unknown);
 }
 
 /**
