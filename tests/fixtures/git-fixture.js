@@ -125,6 +125,63 @@ export function makeGitRepo({
 }
 
 /**
+ * Run git in `cwd` under the scrubbed env, returning trimmed stdout.
+ *
+ * @param {string} cwd
+ * @param {...string} args
+ * @returns {string}
+ */
+export function runGit(cwd, ...args) {
+  return execFileSync('git', args, {
+    cwd,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    encoding: 'utf-8',
+    env: CLEAN_ENV,
+  }).trim();
+}
+
+/**
+ * Write `files` (relative path → text) under `dir`, creating parents.
+ *
+ * @param {string} dir
+ * @param {Record<string, string>} files
+ */
+export function writeFiles(dir, files) {
+  for (const [rel, text] of Object.entries(files)) {
+    const abs = path.join(dir, rel);
+    mkdirSync(path.dirname(abs), { recursive: true });
+    writeFileSync(abs, text);
+  }
+}
+
+/**
+ * Build a plain repository once per test file, for `copyGitRepo` to hand each
+ * test its own copy: `git init` on `branch`, a committer identity, and `files`
+ * committed as `base` (an unborn branch when there are none).
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.prefix]
+ * @param {string} [opts.branch]
+ * @param {Record<string, string>} [opts.files]
+ * @returns {string} Absolute path to the template repository.
+ */
+export function makeGitTemplate({
+  prefix = 'git-template-',
+  branch = 'main',
+  files = {},
+} = {}) {
+  const dir = makeTempDir(prefix);
+  runGit(dir, 'init', '-q', '-b', branch);
+  seedGitIdentity(dir);
+  if (Object.keys(files).length > 0) {
+    writeFiles(dir, files);
+    runGit(dir, 'add', '-A');
+    runGit(dir, 'commit', '-q', '--no-verify', '-m', 'base');
+  }
+  return dir;
+}
+
+/**
  * Copy an already-built fixture repository — **with no subprocess at all**.
  *
  * This is the lever for the suite's git budget (Story #5121). The costly
