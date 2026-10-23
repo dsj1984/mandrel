@@ -1399,6 +1399,10 @@
       "mi": 95.98
     },
     {
+      "path": ".agents/scripts/lib/orchestration/handoff-state.js",
+      "mi": 115.924
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
       "mi": 113.393
     },

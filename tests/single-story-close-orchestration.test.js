@@ -28,7 +28,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1649,9 +1655,10 @@ describe('runSingleStoryClose orchestration', () => {
     });
 
     assert.deepEqual(terminal.lockWait, { waitedSeconds: 42, expired: false });
+    const spawn = { lockWaitMs: 42000, hostWaitMs: 9000, testRunMs: 51000 };
     assert.deepEqual(
       terminal.suiteTimings,
-      { lockWaitMs: 42000, hostWaitMs: 9000, testRunMs: 51000 },
+      { ...spawn, source: 'close', spawns: [spawn] },
       'AC-7: the three figures ride the envelope as separate fields',
     );
     assert.ok(
@@ -1664,6 +1671,67 @@ describe('runSingleStoryClose orchestration', () => {
         `expected "${needle}" on the operator console`,
       );
     }
+  });
+
+  it("Story #5879 AC-3: a close that honours the credit reports the credited run's figures", async (t) => {
+    mockCloseValidation(t, {
+      namedExports: {
+        buildDefaultGates: () => [{ name: 'test' }],
+        runCloseValidation: async () => ({
+          ok: true,
+          failed: [],
+          skipped: [{ gate: { name: 'test' } }],
+        }),
+      },
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    captureStderr(t);
+    const spawn = { lockWaitMs: 1619401, hostWaitMs: null, testRunMs: 562035 };
+    const lockWait = { waitedSeconds: 1619, expired: false };
+    mkdirSync(path.join(tempRoot, 'orchestration'), { recursive: true });
+    writeFileSync(
+      path.join(tempRoot, 'orchestration', 'story-handoff-5879.json'),
+      JSON.stringify({
+        state: {
+          creditHead: 'abc123',
+          creditTimings: {
+            head: 'abc123',
+            lockWait,
+            suiteTimings: spawn,
+            spawns: [spawn],
+          },
+        },
+      }),
+    );
+
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=credited-timings`
+    );
+    const { terminal } = await runSingleStoryClose({
+      storyId: 5879,
+      cwd: '/repo',
+      skipValidation: false,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: { id: 5879, state: 'open', title: 'x', labels: [] },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: makeFakeGh((args) => {
+        if (args[1] === 'list') return [];
+        if (args[1] === 'create') return 'https://github.com/o/r/pull/9\n';
+        return 'ok';
+      }),
+    });
+
+    assert.deepEqual(terminal.suiteTimings, {
+      ...spawn,
+      source: 'credited-run',
+      spawns: [spawn],
+    });
+    assert.equal(terminal.lockWait, null, "lockWait stays the close's own");
   });
 
   it('throws when git push fails', async (t) => {

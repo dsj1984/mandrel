@@ -1013,7 +1013,7 @@
     {
       "path": ".agents/scripts/lib/close-lock-events.js",
       "lines": 100,
-      "branches": 97.78,
+      "branches": 97.92,
       "functions": 100
     },
     {
@@ -2121,6 +2121,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/handoff-state.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
       "lines": 100,
       "branches": 92.86,
@@ -2771,8 +2777,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "lines": 100,
-      "branches": 93.06,
-      "functions": 92
+      "branches": 92.86,
+      "functions": 92.59
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -2848,9 +2854,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 97.57,
-      "branches": 82.78,
-      "functions": 97.62
+      "lines": 97.63,
+      "branches": 83.26,
+      "functions": 97.67
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",

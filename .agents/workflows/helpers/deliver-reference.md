@@ -485,7 +485,13 @@ full-suite lock wait expired) logs a deferred line and the close settles
 line naming host contention — neither is reported as failing tests.
 
 Every full-suite run ends on `⏲ suite timings: lockWaitMs=… hostWaitMs=…
-testRunMs=…`, which close carries as the envelope's `suiteTimings`. The
+testRunMs=…`. The handoff envelope carries its credited run's figures as
+top-level `lockWait` / `suiteTimings` (null when the depositor ran no suite).
+The close terminal's `suiteTimings` names its `source`: `close` when close
+spawned the suite, `credited-run` when it honoured the handoff's credit;
+`spawns[]` lists every spawn of that run. A `lockWaitMs` large next to
+`testRunMs` is serialization behind sibling suites, not a slow suite — the
+cue for `delivery.execution.workloads`. The
 `coverage.timeoutMs` clock starts at spawn, never in the lock queue; a suite
 that writes `$MANDREL_SUITE_READY_FILE` when its tests start (after a
 consumer load gate) gets a fresh bound for them, so worst-case wall is lock

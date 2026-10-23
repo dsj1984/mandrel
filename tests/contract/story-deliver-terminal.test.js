@@ -1063,7 +1063,8 @@ describe('story-deliver-terminal — phaseDurations (Story #5417)', () => {
 });
 
 describe('story-deliver-terminal — suite timings and lock holder (Story #5485)', () => {
-  const TIMINGS = { lockWaitMs: 42_000, hostWaitMs: null, testRunMs: 51_000 };
+  const SPAWN = { lockWaitMs: 42_000, hostWaitMs: null, testRunMs: 51_000 };
+  const TIMINGS = { ...SPAWN, source: 'close', spawns: [SPAWN] };
 
   it('AC-7: a landed close carries lockWaitMs, hostWaitMs and testRunMs as separate fields', () => {
     const env = terminalFromWaitOutcome({
@@ -1088,6 +1089,47 @@ describe('story-deliver-terminal — suite timings and lock holder (Story #5485)
     assert.equal(env.storyId, 5485);
   });
 
+  it('Story #5879 AC-3: a credited-run source validates with every spawn, and source/spawns are required', () => {
+    const base = {
+      storyId: 5879,
+      status: 'pending',
+      phase: 'close-validation',
+      nextCommand: NEXT_COMMANDS.close(5879),
+      elapsedSeconds: 1,
+    };
+    const credited = {
+      lockWaitMs: 1_619_401,
+      hostWaitMs: 2_000,
+      testRunMs: 562_035,
+      source: 'credited-run',
+      spawns: [
+        SPAWN,
+        { lockWaitMs: 1_619_401, hostWaitMs: 2_000, testRunMs: 562_035 },
+      ],
+    };
+    assert.deepEqual(
+      buildTerminalEnvelope({ ...base, suiteTimings: credited }).suiteTimings,
+      credited,
+    );
+    assert.throws(
+      () => buildTerminalEnvelope({ ...base, suiteTimings: SPAWN }),
+      /source/,
+    );
+    assert.throws(
+      () =>
+        buildTerminalEnvelope({
+          ...base,
+          suiteTimings: { ...credited, source: 'handoff' },
+        }),
+      /source/,
+    );
+    const { spawns: _spawns, ...noSpawns } = credited;
+    assert.throws(
+      () => buildTerminalEnvelope({ ...base, suiteTimings: noSpawns }),
+      /spawns/,
+    );
+  });
+
   it('defaults suiteTimings to null and rejects a malformed one', () => {
     const base = {
       storyId: 5485,
@@ -1101,7 +1143,12 @@ describe('story-deliver-terminal — suite timings and lock holder (Story #5485)
       () =>
         buildTerminalEnvelope({
           ...base,
-          suiteTimings: { lockWaitMs: 1, testRunMs: 2 },
+          suiteTimings: {
+            lockWaitMs: 1,
+            testRunMs: 2,
+            source: 'close',
+            spawns: [],
+          },
         }),
       /hostWaitMs/,
     );

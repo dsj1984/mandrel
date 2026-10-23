@@ -80,6 +80,7 @@ describe('close-lock-events', () => {
     assert.deepEqual(summarizeLockEvents([]), {
       lockWait: null,
       suiteTimings: null,
+      spawns: [],
     });
     assert.deepEqual(
       summarizeLockEvents([
@@ -91,6 +92,10 @@ describe('close-lock-events', () => {
       {
         lockWait: { waitedSeconds: 15, expired: true, holder },
         suiteTimings: { lockWaitMs: 4, hostWaitMs: null, testRunMs: 6 },
+        spawns: [
+          { lockWaitMs: 1, hostWaitMs: 2, testRunMs: 3 },
+          { lockWaitMs: 4, hostWaitMs: null, testRunMs: 6 },
+        ],
       },
     );
   });
@@ -147,6 +152,7 @@ describe('close-lock-events', () => {
     assert.deepEqual(summarizeLockEvents([progress('expired', 300)]), {
       lockWait: null,
       suiteTimings: null,
+      spawns: [],
     });
   });
 

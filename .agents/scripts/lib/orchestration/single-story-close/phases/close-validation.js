@@ -11,6 +11,7 @@
 
 import {
   createLockEventChannel as defaultCreateLockEventChannel,
+  sourcedTimings,
   summarizeLockEvents,
 } from '../../../close-lock-events.js';
 import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
@@ -45,7 +46,7 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  * @returns {Promise<{
  *   gates: Record<string, 'passed'|'skipped'>|null,
  *   lockWait: { waitedSeconds: number, expired: boolean, holder?: object }|null,
- *   suiteTimings: { lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }|null,
+ *   suiteTimings: { lockWaitMs: number, hostWaitMs: number|null, testRunMs: number, source: 'close', spawns: object[] }|null,
  *   pending: boolean,
  * }>} `pending` (with `gates: null`) when a lock wait expired; any other
  *   failure throws with `err.closeGate` naming the gate.
@@ -95,7 +96,7 @@ export async function runCloseValidationPhase({
     storyId,
     evidenceCwd: cwd,
   });
-  const { validation, lockWait, suiteTimings } = await runGateChain({
+  const { validation, lockWait, ...timings } = await runGateChain({
     runCloseValidation,
     gateLog,
     lockEvents,
@@ -121,7 +122,7 @@ export async function runCloseValidationPhase({
   return {
     gates: gateOutcomes(gateList, validation),
     lockWait,
-    suiteTimings,
+    suiteTimings: sourcedTimings(timings, 'close'),
     pending: false,
   };
 }
