@@ -491,7 +491,7 @@ test('an empty diff returns no findings without invoking claude', async () => {
   assert.deepEqual(provider.getDegradations(), []);
 });
 
-test('an oversized diff is truncated and the reviewer is told', async () => {
+test('#5878 AC-3: a single file over the cap is reviewed alone, truncated, and degraded by name', async () => {
   const big = `diff --git a/x b/x\n${'+'.repeat(250_000)}\n`;
   const { provider, calls } = harness({
     diff: { status: 0, stdout: big, stderr: '' },
@@ -500,6 +500,8 @@ test('an oversized diff is truncated and the reviewer is told', async () => {
   const { prompt } = invokeCall(calls);
   assert.match(prompt, /diff truncated at 200000 characters/);
   assert.ok(prompt.length < big.length);
+  const row = assertOneDegradation(provider, /^x truncated at 200000/);
+  assert.match(row.reason, new RegExp(`${big.length - 200_000} characters`));
 });
 
 test('a generated file is stubbed before the cap, so it cannot truncate the review', async () => {
@@ -638,36 +640,165 @@ for (const depth of ['light', 'standard']) {
   });
 }
 
-test('#5764 AC-2: a 200,001-character diff yields one truncation degradation beside the parsed findings', async () => {
-  const head = 'diff --git a/src/a.js b/src/a.js\n+++ b/src/a.js\n';
-  const tail = '\ndiff --git a/src/z.js b/src/z.js\n+++ b/src/z.js\n';
-  const filler = 'x'.repeat(200_001 - head.length - tail.length);
-  const big = `${head}${filler}${tail}`;
-  assert.equal(big.length, 200_001);
-  const { provider } = harness({
-    diff: { status: 0, stdout: big, stderr: '' },
-    stdout: envelope([
-      { title: 'Bug', body: 'b', file: 'src/a.js', line: 1, category: 'bug' },
-    ]),
+/** A per-file diff section of exactly `size` characters. */
+function section(file, size) {
+  const head = `diff --git a/${file} b/${file}\n+++ b/${file}\n`;
+  return `${head}${'x'.repeat(size - head.length - 1)}\n`;
+}
+
+function invokeCalls(calls) {
+  return calls
+    .filter((c) => c.kind === 'invoke')
+    .map((c) => ({ ...c, prompt: c.options.input }));
+}
+
+/** A spawnFn stub whose envelope is chosen per prompt. */
+function perPromptHarness(diff, verdictFor, extra = {}) {
+  const prompts = [];
+  const wrapped = createCodeReviewProviderForRegistry({
+    probeFn: () => true,
+    platform: 'linux',
+    gitSpawnFn: (_cwd, ...args) =>
+      args[0] === 'diff'
+        ? { status: 0, stdout: diff, stderr: '' }
+        : (extra.grep?.(args) ?? { status: 1, stdout: '', stderr: '' }),
+    authSpawnFn: () => ({ status: 0, stdout: AUTH_OK, stderr: '' }),
+    spawnFn: (_file, _args, options) => {
+      prompts.push(options.input);
+      return verdictFor(options.input);
+    },
   });
-  const findings = await provider.runReview(INPUT);
-  assert.equal(findings.length, 1, 'findings still returned');
-  const row = assertOneDegradation(provider, /truncated/);
-  assert.match(row.reason, /\b1 characters\b/);
-  assert.match(row.reason, /\b0 file\(s\)/);
+  return { provider: wrapped, prompts };
+}
+
+const bug = (file, title = 'Bug') => ({
+  title,
+  body: 'b',
+  file,
+  line: 1,
+  category: 'bug',
 });
 
-test('#5764 AC-2: the truncation reason counts files whose first header is past the cut', async () => {
-  const head = 'diff --git a/src/a.js b/src/a.js\n+++ b/src/a.js\n';
-  const filler = 'x'.repeat(200_000);
-  const big = `${head}${filler}\n+++ b/src/y.js\n+++ b/src/z.js\n`;
-  const { provider } = harness({
-    diff: { status: 0, stdout: big, stderr: '' },
+test('#5878 AC-1: a diff exactly at the cap is one reviewer invocation with no degradation', async () => {
+  const diff = section('src/a.js', 200_000);
+  const { provider, calls } = harness({
+    diff: { status: 0, stdout: diff, stderr: '' },
   });
   await provider.runReview(INPUT);
-  const row = assertOneDegradation(provider, /truncated at 200000 characters/);
-  assert.match(row.reason, new RegExp(`${big.length - 200_000} characters`));
-  assert.match(row.reason, /2 file\(s\) not reviewed/);
+  const invokes = invokeCalls(calls);
+  assert.equal(invokes.length, 1);
+  assert.ok(invokes[0].prompt.includes(`<diff>\n${diff}\n</diff>\n`));
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('#5878 AC-2: a diff over the cap is reviewed in file-aligned chunks with merged, de-duplicated findings', async () => {
+  const diff = [
+    section('src/a.js', 120_000),
+    section('src/b.js', 120_000),
+    section('src/c.js', 60_000),
+  ].join('');
+  const { provider, prompts } = perPromptHarness(diff, (prompt) => ({
+    status: 0,
+    stdout: envelope(
+      prompt.includes('+++ b/src/b.js')
+        ? [bug('src/b.js'), bug('src/shared.js')]
+        : [bug('src/a.js'), bug('src/shared.js')],
+    ),
+    stderr: '',
+  }));
+  const findings = await provider.runReview(INPUT);
+  assert.equal(prompts.length, 2);
+  for (const prompt of prompts) {
+    const body = prompt.slice(
+      prompt.indexOf('<diff>\n') + 7,
+      prompt.indexOf('\n</diff>'),
+    );
+    assert.ok(body.length <= 200_000, 'each chunk is at or under the cap');
+    assert.ok(body.startsWith('diff --git '), 'chunks are file-aligned');
+    assert.doesNotMatch(prompt, /diff truncated/);
+  }
+  assert.ok(
+    prompts[0].includes('+++ b/src/a.js') &&
+      prompts[0].includes('+++ b/src/c.js'),
+  );
+  assert.ok(prompts[1].includes('+++ b/src/b.js'));
+  assert.deepEqual(findings.map((f) => f.file).sort(), [
+    'src/a.js',
+    'src/b.js',
+    'src/shared.js',
+  ]);
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('#5878 AC-2: the callers block rides every chunk and comes out of the chunk budget', async () => {
+  const caller = 'export function loadWidget() {}';
+  const w = `diff --git a/src/w.js b/src/w.js\n+++ b/src/w.js\n@@ -1 +1 @@\n+${caller}\n`;
+  // a + w + b is 10 characters under the cap: it fits only if callers is ignored.
+  const diff = [
+    section('src/a.js', 120_000),
+    w,
+    section('src/b.js', 80_000 - w.length - 10),
+    section('src/c.js', 15_000),
+  ].join('');
+  const { provider, prompts } = perPromptHarness(
+    diff,
+    () => ({ status: 0, stdout: envelope([]), stderr: '' }),
+    {
+      grep: () => ({
+        status: 0,
+        stdout: 'story-5426:src/z.js:9:loadWidget(1);',
+        stderr: '',
+      }),
+    },
+  );
+  await provider.runReview({ ...INPUT, depth: 'deep' });
+  assert.equal(prompts.length, 2);
+  assert.ok(prompts[1].includes('+++ b/src/b.js'), 'b moved to chunk 2');
+  for (const prompt of prompts) {
+    assert.match(prompt, /<callers>\n## loadWidget\n/);
+    const body = prompt.slice(
+      prompt.indexOf('<diff>\n') + 7,
+      prompt.indexOf('\n</diff>\n'),
+    );
+    const callers = prompt.slice(prompt.indexOf('\n</diff>\n') + 9);
+    assert.ok(body.length + callers.length <= 200_000);
+  }
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('#5878 AC-3: files past the chunk bound are degraded by name', async () => {
+  const files = Array.from({ length: 8 }, (_, i) => `src/f${i}.js`);
+  const diff = files.map((f) => section(f, 150_000)).join('');
+  const { provider, prompts } = perPromptHarness(diff, () => ({
+    status: 0,
+    stdout: envelope([]),
+    stderr: '',
+  }));
+  await provider.runReview(INPUT);
+  assert.equal(prompts.length, 6);
+  const row = assertOneDegradation(provider, /review bounded at 6 chunks/);
+  assert.match(
+    row.reason,
+    /2 file\(s\) not reviewed: src\/f6\.js, src\/f7\.js$/,
+  );
+});
+
+test('#5878 AC-3: a chunk with no verdict is degraded naming its files while the other findings stand', async () => {
+  const diff = [
+    section('src/a.js', 150_000),
+    section('src/b.js', 150_000),
+  ].join('');
+  const { provider } = perPromptHarness(diff, (prompt) =>
+    prompt.includes('+++ b/src/a.js')
+      ? { status: 0, stdout: 'not json', stderr: '' }
+      : { status: 0, stdout: envelope([bug('src/b.js')]), stderr: '' },
+  );
+  const findings = await provider.runReview(INPUT);
+  assert.deepEqual(
+    findings.map((f) => f.file),
+    ['src/b.js'],
+  );
+  assertOneDegradation(provider, /^no verdict for src\/a\.js: /);
 });
 
 test('#5764 AC-2: a capped callers block records one degradation naming the dropped symbols', async () => {

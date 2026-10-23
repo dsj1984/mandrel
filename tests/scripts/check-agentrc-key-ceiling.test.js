@@ -91,8 +91,8 @@ describe('checkLeafKeyCeiling', () => {
     assert.equal(checkLeafKeyCeiling(schema, 2).ok, false);
   });
 
-  it('the landed ceiling is 143 (183 before Story #5382, +1 for #5459 scratch, +1 for #5472 captureScope, +1 for #5485 coverage.timeoutMs, +1 for #5519 agentModels, +1 for #5605 duplication.formats, +2 for #5668 execution.capacity/workloads, +1 for #5693 github.cliConfigDir, +2 for #5717 crap.coveragePath/captureScript, +1 for #5737 coverage.captureScript, -1 for #5738 retiring duplication.formats, +4 for #5848 project.policies, +1 for #5849 duplication.additionalFormats, -3 for #5850 retiring delivery.quality.navigability)', () => {
-    assert.equal(AGENTRC_LEAF_KEY_CEILING, 140);
+  it('the landed ceiling is 141 (183 before Story #5382, +1 for #5459 scratch, +1 for #5472 captureScope, +1 for #5485 coverage.timeoutMs, +1 for #5519 agentModels, +1 for #5605 duplication.formats, +2 for #5668 execution.capacity/workloads, +1 for #5693 github.cliConfigDir, +2 for #5717 crap.coveragePath/captureScript, +1 for #5737 coverage.captureScript, -1 for #5738 retiring duplication.formats, +4 for #5848 project.policies, +1 for #5849 duplication.additionalFormats, -3 for #5850 retiring delivery.quality.navigability, +1 for #5875 pullRequest.bodyTrailers)', () => {
+    assert.equal(AGENTRC_LEAF_KEY_CEILING, 141);
   });
 
   it('holds the real schema at the landed ceiling', () => {

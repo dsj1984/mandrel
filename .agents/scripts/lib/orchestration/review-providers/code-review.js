@@ -12,9 +12,10 @@
  * A missing CLI throws at construction (the chain entry is optional). A
  * review with no verdict records one degraded gate via `getDegradations()`
  * and returns no findings, so "never ran" cannot read as "found nothing".
- * A review that reached a verdict still records what it did not check — a
- * truncated diff, a capped `<callers>` block (depth `deep` only) — beside
- * its findings.
+ * A diff over the cap is reviewed chunk by chunk (file-aligned, sequential,
+ * findings merged); what went unchecked — a truncated file, files past the
+ * chunk bound, a chunk with no verdict, a capped `<callers>` block — is
+ * recorded beside the findings, naming the files.
  *
  * @typedef {import('./types.js').Finding}        Finding
  * @typedef {import('./types.js').ReviewInput}    ReviewInput
@@ -55,8 +56,10 @@ const CLAUDE_ARGS = Object.freeze([
 const AUTH_ARGS = Object.freeze(['auth', 'status', '--json']);
 const INVOKE_TIMEOUT_MS = 10 * 60 * 1000;
 const AUTH_TIMEOUT_MS = 15 * 1000;
-/** Larger diffs are truncated; the reviewer is told so and a degradation is recorded. */
+/** Larger diffs are reviewed in file-aligned chunks of at most this size. */
 const MAX_DIFF_CHARS = 200_000;
+/** Files packed past this many chunks are not reviewed; each is degraded by name. */
+const MAX_REVIEW_CHUNKS = 6;
 const DEGRADATION_BASE = Object.freeze({
   tool: 'code-review',
   gate: 'codeReview',
@@ -81,40 +84,67 @@ const PROMPT_HEAD =
   'Emit {"findings":[]} if there is nothing you would block the merge for.\n\n';
 
 /**
- * The truncation degradation reason, or null when the diff fits: the
- * unreviewed character count and the files whose first header is past the cut.
+ * Split a diff at `diff --git` boundaries into per-file sections.
  *
  * @param {string} diff
- * @returns {string|null}
+ * @returns {{ file: string, text: string }[]}
  */
-function truncationReason(diff) {
-  if (diff.length <= MAX_DIFF_CHARS) return null;
-  const firstHeader = new Map();
-  for (const match of diff.matchAll(/^\+\+\+ b\/(.+)$/gm)) {
-    if (!firstHeader.has(match[1])) firstHeader.set(match[1], match.index);
+function splitSections(diff) {
+  const starts = [...diff.matchAll(/^diff --git /gm)].map((m) => m.index);
+  if (starts[0] !== 0) starts.unshift(0);
+  return starts.map((start, i) => {
+    const text = diff.slice(start, starts[i + 1] ?? diff.length);
+    const name =
+      text.match(/^\+\+\+ b\/(.+)$/m) ??
+      text.match(/^diff --git a\/.+ b\/(.+)$/m);
+    return { file: name ? name[1] : '(unnamed)', text };
+  });
+}
+
+/**
+ * First-fit, in diff order, into chunks of at most `budget` characters; a
+ * section over the budget gets a chunk of its own (truncated when reviewed).
+ *
+ * @param {{ file: string, text: string }[]} sections
+ * @param {number} budget
+ */
+function packChunks(sections, budget) {
+  const chunks = [];
+  for (const section of sections) {
+    const size = section.text.length;
+    const open = chunks.find((c) => c.size + size <= budget);
+    if (open) {
+      open.sections.push(section);
+      open.size += size;
+    } else {
+      chunks.push({ sections: [section], size });
+    }
   }
-  const unreviewedFiles = [...firstHeader.values()].filter(
-    (index) => index >= MAX_DIFF_CHARS,
-  ).length;
-  return (
-    `diff truncated at ${MAX_DIFF_CHARS} characters: ` +
-    `${diff.length - MAX_DIFF_CHARS} characters and ${unreviewedFiles} ` +
-    'file(s) not reviewed'
-  );
+  return chunks;
+}
+
+/** @param {Finding[]} findings */
+function dedupeFindings(findings) {
+  const seen = new Set();
+  return findings.filter((f) => {
+    const key = JSON.stringify([f.file, f.line, f.title]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**
  * @param {ReviewInput} input
  * @param {string} diff
  * @param {string} callers - the `<callers>` section, or '' below `deep`.
+ * @param {number} [cap]
  * @returns {string}
  */
-function buildPrompt(input, diff, callers) {
-  const truncated = diff.length > MAX_DIFF_CHARS;
-  const body = truncated ? diff.slice(0, MAX_DIFF_CHARS) : diff;
-  const note = truncated
-    ? `\n[diff truncated at ${MAX_DIFF_CHARS} characters]\n`
-    : '';
+function buildPrompt(input, diff, callers, cap = MAX_DIFF_CHARS) {
+  const truncated = diff.length > cap;
+  const body = truncated ? diff.slice(0, cap) : diff;
+  const note = truncated ? `\n[diff truncated at ${cap} characters]\n` : '';
   const head = PROMPT_HEAD.replace('{baseRef}', input.baseRef)
     .replace('{headRef}', input.headRef)
     .replace('{ticketId}', String(input.ticketId))
@@ -253,6 +283,44 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
     return [];
   }
 
+  /** The `<callers>` block rides every chunk, so it comes out of the budget. */
+  async function reviewInChunks(input, text, callers) {
+    const budget = MAX_DIFF_CHARS - callers.length;
+    const chunks = packChunks(splitSections(text), budget);
+    const overflow = chunks
+      .splice(MAX_REVIEW_CHUNKS)
+      .flatMap((c) => c.sections.map((s) => s.file));
+    if (overflow.length > 0) {
+      noteDegradation(
+        `review bounded at ${MAX_REVIEW_CHUNKS} chunks: ${overflow.length} ` +
+          `file(s) not reviewed: ${overflow.join(', ')}`,
+      );
+    }
+    const findings = [];
+    for (const chunk of chunks) {
+      const files = chunk.sections.map((s) => s.file).join(', ');
+      if (chunk.size > budget) {
+        noteDegradation(
+          `${files} truncated at ${budget} characters: ` +
+            `${chunk.size - budget} characters not reviewed`,
+        );
+      }
+      const prompt = buildPrompt(
+        input,
+        chunk.sections.map((s) => s.text).join(''),
+        callers,
+        budget,
+      );
+      const verdict = await reviewInTempDir(prompt, runDeps);
+      if ('reason' in verdict) {
+        noteDegradation(`no verdict for ${files}: ${verdict.reason}`);
+      } else {
+        findings.push(...verdict.findings);
+      }
+    }
+    return dedupeFindings(findings);
+  }
+
   return {
     async runReview(input) {
       degradations = [];
@@ -260,8 +328,6 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
       const diff = readDiff(gitSpawnFn, input, PROJECT_ROOT);
       if ('reason' in diff) return settle(diff);
       if (diff.text.trim().length === 0) return [];
-      const truncation = truncationReason(diff.text);
-      if (truncation) noteDegradation(truncation);
       const callers = buildCallersSection({
         diff: diff.text,
         input,
@@ -269,6 +335,9 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
         gitSpawnFn,
       });
       if (callers.reason) noteDegradation(callers.reason);
+      if (diff.text.length > MAX_DIFF_CHARS) {
+        return reviewInChunks(input, diff.text, callers.text);
+      }
       return settle(
         await reviewInTempDir(
           buildPrompt(input, diff.text, callers.text),

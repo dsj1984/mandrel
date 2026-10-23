@@ -13,6 +13,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { CI_DELIVERY_DEFAULTS, getCiDelivery } from '../config/ci.js';
+import { getPullRequestDelivery } from '../config/pull-request.js';
 import { getAgentrcValidator } from '../config-settings-schema.js';
 import { createAjv2020 } from '../util/ajv.js';
 
@@ -153,5 +154,40 @@ describe('getCiDelivery defaults (Story #4356)', () => {
   it('falls back to trust-ci for an invalid autoMerge value', () => {
     const resolved = getCiDelivery({ delivery: { ci: { autoMerge: 'nope' } } });
     assert.equal(resolved.autoMerge, 'trust-ci');
+  });
+});
+
+describe('delivery.pullRequest.bodyTrailers (Story #5875)', () => {
+  const runtime = makeValidator();
+  const mirror = makeMirrorValidator();
+  const withTrailers = (bodyTrailers) => ({
+    project: PROJECT_SKELETON,
+    delivery: { pullRequest: { bodyTrailers } },
+  });
+
+  it('accepts trailer keys on the runtime validator and the mirror', () => {
+    const config = withTrailers(['Policy-impact', 'Risk']);
+    assert.equal(runtime(config), true, JSON.stringify(runtime.errors));
+    assert.equal(mirror(config), true, JSON.stringify(mirror.errors));
+  });
+
+  it('rejects a key with spaces and a duplicate key', () => {
+    for (const keys of [['Policy impact'], ['Risk', 'Risk']]) {
+      assert.equal(runtime(withTrailers(keys)), false, keys.join(','));
+      assert.equal(mirror(withTrailers(keys)), false, keys.join(','));
+    }
+  });
+
+  it('getPullRequestDelivery defaults to no trailers and passes keys through', () => {
+    assert.deepEqual(getPullRequestDelivery({}).bodyTrailers, []);
+    assert.deepEqual(getPullRequestDelivery(undefined).bodyTrailers, []);
+    assert.deepEqual(
+      getPullRequestDelivery({
+        delivery: {
+          pullRequest: { bodyTrailers: ['Policy-impact', 'bad key'] },
+        },
+      }).bodyTrailers,
+      ['Policy-impact'],
+    );
   });
 });

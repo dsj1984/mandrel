@@ -1458,6 +1458,23 @@
           },
           "additionalProperties": false
         },
+        "pullRequest": {
+          "type": "object",
+          "description": "Story #5875. What close writes into the pull request it opens, beyond the title and the `Closes #<id>` line.",
+          "properties": {
+            "bodyTrailers": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9-]*$"
+              },
+              "uniqueItems": true,
+              "description": "Story #5875. Git-trailer keys close lifts from the Story branch commits into the PR body, for a consumer whose required check reads a body line (e.g. `Policy-impact`). For each key the last branch commit carrying `<Key>: <value>` as a trailer wins, and the line is appended after the auto-opened marker and before any `BREAKING CHANGE:` footer. A key no commit carries appends nothing and logs one info line. Workers record the value with `git commit --trailer`. Default [] leaves the body unchanged.",
+              "default": []
+            }
+          },
+          "additionalProperties": false
+        },
         "routing": {
           "type": "object",
           "description": "v2 delivery-spawn routing: role-scoped boot contexts and the ceremony profile. The v1 singleDelivery epic-route kill-switch was removed in Stage 6; the freshCriticSampleRate sampling floor was retired in Story #5313 and the derived-level ceremony routing in Story #5343.",

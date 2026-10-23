@@ -819,6 +819,10 @@
       "mi": 110.64
     },
     {
+      "path": ".agents/scripts/lib/config/pull-request.js",
+      "mi": 117.216
+    },
+    {
       "path": ".agents/scripts/lib/config/qa.js",
       "mi": 112.66
     },
@@ -1620,7 +1624,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
-      "mi": 100.524
+      "mi": 101.994
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
@@ -1748,7 +1752,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
-      "mi": 101.211
+      "mi": 101.875
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js",
@@ -1763,6 +1767,10 @@
       "mi": 99.603
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pr-body-trailers.js",
+      "mi": 107.451
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "mi": 107.791
     },
@@ -1772,7 +1780,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
-      "mi": 84.113
+      "mi": 86.789
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/push.js",

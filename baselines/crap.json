@@ -14841,6 +14841,19 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/config/pull-request.js",
+      "method": "getPullRequestDelivery",
+      "startLine": 12,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/pull-request.js",
+      "method": "<anon getPullRequestDelivery/(key)#0>",
+      "startLine": 20,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/config/qa.js",
       "method": "stringArray",
       "startLine": 13,
@@ -28884,6 +28897,26 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "splitSections",
+      "startLine": 92,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon splitSections/(m)#0>",
+      "startLine": 93,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon splitSections/(start,i)#0>",
+      "startLine": 95,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon truncationReason/(index)#0>",
       "startLine": 97,
       "crap": 1,
@@ -28891,9 +28924,35 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "packChunks",
+      "startLine": 111,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "buildPrompt",
       "startLine": 112,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon packChunks/(c)#0>",
+      "startLine": 115,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "dedupeFindings",
+      "startLine": 127,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon dedupeFindings/(f)#0>",
+      "startLine": 129,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
@@ -28959,6 +29018,40 @@
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/(d)#0>",
       "startLine": 280,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "reviewInChunks",
+      "startLine": 287,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(c)#0/(s)#0>",
+      "startLine": 292,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(c)#0>",
+      "startLine": 292,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(s)#0>",
+      "startLine": 301,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(s)#1>",
+      "startLine": 310,
       "crap": 1,
       "anonymous": true
     },
@@ -31085,53 +31178,59 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "readBranchCommits",
-      "startLine": 36,
+      "startLine": 37,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "<anon readBranchCommits/(message)#0>",
-      "startLine": 63,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
-      "method": "<anon readBranchCommits/(message)#1>",
       "startLine": 64,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
+      "method": "<anon readBranchCommits/(message)#1>",
+      "startLine": 65,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "normalizePrTitle",
-      "startLine": 86,
+      "startLine": 87,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "synthesizeSubject",
-      "startLine": 111,
+      "startLine": 112,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "<anon synthesizeSubject/(message)#0>",
-      "startLine": 112,
+      "startLine": 113,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "buildPrBody",
-      "startLine": 125,
+      "startLine": 128,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
+      "method": "announceBreaking",
+      "startLine": 145,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "buildPullRequestFields",
-      "startLine": 147,
-      "crap": 3
+      "startLine": 163,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js",
@@ -31426,6 +31525,25 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pr-body-trailers.js",
+      "method": "parseTrailers",
+      "startLine": 7,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pr-body-trailers.js",
+      "method": "liftTrailers",
+      "startLine": 24,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pr-body-trailers.js",
+      "method": "<anon liftTrailers/(t)#0>",
+      "startLine": 28,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "method": "formatAutofixStep",
       "startLine": 23,
@@ -31539,8 +31657,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
+      "method": "emptyDiffError",
+      "startLine": 59,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
       "method": "ensurePullRequestWith",
-      "startLine": 69,
+      "startLine": 84,
       "crap": 4
     },
     {
