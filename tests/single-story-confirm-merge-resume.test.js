@@ -504,7 +504,7 @@ describe('single-story-confirm-merge --wait — the shared wait recovery (Story 
     };
   }
 
-  async function resumeAdvisoryBlocked(policyImpact) {
+  async function resumeAdvisoryBlocked(policyImpact, { nowMsFn } = {}) {
     const { runConfirmMergePhase } = await import(
       '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js'
     );
@@ -548,6 +548,7 @@ describe('single-story-confirm-merge --wait — the shared wait recovery (Story 
           ...args,
           maxWaitSeconds: 1,
           sleepFn: async () => {},
+          ...(nowMsFn && { nowMsFn }),
           confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
           runPostLandTailFn: async () => ({
             followUps: true,
@@ -566,10 +567,12 @@ describe('single-story-confirm-merge --wait — the shared wait recovery (Story 
   }
 
   it('Story #5876: resuming an advisory-blocked Story re-arms and lands once the check is green, no hand merge', async () => {
-    const { terminal, merges } = await resumeAdvisoryBlocked({
-      status: 'COMPLETED',
-      conclusion: 'SUCCESS',
-    });
+    // A frozen clock keeps the 1s bound from expiring before the second poll
+    // reads the merge; on the wall clock a slow runner hits it after poll 1.
+    const { terminal, merges } = await resumeAdvisoryBlocked(
+      { status: 'COMPLETED', conclusion: 'SUCCESS' },
+      { nowMsFn: () => 0 },
+    );
     assert.deepEqual(merges, [['77', '--auto', '--squash', '--delete-branch']]);
     assert.equal(terminal.status, 'landed');
   });
