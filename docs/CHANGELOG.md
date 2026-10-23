@@ -15,6 +15,24 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.101.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.100.0...mandrel-v2.101.0) (2026-10-23)
+
+
+### Added
+
+* close lifts consumer-declared git trailers from the branch commits into the pull-request body ([#5875](https://github.com/dsj1984/mandrel/issues/5875)) ([#5885](https://github.com/dsj1984/mandrel/issues/5885)) ([443ee08](https://github.com/dsj1984/mandrel/commit/443ee08ace3ba785a34577b5b6a4822eeb238c61))
+* confirm-merge re-arms auto-merge once the advisory check that disarmed it reports green on the same head, and the block names that check ([#5876](https://github.com/dsj1984/mandrel/issues/5876)) ([#5886](https://github.com/dsj1984/mandrel/issues/5886)) ([85a8aac](https://github.com/dsj1984/mandrel/commit/85a8aacfc6e4525d4b3d10aae859ac9dffd55c31))
+* handoff and close envelopes carry the credited run's lock wait and suite timings, so the serialization cost of a delivery is visible per run ([#5879](https://github.com/dsj1984/mandrel/issues/5879)) ([#5888](https://github.com/dsj1984/mandrel/issues/5888)) ([68e9683](https://github.com/dsj1984/mandrel/commit/68e9683ccc2c41b16ecaf0b71485ae951d4b5ec1))
+* the code-review provider reviews a large diff file by file within the prompt cap instead of truncating it ([#5878](https://github.com/dsj1984/mandrel/issues/5878)) ([#5882](https://github.com/dsj1984/mandrel/issues/5882)) ([e64a84e](https://github.com/dsj1984/mandrel/commit/e64a84e780c6546723466d9c4df1d46cbfb3ee46))
+* the lint driver names every task that failed, with its exit code, and flags a crash exit ([#5889](https://github.com/dsj1984/mandrel/issues/5889)) ([#5891](https://github.com/dsj1984/mandrel/issues/5891)) ([7db5a92](https://github.com/dsj1984/mandrel/commit/7db5a923679fbe8158c4eb1541ed4cc7cc51447e))
+* when the base moves between handoff and close, the `test` gate re-credits by running only the tests the incoming commits affect ([#5880](https://github.com/dsj1984/mandrel/issues/5880)) ([#5890](https://github.com/dsj1984/mandrel/issues/5890)) ([66423e3](https://github.com/dsj1984/mandrel/commit/66423e36c06dcfdb44564516c74d1cc829bc932d))
+
+
+### Fixed
+
+* close probes the head's pull request before validation and short-circuits to the land tail when it already merged ([#5877](https://github.com/dsj1984/mandrel/issues/5877)) ([#5887](https://github.com/dsj1984/mandrel/issues/5887)) ([ddc1b52](https://github.com/dsj1984/mandrel/commit/ddc1b52c2f081928c6eff297803c5e60a34ece9c))
+* **deps:** drop the braces audit exception now that GHSA-vfj7-8cjw-p6xm is withdrawn ([#5883](https://github.com/dsj1984/mandrel/issues/5883)) ([364f547](https://github.com/dsj1984/mandrel/commit/364f54705372e26d1b5d1c8d628fc9628940efbf))
+
 ## [2.100.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.99.0...mandrel-v2.100.0) (2026-10-23)
 
 
