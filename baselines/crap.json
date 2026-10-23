@@ -31983,6 +31983,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "firstSha",
+      "startLine": 260,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "runPrePushPhases",
       "startLine": 264,
       "crap": 4
@@ -31995,8 +32001,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "survivingStoryHeads",
+      "startLine": 271,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "<anon findLandedPr/(r)#0>",
       "startLine": 276,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "<anon findLandedPr/(sha)#0>",
+      "startLine": 313,
       "crap": 1,
       "anonymous": true
     },
