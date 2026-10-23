@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, before, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { getQuality } from '../../.agents/scripts/lib/config/quality.js';
 import {
@@ -28,6 +28,12 @@ import {
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { FULL_SUITE_STALE_MS } from '../../.agents/scripts/lib/suite-admission.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import {
+  copyGitRepo,
+  makeGitTemplate,
+  runGit,
+  writeFiles,
+} from '../fixtures/git-fixture.js';
 import {
   assertGone,
   waitForExit,
@@ -945,10 +951,15 @@ describe('the suite is a process group (Story #5377)', {
     path.dirname(fileURLToPath(import.meta.url)),
     '../fixtures/process-group',
   );
+  let template;
   let dir;
 
+  before(() => {
+    template = makeGitTemplate({ prefix: 'mandrel-pgroup-' });
+  });
+
   beforeEach(() => {
-    dir = makeTempDir('mandrel-pgroup-');
+    dir = copyGitRepo(template);
     const tree = path.join(fixtures, 'suite-tree.mjs');
     const pidFile = path.join(dir, 'worker.pid');
     fs.writeFileSync(
@@ -961,7 +972,6 @@ describe('the suite is a process group (Story #5377)', {
         },
       }),
     );
-    execFileSync('git', ['init', '-q'], { cwd: dir });
   });
 
   afterEach(() => {
@@ -1209,43 +1219,66 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
 describe('the capture stamp vouches only for the tree the suite ran on', () => {
   const coveragePath = 'coverage/coverage-final.json';
   const targetDirs = ['src'];
+  let template;
   let dir;
-  const git = (...args) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+  /** Real digests of the current tree; every write or git call voids them. */
+  let digests = null;
+  const current = () => {
+    digests ??= {
+      content: computeContentDigest(dir, targetDirs),
+      tree: computeTreeDigest(dir, coveragePath),
+    };
+    return digests;
+  };
+  const git = (...args) => {
+    digests = null;
+    return runGit(dir, ...args);
+  };
   const write = (rel, body) => {
-    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
-    fs.writeFileSync(path.join(dir, rel), body);
+    digests = null;
+    writeFiles(dir, { [rel]: body });
   };
   /** A green capture at `scope`: the artifact plus a stamp of this tree. */
   const stampGreen = (scope) => {
-    write(coveragePath, '{}');
+    // Gitignored, so it leaves the digests valid.
+    writeFiles(dir, { [coveragePath]: '{}' });
     const written = stampCapturedTree({
-      preDigest: computeContentDigest(dir, targetDirs),
-      preTreeDigest: computeTreeDigest(dir, coveragePath),
+      preDigest: current().content,
+      preTreeDigest: current().tree,
       cwd: dir,
       targetDirs,
       coveragePath,
       ...(scope === 'full' ? {} : { scope }),
-      computeContentDigestImpl: computeContentDigest,
+      computeContentDigestImpl: () => current().content,
       writeCaptureStampImpl: writeCaptureStamp,
       logger: { info() {}, warn() {}, error() {} },
     });
     assert.equal(written, true);
   };
   const probe = (requireScope) =>
-    isCoverageFresh({ coveragePath, targetDirs, cwd: dir, requireScope });
+    isCoverageFresh({
+      coveragePath,
+      targetDirs,
+      cwd: dir,
+      requireScope,
+      computeDigest: () => current().content,
+      computeTree: () => current().tree,
+    });
 
+  before(() => {
+    template = makeGitTemplate({
+      prefix: 'mandrel-tree-digest-',
+      files: {
+        '.gitignore': 'coverage/\n',
+        'src/a.js': 'export const a = 1;\n',
+        'src/README.md': '# src\n',
+        'tests/a.test.js': "import '../src/a.js';\n",
+      },
+    });
+  });
   beforeEach(() => {
-    dir = makeTempDir('mandrel-tree-digest-');
-    git('init', '-q');
-    git('config', 'user.email', 't@example.com');
-    git('config', 'user.name', 'T');
-    write('.gitignore', 'coverage/\n');
-    write('src/a.js', 'export const a = 1;\n');
-    write('src/README.md', '# src\n');
-    write('tests/a.test.js', "import '../src/a.js';\n");
-    git('add', '-A');
-    git('commit', '-q', '-m', 'init');
+    dir = copyGitRepo(template);
+    digests = null;
   });
   afterEach(() => {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -1267,7 +1300,7 @@ describe('the capture stamp vouches only for the tree the suite ran on', () => {
           git('commit', '-q', '-m', `edit ${rel}`);
         }
         assert.equal(
-          computeContentDigest(dir, targetDirs),
+          current().content,
           JSON.parse(
             fs.readFileSync(captureStampPath(dir, coveragePath), 'utf8'),
           ).digest,
