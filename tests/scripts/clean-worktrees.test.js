@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, it } from 'node:test';
+import { after, afterEach, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -17,7 +17,7 @@ import {
 import { gitSpawn } from '../../.agents/scripts/lib/git-utils.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { canonicalPath } from '../../.agents/scripts/lib/worktree/canonical-path.js';
-import { makeGitRepo } from '../fixtures/git-fixture.js';
+import { copyGitRepo, makeGitTemplate } from '../fixtures/git-fixture.js';
 
 const SCRIPT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -42,20 +42,43 @@ function git(cwd, ...args) {
   return res.stdout.trim();
 }
 
+let template;
+let mainHead;
+let shared;
+
+before(() => {
+  template = makeGitTemplate({
+    prefix: 'clean-wt-',
+    files: { 'baseline.json': '{}\n' },
+  });
+  const remote = path.join(makeTempDir('clean-wt-remote-'), 'remote.git');
+  git(template, 'init', '-q', '--bare', remote);
+  git(template, 'remote', 'add', 'origin', remote);
+  git(template, 'push', '-q', 'origin', 'main');
+  mainHead = git(template, 'rev-parse', 'HEAD');
+});
+
+after(() => {
+  for (const dir of shared ? [shared.repo, shared.outside] : []) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** One project for the tests that only classify — none of them removes a tree. */
+function sharedProject() {
+  shared ??= buildProject({ track: false });
+  return shared;
+}
+
 /**
  * A project with one worktree per class and per kept-reason, plus an
  * `origin` remote so "reachable from a remote-tracking ref" is real.
  */
-function buildProject() {
+function buildProject({ track = true } = {}) {
   // Native realpath: the long-name spelling `git worktree list` reports.
-  const repo = fs.realpathSync.native(makeGitRepo({ prefix: 'clean-wt-' }));
+  const repo = fs.realpathSync.native(copyGitRepo(template));
   const outside = fs.realpathSync.native(makeTempDir('clean-wt-outside-'));
-  tmpDirs.push(repo, outside);
-  const remote = path.join(outside, 'remote.git');
-  git(outside, 'init', '-q', '--bare', remote);
-  git(repo, 'remote', 'add', 'origin', remote);
-  git(repo, 'push', '-q', 'origin', 'main');
-  const mainHead = git(repo, 'rev-parse', 'HEAD');
+  if (track) tmpDirs.push(repo, outside);
 
   const p = (...parts) => path.join(repo, ...parts);
   const add = (rel, ...extra) => git(repo, 'worktree', 'add', ...extra, rel);
@@ -112,7 +135,7 @@ function buildProject() {
     sizeOf: () => 100,
     logger: { info() {}, warn() {}, error() {} },
   };
-  return { repo, paths, deps };
+  return { repo, outside, paths, deps };
 }
 
 function byPath(result) {
@@ -121,7 +144,7 @@ function byPath(result) {
 
 describe('clean-worktrees — dry run (AC-2)', () => {
   it('puts every worktree in exactly one class or kept-reason and removes nothing', async () => {
-    const { repo, paths, deps } = buildProject();
+    const { repo, paths, deps } = sharedProject();
     const result = await runCleanWorktrees(deps);
 
     assert.equal(result.mode, 'dry-run');
@@ -208,7 +231,7 @@ describe('clean-worktrees — confirmation and live trees', () => {
   });
 
   it('removes nothing under --execute with no --yes and no terminal', async () => {
-    const { paths, deps } = buildProject();
+    const { paths, deps } = sharedProject();
     const result = await runCleanWorktrees({ ...deps, execute: true });
     for (const e of result.entries.filter((x) => x.class)) {
       assert.equal(e.action, 'skipped');
@@ -219,7 +242,7 @@ describe('clean-worktrees — confirmation and live trees', () => {
   });
 
   it('keeps trees the running process or a live process uses', async () => {
-    const { paths, deps } = buildProject();
+    const { paths, deps } = sharedProject();
     const result = await runCleanWorktrees({
       ...deps,
       runningPaths: [path.join(paths.closed, 'index.js')],
@@ -232,7 +255,7 @@ describe('clean-worktrees — confirmation and live trees', () => {
   });
 
   it('reports a failed removal instead of counting it', async () => {
-    const { deps } = buildProject();
+    const { deps } = sharedProject();
     const result = await runCleanWorktrees({
       ...deps,
       execute: true,
@@ -246,7 +269,7 @@ describe('clean-worktrees — confirmation and live trees', () => {
   });
 
   it('keeps a Story tree whose ticket read or PR lookup fails', async () => {
-    const { paths, deps } = buildProject();
+    const { paths, deps } = sharedProject();
     const result = await runCleanWorktrees({
       ...deps,
       getTicket: async () => {
@@ -335,7 +358,7 @@ describe('clean-worktrees — helpers', () => {
   });
 
   it('recognises a tree reached through a link as the same tree', async () => {
-    const { paths, deps } = buildProject();
+    const { paths, deps } = sharedProject();
     const aliasRoot = makeTempDir('clean-wt-alias-');
     tmpDirs.push(aliasRoot);
     const alias = path.join(aliasRoot, 'closed-alias');
