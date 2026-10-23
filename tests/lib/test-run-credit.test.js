@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   depositTestRunCredit,
+  hasTestCreditAt,
   predictsTestEvidenceCredit,
   reportTestRunCredit,
   resolveEvidenceRoot,
@@ -187,6 +188,15 @@ describe('reportTestRunCredit', () => {
     assert.equal(no.deposited, false);
     assert.match(lines[1], /no close test credit deposited \(run-not-green\)/);
   });
+
+  test('defaults its log to stderr', (t) => {
+    const writes = t.mock.method(process.stderr, 'write', () => true);
+    reportTestRunCredit({ cwd: '/x', status: 2, gitSpawnFn: gitFor() });
+    assert.match(
+      String(writes.mock.calls[0].arguments[0]),
+      /no close test credit deposited \(run-not-green\)/,
+    );
+  });
 });
 
 describe('predictsTestEvidenceCredit — the read side close consults', () => {
@@ -297,6 +307,53 @@ describe('reach — the runner-side deposit is a bonus, not the contract', () =>
     assert.ok(
       readers.every((file) => file !== 'run-tests.js'),
       'the depositor and the reader are different call sites',
+    );
+  });
+});
+
+describe('hasTestCreditAt — the delta re-credit precondition (Story #5880)', () => {
+  test('asks the store for `test` credit at the pre-sync SHA under the full-suite identity', () => {
+    const cwd = path.join(REPO, '.worktrees', 'story-9');
+    const seen = [];
+    const credited = hasTestCreditAt({
+      storyId: 9,
+      cwd,
+      evidenceCwd: REPO,
+      sha: 'c'.repeat(40),
+      shouldSkipImpl: (input, opts) => {
+        seen.push({ input, opts });
+        return { skip: true, reason: 'sha-match' };
+      },
+    });
+    assert.equal(credited, true);
+    assert.equal(seen[0].input.gateName, 'test');
+    assert.equal(seen[0].input.currentSha, 'c'.repeat(40));
+    assert.equal(
+      seen[0].input.configHash,
+      hashCommandConfig({ cmd: 'npm', args: ['test'], cwd }),
+    );
+    assert.deepEqual(seen[0].opts, { cwd: REPO, standalone: true });
+  });
+
+  test('every uncertainty resolves false', () => {
+    const yes = () => ({ skip: true });
+    const base = { storyId: 9, cwd: '/x', sha: 'c'.repeat(40) };
+    assert.equal(
+      hasTestCreditAt({ ...base, shouldSkipImpl: yes, sha: null }),
+      false,
+    );
+    assert.equal(
+      hasTestCreditAt({ ...base, shouldSkipImpl: () => ({ skip: false }) }),
+      false,
+    );
+    assert.equal(
+      hasTestCreditAt({
+        ...base,
+        shouldSkipImpl: () => {
+          throw new Error('corrupt store');
+        },
+      }),
+      false,
     );
   });
 });

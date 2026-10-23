@@ -134,6 +134,8 @@ review, then prints one envelope (what each step runs:
 `ready` → return. `fix-required` (exit 2) → fix the cause it names, commit,
 re-run it; the same cause surviving the same fix twice is your blocked path.
 `blocked` (exit 1) → it already flipped `agent::blocked`; exit non-zero.
+A close after a base move re-runs only the affected tests when the
+consumer declares `project.commands.testChanged`.
 
 If it outruns the host's sync Bash ceiling, dispatch it in the
 **background**: its completion re-invokes you. Never spawn a task to poll or

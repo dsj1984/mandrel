@@ -118,7 +118,8 @@ function treeIneligibility({ cwd, commit, spawn }) {
   return null;
 }
 
-function deltaIneligibility({ delta, storyFiles }) {
+/** Shared with close's `test` delta re-credit: the reason a delta is ineligible, or `null`. */
+export function deltaIneligibility({ delta, storyFiles }) {
   if (delta.length === 0) return 'no committed delta since the stamp';
   const story = new Set(storyFiles);
   const shared = delta.find((f) => story.has(f));

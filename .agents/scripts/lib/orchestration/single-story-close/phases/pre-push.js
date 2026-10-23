@@ -6,6 +6,28 @@ import { runWrongTreeGuardPhase } from './wrong-tree-guard.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
+/** Base-sync's result, or `null` when `--skip-sync` elides it. */
+async function runSyncStep(ctx, deps) {
+  const { options, worktreePath, baseBranch, storyBranch, storyId, setPhase } =
+    ctx;
+  if (options.skipSync) {
+    progress('SYNC', '⏭ Skipped (--skip-sync).');
+    return null;
+  }
+  setPhase('base-sync');
+  return runBaseSyncPhase({
+    cwd: options.cwd,
+    worktreePath,
+    baseBranch,
+    baseConfirmed: ctx.baseConfirmed,
+    storyBranch,
+    storyId,
+    provider: deps.provider,
+    injectedSync: deps.sync,
+    progress,
+  });
+}
+
 /**
  * wrong-tree guard → base-sync → close-validation. Validation runs last so
  * the validated tree is the pushed tree (base-sync's merge commit included),
@@ -35,22 +57,7 @@ export async function runPrePushPhases(ctx, deps) {
     progress,
     gitSpawn: deps.gitSpawn,
   });
-  if (!options.skipSync) {
-    setPhase('base-sync');
-    await runBaseSyncPhase({
-      cwd,
-      worktreePath,
-      baseBranch,
-      baseConfirmed: ctx.baseConfirmed,
-      storyBranch,
-      storyId,
-      provider: deps.provider,
-      injectedSync: deps.sync,
-      progress,
-    });
-  } else {
-    progress('SYNC', '⏭ Skipped (--skip-sync).');
-  }
+  const baseSync = await runSyncStep(ctx, deps);
   if (options.skipValidation) {
     progress('VALIDATE', '⏭ Skipped (--skip-validation).');
     return {
@@ -70,6 +77,7 @@ export async function runPrePushPhases(ctx, deps) {
       baseBranch,
       storyBranch,
       storyId,
+      baseSync,
       progress,
       runCloseValidation: deps.runCloseValidation,
       buildDefaultGates: deps.buildDefaultGates,

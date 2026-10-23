@@ -135,12 +135,6 @@
       "percentage": 3.35
     },
     {
-      "path": ".agents/scripts/lib/close-validation/runner.js",
-      "duplicatedLines": 22,
-      "totalLines": 493,
-      "percentage": 4.46
-    },
-    {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
       "duplicatedLines": 24,
       "totalLines": 127,

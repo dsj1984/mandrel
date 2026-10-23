@@ -210,6 +210,7 @@ export async function runCloseValidation({
           exitCode: 0,
           durationMs,
           inputFingerprint: gate.inputFingerprint ?? treeSha,
+          ...gate.evidenceNote,
         },
         evidenceStoreOpts,
       );
@@ -227,7 +228,7 @@ export async function runCloseValidation({
    */
   const dispatchGate = async (gate, signal, configHash) => {
     log(
-      `[close-validation] ▶ ${gate.name}${worktreePath ? ` (cwd=${worktreePath})` : ''}`,
+      `[close-validation] ▶ ${gate.label ?? gate.name}${worktreePath ? ` (cwd=${worktreePath})` : ''}`,
     );
     if (typeof onGateStart === 'function') onGateStart(gate);
     const dispatcher = typeof gate.run === 'function' ? gate.run : runner;
@@ -284,11 +285,7 @@ export async function runCloseValidation({
       });
       return;
     }
-    const configHash = hashCommandConfig({
-      cmd: execution.cmd,
-      args: execution.args,
-      cwd: spawnCwd,
-    });
+    const configHash = gateConfigHash(gate, execution, spawnCwd);
     const verdict = evidenceVerdict(gate, configHash);
     if (verdict.skip) {
       skipped.push({ gate, reason: verdict.reason });
@@ -357,6 +354,12 @@ export async function runCloseValidation({
   }
 
   return { ok: failed.length === 0, failed, skipped };
+}
+
+/** The gate's `evidenceIdentity` argv hash, else its spawned argv's. */
+function gateConfigHash(gate, execution, cwd) {
+  const { cmd, args } = gate.evidenceIdentity ?? execution;
+  return hashCommandConfig({ cmd, args, cwd });
 }
 
 /**
@@ -453,11 +456,7 @@ async function runSerialGates(
       });
       continue;
     }
-    const configHash = hashCommandConfig({
-      cmd: execution.cmd,
-      args: execution.args,
-      cwd: spawnCwd,
-    });
+    const configHash = gateConfigHash(gate, execution, spawnCwd);
     const verdict = evidenceVerdict(gate, configHash);
     if (verdict.skip) {
       skipped.push({ gate, reason: verdict.reason });

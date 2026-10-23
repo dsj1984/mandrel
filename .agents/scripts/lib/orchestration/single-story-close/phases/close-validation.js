@@ -16,6 +16,7 @@ import {
 } from '../../../close-lock-events.js';
 import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
 import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
+import { applyTestDelta as defaultApplyTestDelta } from '../../../close-validation/test-delta.js';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../../full-suite-lock.js';
 import { createGateLogSink as defaultCreateGateLogSink } from '../gate-log.js';
 import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
@@ -32,9 +33,11 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   baseBranch: string,
  *   storyBranch?: string,
  *   storyId: number,
+ *   baseSync?: { changedPaths: string[], creditedCommit: string|null }|null,
  *   progress: (tag: string, msg: string) => void,
  *   runCloseValidation?: typeof defaultRunCloseValidation,
  *   buildDefaultGates?: typeof defaultBuildDefaultGates,
+ *   applyTestDelta?: typeof defaultApplyTestDelta,
  *   runPreGateSteps?: typeof defaultRunPreGateSteps,
  *   runScopedFormatAutofix?: Function,
  *   runBaselineUpwardWriteback?: Function,
@@ -58,9 +61,11 @@ export async function runCloseValidationPhase({
   baseBranch,
   storyBranch,
   storyId,
+  baseSync = null,
   progress,
   runCloseValidation = defaultRunCloseValidation,
   buildDefaultGates = defaultBuildDefaultGates,
+  applyTestDelta = defaultApplyTestDelta,
   runPreGateSteps = defaultRunPreGateSteps,
   runScopedFormatAutofix,
   runBaselineUpwardWriteback,
@@ -88,14 +93,19 @@ export async function runCloseValidationPhase({
   // One sink for both `log` seams so nothing routes around the artifact.
   const gateLog = createGateLogSink({ storyId, config });
   const lockEvents = createLockEventChannel();
-  const gateList = buildDefaultGates({
+  const gateOpts = {
     config,
     baseBranch,
     cwd: worktreePath || cwd,
     log: gateLog.log,
     storyId,
     evidenceCwd: cwd,
+  };
+  const gateList = applyTestDelta(buildDefaultGates(gateOpts), {
+    ...gateOpts,
+    baseSync,
   });
+  reportGateLabels(gateList, progress);
   const { validation, lockWait, ...timings } = await runGateChain({
     runCloseValidation,
     gateLog,
@@ -125,6 +135,13 @@ export async function runCloseValidationPhase({
     suiteTimings: sourcedTimings(timings, 'close'),
     pending: false,
   };
+}
+
+/** A labelled gate (the `test` delta re-credit) names itself on the progress line. */
+function reportGateLabels(gateList, progress) {
+  for (const gate of gateList) {
+    if (gate.label) progress('VALIDATE', gate.label);
+  }
 }
 
 async function prepareTree({ runPreGateSteps, onPreGateStepsDone, stepArgs }) {

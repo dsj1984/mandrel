@@ -238,6 +238,8 @@ test('syncBranchFromBase: a merge-commit reports the tracked paths it brought in
   );
   assert.ok(rangeDiff, 'diffs against the pre-merge HEAD');
   assert.deepEqual(rangeDiff.args, ['diff', '--name-only', 'pre1234', 'HEAD']);
+  // Story #5880 — the pre-merge HEAD is the credited commit close's delta keys on.
+  assert.equal(out.preSyncHead, 'pre1234');
 });
 
 test('syncBranchFromBase: a fast-forward reports its paths too', async () => {

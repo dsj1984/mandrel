@@ -17,6 +17,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
+import { hashCommandConfig } from '../../../.agents/scripts/lib/validation-evidence.js';
 
 const TREE = `tree:${'a'.repeat(40)}`;
 
@@ -215,6 +216,88 @@ describe('runCloseValidation — the post-wait re-probe (Story #5278)', () => {
       'skipIfSatisfied' in seen[0],
       false,
       'a cheap gate re-probing would be pure overhead on the hot path',
+    );
+  });
+});
+
+describe('runCloseValidation — the delta re-credit identity (Story #5880)', () => {
+  const deltaGate = {
+    name: 'test',
+    label: 'test (delta since abcdef012345, 2 incoming path(s))',
+    cmd: 'pnpm',
+    args: ['vitest', 'run', '--changed', 'abcdef0123456789'],
+    env: { MANDREL_CHANGED_SINCE: 'abcdef0123456789' },
+    evidenceIdentity: { cmd: 'npm', args: ['test'] },
+    evidenceNote: { scope: 'delta', since: 'abcdef0123456789' },
+  };
+  const fullHash = hashCommandConfig({
+    cmd: 'npm',
+    args: ['test'],
+    cwd: '/repo',
+  });
+
+  it('AC-2: probes and records under the full-suite identity, noted as a delta', async () => {
+    const spawned = [];
+    const h = harness({
+      gates: [deltaGate],
+      runner: async (cmd, args, opts) => {
+        spawned.push({ cmd, args, env: opts.env });
+        return { status: 0 };
+      },
+    });
+    const result = await h.run();
+    assert.equal(result.ok, true);
+    assert.deepEqual(spawned, [
+      {
+        cmd: 'pnpm',
+        args: ['vitest', 'run', '--changed', 'abcdef0123456789'],
+        env: { MANDREL_CHANGED_SINCE: 'abcdef0123456789' },
+      },
+    ]);
+    assert.equal(h.probed[0].configHash, fullHash);
+    assert.equal(h.recorded[0].configHash, fullHash);
+    assert.equal(h.recorded[0].scope, 'delta');
+    assert.equal(h.recorded[0].since, 'abcdef0123456789');
+    assert.equal(h.recorded[0].inputFingerprint, TREE);
+  });
+
+  it('AC-2: a re-close on the credited tree skips the delta gate', async () => {
+    let spawns = 0;
+    const h = harness({
+      gates: [deltaGate],
+      shouldSkip: (input) =>
+        input.configHash === fullHash
+          ? { skip: true, reason: 'fingerprint-match', record: {} }
+          : { skip: false, reason: 'no-record' },
+      runner: async () => {
+        spawns += 1;
+        return { status: 0 };
+      },
+    });
+    const result = await h.run();
+    assert.equal(spawns, 0);
+    assert.deepEqual(
+      result.skipped.map((s) => s.gate.name),
+      ['test'],
+    );
+  });
+
+  it('AC-4: a red delta run fails like a red full run and logs its label', async () => {
+    const lines = [];
+    const result = await runCloseValidation({
+      cwd: '/repo',
+      gates: [{ ...deltaGate, hint: 'delta hint' }],
+      runner: async () => ({ status: 1 }),
+      log: (m) => lines.push(m),
+      useEvidence: false,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.failed[0].gate.name, 'test');
+    assert.equal(result.failed[0].gate.hint, 'delta hint');
+    assert.ok(
+      lines.some((l) =>
+        l.includes('▶ test (delta since abcdef012345, 2 incoming path(s))'),
+      ),
     );
   });
 });

@@ -13,6 +13,7 @@ import {
 } from '../../.agents/scripts/lib/coverage-capture.js';
 import { tryScopedCapture } from '../../.agents/scripts/lib/coverage-capture-affected.js';
 import {
+  deltaIneligibility,
   formatFreshnessDetail,
   isCoverageConfigFile,
 } from '../../.agents/scripts/lib/coverage-capture-delta.js';
@@ -358,5 +359,43 @@ describe('delta-refresh helpers', () => {
     assert.match(line({ digest: 'd' }), /stamp scope: full/);
     assert.match(line(null), /stamp scope: none/);
     assert.doesNotMatch(line(null), /delta/);
+  });
+});
+
+// Story #5880 — close's `test` delta re-credit shares these rules.
+describe('deltaIneligibility — the rules shared with close (Story #5880)', () => {
+  it('names a path shared with the Story change set', () => {
+    assert.match(
+      deltaIneligibility({ delta: ['src/a.js'], storyFiles: ['src/a.js'] }),
+      /shares src\/a\.js/,
+    );
+  });
+
+  it('names a coverage-determining config file', () => {
+    assert.match(
+      deltaIneligibility({ delta: ['pnpm-lock.yaml'], storyFiles: [] }),
+      /coverage-determining config pnpm-lock\.yaml/,
+    );
+  });
+
+  it('passes a disjoint, config-free delta', () => {
+    assert.equal(
+      deltaIneligibility({ delta: ['src/b.js'], storyFiles: ['src/a.js'] }),
+      null,
+    );
+  });
+
+  it("close's test delta imports the exported rules, not a copy", () => {
+    const source = fs.readFileSync(
+      new URL(
+        '../../.agents/scripts/lib/close-validation/test-delta.js',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    assert.match(
+      source,
+      /import \{ deltaIneligibility \} from '\.\.\/coverage-capture-delta\.js';/,
+    );
   });
 });

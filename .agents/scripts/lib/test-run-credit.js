@@ -201,6 +201,32 @@ export function predictsTestEvidenceCredit({
   }
 }
 
+/** Does `sha` hold `test` credit under the full-suite identity? Uncertainty is `false`. */
+export function hasTestCreditAt({
+  config,
+  storyId,
+  cwd,
+  evidenceCwd,
+  sha,
+  shouldSkipImpl = defaultShouldSkip,
+} = {}) {
+  if (!sha) return false;
+  try {
+    const verdict = shouldSkipImpl(
+      {
+        storyId,
+        gateName: GATE_NAME,
+        currentSha: sha,
+        configHash: testGateConfigHash(config, cwd),
+      },
+      { cwd: evidenceCwd ?? cwd, standalone: true },
+    );
+    return verdict.skip === true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * @param {{ storyId: number, sha: string, cwd: string, config: object|null, evidenceRoot: string, durationMs: number|null, gitSpawnFn: Function, recordPassFn: Function }} args
  * @returns {{ deposited: boolean, reason: string, storyId: number, sha: string }}

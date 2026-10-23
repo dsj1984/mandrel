@@ -135,6 +135,28 @@ describe('project.* shape', () => {
     );
   });
 
+  // Story #5880 — the opt-in changed-tests command for the delta re-credit.
+  it('accepts commands.testChanged as a string or null, guarded like test', () => {
+    for (const testChanged of [
+      'pnpm vitest run --changed $MANDREL_CHANGED_SINCE',
+      null,
+    ]) {
+      assert.equal(
+        validate({ project: { ...REQ.project, commands: { testChanged } } }),
+        true,
+      );
+    }
+    expectErrors(
+      {
+        project: {
+          ...REQ.project,
+          commands: { testChanged: 'npx vitest --changed x; rm -rf /' },
+        },
+      },
+      /testChanged/,
+    );
+  });
+
   it('rejects empty-string typecheck', () => {
     expectErrors(
       { project: { ...REQ.project, commands: { typecheck: '' } } },

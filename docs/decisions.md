@@ -801,6 +801,15 @@ fact about that project's workflows; no tool config, manifest or existing key
 holds it, and the values themselves are not configured but lifted from the
 branch commits' git trailers, so the key names only which trailers to lift.
 
+**Raised to 142 (2026-10-23, Story #5880)** for
+`project.commands.testChanged`. After close's base sync merges sibling
+landings, the handoff's `test` credit is spent and close re-ran the whole
+suite (swarm-os: 735-990 s per close, 28 landings a day). Which command runs
+only the tests a commit range affects is a fact about the consumer's test
+runner and its import graph; no manifest, tool config or existing key names
+it, and `project.commands.test` cannot be narrowed without changing the
+identity every `test` credit hashes. Absent, close behaves as before.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

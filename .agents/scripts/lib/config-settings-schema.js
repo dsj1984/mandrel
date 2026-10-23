@@ -86,6 +86,11 @@ const COMMANDS_SCHEMA = {
         "Full test-suite command close's `test` gate spawns, and the identity its `test` credit is hashed under — the deposit `run-tests.js` makes, close's credit probe and `verify[]` credit all key on it, as does `mandrel doctor`'s `test-credit-path` check. Set it for a non-npm project (e.g. `python3 scripts/validation.py`). Mandatory: `null` is rejected.",
       default: COMMANDS_DEFAULTS.test,
     },
+    testChanged: {
+      ...NULLABLE_NONEMPTY_SAFE_STRING,
+      description:
+        "Optional changed-tests command for the delta re-credit: when close's base sync merged sibling landings into a branch whose pre-sync head holds `test` credit, close's `test` gate runs this instead of the full suite, with the credited commit in the `MANDREL_CHANGED_SINCE` environment variable and in place of a literal `$MANDREL_CHANGED_SINCE` argument (e.g. `pnpm vitest run --changed $MANDREL_CHANGED_SINCE`; no shell runs it), and a green run re-credits the merged tree. Ineligible when coverage-capture runs the suite, an incoming path is a coverage-config file or one of the Story's own files. Absent or `null` keeps the full re-run.",
+    },
     typecheck: {
       ...NULLABLE_NONEMPTY_SAFE_STRING,
       description:

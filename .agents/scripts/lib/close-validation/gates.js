@@ -35,6 +35,9 @@ import {
  * @property {{ reason: string }} [skip] - Pre-decided skip: recorded, never spawned.
  * @property {Record<string, string>} [env] - Overlay merged over `process.env` for this gate's child only.
  * @property {boolean} [lockEventChannel] - The child reports on close's lock-event channel.
+ * @property {{ cmd: string, args: string[] }} [evidenceIdentity] - Evidence argv, if not the spawned one.
+ * @property {{ scope: 'delta', since: string }} [evidenceNote]
+ * @property {string} [label]
  * @property {(cmd: string, args: string[], opts: { cwd: string, gateName?: string, log?: (m: string) => void, signal?: AbortSignal, env?: Record<string, string> }) => Promise<{ status: number }> | { status: number }} [run]
  *   - In-process runner used instead of spawning `cmd`/`args`.
  */
@@ -108,7 +111,9 @@ function isCoverageCaptureActive(config, scripts) {
 /**
  * The plain `test` gate, unless coverage-capture will run the suite — every
  * close must keep exactly one working test gate. Its argv is
- * `project.commands.test` (default `npm test`).
+ * `project.commands.test` (default `npm test`); after a base move close's
+ * phase may swap it for the delta re-credit (`test-delta.js`), which runs
+ * `testChanged` keyed on `MANDREL_CHANGED_SINCE`.
  *
  * @param {boolean} coverageCaptureRunsSuite
  * @param {object|undefined|null} config - Canonical resolved config.

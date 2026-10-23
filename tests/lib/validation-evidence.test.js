@@ -135,6 +135,26 @@ test('typecheck is a recordable evidence gate (Story #4250)', () => {
   assert.equal(loaded.records[0].gateName, 'typecheck');
 });
 
+test('a delta pass records its scope and since note, and the record validates (Story #5880)', () => {
+  const fs = makeFakeFs();
+  const opts = { cwd: FAKE_CWD, now: fixedNow, standalone: true, fs };
+  const cfg = hashCommandConfig({ cmd: 'npm', args: ['test'] });
+  const record = recordPass(
+    {
+      storyId: 5880,
+      gateName: 'test',
+      sha: 'abcdef0',
+      configHash: cfg,
+      scope: 'delta',
+      since: 'c'.repeat(40),
+    },
+    opts,
+  );
+  assert.equal(record.scope, 'delta');
+  assert.equal(record.since, 'c'.repeat(40));
+  assert.equal(loadEvidence(5880, opts).records[0].scope, 'delta');
+});
+
 test('hashCommandConfig() is deterministic and shape-valid', () => {
   const a = hashCommandConfig({ cmd: 'npm', args: ['run', 'lint'], cwd: '/x' });
   const b = hashCommandConfig({ cmd: 'npm', args: ['run', 'lint'], cwd: '/x' });

@@ -728,7 +728,11 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "mi": 82.537
+      "mi": 83.258
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/test-delta.js",
+      "mi": 103.383
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
@@ -1780,7 +1784,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-push.js",
-      "mi": 82.979
+      "mi": 86.449
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
