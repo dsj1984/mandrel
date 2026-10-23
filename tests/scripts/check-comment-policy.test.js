@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { checkCommentPolicy } from '../../scripts/check-comment-policy.js';
 import {
   COMMENT_RATIO_CEILING,
   commentBytes,
@@ -24,6 +24,11 @@ import {
   ratioVerdict,
   resolveBase,
 } from '../../scripts/lib/comment-ratio-change.js';
+import {
+  copyGitRepo,
+  makeGitTemplate,
+  writeFiles,
+} from '../fixtures/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.resolve(
@@ -41,29 +46,26 @@ function git(cwd, ...args) {
   return r.stdout;
 }
 
+let template;
+
+before(() => {
+  template = makeGitTemplate({ prefix: 'comment-policy-' });
+});
+
 /**
  * A committed fixture repository holding `files` (path → source), on `branch`
  * — `main` by default, so the base branch resolves to the fixture's own HEAD.
  */
 function fixtureRepo(files, branch = 'main') {
-  const root = makeTempDir('comment-policy-');
-  git(root, 'init', '-q', '-b', branch);
-  git(root, 'config', 'user.email', 'test@example.com');
-  git(root, 'config', 'user.name', 'Test');
-  git(root, 'config', 'commit.gpgsign', 'false');
+  const root = copyGitRepo(template);
+  fs.writeFileSync(
+    path.join(root, '.git', 'HEAD'),
+    `ref: refs/heads/${branch}\n`,
+  );
   writeFiles(root, files);
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '--no-verify', '-m', 'base');
   return root;
-}
-
-/** Write `files` (path → source) under `root`. */
-function writeFiles(root, files) {
-  for (const [rel, text] of Object.entries(files)) {
-    const abs = path.join(root, rel);
-    fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, text);
-  }
 }
 
 /** Commit `files` on a new `feature` branch cut from the fixture's HEAD. */
@@ -95,11 +97,32 @@ function atShare(percent) {
 const HEAVY = `${'// prose\n'.repeat(2000)}export const a = 1;\n`;
 const LIGHT = 'export const x = 1;\n'.repeat(200);
 
-/** Run the CLI against `root`. */
+/** Run the CLI against `root` in a child process: the exit-code and stream wiring. */
 function runCli(root, ...args) {
   return spawnSync(process.execPath, [CLI, '--root', root, ...args], {
     encoding: 'utf8',
   });
+}
+
+/** Run the policy against `root` in-process, in `runCli`'s result shape. */
+function runPolicy(root, ...args) {
+  const result = { stdout: '', stderr: '' };
+  const originals = {};
+  for (const stream of ['stdout', 'stderr']) {
+    originals[stream] = process[stream].write;
+    process[stream].write = (chunk) => {
+      result[stream] += chunk;
+      return true;
+    };
+  }
+  try {
+    result.status = checkCommentPolicy(['--root', root, ...args]) ? 0 : 1;
+  } finally {
+    for (const stream of ['stdout', 'stderr']) {
+      process[stream].write = originals[stream];
+    }
+  }
+  return result;
 }
 
 describe('scanner', () => {
@@ -316,7 +339,7 @@ describe('check-comment-policy CLI', () => {
 
   it('falls back to the absolute ceiling when no base ref resolves', () => {
     const over = fixtureRepo({ '.agents/scripts/a.js': HEAVY }, 'trunk');
-    const r = runCli(over);
+    const r = runPolicy(over);
     assert.equal(r.status, 1);
     assert.match(
       r.stderr,
@@ -326,14 +349,14 @@ describe('check-comment-policy CLI', () => {
     assert.ok(COMMENT_RATIO_CEILING < 0.9);
 
     const under = fixtureRepo({ '.agents/scripts/a.js': LIGHT }, 'trunk');
-    const ok = runCli(under);
+    const ok = runPolicy(under);
     assert.equal(ok.status, 0, ok.stderr);
     assert.match(ok.stdout, /ratio: .* — ok/);
   });
 
   it('passes at the base itself, warning when the global ratio is over', () => {
     const root = fixtureRepo({ '.agents/scripts/a.js': HEAVY });
-    const r = runCli(root);
+    const r = runPolicy(root);
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /this change vs [0-9a-f]{9}: comment 0 of 0 bytes/);
     assert.match(r.stderr, /warn — the global ratio is over the ceiling/);
@@ -342,7 +365,7 @@ describe('check-comment-policy CLI', () => {
   it('passes a change under the ceiling even when the base is over it', () => {
     const root = fixtureRepo({ '.agents/scripts/a.js': HEAVY });
     onBranch(root, { '.agents/scripts/b.js': LIGHT });
-    const r = runCli(root);
+    const r = runPolicy(root);
     assert.equal(r.status, 0, r.stderr);
     assert.match(
       r.stdout,
@@ -354,7 +377,7 @@ describe('check-comment-policy CLI', () => {
     const root = fixtureRepo({ '.agents/scripts/a.js': atShare(29) });
     assert.ok(ratioOf(root) <= COMMENT_RATIO_CEILING);
     onBranch(root, { '.agents/scripts/b.js': atShare(29) });
-    const r = runCli(root);
+    const r = runPolicy(root);
     assert.equal(r.status, 0, r.stderr);
     assert.ok(ratioOf(root) <= COMMENT_RATIO_CEILING);
   });
@@ -362,7 +385,7 @@ describe('check-comment-policy CLI', () => {
   it('fails a comment-heavy change once the global ratio is over, naming the bytes to trim', () => {
     const root = fixtureRepo({ '.agents/scripts/a.js': atShare(29) });
     onBranch(root, { '.agents/scripts/b.js': HEAVY });
-    const r = runCli(root);
+    const r = runPolicy(root);
     assert.equal(r.status, 1);
     assert.match(
       r.stderr,
@@ -380,7 +403,7 @@ describe('check-comment-policy CLI', () => {
     git(root, 'rm', '-q', '.agents/scripts/b.js');
     git(root, 'commit', '-q', '--no-verify', '-m', 'drop b');
     assert.ok(ratioOf(root) > COMMENT_RATIO_CEILING);
-    const r = runCli(root);
+    const r = runPolicy(root);
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stderr, /warn — the global ratio is over the ceiling/);
   });
@@ -388,8 +411,8 @@ describe('check-comment-policy CLI', () => {
   it('judges the change against --base when one is given', () => {
     const root = fixtureRepo({ '.agents/scripts/a.js': atShare(29) });
     onBranch(root, { '.agents/scripts/b.js': HEAVY });
-    assert.equal(runCli(root).status, 1);
-    const r = runCli(root, '--base', 'HEAD');
+    assert.equal(runPolicy(root).status, 1);
+    const r = runPolicy(root, '--base', 'HEAD');
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /comment 0 of 0 bytes/);
   });
@@ -403,7 +426,7 @@ describe('check-comment-policy CLI', () => {
       '.agents/scripts/a.js':
         '/** @param {string} x */\nexport function f(x) {\n  return x;\n}\n',
     });
-    const r = runCli(root, '--assert-code-unchanged', 'HEAD');
+    const r = runPolicy(root, '--assert-code-unchanged', 'HEAD');
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /1 changed file\(s\)/);
   });
@@ -420,7 +443,7 @@ describe('check-comment-policy CLI', () => {
         '/** @param {string} x */\nexport function f(x) {\n  return x + 1;\n}\n',
       '.agents/scripts/b.js': 'export const g = () => 1;\n',
     });
-    const r = runCli(root, '--assert-code-unchanged', 'HEAD');
+    const r = runPolicy(root, '--assert-code-unchanged', 'HEAD');
     assert.equal(r.status, 1);
     assert.match(r.stderr, /a\.js: code changed outside comments/);
     assert.match(r.stderr, /b\.js: lost JSDoc tag\(s\) @returns/);

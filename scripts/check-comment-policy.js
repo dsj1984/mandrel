@@ -320,16 +320,23 @@ function firstDifference(a, b) {
   return `    base: …${around(a)}…\n    now:  …${around(b)}…`;
 }
 
+/**
+ * Run the policy for `argv`, printing offenders.
+ *
+ * @param {string[]} argv
+ * @returns {boolean} True when the policy holds.
+ */
+export function checkCommentPolicy(argv) {
+  const opts = parseOptions(argv);
+  return opts.ref
+    ? assertCodeUnchanged(opts.root, opts)
+    : [checkRatio(opts.root, opts), checkProvenance(opts.root)].every(Boolean);
+}
+
 runAsCli(
   import.meta.url,
   async () => {
-    const opts = parseOptions(process.argv.slice(2));
-    const ok = opts.ref
-      ? assertCodeUnchanged(opts.root, opts)
-      : [checkRatio(opts.root, opts), checkProvenance(opts.root)].every(
-          Boolean,
-        );
-    if (!ok) process.exitCode = 1;
+    if (!checkCommentPolicy(process.argv.slice(2))) process.exitCode = 1;
   },
   { source: 'comment-policy', usage: HELP },
 );
