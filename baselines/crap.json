@@ -22161,9 +22161,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "isRequiredFailure",
+      "startLine": 260,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "renderDigestMarkdown",
       "startLine": 261,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "describeFailure",
+      "startLine": 265,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
@@ -22187,6 +22199,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "<anon writeCiDigest/(f)#0>",
+      "startLine": 339,
+      "crap": 1.000203541624262,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "recordRerunAllowance",
       "startLine": 374,
       "crap": 4.007282658170232
@@ -22205,6 +22224,19 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "clearedAdvisoryFailures",
+      "startLine": 443,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "<anon clearedAdvisoryFailures/(f)#0>",
+      "startLine": 448,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "failureSignature",
       "startLine": 455,
       "crap": 1
@@ -22218,8 +22250,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "sameHeadVerdict",
+      "startLine": 459,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon failureSignature/(l)#1>",
       "startLine": 460,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "<anon sameHeadVerdict/(f)#0>",
+      "startLine": 464,
       "crap": 1,
       "anonymous": true
     },
@@ -22228,6 +22273,13 @@
       "method": "formatRerunViolation",
       "startLine": 470,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "<anon classifyGreenVerdict/(f)#0>",
+      "startLine": 475,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
@@ -30397,6 +30449,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "deriveCheckStates",
+      "startLine": 200,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "resolveMergeWaitConfig",
       "startLine": 265,
       "crap": 4
@@ -30444,6 +30502,19 @@
       "method": "checksFailedRemedy",
       "startLine": 384,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "disarmedOn",
+      "startLine": 396,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "<anon disarmedOn/(f)#0>",
+      "startLine": 399,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -30560,8 +30631,34 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "<anon resolveAdvisoryUnlanded/(run)#1>",
+      "startLine": 801,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon recordChecksFailedRed/()#0>",
       "startLine": 807,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "failureOfRun",
+      "startLine": 816,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "describeFailures",
+      "startLine": 824,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "<anon describeFailures/(f)#0>",
+      "startLine": 825,
       "crap": 1,
       "anonymous": true
     },
@@ -30570,6 +30667,19 @@
       "method": "blockOnUnlanded",
       "startLine": 832,
       "crap": 6.1373291015625
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "recordRed",
+      "startLine": 847,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "<anon recordRed/()#0>",
+      "startLine": 867,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",

@@ -1268,7 +1268,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "mi": 93.606
+      "mi": 95.296
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
@@ -1728,7 +1728,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "mi": 91.412
+      "mi": 92.438
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",

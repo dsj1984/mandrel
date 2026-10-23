@@ -2,8 +2,8 @@
  * phases/merge-wait-recovery.js — the merge wait's answer to a PR `main`
  * moved under. DIRTY: sync in the Story worktree and push, spending the
  * BEHIND budget; any failure hands back a `failed` / `base-sync` outcome,
- * labels untouched. Un-armed: re-arm once per head SHA, behind the red-fix
- * guard and the arm policy.
+ * labels untouched. Un-armed: re-arm once per head SHA and guard verdict,
+ * behind the red-fix guard and the arm policy.
  */
 
 import { getCiDelivery } from '../../../config/ci.js';
@@ -20,6 +20,7 @@ import { integrateRemoteStoryBranch as defaultIntegrateRemote } from './story-br
 
 /** The red-fix guard verdicts under which a re-arm is allowed. */
 const REARM_VERDICTS = Object.freeze([
+  'advisory-cleared',
   'clean',
   'fix-at-source',
   'rerun-permitted',
@@ -254,29 +255,28 @@ function isUnarmedOpenPr(probe, ctx) {
   );
 }
 
-/** The red-fix guard: a CI digest recorded against this head blocks it. */
-function rearmGuard(ctx, headSha) {
+/**
+ * The red-fix guard: a CI digest recorded against this head blocks it, unless
+ * every recorded failure is advisory and the probe reads each green.
+ */
+function rearmGuard(ctx, headSha, checks) {
   const digest = ctx.readCiDigestFn({
     storyId: ctx.storyId,
     tempRoot: ctx.config?.project?.paths?.tempRoot ?? 'temp',
     cwd: ctx.cwd,
   });
-  return classifyGreenVerdict({ digest, headSha });
+  return classifyGreenVerdict({ digest, headSha, checks });
 }
 
-/** Re-arm an open, un-armed, not-red PR once per head; never a terminal. */
+/** Re-arm an open, un-armed, not-red PR once per head and verdict; never a terminal. */
 export async function maybeRearmPr(ctx, probe) {
   const headSha = probe?.headSha;
-  if (
-    !isUnarmedOpenPr(probe, ctx) ||
-    !headSha ||
-    ctx.rearmedHeads.has(headSha)
-  ) {
-    return;
-  }
-  ctx.rearmedHeads.add(headSha);
+  if (!isUnarmedOpenPr(probe, ctx) || !headSha) return;
   if (getCiDelivery(ctx.config).autoMerge === 'strict') return;
-  const guard = rearmGuard(ctx, headSha);
+  const guard = rearmGuard(ctx, headSha, probe.checkStates);
+  const attempt = `${headSha}:${guard.verdict}`;
+  if (ctx.rearmedHeads.has(attempt)) return;
+  ctx.rearmedHeads.add(attempt);
   if (!REARM_VERDICTS.includes(guard.verdict)) {
     ctx.progress?.(
       'CONFIRM',
@@ -290,7 +290,7 @@ export async function maybeRearmPr(ctx, probe) {
   ctx.progress?.(
     'CONFIRM',
     armed?.enabled
-      ? `🔁 PR #${ctx.prNumber} lost its auto-merge request on head ${headSha.slice(0, 7)} — re-armed.`
+      ? `🔁 PR #${ctx.prNumber} lost its auto-merge request on head ${headSha.slice(0, 7)} — re-armed (${guard.reason}).`
       : `⚠️ PR #${ctx.prNumber} re-arm failed (${armed?.reason ?? 'unknown'}) — still waiting.`,
   );
 }

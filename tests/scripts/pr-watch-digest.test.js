@@ -81,7 +81,11 @@ describe('writeCiDigest', () => {
       assert.equal(digest.epicId, undefined, 'no Epic key on a Story digest');
       assert.equal(digest.failingCheck, 'test');
       assert.equal(digest.runId, '987654');
-      assert.deepEqual(digest.allFailures, FAILURES);
+      // An unflagged failure is recorded as required (Story #5876).
+      assert.deepEqual(
+        digest.allFailures,
+        FAILURES.map((f) => ({ ...f, required: true })),
+      );
 
       const md = readFileSync(out.mdPath, 'utf8');
       assert.match(md, /# CI failure digest — Story #4539 \(PR #12\)/);

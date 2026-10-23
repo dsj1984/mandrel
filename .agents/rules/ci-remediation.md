@@ -186,6 +186,14 @@ alongside the failing check-run identity. On green it adjudicates:
   digest) before the delivery proceeds.
 - **New head SHA** → fix at source. The digest is retired, auto-merge is
   re-armed, and the delivery continues unobstructed.
+- **Same head SHA, every recorded failure advisory, each now green**
+  (`advisory-cleared`) → an advisory red disarmed the PR under
+  `delivery.ci.blockOnAdvisoryFailure` (the digest records each failure's
+  `required: false`), and the check has since gone green — a body fix or a
+  re-run, no new commit. The merge wait (a `--wait` resume included)
+  re-arms auto-merge once and lands. A required red, a still-red or unread
+  advisory check, or a digest without the `required` flag keeps the
+  verdicts above; `delivery.ci.autoMerge: 'strict'` never re-arms.
 
 A delivery that never went red has no digest and is untouched.
 
