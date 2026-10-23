@@ -33,6 +33,7 @@ import {
   resolveSkillFile,
 } from '../../.agents/scripts/lib/skills/walk-skill-files.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { run as runValidator } from '../../.agents/scripts/validate-skills.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
@@ -120,11 +121,11 @@ describe('validate-skills.js — fixture tree (well-formed capsules)', () => {
     const fixtureRoot = stageFixtureRoot(tmpParent);
     // First generate the index in the fixture tree so the validator's
     // index-membership check has something to compare against.
-    const gen = runCli(GENERATOR_CLI, ['--root', fixtureRoot]);
+    const gen = runGenerator({ argv: ['--root', fixtureRoot] });
     assert.equal(
       gen.status,
       0,
-      `generator failed on fixture tree: ${gen.stderr || gen.stdout}`,
+      `generator failed on fixture tree: ${gen.output}`,
     );
     const result = runCli(VALIDATOR_CLI, ['--root', fixtureRoot]);
     assert.equal(
@@ -399,7 +400,7 @@ describe('local skills zone — second resolution root (Story #5135)', () => {
     const root = stageFixtureRoot(tmpParent);
     stageLocalSkill(root, 'stack/qa/acme-sso');
     assert.equal(runGenerator({ argv: ['--root', root] }).status, 0);
-    assert.equal(runCli(VALIDATOR_CLI, ['--root', root]).status, 0);
+    assert.equal(runValidator({ argv: ['--root', root] }).status, 0);
 
     // Break the capsule in the LOCAL skill only.
     const skillPath = path.join(
@@ -420,10 +421,10 @@ describe('local skills zone — second resolution root (Story #5135)', () => {
     }
     fs.writeFileSync(skillPath, kept.join('\n'));
 
-    const broken = runCli(VALIDATOR_CLI, ['--root', root]);
+    const broken = runValidator({ argv: ['--root', root] });
     assert.equal(broken.status, 1);
     assert.match(
-      broken.stdout,
+      broken.output,
       /local[/\\]skills[/\\]stack[/\\]qa[/\\]acme-sso/,
     );
   });
