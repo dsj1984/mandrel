@@ -33,10 +33,11 @@ jobs:
     # Story #4936: every job here used to inherit GitHub's 360-minute default,
     # so a deadlock cost six hours of runner time and — while the run stayed
     # `in_progress` — withheld the logs of the failing required check on the
-    # same run. Sized from this job's observed 155s: 20 minutes is ~8x
-    # headroom over the heaviest leg (TruffleHog + node-pty source build +
-    # the full coverage suite) while still catching a hang fast. The npm audit
-    # moved to the `audit` job below.
+    # same run. Sized from this job's observed 139s (run 39841959348, before
+    # Story #5866 moved the static guards to `baselines`): 20 minutes is ample
+    # headroom over the node-pty build plus the full coverage suite (101s)
+    # while still catching a hang fast. The npm audit moved to the `audit`
+    # job below.
     timeout-minutes: 20
     permissions:
       contents: read
@@ -48,45 +49,6 @@ jobs:
 
       - name: Setup Node & Install
         uses: ./.github/actions/setup
-
-      - name: Action Pinning Guard
-        # Story #4079: fail the build if any third-party `uses:` ref drifts off
-        # a full 40-char commit SHA onto a branch head (`@main`/`@master`) or a
-        # floating tag (`@v5`). First-party `actions/*` refs may stay on
-        # major-version tags (Dependabot bumps those in-place). This is the
-        # real, automated gate the comments below reference — there is no
-        # `npm run audit-security` script (that name is only the manual
-        # `/audit-security` slash-command lens).
-        run: node scripts/check-action-pinning.js
-
-      - name: Secret Scanning (TruffleHog)
-        # Pinned to a released tag rather than the moving `@main` head — a
-        # third-party action's default branch is a supply-chain risk vector
-        # (CWE-1357). Bump deliberately when a new TruffleHog release ships;
-        # the `Action Pinning Guard` step above (check-action-pinning.js)
-        # fails the build on any reversion to `@main` / `@master` / a
-        # floating tag.
-        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
-        with:
-          extra_args: --debug --only-verified
-
-      - name: Lint and Format
-        # Story #1829: `npm run lint` now invokes `biome ci .` (lint +
-        # format check + import order) in parallel with `markdownlint-cli2`
-        # via scripts/run-lint.js, so the prior separate
-        # `npm run format:check` step is folded in and removed.
-        run: npm run lint
-
-      - name: Test Portability Guard
-        # Story #5284: the `windows-smoke` job below is advisory, so a
-        # Windows-only break in a test file lands on main behind a green
-        # auto-merge — three did in one week. Two of those shapes are
-        # statically visible: a RegExp built from an interpolated filesystem
-        # path (literal on POSIX, escaped on Windows — PR #5276) and a
-        # dynamic import() of a raw path (not a valid ESM specifier on
-        # Windows). This catches both here, on the required leg, instead of
-        # in the advisory one nobody blocks on.
-        run: node scripts/check-test-portability.js
 
       # Story #5004: the `Maintainability Check` step that used to sit here
       # ran `npm run maintainability:check` — `check-baselines.js --gate
@@ -118,7 +80,19 @@ jobs:
       # `.github/workflows/baseline-drift.yml` — a nightly job, deliberately
       # off the per-PR path so this duplication is not reintroduced.
 
+      - name: Restore node-pty build cache
+        # Story #5866: the source build below costs ~4-60s depending on the
+        # runner, and its output depends only on the runner OS, the Node
+        # major (.nvmrc) and the locked node-pty version. Restore after
+        # `npm ci` (which recreates node_modules) and skip the build on a hit.
+        id: node-pty-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules/node-pty/build
+          key: node-pty-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
       - name: Build node-pty for the PTY init guard
+        if: steps.node-pty-cache.outputs.cache-hit != 'true'
         # node-pty (1.x) ships no Linux prebuild and the shared setup installs
         # with `npm ci --ignore-scripts`, so its native addon is never compiled
         # and the interactive-init regression guard
@@ -132,6 +106,17 @@ jobs:
         # loadable binary, so the gate never reds on it.
         run: |
           ( cd node_modules/node-pty && npx --yes node-gyp rebuild ) || echo "::warning::node-pty source build failed; PTY init guard will skip on this run"
+
+      - name: Save node-pty build cache
+        # Saved only when the build produced a loadable addon, so a failed
+        # build is never cached as a permanent skip.
+        if: >-
+          steps.node-pty-cache.outputs.cache-hit != 'true' &&
+          hashFiles('node_modules/node-pty/build/Release/pty.node') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/node-pty/build
+          key: ${{ steps.node-pty-cache.outputs.cache-primary-key }}
 
       - name: Snapshot temp/ stream hygiene (pre-test)
         # Story #4696: fingerprint the friction / lifecycle / trace NDJSON
@@ -267,8 +252,9 @@ jobs:
     # collapsed to `["lint", "test", "baselines"]`.
     name: baselines
     runs-on: ubuntu-latest
-    # Observed 19s of pure-Node ratchets. 10 minutes is the floor the
-    # workflow-timeout gate enforces and still ~30x headroom here.
+    # Observed 23s of pure-Node ratchets (run 39841959348), plus ~14s for the
+    # static guards Story #5866 moved here. 10 minutes is the floor the
+    # workflow-timeout gate enforces and still ~15x headroom here.
     timeout-minutes: 10
     permissions:
       contents: read
@@ -280,6 +266,49 @@ jobs:
 
       - name: Setup Node & Install
         uses: ./.github/actions/setup
+
+      # Story #5866: the four static guards below moved here verbatim from
+      # `validate`, where they ran serially ahead of the coverage suite and
+      # added ~14s to the longest required job. This job checks out with
+      # full history already and finishes well inside its own timeout.
+      - name: Action Pinning Guard
+        # Story #4079: fail the build if any third-party `uses:` ref drifts off
+        # a full 40-char commit SHA onto a branch head (`@main`/`@master`) or a
+        # floating tag (`@v5`). First-party `actions/*` refs may stay on
+        # major-version tags (Dependabot bumps those in-place). This is the
+        # real, automated gate the comments below reference — there is no
+        # `npm run audit-security` script (that name is only the manual
+        # `/audit-security` slash-command lens).
+        run: node scripts/check-action-pinning.js
+
+      - name: Secret Scanning (TruffleHog)
+        # Pinned to a released tag rather than the moving `@main` head — a
+        # third-party action's default branch is a supply-chain risk vector
+        # (CWE-1357). Bump deliberately when a new TruffleHog release ships;
+        # the `Action Pinning Guard` step above (check-action-pinning.js)
+        # fails the build on any reversion to `@main` / `@master` / a
+        # floating tag.
+        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
+        with:
+          extra_args: --debug --only-verified
+
+      - name: Lint and Format
+        # Story #1829: `npm run lint` now invokes `biome ci .` (lint +
+        # format check + import order) in parallel with `markdownlint-cli2`
+        # via run-lint.js (npm run verify's own lint step), so the prior separate
+        # `npm run format:check` step is folded in and removed.
+        run: npm run lint
+
+      - name: Test Portability Guard
+        # Story #5284: the `windows-smoke` job was advisory then, so a
+        # Windows-only break in a test file lands on main behind a green
+        # auto-merge — three did in one week. Two of those shapes are
+        # statically visible: a RegExp built from an interpolated filesystem
+        # path (literal on POSIX, escaped on Windows — PR #5276) and a
+        # dynamic import() of a raw path (not a valid ESM specifier on
+        # Windows). This catches both here, on the required leg, instead of
+        # in the advisory one nobody blocks on.
+        run: node scripts/check-test-portability.js
 
       - name: Run check-baselines
         run: node .agents/scripts/check-baselines.js --format text
@@ -403,8 +432,8 @@ jobs:
     # so nothing about the measured surface depends on this job's verdict.
     name: e2e
     runs-on: ubuntu-latest
-    # Observed ~2.5 min locally for the whole tier including a real npm pack
-    # and install. 20 minutes is ample headroom and still bounds a wedged
+    # Observed 33s on CI (run 39841959348) for the whole tier including a real
+    # npm pack and install. 20 minutes is ample headroom and still bounds a wedged
     # child that outlives the suite's own 180 s per-run timeout.
     timeout-minutes: 20
     permissions:
@@ -418,7 +447,19 @@ jobs:
       - name: Setup Node & Install
         uses: ./.github/actions/setup
 
+      - name: Restore node-pty build cache
+        # Story #5866: the source build below costs ~4-60s depending on the
+        # runner, and its output depends only on the runner OS, the Node
+        # major (.nvmrc) and the locked node-pty version. Restore after
+        # `npm ci` (which recreates node_modules) and skip the build on a hit.
+        id: node-pty-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules/node-pty/build
+          key: node-pty-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
       - name: Build node-pty for the PTY init guard
+        if: steps.node-pty-cache.outputs.cache-hit != 'true'
         # Same rationale as the `validate` job: node-pty ships no Linux
         # prebuild and the shared setup installs with `--ignore-scripts`, so
         # without an explicit source build
@@ -428,22 +469,64 @@ jobs:
         run: |
           ( cd node_modules/node-pty && npx --yes node-gyp rebuild ) || echo "::warning::node-pty source build failed; PTY init guard will skip on this run"
 
+      - name: Save node-pty build cache
+        # Saved only when the build produced a loadable addon, so a failed
+        # build is never cached as a permanent skip.
+        if: >-
+          steps.node-pty-cache.outputs.cache-hit != 'true' &&
+          hashFiles('node_modules/node-pty/build/Release/pty.node') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/node-pty/build
+          key: ${{ steps.node-pty-cache.outputs.cache-primary-key }}
+
       - name: Run the e2e tier
         run: npm run test:e2e
 
   windows-smoke:
     # Story #3389 — Windows leg, a required check (docs/ci-contract.md lists
-    # the required set). Exercises bootstrap, command sync,
-    # config resolution, and the quick test tier. Catches Windows-only regressions in worktree
-    # path handling, PowerShell/npm wiring, and platform-conditional code
-    # without reintroducing the c8/timing baseline flap that retired the
-    # full Windows matrix leg (#1270).
+    # the required set). Story #5866 made this job the fan-in: the work runs
+    # in the two `windows-smoke-shard` jobs below and this ubuntu job owns
+    # the required `Windows Smoke` check name, so the live ruleset needed no
+    # edit. `always()` makes it run (and fail) when a shard failed, was
+    # cancelled or was skipped — a required check that is merely skipped
+    # would otherwise read as passing.
     name: Windows Smoke
+    needs: windows-smoke-shard
+    if: always()
+    runs-on: ubuntu-latest
+    # A single shell test; 10 is the workflow-timeout gate's floor.
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Require every Windows shard to succeed
+        env:
+          SHARD_RESULT: ${{ needs.windows-smoke-shard.result }}
+        run: |
+          echo "windows-smoke-shard result: $SHARD_RESULT"
+          test "$SHARD_RESULT" = "success"
+
+  windows-smoke-shard:
+    # Exercises bootstrap, command sync, config resolution, and the quick
+    # test tier. Catches Windows-only regressions in worktree path handling,
+    # PowerShell/npm wiring, and platform-conditional code without
+    # reintroducing the c8/timing baseline flap that retired the full Windows
+    # matrix leg (#1270).
+    #
+    # Story #5866: the quick tier (833 files) took 326s here as seven
+    # serial argv-chunked spawns (chunk walls 0.6/32/65/67/44/116/2.5s, run
+    # 39841959348) — the whole required-check wall time. One in-process
+    # `run()` now fills the runner's cores, and the tier is split across two
+    # runners with `--shard`. Shard 1 also carries the one-off checks.
+    name: Windows Smoke (shard ${{ matrix.shard }}/2)
     runs-on: windows-latest
-    # This is the job that deadlocked and burned 44 minutes. Observed 141s on
-    # a healthy run; 15 minutes leaves ~6x headroom for a slow Windows runner
-    # boot plus `npm ci`, and bounds the next deadlock to a quarter hour.
+    # The pre-shard job observed 374s end to end (run 39841959348); 15
+    # minutes bounds a deadlock to a quarter hour.
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     permissions:
       contents: read
     steps:
@@ -458,19 +541,22 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Bootstrap (dry-run)
+        if: matrix.shard == 1
         run: node .agents/scripts/bootstrap.js --dry-run --assume-yes --skip-github
 
       - name: Command Sync
+        if: matrix.shard == 1
         run: npm run sync:commands
 
       - name: Config Resolution
+        if: matrix.shard == 1
         run: >-
           node --experimental-test-module-mocks --test
           tests/shipped-configs-validate.test.js
           tests/lib/config-resolver.test.js
 
       - name: Fast Test Slice
-        run: npm run test:quick
+        run: npm run test:quick -- --shard ${{ matrix.shard }}/2
 
       - name: Worktree Manager Real-Git Contract
         # Story #4922: this suite is integration-tier, so `test:quick` above
@@ -480,6 +566,7 @@ jobs:
         # solely to catch a Windows defect executed in no CI job at all: on
         # Linux it skipped, on Windows it never ran. Running the file here is
         # what makes that guard real.
+        if: matrix.shard == 1
         run: >-
           node --experimental-test-module-mocks --test
           tests/lib/worktree-manager.integration.test.js

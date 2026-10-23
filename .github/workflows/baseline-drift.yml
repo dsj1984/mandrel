@@ -1,6 +1,7 @@
 name: Baseline Drift
 
-# Nightly full-scope baseline re-score.
+# Nightly full-scope baseline re-score, plus the required-check ruleset drift
+# check (Story #5866, job `ruleset-drift` at the end of this file).
 #
 # ── Why this exists ──────────────────────────────────────────────────────────
 # Every per-change enforcement site for the baselines is DIFF-SCOPED:
@@ -188,4 +189,88 @@ jobs:
         # durable surface, the failed run is the notification.
         run: |
           echo "::error::check-baseline-drift.js exited ${{ steps.drift.outputs.code }} — see the tracking issue and the baseline-drift-report artifact."
+          exit 1
+
+  ruleset-drift:
+    # Story #5866: `.github/ruleset.json` is a snapshot, not enforcement. A
+    # context added to CI and to the snapshot but never to the live ruleset
+    # stops gating merges with no signal anywhere, so diff the two nightly and
+    # file the same kind of reusable tracking issue as the job above.
+    name: Required-check ruleset drift
+    runs-on: ubuntu-latest
+    # One `gh api` call plus checkout and `npm ci`; 10 is the
+    # workflow-timeout gate's floor.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
+
+      - name: Compare the snapshot with the live main rules
+        id: drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          code=0
+          node scripts/check-ruleset-drift.js 2>&1 | tee ruleset-drift.txt || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: File or update the ruleset drift tracking issue
+        if: steps.drift.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Same label-keyed lookup as the baseline issue above, for the same
+        # search-index-lag reason.
+        run: |
+          set -euo pipefail
+          gh label create meta::ruleset-drift --force \
+            --color 'B60205' \
+            --description 'Live required status checks differ from .github/ruleset.json'
+
+          {
+            echo "The required status checks on \`main\` no longer match \`.github/ruleset.json\`."
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            echo '```'
+            cat ruleset-drift.txt
+            echo '```'
+            echo
+            echo "Re-apply the snapshot to the live ruleset, or update the snapshot to match the intended required set."
+          } > issue-body.md
+
+          existing="$(gh issue list --label meta::ruleset-drift --state open \
+            --limit 1 --json number --jq '.[0].number // empty')"
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file issue-body.md
+            echo "Updated existing ruleset drift issue #$existing"
+          else
+            gh issue create \
+              --title 'Ruleset drift: live required checks differ from .github/ruleset.json' \
+              --label meta::ruleset-drift \
+              --body-file issue-body.md
+          fi
+
+      - name: Close the ruleset drift tracking issue
+        if: steps.drift.outputs.code == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing="$(gh issue list --label meta::ruleset-drift --state open \
+            --limit 1 --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" \
+              --comment 'The live required checks match .github/ruleset.json again. Closing automatically.'
+          fi
+
+      - name: Fail on drift
+        if: steps.drift.outputs.code != '0'
+        run: |
+          echo "::error::check-ruleset-drift.js exited ${{ steps.drift.outputs.code }} — see the tracking issue."
           exit 1
