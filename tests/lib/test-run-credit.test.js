@@ -188,6 +188,15 @@ describe('reportTestRunCredit', () => {
     assert.equal(no.deposited, false);
     assert.match(lines[1], /no close test credit deposited \(run-not-green\)/);
   });
+
+  test('defaults its log to stderr', (t) => {
+    const writes = t.mock.method(process.stderr, 'write', () => true);
+    reportTestRunCredit({ cwd: '/x', status: 2, gitSpawnFn: gitFor() });
+    assert.match(
+      String(writes.mock.calls[0].arguments[0]),
+      /no close test credit deposited \(run-not-green\)/,
+    );
+  });
 });
 
 describe('predictsTestEvidenceCredit — the read side close consults', () => {
