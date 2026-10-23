@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildPullRequestFields } from '../normalize-pr-title.js';
+import { liftTrailers } from '../pr-body-trailers.js';
 
 const NUL = String.fromCharCode(0);
 
@@ -27,7 +28,13 @@ function gitLog(messages) {
 }
 
 /** Build fields for `storyTitle` against a canned branch history. */
-function build({ storyTitle, storyId = 4321, storyBody = '', messages = [] }) {
+function build({
+  storyTitle,
+  storyId = 4321,
+  storyBody = '',
+  messages = [],
+  trailerKeys,
+}) {
   return buildPullRequestFields({
     storyTitle,
     storyId,
@@ -36,6 +43,9 @@ function build({ storyTitle, storyId = 4321, storyBody = '', messages = [] }) {
     baseBranch: 'main',
     cwd: '/repo',
     gitSpawn: gitLog(messages),
+    config: trailerKeys && {
+      delivery: { pullRequest: { bodyTrailers: trailerKeys } },
+    },
   });
 }
 
@@ -161,6 +171,83 @@ test('the BREAKING CHANGE footer goes last', () => {
     body.split('\n').at(-1),
     'BREAKING CHANGE: delete `project.commands.lintBaseline`.',
   );
+});
+
+// ---------------------------------------------------------------------------
+// Lifted trailers (Story #5875)
+// ---------------------------------------------------------------------------
+
+test('a declared trailer is lifted after the marker', () => {
+  const { body } = build({
+    storyTitle: 'Tidy up',
+    storyId: 5004,
+    trailerKeys: ['Policy-impact'],
+    messages: [
+      'fix(cart): tidy (refs #5004)\n\nPolicy-impact: none — cart-only edit',
+    ],
+  });
+  assert.equal(
+    body,
+    'Closes #5004\n\n_Auto-opened by `/mandrel-deliver`._\n\nPolicy-impact: none — cart-only edit',
+  );
+});
+
+test('the BREAKING CHANGE footer still goes after a lifted trailer', () => {
+  const { body } = build({
+    storyTitle: 'Tidy up',
+    storyId: 5004,
+    trailerKeys: ['Policy-impact'],
+    storyBody: 'BREAKING CHANGE: drop v1.',
+    messages: ['fix: tidy\n\nPolicy-impact: none — cart-only edit'],
+  });
+  const lines = body.split('\n');
+  assert.equal(lines.at(-1), 'BREAKING CHANGE: drop v1.');
+  assert.equal(lines.at(-3), 'Policy-impact: none — cart-only edit');
+});
+
+test('the last commit carrying a declared trailer wins, matched case-insensitively', () => {
+  const { body } = build({
+    storyTitle: 'Tidy up',
+    trailerKeys: ['Policy-impact'],
+    messages: [
+      'fix: first\n\nPolicy-impact: high — older',
+      'fix: second\n\npolicy-impact:   none — newer  ',
+      'docs: third, no trailer',
+      'docs: prose only\n\nThis paragraph mentions Policy-impact: nothing\nbut is prose.\n\nMore prose.',
+    ],
+  });
+  assert.equal(body.split('\n').at(-1), 'Policy-impact: none — newer');
+});
+
+test('a declared key no commit carries appends nothing and logs one info line', () => {
+  const infos = [];
+  const lines = liftTrailers({
+    commitMessages: [
+      'fix: tidy',
+      'Policy-impact: a subject line is not a trailer',
+    ],
+    config: { delivery: { pullRequest: { bodyTrailers: ['Policy-impact'] } } },
+    logger: { info: (msg) => infos.push(msg) },
+  });
+  assert.deepEqual(lines, []);
+  assert.equal(infos.length, 1);
+  assert.match(infos[0], /\[normalize-pr-title\].*"Policy-impact"/);
+  const { body } = build({
+    storyTitle: 'Tidy up',
+    storyId: 5004,
+    trailerKeys: ['Policy-impact'],
+    messages: ['fix: tidy'],
+  });
+  assert.equal(body, 'Closes #5004\n\n_Auto-opened by `/mandrel-deliver`._');
+});
+
+test('no declared keys leaves the body byte-identical even when trailers exist', () => {
+  const { body } = build({
+    storyTitle: 'Tidy up',
+    storyId: 5004,
+    messages: ['fix: tidy\n\nPolicy-impact: none'],
+  });
+  assert.equal(body, 'Closes #5004\n\n_Auto-opened by `/mandrel-deliver`._');
 });
 
 // ---------------------------------------------------------------------------

@@ -14,6 +14,7 @@ import {
   pickDominantType,
   shapeDescription,
 } from './conventional-subject.js';
+import { liftTrailers } from './pr-body-trailers.js';
 
 const DEFAULT_CONVENTIONAL_TYPE = 'chore';
 
@@ -116,17 +117,20 @@ function synthesizeSubject({ description, storyId, commitMessages }) {
 }
 
 /**
- * `Closes #<id>` auto-closes the Story; a breaking footer goes LAST, per the
- * spec, for repos that squash with the PR body.
+ * `Closes #<id>` auto-closes the Story; lifted trailers follow the marker and
+ * a breaking footer goes LAST, per the spec, for repos that squash with the
+ * PR body.
  *
- * @param {{ storyId: number|string, breakingNotes?: string[] }} args
+ * @param {{ storyId: number|string, breakingNotes?: string[],
+ *   trailerBlock?: string[] }} args
  * @returns {string}
  */
-function buildPrBody({ storyId, breakingNotes }) {
+function buildPrBody({ storyId, breakingNotes, trailerBlock = [] }) {
   const lines = [
     `Closes #${storyId}`,
     '',
     '_Auto-opened by `/mandrel-deliver`._',
+    ...trailerBlock,
   ];
   if (breakingNotes.length > 0) {
     lines.push('', `BREAKING CHANGE: ${breakingNotes.join(' ')}`);
@@ -135,12 +139,24 @@ function buildPrBody({ storyId, breakingNotes }) {
 }
 
 /**
+ * @param {string[]} breakingNotes
+ * @param {(tag: string, msg: string) => void} progress
+ */
+function announceBreaking(breakingNotes, progress) {
+  progress(
+    'PR',
+    '⚠️  Breaking change declared — the PR title carries `!` and the body a ' +
+      `BREAKING CHANGE footer: ${breakingNotes.join(' ') || '(no note text)'}`,
+  );
+}
+
+/**
  * A declared break is announced on progress so an unexpected `!` is seen
  * during the close, not in the release notes.
  *
  * @param {{ storyTitle: string, storyId: number|string, storyBody?: string,
  *   storyBranch: string, baseBranch: string, cwd?: string,
- *   gitSpawn?: typeof defaultGitSpawn,
+ *   gitSpawn?: typeof defaultGitSpawn, config?: object,
  *   progress?: (tag: string, msg: string) => void }} args
  * @returns {{ title: string, body: string, breaking: boolean, breakingNotes: string[] }}
  */
@@ -152,6 +168,7 @@ export function buildPullRequestFields({
   baseBranch,
   cwd = process.cwd(),
   gitSpawn = defaultGitSpawn,
+  config,
   progress = () => {},
 }) {
   const commitMessages = readBranchCommits({
@@ -166,16 +183,14 @@ export function buildPullRequestFields({
     commitMessages,
     storyBody,
   });
-  if (breaking) {
-    progress(
-      'PR',
-      '⚠️  Breaking change declared — the PR title carries `!` and the body a ' +
-        `BREAKING CHANGE footer: ${breakingNotes.join(' ') || '(no note text)'}`,
-    );
-  }
+  if (breaking) announceBreaking(breakingNotes, progress);
   return {
     title,
-    body: buildPrBody({ storyId, breakingNotes }),
+    body: buildPrBody({
+      storyId,
+      breakingNotes,
+      trailerBlock: liftTrailers({ commitMessages, config }),
+    }),
     breaking,
     breakingNotes,
   };

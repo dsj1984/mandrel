@@ -98,7 +98,11 @@ Conventional Commit subjects on `story-<storyId>` per
 chars, `(refs #<storyId>)`. Never bypass a hook (`--no-verify` /
 `--no-gpg-sign`); if one fails, fix the cause in a follow-up commit, never
 amend. Docs are digest-first: read the digest your caller passes and pull
-files on demand; a null digest path means no docs mandate.
+files on demand; a null digest path means no docs mandate. When the
+consumer declares `delivery.pullRequest.bodyTrailers`, record each required
+declaration as a git trailer on a branch commit
+(`git commit --trailer 'Key: value'`): close lifts the last one into the PR
+body, and you never edit a PR.
 
 ## Acceptance self-eval (MUST)
 
