@@ -9,6 +9,10 @@ import {
 } from './config/agent-models.js';
 import { CI_DELIVERY_DEFAULTS } from './config/ci.js';
 import { DELIVERY_ROUTING_DEFAULTS } from './config/delivery-routing.js';
+import {
+  PULL_REQUEST_DELIVERY_DEFAULTS,
+  TRAILER_KEY_PATTERN,
+} from './config/pull-request.js';
 import { DEFAULT_CODE_REVIEW } from './config/runners.js';
 import { WORKTREE_ISOLATION_DEFAULTS } from './config/worktree-isolation.js';
 import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
@@ -280,6 +284,23 @@ const CI_DELIVERY_SCHEMA = {
   additionalProperties: false,
 };
 
+const PULL_REQUEST_DELIVERY_SCHEMA = {
+  type: 'object',
+  description:
+    'Story #5875. What close writes into the pull request it opens, beyond the title and the `Closes #<id>` line.',
+  properties: {
+    bodyTrailers: {
+      type: 'array',
+      items: { type: 'string', pattern: TRAILER_KEY_PATTERN },
+      uniqueItems: true,
+      description:
+        'Story #5875. Git-trailer keys close lifts from the Story branch commits into the PR body, for a consumer whose required check reads a body line (e.g. `Policy-impact`). For each key the last branch commit carrying `<Key>: <value>` as a trailer wins, and the line is appended after the auto-opened marker and before any `BREAKING CHANGE:` footer. A key no commit carries appends nothing and logs one info line. Workers record the value with `git commit --trailer`. Default [] leaves the body unchanged.',
+      default: [...PULL_REQUEST_DELIVERY_DEFAULTS.bodyTrailers],
+    },
+  },
+  additionalProperties: false,
+};
+
 const REFACTOR_STAGE_SCHEMA = {
   type: 'object',
   description:
@@ -412,6 +433,7 @@ export const DELIVERY_SCHEMA = {
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
     feedbackLoop: FEEDBACK_LOOP_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
+    pullRequest: PULL_REQUEST_DELIVERY_SCHEMA,
     routing: ROUTING_SCHEMA,
   },
   additionalProperties: false,

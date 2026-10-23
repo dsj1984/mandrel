@@ -29,6 +29,7 @@ export async function openAndReviewPr(ctx, deps) {
     storyBody: story.body,
     storyBranch,
     baseBranch,
+    config: deps.config,
     gh: deps.gh,
     progress,
   });

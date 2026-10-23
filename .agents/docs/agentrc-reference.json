@@ -249,6 +249,9 @@
       "advisoryAllowlist": [],
       "rerunAdvisory": 0
     },
+    "pullRequest": {
+      "bodyTrailers": []
+    },
     "routing": {
       "roleScopedAgents": true,
       "ceremonyProfile": "standard",

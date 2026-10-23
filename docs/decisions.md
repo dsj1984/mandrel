@@ -792,6 +792,15 @@ removal rule above were run again, unchanged.
 **Go-forward ceiling: 140**, the measured count, with no slack above it. The
 raise-and-record rule is unchanged.
 
+**Raised to 141 (2026-10-23, Story #5875)** for
+`delivery.pullRequest.bodyTrailers`. A consumer whose required check reads a
+line from the pull-request body (swarm-os's `Policy-impact:`) had its PRs sit
+disarmed until a human edited the body, because close wrote only `Closes #<id>`
+and the auto-opened marker. Which body lines a project's own CI demands is a
+fact about that project's workflows; no tool config, manifest or existing key
+holds it, and the values themselves are not configured but lifted from the
+branch commits' git trailers, so the key names only which trailers to lift.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,
