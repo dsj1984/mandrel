@@ -1484,6 +1484,42 @@ describe('resolveMergeWaitConfig / resolveBudgetAnchorMs', () => {
 });
 
 describe('readPrWaitProbe — one probe carries every field the loop needs', () => {
+  it('Story #5876: carries each check’s state by name, a repeated name keeping its worst', async () => {
+    const probe = await readPrWaitProbe({
+      prNumber: 99,
+      gh: {
+        pr: {
+          view: async () => ({
+            state: 'OPEN',
+            statusCheckRollup: [
+              { name: 'validate', status: 'COMPLETED', conclusion: 'SUCCESS' },
+              {
+                name: 'policy-impact',
+                status: 'COMPLETED',
+                conclusion: 'FAILURE',
+              },
+              {
+                name: 'policy-impact',
+                status: 'COMPLETED',
+                conclusion: 'SUCCESS',
+              },
+              { name: 'docs', status: 'IN_PROGRESS' },
+              { context: 'legacy/status', state: 'SUCCESS' },
+              { status: 'COMPLETED', conclusion: 'SUCCESS' },
+            ],
+          }),
+        },
+      },
+      readRequiredCheckNamesFn: async () => null,
+    });
+    assert.deepEqual(probe.checkStates, {
+      validate: 'success',
+      'policy-impact': 'failure',
+      docs: 'pending',
+      'legacy/status': 'success',
+    });
+  });
+
   it('asks for the merge state, the checks rollup, and the budget anchor in one call', async () => {
     let fields = null;
     const probe = await readPrWaitProbe({
@@ -3226,7 +3262,7 @@ describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #54
     }
   });
 
-  it('an advisory-gate block writes no CI digest', async () => {
+  it('an advisory-gate block writes an advisory CI digest and names the disarming check', async () => {
     const tempRoot = makeTempDir('mandrel-5405-');
     try {
       let recorded = 0;
@@ -3249,10 +3285,19 @@ describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #54
       });
       const outcome = await runConfirmMergePhase(ctx.args);
       assert.equal(outcome.blockClass, 'advisory-gate-red');
-      assert.equal(recorded, 0);
-      assert.equal(
-        readCiDigest({ storyId: STORY, tempRoot, cwd: tempRoot }),
-        null,
+      assert.equal(recorded, 1);
+      const digest = readCiDigest({ storyId: STORY, tempRoot, cwd: tempRoot });
+      assert.deepEqual(digest.allFailures, [
+        { name: 'Bundle-size ratchet', outcome: 'failure', required: false },
+      ]);
+      assert.match(
+        outcome.reason,
+        /Disarming check\(s\): Bundle-size ratchet=failure\./,
+      );
+      const friction = ctx.provider._comments()[0].payload.body;
+      assert.match(
+        friction,
+        /\*\*Disarming check\(s\):\*\* `Bundle-size ratchet`=failure\./,
       );
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });

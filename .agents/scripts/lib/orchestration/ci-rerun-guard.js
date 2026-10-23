@@ -256,11 +256,22 @@ function carryPriorReds(previous, headSha) {
   return history.slice(-MAX_PRIOR_REDS);
 }
 
+/** `required` unless the entry says `required: false` — an old digest is never advisory. */
+function isRequiredFailure(failure) {
+  return failure?.required !== false;
+}
+
+/** `name`=outcome plus whether the check is required or advisory. */
+function describeFailure(failure) {
+  const kind = isRequiredFailure(failure) ? 'required' : 'advisory';
+  return `\`${failure.name}\`=${failure.outcome} (${kind})`;
+}
+
 function renderDigestMarkdown(digest, failures) {
   return [
     `# CI failure digest — Story #${digest.storyId} (PR #${digest.prNumber})`,
     '',
-    `- **Failing check:** \`${digest.failingCheck}\` (${digest.failingOutcome})`,
+    `- **Failing check:** ${describeFailure(failures[0] ?? { name: digest.failingCheck, outcome: digest.failingOutcome })}`,
     `- **Head SHA:** ${digest.headSha ?? 'unresolved'}`,
     `- **Run id:** ${digest.runId ?? 'unresolved'}`,
     `- **Run link:** ${digest.runUrl ?? 'unresolved'}`,
@@ -270,7 +281,7 @@ function renderDigestMarkdown(digest, failures) {
     failures.length > 1
       ? `Other non-green checks: ${failures
           .slice(1)
-          .map((f) => `\`${f.name}\`=${f.outcome}`)
+          .map(describeFailure)
           .join(', ')}`
       : '',
     digest.priorReds.length > 0
@@ -301,7 +312,8 @@ function renderDigestMarkdown(digest, failures) {
  * @param {number|string|null} [opts.storyId] The v2 delivery scope.
  * @param {number} opts.prNumber
  * @param {string|null} [opts.headSha] PR head SHA at the moment of the red.
- * @param {Array<{name:string, outcome:string}>} opts.failures
+ * @param {Array<{name:string, outcome:string, required?:boolean}>} opts.failures
+ *   `required` is recorded per entry; anything but `false` is stored as `true`.
  * @param {string} opts.tempRoot
  * @param {string} opts.cwd
  * @param {string} opts.prRef
@@ -324,7 +336,15 @@ export function writeCiDigest({
 }) {
   const paths = ciDigestPaths({ storyId, tempRoot, cwd });
   if (!paths) return null;
-  const primary = failures[0] ?? { name: 'unknown', outcome: 'failure' };
+  const recorded = failures.map((f) => ({
+    ...f,
+    required: isRequiredFailure(f),
+  }));
+  const primary = recorded[0] ?? {
+    name: 'unknown',
+    outcome: 'failure',
+    required: true,
+  };
   const checkRun =
     checkRunFn({ prRef, checkName: primary.name, cwd, spawnFn }) ?? {};
   const logTail = logTailFn({ runId: checkRun.runId, cwd, spawnFn });
@@ -344,13 +364,13 @@ export function writeCiDigest({
       url: checkRun.url ?? null,
     },
     classification: classifyFailure(primary.name),
-    allFailures: failures,
+    allFailures: recorded,
     priorReds: carryPriorReds(previous, headSha),
     logTail,
     generatedAt: new Date().toISOString(),
   };
   writeFileAtomic(paths.jsonPath, `${JSON.stringify(digest, null, 2)}\n`);
-  writeFileAtomic(paths.mdPath, renderDigestMarkdown(digest, failures));
+  writeFileAtomic(paths.mdPath, renderDigestMarkdown(digest, recorded));
   return { jsonPath: paths.jsonPath, mdPath: paths.mdPath };
 }
 
@@ -412,12 +432,63 @@ function allowanceFor(digest, headSha) {
 }
 
 /**
- * Adjudicate an all-green watch against the scope's digest (see header).
+ * The digest's failures when every one is advisory and `checks` reads each
+ * `success` on this head; `null` otherwise (a required, still-red or unread
+ * check keeps the no-rerun guard).
  *
- * @param {{ digest: object|null, headSha: string|null }} opts
- * @returns {{ verdict: 'clean'|'fix-at-source'|'rerun-permitted'|'rerun'|'unverifiable', reason: string }}
+ * @param {object} digest
+ * @param {Record<string, string>|null|undefined} checks
+ * @returns {Array<{ name: string, outcome: string }>|null}
  */
-export function classifyGreenVerdict({ digest, headSha }) {
+function clearedAdvisoryFailures(digest, checks) {
+  const failures = digest.allFailures;
+  if (!Array.isArray(failures) || failures.length === 0) return null;
+  if (!checks || typeof checks !== 'object') return null;
+  const cleared = failures.every(
+    (f) => !isRequiredFailure(f) && checks[f?.name] === 'success',
+  );
+  return cleared ? failures : null;
+}
+
+/**
+ * A green on the head the red was recorded against: `advisory-cleared`, the
+ * allowance's one rerun, or a forbidden rerun.
+ *
+ * @returns {{ verdict: string, reason: string }}
+ */
+function sameHeadVerdict(digest, headSha, checks) {
+  const cleared = clearedAdvisoryFailures(digest, checks);
+  if (cleared) {
+    return {
+      verdict: 'advisory-cleared',
+      reason: `advisory check(s) ${cleared.map((f) => `\`${f.name}\``).join(', ')} now green on head ${headSha}`,
+    };
+  }
+  // Not cleared: an advisory red still red keeps the required-red rule.
+  const allowance = allowanceFor(digest, headSha);
+  return isRerunPermitted({
+    required: true,
+    allowanceRecorded: allowance !== null,
+  })
+    ? {
+        verdict: 'rerun-permitted',
+        reason: `one rerun admitted: \`${allowance.verdict}\` verdict recorded for this head SHA (${headSha})`,
+      }
+    : {
+        verdict: 'rerun',
+        reason: `green on the SAME head SHA the red was recorded against (${headSha})`,
+      };
+}
+
+/**
+ * Adjudicate an all-green watch against the scope's digest (see header).
+ * `checks` — the probe's per-check states (`name → success|failure|pending`)
+ * for the current head — admits `advisory-cleared`.
+ *
+ * @param {{ digest: object|null, headSha: string|null, checks?: Record<string, string>|null }} opts
+ * @returns {{ verdict: 'clean'|'fix-at-source'|'rerun-permitted'|'rerun'|'unverifiable'|'advisory-cleared', reason: string }}
+ */
+export function classifyGreenVerdict({ digest, headSha, checks }) {
   if (!digest) return { verdict: 'clean', reason: 'no digest for this scope' };
   const recorded = digest.headSha ?? null;
   if (!recorded || !headSha) {
@@ -426,22 +497,7 @@ export function classifyGreenVerdict({ digest, headSha }) {
       reason: `cannot prove the red was fixed at source (digest head=${recorded ?? 'unknown'}, current head=${headSha ?? 'unresolved'})`,
     };
   }
-  if (recorded === headSha) {
-    // Digests only record required checks.
-    const allowance = allowanceFor(digest, headSha);
-    return isRerunPermitted({
-      required: true,
-      allowanceRecorded: allowance !== null,
-    })
-      ? {
-          verdict: 'rerun-permitted',
-          reason: `one rerun admitted: \`${allowance.verdict}\` verdict recorded for this head SHA (${headSha})`,
-        }
-      : {
-          verdict: 'rerun',
-          reason: `green on the SAME head SHA the red was recorded against (${headSha})`,
-        };
-  }
+  if (recorded === headSha) return sameHeadVerdict(digest, headSha, checks);
   return {
     verdict: 'fix-at-source',
     reason: `head SHA moved ${recorded} → ${headSha}`,

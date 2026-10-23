@@ -53,6 +53,20 @@ function probeEmptyDiff({ cwd, baseBranch, storyBranch, computeChangeSet }) {
 }
 
 /**
+ * @param {{ storyBranch: string, baseRef: string, storyId: number }} args
+ * @returns {Error}
+ */
+function emptyDiffError({ storyBranch, baseRef, storyId }) {
+  return new Error(
+    `[single-story-close] refusing to open a pull request for ${storyBranch}: ` +
+      `the head-versus-base diff (${baseRef}...${storyBranch}) contains no files. ` +
+      'An empty diff has nothing to merge, and a PR opened on it can only squash an empty ' +
+      'commit onto the base branch. If the work already landed, confirm the merge instead: ' +
+      `node .agents/scripts/single-story-confirm-merge.js --story ${storyId}`,
+  );
+}
+
+/**
  * @param {{
  *   cwd: string,
  *   storyId: number,
@@ -60,6 +74,7 @@ function probeEmptyDiff({ cwd, baseBranch, storyBranch, computeChangeSet }) {
  *   storyBody?: string,
  *   storyBranch: string,
  *   baseBranch: string,
+ *   config?: object,
  *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   computeChangeSetFn?: typeof defaultComputeChangeSet,
  *   progress?: (tag: string, msg: string) => void,
@@ -73,6 +88,7 @@ export async function ensurePullRequestWith({
   storyBody = '',
   storyBranch,
   baseBranch,
+  config,
   gh = defaultGh,
   computeChangeSetFn = defaultComputeChangeSet,
   progress = () => {},
@@ -110,13 +126,7 @@ export async function ensurePullRequestWith({
     computeChangeSet: computeChangeSetFn,
   });
   if (emptyDiff.empty) {
-    throw new Error(
-      `[single-story-close] refusing to open a pull request for ${storyBranch}: ` +
-        `the head-versus-base diff (${emptyDiff.baseRef}...${storyBranch}) contains no files. ` +
-        'An empty diff has nothing to merge, and a PR opened on it can only squash an empty ' +
-        'commit onto the base branch. If the work already landed, confirm the merge instead: ' +
-        `node .agents/scripts/single-story-confirm-merge.js --story ${storyId}`,
-    );
+    throw emptyDiffError({ storyBranch, baseRef: emptyDiff.baseRef, storyId });
   }
 
   progress('PR', `Opening PR for ${storyBranch} → ${baseBranch}...`);
@@ -127,6 +137,7 @@ export async function ensurePullRequestWith({
     storyBranch,
     baseBranch,
     cwd: _cwd ?? process.cwd(),
+    config,
     progress,
   });
   try {
