@@ -239,6 +239,14 @@ spec decision, a swallowed error on a real failure path) is a 🔴.
   `Failure witness:` line records a mutant it was seen to fail against, its
   generator cannot reach the inputs the stated invariant constrains, or its
   assertion would hold for any implementation.
+- **Null-implementation tests** — a new or changed example test, at any tier,
+  that would still pass with the unit under test stubbed to return
+  `undefined`: it asserts only that the call did not throw; asserts on a
+  value the test itself built, or that a mock returned, rather than one the
+  code computed; asserts only that a mock was called when the caller-visible
+  outcome is observable; or makes a truthiness or type check any
+  non-throwing call satisfies. It is the test-side counterpart of **Stub
+  returns**.
 
 For every hit, name the file and line, the taxonomy category, and *why the
 code — not the check — should have changed*. A finding here is legitimate only
