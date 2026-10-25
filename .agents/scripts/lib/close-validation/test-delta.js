@@ -5,7 +5,7 @@
  */
 
 import { getChangedFiles } from '../changed-files.js';
-import { deltaIneligibility } from '../coverage-capture-delta.js';
+import { closeDeltaIneligibility } from '../coverage-capture-delta.js';
 import { hasTestCreditAt } from '../test-run-credit.js';
 import { resolveTestGateArgv } from './commands.js';
 
@@ -46,13 +46,18 @@ function testDeltaIneligibility({
   credited,
   incoming,
   storyFiles,
+  config,
 }) {
   if (testChanged.disabled) return 'no `project.commands.testChanged`';
   if (captureRuns) return 'coverage-capture runs the suite';
   if (!credited()) return 'no `test` credit for the pre-sync head';
   const files = storyFiles();
   if (!files) return 'Story change set unreadable';
-  return deltaIneligibility({ delta: incoming, storyFiles: files });
+  return closeDeltaIneligibility({
+    delta: incoming,
+    storyFiles: files,
+    config,
+  });
 }
 
 /** The Story's own change set against the synced base, or `null`. */
@@ -107,6 +112,7 @@ export function applyTestDelta(
       }),
     incoming,
     storyFiles: () => readStoryFiles({ cwd, baseBranch, getChangedFilesImpl }),
+    config,
   });
   if (reason) {
     log?.(

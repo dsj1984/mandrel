@@ -89,7 +89,7 @@ const COMMANDS_SCHEMA = {
     testChanged: {
       ...NULLABLE_NONEMPTY_SAFE_STRING,
       description:
-        "Optional changed-tests command for the delta re-credit: when close's base sync merged sibling landings into a branch whose pre-sync head holds `test` credit, close's `test` gate runs this instead of the full suite, with the credited commit in the `MANDREL_CHANGED_SINCE` environment variable and in place of a literal `$MANDREL_CHANGED_SINCE` argument (e.g. `pnpm vitest run --changed $MANDREL_CHANGED_SINCE`; no shell runs it), and a green run re-credits the merged tree. Ineligible when coverage-capture runs the suite, an incoming path is a coverage-config file or one of the Story's own files. Absent or `null` keeps the full re-run.",
+        "Optional changed-tests command for the delta re-credit: when close's base sync merged sibling landings into a branch whose pre-sync head holds `test` credit, close's `test` gate runs this instead of the full suite, with the credited commit in the `MANDREL_CHANGED_SINCE` environment variable and in place of a literal `$MANDREL_CHANGED_SINCE` argument (e.g. `pnpm vitest run --changed $MANDREL_CHANGED_SINCE`; no shell runs it), and a green run re-credits the merged tree. Ineligible when coverage-capture runs the suite, an incoming path is a coverage-config file or one of the Story's own files, or no incoming path is a suite input. The overlap rule ignores baseline (`baselines/`) and coverage-directory paths. Absent or `null` keeps the full re-run.",
     },
     typecheck: {
       ...NULLABLE_NONEMPTY_SAFE_STRING,

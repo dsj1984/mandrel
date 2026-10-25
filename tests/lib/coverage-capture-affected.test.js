@@ -225,7 +225,7 @@ describe('tryScopedCapture — capture', () => {
     h.opts.classifyDeltaRefreshImpl = () => ({
       eligible: true,
       commit: 'c'.repeat(40),
-      delta: ['src/b.js'],
+      rule: { reason: null, delta: ['src/b.js'], dropped: 0 },
       stamp: { digest: 'd0', scope: 'affected' },
     });
     assert.equal(await tryScopedCapture(h.opts), 0);

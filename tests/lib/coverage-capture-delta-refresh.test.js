@@ -13,7 +13,7 @@ import {
 } from '../../.agents/scripts/lib/coverage-capture.js';
 import { tryScopedCapture } from '../../.agents/scripts/lib/coverage-capture-affected.js';
 import {
-  deltaIneligibility,
+  closeDeltaIneligibility,
   formatFreshnessDetail,
   isCoverageConfigFile,
 } from '../../.agents/scripts/lib/coverage-capture-delta.js';
@@ -48,6 +48,7 @@ const SHARED_LINES = Array.from(
 );
 
 const UNRELATED = { 'src/b.js': 'export const b = 2;\n' };
+const BASELINE = { 'baselines/coverage.json': '{"main":1}\n' };
 const SHARED_ON_MAIN = [...SHARED_LINES];
 SHARED_ON_MAIN[11] = 'export const v11 = "main";';
 const CONFIGS = [
@@ -59,7 +60,11 @@ const CONFIGS = [
 /** Each base-sync's main-side commit, prebuilt once on a `sync/<name>` branch. */
 const SYNCS = {
   unrelated: UNRELATED,
-  shared: { 'src/shared.js': `${SHARED_ON_MAIN.join('\n')}\n` },
+  shared: { ...BASELINE, 'src/shared.js': `${SHARED_ON_MAIN.join('\n')}\n` },
+  // Story #5903: suite input outside targetDirs; baseline-only; mixed.
+  script: { 'scripts/tool.js': 'export const t = 1;\n' },
+  baseline: BASELINE,
+  mixed: { ...UNRELATED, ...BASELINE },
   ...Object.fromEntries(
     CONFIGS.map((config) => [config, { ...UNRELATED, [config]: '{}\n' }]),
   ),
@@ -234,6 +239,44 @@ describe('delta refresh after a base-sync (captureScope: affected)', () => {
   });
 });
 
+// Story #5903 — the planner shares the probe's staleness and suite-input overlap.
+describe('delta refresh sees what the freshness probe sees (Story #5903)', () => {
+  it('AC-1: tree-digest-only staleness plans a delta refresh on the stamped commit', async () => {
+    const repo = fixtureRepo({ captured: true });
+    const stamped = repo.readStamp().commit;
+    repo.baseSync('script');
+    const second = await capture(repo.dir);
+    assert.equal(second.calls.length, 1);
+    assert.equal(second.calls[0].env[BASE_REF_ENV], stamped);
+    assert.doesNotMatch(second.log, /not stale by digest/);
+    assert.equal(freshAffected(repo.dir), true);
+  });
+
+  it('AC-3: a stale stamp over a non-suite-input delta restamps without a run', async () => {
+    const repo = fixtureRepo({ captured: true });
+    repo.editStamp((stamp) => ({ ...stamp, treeDigest: 'f'.repeat(64) }));
+    repo.baseSync('baseline');
+    assert.equal(freshAffected(repo.dir), false);
+    const second = await capture(repo.dir);
+    assert.equal(second.result, 0);
+    assert.equal(second.calls.length, 0);
+    assert.match(second.log, /1 non-suite-input path\(s\) dropped/);
+    assert.equal(freshAffected(repo.dir), true);
+    assert.equal(repo.readStamp().commit, repo.git('rev-parse', 'HEAD'));
+  });
+
+  it('AC-5: the delta-refresh line reports the filtered count and the dropped paths', async () => {
+    const repo = fixtureRepo({ captured: true });
+    repo.baseSync('mixed');
+    const second = await capture(repo.dir);
+    assert.equal(second.calls.length, 1);
+    assert.match(
+      second.log,
+      /re-measuring 1 file\(s\) changed since \w{12}, 1 non-suite-input path\(s\) dropped\..*delta: 1 file\(s\)\)/,
+    );
+  });
+});
+
 describe('delta refresh eligibility falls back to today’s capture (AC-3)', () => {
   async function assertFallback(repo, reason) {
     const second = await capture(repo.dir);
@@ -247,7 +290,10 @@ describe('delta refresh eligibility falls back to today’s capture (AC-3)', () 
   it('the delta shares a path with the Story change set', async () => {
     const repo = fixtureRepo({ captured: true });
     repo.baseSync('shared');
-    await assertFallback(repo, /shares src\/shared\.js/);
+    await assertFallback(
+      repo,
+      /shares src\/shared\.js with the Story's change set; delta: 1 file\(s\), 1 non-suite-input path\(s\) dropped\)/,
+    );
   });
 
   for (const config of CONFIGS) {
@@ -364,38 +410,72 @@ describe('delta-refresh helpers', () => {
 
 // Story #5880 — close's `test` delta re-credit shares these rules.
 describe('deltaIneligibility — the rules shared with close (Story #5880)', () => {
+  const rule = (delta, storyFiles) =>
+    closeDeltaIneligibility({ delta, storyFiles, config: {} });
+
   it('names a path shared with the Story change set', () => {
-    assert.match(
-      deltaIneligibility({ delta: ['src/a.js'], storyFiles: ['src/a.js'] }),
-      /shares src\/a\.js/,
+    assert.equal(
+      rule(['src/a.js'], ['src/a.js']),
+      "delta shares src/a.js with the Story's change set",
     );
   });
 
   it('names a coverage-determining config file', () => {
     assert.match(
-      deltaIneligibility({ delta: ['pnpm-lock.yaml'], storyFiles: [] }),
+      rule(['pnpm-lock.yaml'], []),
       /coverage-determining config pnpm-lock\.yaml/,
     );
   });
 
   it('passes a disjoint, config-free delta', () => {
+    assert.equal(rule(['src/b.js'], ['src/a.js']), null);
+  });
+
+  it('AC-2: shared baseline and coverage-directory paths are not overlap', () => {
+    const shared = ['baselines/coverage.json', 'coverage/lcov.info'];
+    assert.equal(rule([...shared, 'src/b.js'], [...shared, 'src/a.js']), null);
+  });
+
+  it('names a delta with no suite-input path', () => {
     assert.equal(
-      deltaIneligibility({ delta: ['src/b.js'], storyFiles: ['src/a.js'] }),
-      null,
+      rule(['baselines/crap.json'], []),
+      'delta has no suite-input path',
     );
   });
 
-  it("close's test delta imports the exported rules, not a copy", () => {
-    const source = fs.readFileSync(
-      new URL(
-        '../../.agents/scripts/lib/close-validation/test-delta.js',
-        import.meta.url,
-      ),
-      'utf8',
-    );
+  it("AC-4: close's test delta and coverage-capture import the one rule, not a copy", () => {
+    const read = (rel) =>
+      fs.readFileSync(
+        new URL(`../../.agents/scripts/lib/${rel}`, import.meta.url),
+        'utf8',
+      );
     assert.match(
-      source,
-      /import \{ deltaIneligibility \} from '\.\.\/coverage-capture-delta\.js';/,
+      read('close-validation/test-delta.js'),
+      /import \{ closeDeltaIneligibility \} from '\.\.\/coverage-capture-delta\.js';/,
+    );
+    const capture = read('coverage-capture-delta.js');
+    // Close's entry point and the capture planner both call the shared rule.
+    assert.match(
+      capture,
+      /export function closeDeltaIneligibility[\s\S]*?return deltaIneligibility\(\{ delta, storyFiles, coveragePath \}\)\.reason;/,
+    );
+    assert.match(capture, /const rule = deltaIneligibility\(\{/);
+    assert.match(capture, /filterSuiteInputPaths\(delta, coveragePath\)/);
+  });
+
+  it('closeDeltaIneligibility keys the rule on the configured coverage path', () => {
+    const config = {
+      delivery: {
+        quality: { gates: { crap: { coveragePath: 'cov/out.json' } } },
+      },
+    };
+    assert.equal(
+      closeDeltaIneligibility({
+        delta: ['cov/lcov.info', 'baselines/crap.json'],
+        storyFiles: [],
+        config,
+      }),
+      'delta has no suite-input path',
     );
   });
 });
