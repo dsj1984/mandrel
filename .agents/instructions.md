@@ -89,8 +89,10 @@ You MUST recognize thrashing and stop **before** spending more tokens
 on a failing strategy — cues: a **failure cluster** (same-shape tool
 errors in a row), **research drift** (reads no longer narrowing the
 problem), **same fix, same failure** (the diagnosis is wrong). On stop:
-summarize what you tried and what recurred, then **Re-Plan** or yield —
-never another just-in-case retry.
+summarize what you tried and what recurred, then **Re-Plan** (open by
+stating in one sentence the premise the failed attempts share, and attack
+it — [procedure](docs/execution-reference.md#anti-thrashing-attack-the-premise))
+or yield — never another just-in-case retry.
 
 ### J. HITL Blocker Escalation (Safe Execution)
 

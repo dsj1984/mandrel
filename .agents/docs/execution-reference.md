@@ -34,6 +34,41 @@ about **where** a friction record lands and **how** it is validated.
 
 ---
 
+## Anti-thrashing: attack the premise
+
+Procedure behind the Re-Plan step of
+[`instructions.md` § 1.I](../instructions.md). A failed fix that is retried
+in a new variant usually still rests on the same wrong belief; this step
+names that belief and removes it before anything else is tried.
+
+1. **Trigger.** The *second* attempt resting on the same premise fails the
+   same gate or check. The three-strike escalation budgets in
+   [`ci-remediation.md`](../rules/ci-remediation.md) and
+   [`deliver-story-reference.md`](../workflows/helpers/deliver-story-reference.md)
+   are unchanged — they bound total iterations; this step defines what the
+   Re-Plan inside them does.
+2. **State the premise** in one sentence — the belief both fixes assumed to
+   be true.
+3. **Enumerate what holds it** — each file, config, ref, process, or actor
+   whose state the premise depends on — and verify each with a read or a
+   command, never from recall. Name the one that actually owns the
+   imbalance.
+4. **Remove or falsify before the next fix.** Change the owner, or prove the
+   premise false and write the replacement premise. No further fix attempt
+   until this is done.
+5. **Unverifiable premise = blocker.** If the premise cannot be checked,
+   yield per [§ 1.J](../instructions.md) (`agent::blocked`) rather than
+   guess.
+6. **Stop summary** names the premise and its verdict: held, falsified, or
+   unverifiable.
+
+**Worked example.** Two baseline refreshes failed the same ratchet because
+both assumed "the recorded baseline row is stale". Enumerating the
+comparison's inputs showed the base ref was a stale local `main`; the
+premise was false, and the fix belonged to the base ref, not the row.
+
+---
+
 ## Durable local slash commands
 
 Reference mechanics behind the local-override pointer in
