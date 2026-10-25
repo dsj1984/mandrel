@@ -199,13 +199,85 @@ Evaluate the gathered context against the following test quality dimensions:
      terminal state") plus its generator shape (the input domain to draw
      from) — never a bare "add property tests".
 
+9. **Boundary-Value Coverage — Domain Edges Nobody Picked.** Flag a unit
+   that mishandles an input at the edge of its own domain when no test
+   drives that edge. This dimension owns **pure code only**: a function's
+   own input domain where no external dependency, no concurrency and no
+   trust boundary is involved. Dimension 8 owns a *stated* invariant; this
+   dimension owns the unstated edges every domain has. Walk each candidate
+   unit against the edge catalogue and keep only the edges it demonstrably
+   mishandles:
+
+   - **Emptiness and extent** — an empty collection or string, a single
+     element, the off-by-one at a length (`arr[length]`, a `slice` at the
+     end), an input larger than any fixture.
+   - **Numbers** — zero, a negative, `NaN`, `Infinity`, `-0`, the max safe
+     integer, a float where an integer is assumed, a numeric string.
+   - **Text** — a combining character or surrogate pair where `length` is
+     read as a glyph count, a BOM, `CRLF`, a trailing newline, surrounding
+     whitespace, a locale-sensitive compare.
+   - **Paths and names** — a trailing slash, `..`, an absolute path where a
+     relative one is assumed, a Windows separator, a case-only difference.
+   - **Time** — a DST transition, a leap day, a month end, epoch zero, a
+     timezone other than the author's, a clock that goes backwards.
+   - **Presence** — `null` versus `undefined` versus a missing key versus an
+     empty string, an optional field at its default, a field present with
+     the wrong type.
+   - **Ordering** — a sort that assumes stability or a single key, a
+     deduplication that assumes insertion order, a first-wins or last-wins
+     merge the callers disagree on.
+
+   **The reproduction gate (every finding).** "What if it is null" is not a
+   finding. A boundary finding names all four of the following or is
+   dropped: (a) **the input** as a concrete value, not a class (`[]`, never
+   "an empty collection"); (b) **the line** — the `path:line` that
+   mishandles it and what it does instead (returns `NaN`, throws
+   `TypeError`, drops the last element); (c) **the producer** — an in-repo
+   call site, config key, CLI flag or exported signature that can supply
+   that value, cited by `path:line` — a value no caller can produce is not a
+   finding, and a public entry point counts as a producer; (d) **the test**
+   — the assertion that would fail today, in the tier
+   [`rules/testing-standards.md`](../rules/testing-standards.md) assigns the
+   unit, so the gap is a named missing test and never a bare "add edge-case
+   tests".
+
+   **Evidence: `reproduced` or `reasoned`.** A finding is `reproduced` when
+   you drove the unit with the input in a throwaway process and quote the
+   command and the output line that shows the wrong result — e.g.
+   `node --input-type=module -e "import { f } from './lib/f.js'; console.log(f([]))"`,
+   `python -c`, or the ecosystem's equivalent, run from the repo root or as
+   a scratch script under the workspace `temp/` tree. Importing a module
+   into a throwaway process is a read, not the suite run the Constraint
+   forbids, and it is permitted only for a unit whose sole side effect is
+   its return value — a function that writes a file, sends a request or
+   mutates shared state stays `reasoned`. **High requires `reproduced`**: a
+   `reasoned` finding caps at Medium whatever its consequence.
+
+   - Severity: the mishandled edge corrupts or silently drops data, feeds an
+     irreversible write, or decides a gate or guard → **High**; it returns a
+     wrong value or throws on a reachable input → **Medium**; the wrong
+     output is a message or a cosmetic rendering → **Low**.
+   - Category: file under `Coverage`. Rank candidates by Step 0's churn ×
+     coverage gap and cite the `baselines/` coverage row of the branch the
+     edge lives on where one exists; cap the batch at the top eight and roll
+     the remainder into one finding per catalogue row.
+   - Not a finding: a defensive check on an input no producer supplies, or
+     an edge a sibling lens owns whole — cite the sibling when you drop it.
+     An external call's timeout or empty-on-outage is `audit-resilience`'s;
+     a check-then-act race is `audit-performance`'s Interleaving dimension;
+     an input crossing a trust boundary is `audit-security`'s Tier B; a
+     poisoned or exhausting input is `audit-red-team`'s Hostile Operations;
+     an empty `catch` is `audit-clean-code`'s Error Handling.
+
 ## Constraint (lens-specific carve-out)
 
 Do NOT **run** the test suite (do not invoke `npm test`, a coverage run, or a
 mutation run — those mutate state and cost minutes). Reading the **committed**
 coverage / CRAP / mutation artifacts under `baselines/` is explicitly permitted
 and required (Step 0): citing an already-computed metric is read-only analysis,
-not a suite run.
+not a suite run. So is dimension 9's reproduction — one pure unit driven with
+one input in a throwaway process — which runs no test file and writes nothing
+outside the workspace `temp/` tree.
 
 ## Report additions
 
