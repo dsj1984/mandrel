@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.103.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.102.0...mandrel-v2.103.0) (2026-10-25)
+
+
+### Added
+
+* **audit-quality:** add a Boundary-Value Coverage dimension gated on input, line, producer and test ([#5895](https://github.com/dsj1984/mandrel/issues/5895)) ([3344213](https://github.com/dsj1984/mandrel/commit/3344213eb8ad5d9686eb13a0658f9e808eb10466))
+
 ## [2.102.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.101.0...mandrel-v2.102.0) (2026-10-23)
 
 
