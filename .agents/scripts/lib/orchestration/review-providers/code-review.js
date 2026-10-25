@@ -80,7 +80,12 @@ const PROMPT_HEAD =
   'The diff below is authoritative — files on disk may not reflect it. ' +
   'Answer with a JSON object of this exact shape, no prose around it:\n\n' +
   '{"findings":[{"title":"...","body":"Why it is wrong: ... How to show it ' +
-  'fails: ...","file":"...","line":1,"category":"bug"}]}\n\n' +
+  'fails: ...","file":"...","line":1,"category":"bug","claim":null}]}\n\n' +
+  'Set `claim` when the problem rests on a checkable fact: ' +
+  '{"kind":"path-absent","path":"<file>"} when a file the change needs is ' +
+  'missing, or {"kind":"symbol-referenced","symbol":"<name>","path":"<its ' +
+  'definition file>"} when a removed or renamed symbol still has callers. ' +
+  'Otherwise leave it null.\n\n' +
   'Emit {"findings":[]} if there is nothing you would block the merge for.\n\n';
 
 /**

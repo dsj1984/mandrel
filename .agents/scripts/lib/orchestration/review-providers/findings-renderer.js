@@ -7,6 +7,7 @@
  * @typedef {import('./types.js').Severity} Severity
  */
 
+import { groundingNotes } from './claim-grounding.js';
 import {
   normalizeDegradations,
   renderDegradedGatesSection,
@@ -63,7 +64,9 @@ export function renderFinding(finding) {
   const attribution = buildAttribution(finding);
   const category = finding.category ? ` _[${finding.category}]_` : '';
   const header = `#### ${emoji} ${finding.title}${attribution}${category}`;
-  return `${header}\n\n${finding.body}`;
+  return [`${header}\n\n${finding.body}`, ...groundingNotes(finding)].join(
+    '\n\n',
+  );
 }
 
 /**

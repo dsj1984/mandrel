@@ -1936,8 +1936,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 96.29,
-      "branches": 86.25,
+      "lines": 96.7,
+      "branches": 87.64,
       "functions": 100
     },
     {
@@ -2463,6 +2463,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "lines": 100,
+      "branches": 96.97,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "lines": 99.59,
       "branches": 85.19,
@@ -2471,7 +2477,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "lines": 100,
-      "branches": 91.38,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -2495,7 +2501,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "lines": 100,
-      "branches": 94.74,
+      "branches": 94.59,
       "functions": 100
     },
     {
@@ -2542,8 +2548,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
-      "lines": 94.67,
-      "branches": 89.89,
+      "lines": 94.46,
+      "branches": 89.41,
       "functions": 100
     },
     {

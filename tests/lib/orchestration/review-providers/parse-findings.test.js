@@ -16,6 +16,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { buildClaim } from '../../../../.agents/scripts/lib/orchestration/review-providers/claim-grounding.js';
 import {
   buildFinding,
   coerceString,
@@ -180,6 +181,40 @@ test('buildFinding: file/line included only when well-formed', () => {
 
   const negLine = buildFinding({ title: 'T', body: 'B', line: -3 }, opts);
   assert.equal('line' in negLine, false);
+});
+
+test('buildClaim: keeps a well-formed path-absent or symbol-referenced claim', () => {
+  assert.deepEqual(buildClaim({ kind: 'path-absent', path: ' a.sql ' }), {
+    kind: 'path-absent',
+    path: 'a.sql',
+  });
+  assert.deepEqual(
+    buildClaim({ kind: 'symbol-referenced', symbol: 'fn', path: null }),
+    { kind: 'symbol-referenced', symbol: 'fn' },
+  );
+  assert.deepEqual(
+    buildClaim({ kind: 'symbol-referenced', symbol: 'fn', path: 'a.js' }),
+    { kind: 'symbol-referenced', symbol: 'fn', path: 'a.js' },
+  );
+});
+
+test('buildFinding: a malformed claim is dropped, never kept for grounding', () => {
+  for (const claim of [
+    null,
+    'path-absent',
+    { kind: 'path-absent' },
+    { kind: 'path-absent', path: '  ' },
+    { kind: 'symbol-referenced', path: 'a.js' },
+    { kind: 'file-missing', path: 'a.js' },
+  ]) {
+    const finding = buildFinding({ title: 'T', body: 'B', claim }, opts);
+    assert.equal('claim' in finding, false, JSON.stringify(claim));
+  }
+  const kept = buildFinding(
+    { title: 'T', body: 'B', claim: { kind: 'path-absent', path: 'x.sql' } },
+    opts,
+  );
+  assert.deepEqual(kept.claim, { kind: 'path-absent', path: 'x.sql' });
 });
 
 // --- parseProviderFindings (orchestration body) ---------------------------

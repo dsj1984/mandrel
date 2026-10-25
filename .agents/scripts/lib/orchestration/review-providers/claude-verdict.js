@@ -6,6 +6,7 @@
  */
 
 import { isObject } from '../../json-utils.js';
+import { CLAIM_SCHEMA } from './claim-grounding.js';
 import { buildFinding, unwrapEnvelope } from './parse-findings.js';
 
 export const FINDINGS_SCHEMA_JSON = JSON.stringify({
@@ -21,6 +22,7 @@ export const FINDINGS_SCHEMA_JSON = JSON.stringify({
           file: { type: 'string' },
           line: { type: 'integer' },
           category: { type: 'string' },
+          claim: CLAIM_SCHEMA,
         },
         required: ['title', 'body'],
       },
