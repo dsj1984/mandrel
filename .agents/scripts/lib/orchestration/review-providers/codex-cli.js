@@ -17,6 +17,7 @@ import { spawnCaptureAsync, spawnChild } from '../../child-exec.js';
 import { resolveAgentrcRoot } from '../../config/git-roots.js';
 import { resolvedTempRoot } from '../../config/temp-paths.js';
 import { resolveConfig } from '../../config-resolver.js';
+import { STRICT_CLAIM_SCHEMA } from './claim-grounding.js';
 import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
 import { renderDepthDirective } from './review-depth.js';
 
@@ -47,7 +48,15 @@ const FINDINGS_SCHEMA = Object.freeze({
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['severity', 'title', 'body', 'file', 'line', 'category'],
+        required: [
+          'severity',
+          'title',
+          'body',
+          'file',
+          'line',
+          'category',
+          'claim',
+        ],
         properties: {
           severity: { type: 'string', enum: Object.keys(CODEX_SEVERITY_MAP) },
           title: { type: 'string' },
@@ -55,6 +64,7 @@ const FINDINGS_SCHEMA = Object.freeze({
           file: { type: ['string', 'null'] },
           line: { type: ['integer', 'null'] },
           category: { type: 'string' },
+          claim: STRICT_CLAIM_SCHEMA,
         },
       },
     },

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseStoryCwdArgv } from '../../.agents/scripts/lib/cli-args.js';
 import { storyReviewDepositPath } from '../../.agents/scripts/lib/config/temp-paths.js';
+import { runCodeReview } from '../../.agents/scripts/lib/orchestration/code-review.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   computeStoryReviewDeposit,
@@ -164,6 +165,53 @@ describe('computeStoryReviewDeposit', () => {
       '--no-color',
       `origin/main...${HEAD_SHA}`,
     ]);
+  });
+
+  test('#5904: the deposit carries grounding and truncated-context annotations, unhalted', async () => {
+    const config = configFor();
+    const stub = gitStub();
+    const gitSpawnFn = (cwd, ...args) =>
+      args[0] === 'cat-file'
+        ? { status: 0, stdout: '', stderr: '' }
+        : stub(cwd, ...args);
+    const runCodeReviewFn = (opts) =>
+      runCodeReview({
+        ...opts,
+        resolveConfigFn: () => config,
+        reviewProvider: {
+          runReview: async () => [
+            {
+              severity: 'critical',
+              title: 'Missing SQL',
+              body: 'b',
+              file: 'a.js',
+              claim: { kind: 'path-absent', path: 'db/0398.sql' },
+            },
+          ],
+          getDegradations: () => [
+            {
+              surface: 'model-bug-review',
+              reason: 'a.js truncated at 9 characters',
+            },
+          ],
+        },
+      });
+    const outcome = await computeStoryReviewDeposit(
+      { storyId: 5904, cwd: '/work', config },
+      { gitSpawnFn, runCodeReviewFn },
+    );
+    const deposit = JSON.parse(readFileSync(outcome.path, 'utf8'));
+    assert.equal(deposit.halted, false);
+    assert.deepEqual(deposit.criticalByProvider, {});
+    assert.equal(deposit.findings[0].severity, 'suggestion');
+    assert.equal(
+      deposit.findings[0].ungrounded,
+      'git cat-file found db/0398.sql',
+    );
+    assert.equal(
+      deposit.findings[0].context,
+      'reviewed-with-truncated-context',
+    );
   });
 
   test('an unresolvable branch or unreadable diff writes nothing and runs no review', async () => {

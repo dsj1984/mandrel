@@ -205,3 +205,22 @@ test('renderFindings: omits provider line as "(unspecified)" when absent', () =>
   });
   assert.match(out, /\*\*Provider\*\*: _\(unspecified\)_/);
 });
+
+test('renderFinding: an ungrounded or truncated-context finding says why', () => {
+  const out = renderFinding({
+    severity: 'suggestion',
+    title: 'Missing migration',
+    body: 'b',
+    ungrounded: 'git cat-file found db/0398.sql',
+    context: 'reviewed-with-truncated-context',
+  });
+  assert.match(
+    out,
+    /Not blocking: ungrounded — git cat-file found db\/0398\.sql/,
+  );
+  assert.match(out, /Context: reviewed-with-truncated-context/);
+  assert.doesNotMatch(
+    renderFinding({ severity: 'critical', title: 't', body: 'b' }),
+    /Not blocking|Context:/,
+  );
+});

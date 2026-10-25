@@ -10,6 +10,7 @@ import { resolveConfig } from '../config-resolver.js';
 import { computeChangeSet } from './change-set.js';
 import { remoteBaseRef } from './review-base-ref.js';
 import { deriveChangeLevel, resolveDepth } from './review-depth.js';
+import { groundFindings } from './review-providers/claim-grounding.js';
 import {
   collectProviderDegradations,
   degradationEnvelope,
@@ -236,18 +237,25 @@ async function postUnlessDeferred(opts, post) {
 }
 
 /**
- * Which review provider(s) raised the critical findings. A chain reports its
- * own per-entry attribution; any other provider owns every critical.
+ * Which review provider(s) raised the critical findings left after
+ * grounding. Findings a chain stamped with `provider` are tallied per entry;
+ * otherwise the one provider owns every critical.
  *
- * @param {{ reviewProvider: object, providerName: string,
+ * @param {{ findings: Array<object>, providerName: string,
  *   severity: { critical: number } }} args
  * @returns {Record<string, number>}
  */
-function resolveCriticalByProvider({ reviewProvider, providerName, severity }) {
-  if (typeof reviewProvider?.getCriticalByProvider === 'function') {
-    return reviewProvider.getCriticalByProvider();
+function resolveCriticalByProvider({ findings, providerName, severity }) {
+  if (!findings.some((f) => typeof f?.provider === 'string')) {
+    return severity.critical > 0 ? { [providerName]: severity.critical } : {};
   }
-  return severity.critical > 0 ? { [providerName]: severity.critical } : {};
+  const tally = {};
+  for (const f of findings) {
+    if (f?.severity !== 'critical') continue;
+    const name = f.provider ?? providerName;
+    tally[name] = (tally[name] ?? 0) + 1;
+  }
+  return tally;
 }
 
 async function executeReviewPipeline({ opts, config, envelope }) {
@@ -278,8 +286,8 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     headRef,
   });
 
-  const findings = await reviewProvider.runReview(reviewInput);
-  if (!Array.isArray(findings)) {
+  const rawFindings = await reviewProvider.runReview(reviewInput);
+  if (!Array.isArray(rawFindings)) {
     throw new TypeError(
       `[code-review] Review provider "${providerName}" returned a non-array; expected Finding[].`,
     );
@@ -296,10 +304,16 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     reviewProvider,
     logger,
   );
+  const findings = groundFindings({
+    findings: rawFindings,
+    headRef,
+    degradations,
+    gitSpawnFn: opts.gitSpawnFn,
+  });
   const severity = countBySeverity(findings);
   const halted = hasSurvivingCritical(severity);
   const criticalByProvider = resolveCriticalByProvider({
-    reviewProvider,
+    findings,
     providerName,
     severity,
   });

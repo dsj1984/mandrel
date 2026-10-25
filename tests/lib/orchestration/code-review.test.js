@@ -203,3 +203,90 @@ test('runCodeReview: routes provider name from delivery.codeReview to the factor
   assert.equal(factoryCalls.length, 1);
   assert.deepEqual(factoryCalls[0], { providers: [{ name: 'native' }] });
 });
+
+// --- Claim grounding (Story #5904) -----------------------------------------
+
+function groundingRun({ findings, degradations = [], catFile = 0 }) {
+  return runCodeReview({
+    ticketId: 5904,
+    headRef: 'deadbeef',
+    provider: {},
+    changedFiles: [],
+    reviewProvider: {
+      runReview: async () => findings,
+      getDegradations: () => degradations,
+    },
+    gitSpawnFn: (_cwd, ...args) =>
+      args[0] === 'cat-file'
+        ? { status: catFile, stdout: '', stderr: '' }
+        : { status: 1, stdout: '', stderr: '' },
+    resolveConfigFn: baseResolveConfig,
+    upsertCommentFn: noopUpsert(),
+    deferPost: true,
+  });
+}
+
+const PATH_CLAIM = { kind: 'path-absent', path: 'db/0398.sql' };
+
+test('#5904 AC-1/AC-6: a refuted critical does not halt or count toward its provider', async () => {
+  const out = await groundingRun({
+    findings: [
+      {
+        severity: 'critical',
+        title: 'Missing SQL',
+        body: 'b',
+        claim: PATH_CLAIM,
+        provider: 'llm-review',
+      },
+      { severity: 'high', title: 'h', body: 'b', provider: 'native' },
+    ],
+  });
+  assert.equal(out.halted, false);
+  assert.equal(out.blockerReason, null);
+  assert.equal(out.severity.critical, 0);
+  assert.equal(out.severity.suggestion, 1);
+  assert.deepEqual(out.criticalByProvider, {});
+  assert.equal(out.findings[0].ungrounded, 'git cat-file found db/0398.sql');
+  assert.match(
+    out.report,
+    /Not blocking: ungrounded — git cat-file found db\/0398\.sql/,
+  );
+});
+
+test('#5904 AC-3/AC-6: a confirmed claim still halts and is attributed per provider', async () => {
+  const out = await groundingRun({
+    catFile: 128,
+    findings: [
+      {
+        severity: 'critical',
+        title: 'Missing SQL',
+        body: 'b',
+        claim: PATH_CLAIM,
+        provider: 'llm-review',
+      },
+      { severity: 'critical', title: 'Bug', body: 'b', provider: 'native' },
+    ],
+  });
+  assert.equal(out.halted, true);
+  assert.deepEqual(out.criticalByProvider, { 'llm-review': 1, native: 1 });
+});
+
+test('#5904 AC-5: a degradation naming the finding file annotates it without changing severity', async () => {
+  const out = await groundingRun({
+    findings: [
+      { severity: 'critical', title: 'Bug', body: 'b', file: 'src/big.js' },
+    ],
+    degradations: [
+      {
+        tool: 'code-review',
+        gate: 'codeReview',
+        surface: 'model-bug-review',
+        reason:
+          'src/big.js truncated at 200000 characters: 9 characters not reviewed',
+      },
+    ],
+  });
+  assert.equal(out.findings[0].context, 'reviewed-with-truncated-context');
+  assert.equal(out.halted, true);
+  assert.equal(out.degraded, true);
+});

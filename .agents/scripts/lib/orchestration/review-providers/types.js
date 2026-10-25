@@ -11,6 +11,15 @@
  * @property {string=}  file         - Relative path, when attributable.
  * @property {number=}  line         - 1-based, when attributable.
  * @property {string=}  category     - e.g. 'security', 'lint'.
+ * @property {FindingClaim=} claim   - Structured, checkable claim.
+ * @property {string=}  ungrounded   - Why a refuted critical was downgraded.
+ * @property {string=}  context      - 'reviewed-with-truncated-context'.
+ * @property {string=}  provider     - Chain entry that raised it.
+ *
+ * @typedef {object} FindingClaim
+ * @property {'path-absent'|'symbol-referenced'} kind
+ * @property {string=} path    - Absent path, or the symbol's definition file.
+ * @property {string=} symbol
  *
  * @typedef {'story'} ReviewScope
  *
