@@ -856,6 +856,25 @@ function stepOrder(depositor) {
 }
 
 /**
+ * Run the steps in order into `steps`; a step may settle several results.
+ *
+ * @returns {Promise<StepResult|null>} the result that stopped the run.
+ */
+async function runSteps(ctx, steps) {
+  for (const step of stepOrder(ctx.depositor)) {
+    ctx.storyProgress.phase(handoffStepName(step));
+    const results = [await step(ctx)].flat();
+    for (const result of results) {
+      steps.push(result);
+      ctx.progress(result.name, `${result.outcome} — ${result.detail}`);
+    }
+    const stop = results.find((r) => r.stop);
+    if (stop) return stop;
+  }
+  return null;
+}
+
+/**
  * Refusals before any step: the handoff runs on the Story branch with the
  * implementation committed.
  *
@@ -1060,15 +1079,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   const steps = [];
   let stop = precheck(ctx);
   if (stop) steps.push(stop);
-  for (const step of stop ? [] : stepOrder(ctx.depositor)) {
-    storyProgress.phase(handoffStepName(step));
-    for (const result of [await step(ctx)].flat()) {
-      steps.push(result);
-      progress(result.name, `${result.outcome} — ${result.detail}`);
-      stop ??= result.stop ? result : null;
-    }
-    if (stop) break;
-  }
+  else stop = await runSteps(ctx, steps);
   await ctx.reviewPending;
 
   const status = stop?.stop ?? HANDOFF_STATUS.READY;

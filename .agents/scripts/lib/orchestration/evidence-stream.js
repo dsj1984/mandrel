@@ -176,12 +176,20 @@ export async function runStreamed({
   }
   const output = [res.stdout, res.stderr].filter(Boolean).join('\n');
   const cancelled = trap.cancelled();
-  const stopped = cancelled ? 'cancelled' : signal.aborted && 'aborted';
-  const terminal = [];
-  if (res.timedOut) terminal.push(describeTimeout(timeoutMs ?? 0));
-  if (stopped) terminal.push(`[handoff] ${stopped}`);
+  const { terminal, status } = settleRun(res, {
+    timeoutMs,
+    stopped: cancelled ? 'cancelled' : signal.aborted && 'aborted',
+  });
   sink.finish(output, terminal);
   if (cancelled) reraise(cancelled);
-  const status = stopped && res.status === 0 ? CANCELLED_EXIT_CODE : res.status;
   return { status, output, evidencePath: file };
+}
+
+/** The log's closing lines and the reported status. */
+function settleRun(res, { timeoutMs, stopped }) {
+  const terminal = [];
+  if (res.timedOut) terminal.push(describeTimeout(timeoutMs));
+  if (stopped) terminal.push(`[handoff] ${stopped}`);
+  const status = stopped && res.status === 0 ? CANCELLED_EXIT_CODE : res.status;
+  return { terminal, status };
 }
