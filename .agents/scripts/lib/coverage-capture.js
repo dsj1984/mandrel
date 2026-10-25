@@ -357,18 +357,25 @@ function readStampForScope(stamp, requireScope) {
 }
 
 /**
- * @param {{ resolved: { digest: string, treeDigest: string | null }, current: string, computeTree: typeof computeTreeDigest, cwd: string, coveragePath: string }} opts
- * @returns {boolean}
+ * The content digest or a recorded tree digest moved: shared by the
+ * freshness probe and the delta-refresh planner.
  */
-function stampMatchesTree({
-  resolved,
+export function stampIsStale({
+  stamp,
   current,
-  computeTree,
   cwd,
   coveragePath,
+  computeTree = computeTreeDigest,
 }) {
-  if (current !== resolved.digest || resolved.treeDigest === null) return false;
-  return computeTree(cwd, coveragePath) === resolved.treeDigest;
+  if (current !== stamp.digest) return true;
+  if (!nonEmpty(stamp.treeDigest)) return false;
+  return computeTree(cwd, coveragePath) !== stamp.treeDigest;
+}
+
+/** Fresh needs both digests: a stamp without a tree digest never matches. */
+function stampMatchesTree({ resolved, ...rest }) {
+  if (resolved.treeDigest === null) return false;
+  return !stampIsStale({ stamp: resolved, ...rest });
 }
 
 /**

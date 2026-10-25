@@ -102,6 +102,19 @@ describe('close-validation phase — the test delta re-credit (Story #5880)', ()
     assert.deepEqual(notEligible(logged), []);
   });
 
+  it('Story #5903: a shared baseline path is not overlap', async () => {
+    const baseline = 'baselines/coverage.json';
+    const { gates, progressed } = await runPhase({
+      baseSync: {
+        changedPaths: ['src/b.js', 'lib/c.js', baseline],
+        creditedCommit: SINCE,
+      },
+      storyFiles: ['src/a.js', baseline],
+    });
+    assert.equal(testGates(gates)[0].cmd, 'pnpm');
+    assert.ok(progressed.some((l) => l.endsWith('3 incoming path(s))')));
+  });
+
   it('AC-4: a red delta run fails the close with a hint naming the scope and command', async () => {
     const { error } = await runPhase({
       validationResult: (list) => ({
@@ -147,6 +160,16 @@ describe('close-validation phase — the test delta re-credit (Story #5880)', ()
       'an incoming path that is a Story file',
       { storyFiles: ['src/b.js'] },
       /shares src\/b\.js/,
+    ],
+    [
+      'a baseline-only incoming set',
+      {
+        baseSync: {
+          changedPaths: ['baselines/coverage.json'],
+          creditedCommit: SINCE,
+        },
+      },
+      /delta has no suite-input path/,
     ],
     [
       'an unreadable Story change set',

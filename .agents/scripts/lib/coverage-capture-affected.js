@@ -274,8 +274,9 @@ function resolveRunBase({
   });
   return {
     prior,
-    baseRef: delta?.baseRef ?? ref,
-    dropFiles: delta?.dropFiles ?? changed ?? [],
+    baseRef: ref,
+    dropFiles: changed ?? [],
+    ...delta,
     keepPrior: delta !== null,
   };
 }
