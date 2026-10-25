@@ -446,10 +446,11 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
 ## Held review at hand-off {#held-review}
 
 The one home of this rule; the digest and the worker contract point here.
-After the credited run **and** the push, `story-handoff.js` computes the
-Story-scope code review as its last step, skipping it when a deposit already
-matches the diff digest. The same computation stands alone for a manual
-re-run:
+`story-handoff.js` starts the Story-scope code review as the credited run
+starts — pinned to HEAD at that moment, after a `test`-depositor seat — and
+awaits it after the push, skipping the computation when a deposit already
+matches the diff digest. The envelope's `reviewMs` sits beside the run's
+`suiteTimings`. The same computation stands alone for a manual re-run:
 
 ```bash
 node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd <workCwd>
@@ -459,21 +460,27 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   provider chain) against `origin/<baseBranch>...story-<id>`, posts nothing,
   takes no full-suite lock, and writes
   `temp/orchestration/story-review-<id>.json` beside the terminal envelope,
-  keyed on the **diff digest** (sha256 of the exact three-dot diff text). It
-  never stops the handoff on a provider throw — the step reports `error`
-  and close computes the review itself.
+  keyed on the **diff digest** (sha256 of the three-dot diff with every
+  `linguist-generated` section removed; a failed attribute lookup hashes it
+  whole). It never stops the handoff on a provider throw — the step reports
+  `error` and close computes the review itself.
 - **A CRITICAL is the worker's to fix.** The handoff settles `fix-required`
-  naming the deposit; fix, commit, and re-run the handoff (the fix commit
-  voided the credit, so it re-runs the suite, pushes and re-computes) — the
-  acceptance loop's redraft discipline, bounded by
+  naming the deposit. One that lands while the credited run is in flight
+  aborts the run (the SIGTERM a Ctrl-C sends; the child frees the full-suite
+  lock), records no credit and pushes nothing; a CRITICAL after the run still
+  settles after the push, as before. Any earlier stop still awaits the
+  review, so no provider is orphaned. Fix, commit, and re-run the handoff
+  (the fix commit voided the credit, so it re-runs the suite, pushes and
+  re-computes) — the acceptance loop's redraft discipline, bounded by
   `delivery.acceptanceEval.maxRounds`. Still CRITICAL at the cap → take the
   blocked path. Anything else goes in the hand-off as the severity tally.
 - **Close adopts, else computes.** When the deposit's digest equals the
   digest of the diff at close's held-review start, close starts no review and
-  posts the deposit after PR-open. A clean base-sync merge moves HEAD without
-  changing the diff, so it keeps the deposit; a commit that changes the diff
-  does not, and close reviews as it would without one. The CRITICAL halt and
-  `--override-review-block` apply to an adopted result unchanged.
+  posts the deposit after PR-open. A clean base-sync merge or a seat commit
+  that writes only generated baselines keeps the deposit; a commit that
+  changes a reviewed path does not, and close reviews as it would without
+  one. The CRITICAL halt and `--override-review-block` apply to an adopted
+  result unchanged.
 
 ## Gate output {#gate-output}
 

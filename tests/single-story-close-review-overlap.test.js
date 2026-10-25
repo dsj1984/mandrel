@@ -515,6 +515,56 @@ describe('worker deposit adoption (Story #5480)', () => {
     assert.equal(runCodeReviewFn.calls[0].commentTargetId, 123);
   });
 
+  // Story #5905 AC-4: the digest drops linguist-generated sections, so a
+  // seat commit that only writes baselines keeps the deposit adoptable.
+  it('a commit touching only generated paths keeps the deposit; a reviewed path voids it', async () => {
+    const SRC = 'diff --git a/x.js b/x.js\n+const x = 1;\n';
+    const SEAT =
+      'diff --git a/baselines/crap.json b/baselines/crap.json\n+{"rows":1}\n';
+    const SRC2 = 'diff --git a/y.js b/y.js\n+const y = 2;\n';
+    const attr = (args) => ({
+      status: 0,
+      stdout: args
+        .slice(args.indexOf('--') + 1)
+        .map(
+          (p) =>
+            `${p}\0linguist-generated\0${p.startsWith('baselines/') ? 'true' : 'unspecified'}\0`,
+        )
+        .join(''),
+      stderr: '',
+    });
+    const closeWith = async (movedDiff) => {
+      const stub = gitSpawnStub({
+        branchShas: [PINNED_SHA, MOVED_SHA],
+        diffFor: (range) => (range.endsWith(MOVED_SHA) ? movedDiff : SRC),
+      });
+      const gitSpawnFn = (cwd, ...args) =>
+        args[0] === 'check-attr' ? attr(args) : stub(cwd, ...args);
+      const runCodeReviewFn = reviewDouble();
+      const held = startHeldReview(
+        overlapArgs({
+          runCodeReviewFn,
+          gitSpawnFn,
+          readDepositFn: () => workerDeposit({ diffText: SRC.trimEnd() }),
+        }),
+      );
+      assert.equal(held.adopted, true);
+      const { args, postCalls } = afterPr({
+        held,
+        gitSpawnFn,
+        runCodeReviewFn,
+      });
+      await reviewAfterPrOpen(args);
+      return { postCalls, runCodeReviewFn };
+    };
+    const seated = await closeWith(`${SRC}${SEAT}`);
+    assert.equal(seated.postCalls.length, 1, 'the deposit posts');
+    assert.equal(seated.runCodeReviewFn.calls.length, 0);
+    const edited = await closeWith(`${SRC}${SEAT}${SRC2}`);
+    assert.equal(edited.postCalls.length, 0, 'the deposit is void');
+    assert.equal(edited.runCodeReviewFn.calls.length, 1);
+  });
+
   it('a CRITICAL in an adopted deposit still halts', async () => {
     const gitSpawnFn = gitSpawnStub();
     const runCodeReviewFn = reviewDouble();

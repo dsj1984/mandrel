@@ -1,8 +1,8 @@
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail as one
  * deterministic sequence: blocking preflight (lint, quality-preview, baselined
- * ratchets) → base merge → the one credited run → baseline seating → push +
- * remote-ref check → held review. It runs
+ * ratchets) → base merge → the one credited run with the held review beside
+ * it → baseline seating → push + remote-ref check → review awaited. It runs
  * exactly what deliver-digest § 5 and deliver-reference § Held review define,
  * changing nothing close credits or adopts, and settles one envelope:
  *
@@ -131,7 +131,7 @@ const SEAT_SCRIPTS = Object.freeze({
 /**
  * A settled step. `stop` carries the envelope status that ends the run.
  *
- * @typedef {{ name: string, outcome: 'ran'|'skipped'|'failed'|'error',
+ * @typedef {{ name: string, outcome: 'ran'|'skipped'|'failed'|'error'|'aborted',
  *   detail: string, evidencePath?: string|null, conflictFiles?: string[],
  *   stop?: 'fix-required'|'blocked', reason?: string }} StepResult
  */
@@ -203,9 +203,10 @@ function worktreeEnv(ctx, env) {
  * @param {string} cmd
  * @param {string[]} args
  * @param {Record<string, string|undefined>} [env] the child's whole env.
+ * @param {AbortSignal} [signal]
  * @returns {Promise<{ status: number, output: string, evidencePath: string }>}
  */
-async function runLogged(ctx, logName, cmd, args, env) {
+async function runLogged(ctx, logName, cmd, args, env, signal) {
   ctx.progress(logName, `${cmd} ${args.join(' ')}`);
   const file = ctx.evidencePathFor(logName);
   ctx.storyProgress.evidence(file);
@@ -218,6 +219,7 @@ async function runLogged(ctx, logName, cmd, args, env) {
     opts: { cwd: ctx.cwd, env: worktreeEnv(ctx, env) },
     file,
     tag: logName,
+    signal,
   });
 }
 
@@ -462,8 +464,8 @@ function testGateArgv(config) {
   return [cmd, ...args];
 }
 
-/** @param {object} ctx @returns {Promise<StepResult>} */
-async function stepCreditedRun(ctx) {
+/** @param {object} ctx @param {AbortSignal} signal @returns {Promise<StepResult>} */
+async function creditedRun(ctx, signal) {
   const name = 'credited-run';
   if (ctx.state.creditHead === ctx.head) {
     return skipped(
@@ -489,7 +491,7 @@ async function stepCreditedRun(ctx) {
         ...testGateArgv(ctx.config),
       ];
   const { result: run, timings } = await withLockProgress(ctx, (env) =>
-    runLogged(ctx, 'credited-run', 'node', args, env),
+    runLogged(ctx, 'credited-run', 'node', args, env, signal),
   );
   const { lockWait, suiteTimings, spawns } = timings;
   const extra = {
@@ -498,6 +500,14 @@ async function stepCreditedRun(ctx) {
     lockWait,
     suiteTimings,
   };
+  if (signal.aborted) {
+    return {
+      name,
+      outcome: 'aborted',
+      detail: 'aborted: the held review found a CRITICAL mid-run; no credit',
+      ...extra,
+    };
+  }
   if (run.status !== 0) {
     return fixRequired(name, describeSuiteFailure(run.status), extra);
   }
@@ -747,7 +757,7 @@ function reviewVerdict(deposit, depositPath, settled) {
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */
-async function stepReview(ctx) {
+async function computeHeldReview(ctx) {
   const name = 'review';
   const held = ctx.probeReview({
     cwd: ctx.cwd,
@@ -794,6 +804,38 @@ async function stepReview(ctx) {
       evidencePath: outcome.path ?? null,
     }),
   );
+}
+
+/** Pinned to the head it resolves now; never rejects. */
+function startReview(ctx) {
+  const startedAt = ctx.now();
+  ctx.reviewPending = computeHeldReview(ctx)
+    .catch((err) => ({
+      name: 'review',
+      outcome: 'error',
+      detail: `held review failed (${err?.message ?? err}); close computes the review itself`,
+    }))
+    .finally(() => {
+      ctx.reviewMs = ctx.now() - startedAt;
+    });
+  return ctx.reviewPending;
+}
+
+/** A review that halts mid-run aborts the run. */
+async function stepCreditedRun(ctx) {
+  const abort = new AbortController();
+  let halted = null;
+  startReview(ctx).then((result) => {
+    if (!result.stop) return;
+    halted = result;
+    abort.abort();
+  });
+  const run = await creditedRun(ctx, abort.signal);
+  return run.outcome === 'aborted' ? [run, halted] : run;
+}
+
+function stepReview(ctx) {
+  return ctx.reviewPending;
 }
 
 /**
@@ -922,6 +964,7 @@ async function defaultBlock({
  *   signalTarget?: import('node:events').EventEmitter,
  *   reraise?: (signal: string) => void,
  *   evidenceFs?: typeof fs,
+ *   now?: () => number,
  * }} deps `runCommand` receives `onChunk`, `signal` and (when set)
  *   `timeoutMs` beside `cwd`/`env`; a runner that never calls `onChunk`
  *   still gets its whole output written at settle.
@@ -948,6 +991,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     signalTarget,
     reraise,
     evidenceFs,
+    now = Date.now,
   } = deps;
   const block =
     deps.block ??
@@ -983,8 +1027,11 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     sleep,
     lockPollMs,
     env,
+    now,
     state: readState(statePath, progress),
     review: null,
+    reviewPending: null,
+    reviewMs: null,
     reviewPath: storyReviewDepositPath(storyId, config),
     depositor: selectCreditedDepositor({
       config,
@@ -1015,14 +1062,14 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   if (stop) steps.push(stop);
   for (const step of stop ? [] : stepOrder(ctx.depositor)) {
     storyProgress.phase(handoffStepName(step));
-    const result = await step(ctx);
-    steps.push(result);
-    progress(result.name, `${result.outcome} — ${result.detail}`);
-    if (result.stop) {
-      stop = result;
-      break;
+    for (const result of [await step(ctx)].flat()) {
+      steps.push(result);
+      progress(result.name, `${result.outcome} — ${result.detail}`);
+      stop ??= result.stop ? result : null;
     }
+    if (stop) break;
   }
+  await ctx.reviewPending;
 
   const status = stop?.stop ?? HANDOFF_STATUS.READY;
   const credited = steps.find((s) => s.name === 'credited-run');
@@ -1040,6 +1087,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     review: ctx.review,
     lockWait: credited?.lockWait ?? null,
     suiteTimings: credited?.suiteTimings ?? null,
+    reviewMs: ctx.reviewMs,
     ...(stop
       ? {
           failedStep: stop.name,

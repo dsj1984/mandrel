@@ -120,7 +120,8 @@ it in the **background**.
    **first**, ahead of this run and the push: close's base-sync then no-ops,
    so neither stamp goes stale.
 3. **One depositor**, by the predicate close registers `coverage-capture` on
-   (one shared function) — coverage or CRAP gate on **and** a `captureScript`:
+   (one shared function) — coverage or CRAP gate on **and** a `captureScript`.
+   The held review starts beside it:
    - **Capture-active** →
      `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`,
      behind the host full-suite lock. Signal: `Wrote content-digest capture
@@ -129,10 +130,12 @@ it in the **background**.
      --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`.
      Signal: `✓ test passed` — the `test` evidence close reads.
 4. **Seat.** CRAP or MI gate on → `--seat-missing` for each (signal
-   `seated: N`), committed as `chore(baselines): baseline-refresh: …`.
+   `seated: N`), committed as `chore(baselines): baseline-refresh: …`. On the
+   `test` depositor it runs before step 3.
 5. **Push** `story-<id>`; the remote ref must equal HEAD.
-6. **Held review** — [`deliver-reference.md`](deliver-reference.md)
-   § Held review.
+6. **Held review awaited** — a CRITICAL that lands mid-run aborts the run
+   (no credit, no push) and ends `fix-required` —
+   [`deliver-reference.md`](deliver-reference.md) § Held review.
 
 A later commit voids either credit; a baseline-JSON seat keeps the stamp. The
 handoff reads the **output**, not the exit code: a run that prints no signal

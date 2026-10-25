@@ -2,11 +2,15 @@
 
 import { clip } from './claude-verdict.js';
 
-function sectionPath(section) {
+export function diffSections(diff) {
+  return diff.split(/(?=^diff --git )/m);
+}
+
+export function sectionPath(section) {
   return /^diff --git a\/.+? b\/(.+)$/m.exec(section)?.[1] ?? null;
 }
 
-function generatedPaths(paths, { cwd, gitSpawnFn }) {
+export function generatedPaths(paths, { cwd, gitSpawnFn }) {
   const generated = new Set();
   if (paths.length === 0) return generated;
   const result = gitSpawnFn(
@@ -29,7 +33,7 @@ function generatedPaths(paths, { cwd, gitSpawnFn }) {
 
 /** A failed attribute lookup leaves the diff whole. */
 function omitGeneratedFiles(diff, deps) {
-  const sections = diff.split(/(?=^diff --git )/m);
+  const sections = diffSections(diff);
   const generated = generatedPaths(
     sections.map(sectionPath).filter(Boolean),
     deps,

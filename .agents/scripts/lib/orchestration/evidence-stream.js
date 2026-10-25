@@ -125,7 +125,7 @@ function describeTimeout(ms) {
  *   heartbeatMs?: number, timeoutMs?: number|null,
  *   signalTarget?: import('node:events').EventEmitter,
  *   reraise?: (signal: string) => void, now?: () => number,
- *   fsImpl?: typeof fs,
+ *   fsImpl?: typeof fs, signal?: AbortSignal,
  * }} request
  * @returns {Promise<{ status: number, output: string, evidencePath: string }>}
  */
@@ -143,6 +143,7 @@ export async function runStreamed({
   reraise = defaultReraise,
   now = Date.now,
   fsImpl = fs,
+  signal = new AbortController().signal,
 }) {
   const sink = openSink(file, fsImpl);
   progress(tag, `evidence ${file}`);
@@ -159,7 +160,7 @@ export async function runStreamed({
   try {
     res = await runCommand(cmd, args, {
       ...opts,
-      signal: trap.controller.signal,
+      signal: AbortSignal.any([trap.controller.signal, signal]),
       ...(timeoutMs ? { timeoutMs } : {}),
       onChunk: (text) => {
         lastOutputAt = now();
@@ -175,12 +176,12 @@ export async function runStreamed({
   }
   const output = [res.stdout, res.stderr].filter(Boolean).join('\n');
   const cancelled = trap.cancelled();
+  const stopped = cancelled ? 'cancelled' : signal.aborted && 'aborted';
   const terminal = [];
   if (res.timedOut) terminal.push(describeTimeout(timeoutMs ?? 0));
-  if (cancelled) terminal.push('[handoff] cancelled');
+  if (stopped) terminal.push(`[handoff] ${stopped}`);
   sink.finish(output, terminal);
   if (cancelled) reraise(cancelled);
-  const status =
-    cancelled && res.status === 0 ? CANCELLED_EXIT_CODE : res.status;
+  const status = stopped && res.status === 0 ? CANCELLED_EXIT_CODE : res.status;
   return { status, output, evidencePath: file };
 }

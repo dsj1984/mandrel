@@ -10,7 +10,13 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +26,7 @@ import {
   buildDefaultGates,
   resolveCreditedDepositor,
 } from '../../.agents/scripts/lib/close-validation/gates.js';
+import { withFullSuiteLockAsync } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { runStoryHandoff } from '../../.agents/scripts/lib/orchestration/story-handoff.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { runStoryHandoffCli } from '../../.agents/scripts/story-handoff.js';
@@ -160,6 +167,7 @@ function harness({
       blocks.push(args);
     },
     logDir: path.join(tempRoot, 'orchestration'),
+    now: () => 0,
   };
   const run = () => runStoryHandoff({ storyId: STORY, cwd, config }, deps);
   return { run, runCommand, blocks, reviews, world, deps };
@@ -978,6 +986,10 @@ describe('story-handoff — the story-progress record (Story #5553)', () => {
     };
     const { envelope } = await h.run();
     assert.equal(envelope.status, 'ready');
+    // Story #5905: the review computes during the credited run; the record
+    // still names the review phase while the handoff awaits it.
+    assert.deepEqual(observed, stepNames(envelope).slice(0, -1));
+    peek();
     assert.deepEqual(observed, stepNames(envelope));
   });
 
@@ -1544,5 +1556,162 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
     const { exitCode } = await h.run();
     assert.equal(exitCode, 0);
     assert.equal(h.readEvidence(), `MARKER_A\n${CAPTURE_SIGNAL}`);
+  });
+});
+
+/**
+ * Story #5905 — the held review starts with the credited run, and a CRITICAL
+ * that lands mid-run aborts the run instead of waiting it out.
+ */
+describe('story-handoff — the review runs beside the credited run (Story #5905)', () => {
+  const HALTED = { halted: true, severity: { critical: 1 } };
+  const readState = () =>
+    JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+
+  test('AC-1: the review is in flight while the credited run is in flight', async () => {
+    const h = harness();
+    const review = { started: false, settled: false };
+    let overlapped = false;
+    const { runCommand, computeReview } = h.deps;
+    h.deps.computeReview = async (input) => {
+      review.started = true;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      review.settled = true;
+      return computeReview(input);
+    };
+    h.deps.runCommand = async (cmd, args, opts) => {
+      if (path.basename(args[0] ?? '') === 'coverage-capture.js') {
+        overlapped = review.started && !review.settled;
+      }
+      return runCommand(cmd, args, opts);
+    };
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.equal(
+      overlapped,
+      true,
+      'the review was running when the suite spawned',
+    );
+    assert.equal(review.settled, true);
+  });
+
+  test('AC-2: a CRITICAL mid-run aborts the child, credits nothing, pushes nothing and frees the lock', async () => {
+    const lockPath = path.join(tempRoot, 'full-suite.lock');
+    const h = harness({ deposit: HALTED });
+    let childStarted;
+    const started = new Promise((resolve) => {
+      childStarted = resolve;
+    });
+    let heldDuringRun = false;
+    const { runCommand, computeReview } = h.deps;
+    h.deps.computeReview = async (input) => {
+      await started;
+      return computeReview(input);
+    };
+    h.deps.runCommand = async (cmd, args, opts) => {
+      if (path.basename(args[0] ?? '') !== 'coverage-capture.js') {
+        return runCommand(cmd, args, opts);
+      }
+      return withFullSuiteLockAsync({ cwd: tempRoot, lockPath }, () =>
+        spawnStreamAsync(
+          process.execPath,
+          [
+            '-e',
+            'process.stdout.write("RUNNING\\n"); setInterval(() => {}, 1000);',
+          ],
+          {
+            ...opts,
+            cwd: tempRoot,
+            onChunk: (text) => {
+              opts.onChunk(text);
+              heldDuringRun = existsSync(lockPath);
+              childStarted();
+            },
+          },
+        ),
+      );
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    assert.equal(envelope.failedStep, 'review');
+    assert.equal(envelope.evidencePath, '/tmp/story-review.json');
+    const credited = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.equal(credited.outcome, 'aborted');
+    assert.match(readFileSync(credited.evidencePath, 'utf8'), /aborted\n$/);
+    assert.deepEqual(stepNames(envelope).slice(-2), ['credited-run', 'review']);
+    assert.ok(!spawned(h.runCommand).includes('git'), 'nothing was pushed');
+    assert.equal(h.world.remote, null);
+    assert.equal(readState().creditHead, undefined, 'no credit recorded');
+    assert.equal(heldDuringRun, true, 'the child held the lock');
+    assert.equal(existsSync(lockPath), false, 'the lock is free afterwards');
+  });
+
+  test('AC-3: a run that finishes first awaits the review and settles as the sequential order did', async () => {
+    const h = harness({ deposit: HALTED });
+    let runDone;
+    const done = new Promise((resolve) => {
+      runDone = resolve;
+    });
+    const { runCommand, computeReview } = h.deps;
+    h.deps.runCommand = async (cmd, args, opts) => {
+      const res = await runCommand(cmd, args, opts);
+      if (path.basename(args[0] ?? '') === 'coverage-capture.js') runDone();
+      return res;
+    };
+    h.deps.computeReview = async (input) => {
+      await done;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return computeReview(input);
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'review');
+    assert.deepEqual(stepNames(envelope), [
+      'preflight',
+      'base-merge',
+      'credited-run',
+      'seat',
+      'push',
+      'review',
+    ]);
+    assert.equal(envelope.steps[2].outcome, 'ran');
+    assert.equal(
+      readState().creditHead,
+      HEAD,
+      'the finished run keeps its credit',
+    );
+  });
+
+  test('AC-5: the envelope reports the review duration beside the suite timings', async () => {
+    const h = harness();
+    let t = 1_000;
+    h.deps.now = () => {
+      t += 250;
+      return t;
+    };
+    const { envelope } = await h.run();
+    assert.equal(envelope.reviewMs, 250);
+    assert.ok('suiteTimings' in envelope);
+  });
+
+  test('a stop before the review settles still awaits it, so no provider is orphaned', async () => {
+    const h = harness({ outputs: { 'coverage-capture.js': { status: 1 } } });
+    let settled = false;
+    const { computeReview } = h.deps;
+    h.deps.computeReview = async (input) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      settled = true;
+      return computeReview(input);
+    };
+    const { envelope } = await h.run();
+    assert.equal(envelope.failedStep, 'credited-run');
+    assert.equal(settled, true);
+    assert.equal(envelope.steps.at(-1).name, 'credited-run');
   });
 });
