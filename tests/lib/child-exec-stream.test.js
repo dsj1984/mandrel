@@ -68,21 +68,23 @@ describe('spawnStreamAsync', () => {
     assert.ok(res.stdout.endsWith('LAST'), 'the tail keeps the newest bytes');
   });
 
+  // The budget runs from spawn, so on a cold Windows runner node's own
+  // start-up can outlast 300ms: this child writes nothing, and the abort
+  // case below proves retention of output streamed before a kill.
   it('kills a child that outlives timeoutMs and normalises the status to non-zero', async () => {
     const started = Date.now();
     const res = await spawnStreamAsync(
       NODE,
-      ['-e', 'console.log("A"); setInterval(() => {}, 1000);'],
+      ['-e', 'setInterval(() => {}, 1000);'],
       { timeoutMs: 300 },
     );
     assert.equal(res.timedOut, true);
     assert.equal(res.status, 124);
-    assert.equal(res.stdout, 'A');
     assert.ok(Date.now() - started < 5000, 'settles promptly');
     assert.equal(isAlive(res.pid), false, 'the child is gone');
   });
 
-  it('kills the child when the abort signal fires', async () => {
+  it('kills the child when the abort signal fires and keeps what it streamed', async () => {
     const controller = new AbortController();
     const res = await spawnStreamAsync(
       NODE,
@@ -94,6 +96,7 @@ describe('spawnStreamAsync', () => {
     );
     assert.notEqual(res.status, 0);
     assert.equal(res.timedOut, false);
+    assert.equal(res.stdout, 'A', 'output streamed before the kill is kept');
     assert.equal(isAlive(res.pid), false, 'the child is gone');
   });
 

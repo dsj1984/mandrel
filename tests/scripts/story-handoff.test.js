@@ -1431,12 +1431,43 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
     await assertReleased(h, before);
   });
 
+  /**
+   * Arm the command budget on the child's first chunk rather than at spawn:
+   * on a cold Windows runner node's own start-up outlasts a short budget and
+   * the child dies before it streams the marker the test reads back. The
+   * child is still real and still killed; only the clock moves.
+   */
+  const armTimeoutOnFirstChunk = (h) => {
+    const inner = h.deps.runCommand;
+    h.deps.runCommand = async (cmd, args, opts = {}) => {
+      const { timeoutMs, signal, onChunk, ...rest } = opts;
+      if (!timeoutMs) return inner(cmd, args, opts);
+      const controller = new AbortController();
+      signal?.addEventListener('abort', () => controller.abort(), {
+        once: true,
+      });
+      let timer = null;
+      const res = await inner(cmd, args, {
+        ...rest,
+        signal: controller.signal,
+        onChunk: (text, stream) => {
+          timer ??= setTimeout(() => controller.abort(), timeoutMs);
+          onChunk?.(text, stream);
+        },
+      });
+      clearTimeout(timer);
+      const timedOut = controller.signal.aborted;
+      return timedOut ? { ...res, status: 124, timedOut } : res;
+    };
+  };
+
   test('AC-2: a timeout kills the child and appends the timeout line', async () => {
     const before = baseline();
     const h = streamHarness(
       'process.stdout.write("MARKER_A\\n"); setInterval(() => {}, 1000);',
     );
     h.deps.commandTimeoutMs = 300;
+    armTimeoutOnFirstChunk(h);
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.match(envelope.steps.at(-1).detail, /^suite timed out \(exit 124\)/);

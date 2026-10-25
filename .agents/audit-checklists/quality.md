@@ -25,3 +25,11 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Toolchain by ecosystem, never one library.
 - [ ] Vacuous property tests.
 - [ ] Name the property.
+- [ ] Boundary-Value Coverage — Domain Edges Nobody Picked.
+- [ ] Emptiness and extent
+- [ ] Numbers
+- [ ] Text
+- [ ] Paths and names
+- [ ] Time
+- [ ] Presence
+- [ ] Ordering
