@@ -100,7 +100,7 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 ## 5. The one credited run — `story-handoff.js`
 
 After the self-eval loop's last fix commit the worker runs **one** command,
-which performs this section in order and prints one envelope:
+which runs this section in order and prints one envelope:
 
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
@@ -119,8 +119,8 @@ it in the **background**.
 2. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of this run and the push: close's base-sync then no-ops,
    so neither stamp goes stale.
-3. **One depositor**, by the predicate close registers `coverage-capture` on
-   (one shared function) — coverage or CRAP gate on **and** a `captureScript`:
+3. **One depositor**, by the one predicate close registers `coverage-capture`
+   on — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →
      `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`,
      behind the host full-suite lock. Signal: `Wrote content-digest capture
@@ -131,15 +131,15 @@ it in the **background**.
 4. **Seat.** CRAP or MI gate on → `--seat-missing` for each (signal
    `seated: N`), committed as `chore(baselines): baseline-refresh: …`.
 5. **Push** `story-<id>`; the remote ref must equal HEAD.
-6. **Held review** — [`deliver-reference.md`](deliver-reference.md)
-   § Held review.
+6. **Held review** beside step 3, which a CRITICAL aborts —
+   [`deliver-reference.md`](deliver-reference.md) § Held review.
 
-A later commit voids either credit; a baseline-JSON seat keeps the stamp. The
-handoff reads the **output**, not the exit code: a run that prints no signal
+A later commit voids either credit; a baseline-JSON seat keeps the stamp. It
+reads the **output**, not the exit code: a run that prints no signal
 deposits nothing. Seat order, runner shapes, redraft rounds:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
-`verify[]` is scoped entries **plus** this one run: an entry that is itself a
+`verify[]` is scoped entries **plus** this one run: an entry that is a
 full-suite command is reported credited against the same record, never
 respawned.
 

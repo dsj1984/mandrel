@@ -8,14 +8,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { parseStoryCwdArgv } from '../../.agents/scripts/lib/cli-args.js';
 import { storyReviewDepositPath } from '../../.agents/scripts/lib/config/temp-paths.js';
+import { gitSpawn } from '../../.agents/scripts/lib/git-utils.js';
 import { runCodeReview } from '../../.agents/scripts/lib/orchestration/code-review.js';
+import { computeReviewDiffDigest } from '../../.agents/scripts/lib/orchestration/review-deposit.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   computeStoryReviewDeposit,
@@ -285,5 +287,42 @@ describe('CLI surface (AC-7)', () => {
   test('the CLI takes no full-suite lock', () => {
     const source = readFileSync(CLI, 'utf8');
     assert.doesNotMatch(source, /full-suite-lock/);
+  });
+});
+
+/** Story #5905 AC-4 — the digest is keyed on the diff minus generated files. */
+describe('computeReviewDiffDigest — generated sections are not identity', () => {
+  test('a generated-only commit keeps the digest; a reviewed-path commit changes it', () => {
+    const repo = path.join(tempRoot, 'repo');
+    mkdirSync(path.join(repo, 'baselines'), { recursive: true });
+    const git = (...args) => {
+      const res = gitSpawn(repo, ...args);
+      assert.equal(res.status, 0, `git ${args.join(' ')}: ${res.stderr}`);
+    };
+    const commit = (file, text) => {
+      writeFileSync(path.join(repo, file), text);
+      git('add', '--', file);
+      git('commit', '-q', '-m', file);
+    };
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    git('config', 'commit.gpgsign', 'false');
+    commit('.gitattributes', 'baselines/*.json linguist-generated=true\n');
+    git('checkout', '-q', '-b', 'story');
+    commit('a.js', 'export const a = 1;\n');
+    const digest = () =>
+      computeReviewDiffDigest({
+        cwd: repo,
+        baseRef: 'main',
+        headRef: 'story',
+        gitSpawnFn: gitSpawn,
+      });
+    const reviewed = digest();
+    assert.match(reviewed, /^[0-9a-f]{64}$/);
+    commit('baselines/crap.json', '{"rows":[]}\n');
+    assert.equal(digest(), reviewed, 'a new generated file is not identity');
+    commit('b.js', 'export const b = 2;\n');
+    assert.notEqual(digest(), reviewed, 'a reviewed path voids the deposit');
   });
 });

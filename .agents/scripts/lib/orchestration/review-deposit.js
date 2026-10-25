@@ -3,10 +3,10 @@
  * time, and its identity.
  *
  * The identity is the **diff digest**: a sha256 of the exact
- * `git diff --no-color <base>...<head>` text the review provider is handed.
- * A clean base-sync merge moves HEAD without changing that text, while any
- * commit that changes the diff changes it — so close adopts a deposit, and
- * posts a held result, on digest equality, never on SHA equality.
+ * `git diff --no-color <base>...<head>` text, less generated files. A clean
+ * base-sync merge moves HEAD without changing that text, while any commit
+ * that changes the diff changes it — so close adopts a deposit, and posts a
+ * held result, on digest equality, never on SHA equality.
  *
  * The file lives beside the terminal envelope; nothing deletes it but the
  * Story temp purge. A mismatched deposit is simply not adopted.
@@ -18,6 +18,11 @@ import nodeFs from 'node:fs';
 import { storyReviewDepositPath } from '../config/temp-paths.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
 import { resolveSharedBaseRef } from './review-base-ref.js';
+import {
+  diffSections,
+  generatedPaths,
+  sectionPath,
+} from './review-providers/generated-diff.js';
 
 const DEPOSIT_KIND = 'story-review-deposit';
 
@@ -41,6 +46,19 @@ export function resolveRefSha({ cwd, ref, gitSpawnFn }) {
   }
 }
 
+/** Generated sections dropped; end-trimmed as the runner trims stdout. */
+function reviewedText(diff, deps) {
+  const sections = diffSections(diff);
+  const generated = generatedPaths(
+    sections.map(sectionPath).filter(Boolean),
+    deps,
+  );
+  return sections
+    .filter((s) => !generated.has(sectionPath(s)))
+    .map((s) => s.trimEnd())
+    .join('\n');
+}
+
 /**
  * sha256 of the three-dot diff text, spawned exactly as the review provider
  * spawns it. `null` when the diff cannot be read — an unknown identity that
@@ -60,9 +78,8 @@ export function computeReviewDiffDigest({ cwd, baseRef, headRef, gitSpawnFn }) {
       `${baseRef}...${headRef}`,
     );
     if (diff?.status !== 0) return null;
-    return createHash('sha256')
-      .update(String(diff.stdout ?? ''), 'utf8')
-      .digest('hex');
+    const text = reviewedText(String(diff.stdout ?? ''), { cwd, gitSpawnFn });
+    return createHash('sha256').update(text, 'utf8').digest('hex');
   } catch {
     return null;
   }

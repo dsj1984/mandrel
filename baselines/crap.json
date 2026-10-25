@@ -23471,6 +23471,12 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "settleRun",
+      "startLine": 189,
+      "crap": 5
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
       "method": "defaultGitRunner",
       "startLine": 24,
@@ -28779,9 +28785,29 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "reviewedText",
+      "startLine": 50,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
       "method": "computeReviewDiffDigest",
       "startLine": 53,
       "crap": 4.026053327905557
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "<anon reviewedText/(s)#0>",
+      "startLine": 57,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "<anon reviewedText/(s)#1>",
+      "startLine": 58,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
@@ -29508,6 +29534,12 @@
       "method": "buildAttribution",
       "startLine": 163,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/generated-diff.js",
+      "method": "diffSections",
+      "startLine": 5,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/generated-diff.js",
@@ -33911,8 +33943,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "creditedRun",
+      "startLine": 468,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon stepCreditedRun/(env)#0>",
       "startLine": 491,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon creditedRun/(env)#0>",
+      "startLine": 493,
       "crap": 1,
       "anonymous": true
     },
@@ -33998,9 +34043,35 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "computeHeldReview",
+      "startLine": 760,
+      "crap": 3.017578125
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepOrder",
       "startLine": 808,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "startReview",
+      "startLine": 810,
+      "crap": 1.0122894856622666
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon startReview/(err)#0>",
+      "startLine": 813,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon startReview/()#0>",
+      "startLine": 818,
+      "crap": 1.0122894856622666,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
@@ -34010,9 +34081,29 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon stepCreditedRun/(result)#0>",
+      "startLine": 828,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "readState",
       "startLine": 851,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "runSteps",
+      "startLine": 863,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon runSteps/(r)#0>",
+      "startLine": 871,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
