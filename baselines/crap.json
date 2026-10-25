@@ -28910,9 +28910,28 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "parseHit",
+      "startLine": 81,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "<anon (text)#0>",
+      "startLine": 89,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
       "method": "refuteSymbolReferenced",
       "startLine": 89,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "isDeclaration",
+      "startLine": 95,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
