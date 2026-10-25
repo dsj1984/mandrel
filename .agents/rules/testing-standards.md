@@ -165,7 +165,13 @@ commit-body line beginning `Behaviour delta:` (wrap it under commitlint's
 delta: inputs inside it fail before the fix and pass after, and at least one
 input just outside it is asserted unchanged. A fix that changes behaviour
 beyond its stated delta reached green by being broader than the bug. Assert on outcomes rather than
-on which internal methods were called, prefer real implementations **> fakes >
+on which internal methods were called. **Null-implementation check.** A test
+is vacuous when it would still pass if every function it exercises returned
+`undefined` (or, for a void or async function, resolved with no side
+effects). A new or changed test at any tier must fail against that null
+implementation; if it would not, strengthen it to assert the outcome its
+caller sees, or delete it — a vacuous test is not coverage for its tier.
+Prefer real implementations **> fakes >
 stubs > mocks** within [§ Mocking & Isolation](#mocking--isolation), and favour
 DAMP over DRY so each test reads as a self-contained story named after the
 behaviour (`sets status to completed`, not `works`).

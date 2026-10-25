@@ -36,6 +36,12 @@ describe('testing-standards verification discipline', () => {
     assert.match(applying, /just outside it is asserted unchanged/);
   });
 
+  it('requires every test to fail against a null implementation', () => {
+    const applying = section(body, /^## Applying the Standards/m, /^## /m);
+    assert.match(applying, /\*\*Null-implementation check\.\*\*/);
+    assert.match(applying, /at any tier must fail against that null/);
+  });
+
   it('directs invariant-bearing units to property tests with a failure witness', () => {
     const unit = section(body, /^### Unit — pure logic/m, /^### /m);
     assert.match(unit, /\*\*Property tests\.\*\*/);
