@@ -15,6 +15,20 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.104.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.103.0...mandrel-v2.104.0) (2026-10-25)
+
+
+### Added
+
+* held review grounds path-absent and remaining-caller CRITICALs against the reviewed head before halting ([#5904](https://github.com/dsj1984/mandrel/issues/5904)) ([#5906](https://github.com/dsj1984/mandrel/issues/5906)) ([2153489](https://github.com/dsj1984/mandrel/commit/2153489d7cde4a4839c404ddd28a8160a1781527))
+* story handoff runs the held review concurrently with the credited run and stops early on a CRITICAL ([#5905](https://github.com/dsj1984/mandrel/issues/5905)) ([#5908](https://github.com/dsj1984/mandrel/issues/5908)) ([f030bc6](https://github.com/dsj1984/mandrel/commit/f030bc62d2020a2f1170cc1854e4b22021328111))
+* **testing:** flag tests that would still pass against a null implementation (refs [#5899](https://github.com/dsj1984/mandrel/issues/5899)) ([#5900](https://github.com/dsj1984/mandrel/issues/5900)) ([7458b8d](https://github.com/dsj1984/mandrel/commit/7458b8dc6c0e8f2744b6fab99234194f7a9146dd))
+
+
+### Fixed
+
+* coverage delta refresh fires on tree-digest-only staleness and ignores non-suite-input overlap ([#5903](https://github.com/dsj1984/mandrel/issues/5903)) ([#5907](https://github.com/dsj1984/mandrel/issues/5907)) ([65413a4](https://github.com/dsj1984/mandrel/commit/65413a467b1701f46ba393fa7be4948ab60bf68f))
+
 ## [2.103.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.102.0...mandrel-v2.103.0) (2026-10-25)
 
 
