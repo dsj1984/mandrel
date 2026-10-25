@@ -53,11 +53,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
-    },
-    {
       "file": ".agents/scripts/lib/worktree/lifecycle/creation.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13

@@ -1627,6 +1627,10 @@
       "mi": 100.514
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "mi": 104.98
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "mi": 99.991
     },
@@ -1668,7 +1672,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
-      "mi": 94.749
+      "mi": 96.118
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/provider-severity.js",
@@ -1680,7 +1684,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
-      "mi": 97.359
+      "mi": 97.991
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
