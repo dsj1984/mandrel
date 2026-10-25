@@ -77,15 +77,30 @@ function refutePathAbsent(claim, headRef, git) {
   return result?.status === 0 ? `git cat-file found ${claim.path}` : null;
 }
 
-/** File of one `git grep <ref>` hit line (`<ref>:<file>:<n>:<text>`). */
-function hitFile(line, headRef) {
+/** `{ file, text }` of one `git grep <ref>` hit (`<ref>:<file>:<n>:<text>`). */
+function parseHit(line, headRef) {
   const rest = line.startsWith(`${headRef}:`)
     ? line.slice(headRef.length + 1)
     : line;
-  return rest.slice(0, rest.indexOf(':'));
+  const match = /^(.*?):\d+:(.*)$/.exec(rest);
+  return match ? { file: match[1], text: match[2] } : { file: rest, text: '' };
 }
 
-/** @returns {string|null} evidence when no hit falls outside `claim.path`. */
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Only the symbol's own declaration line in `claim.path` is discounted; any
+ * other hit there (a stale caller) still counts, so the check fails safe.
+ */
+function isDeclaration(hit, claim) {
+  if (!claim.path || hit.file !== claim.path) return false;
+  const declares = new RegExp(
+    `\\b(?:function\\*?|class|const|let|var|def|type|interface|enum)\\s+${escapeRegExp(claim.symbol)}\\b`,
+  );
+  return declares.test(hit.text);
+}
+
+/** @returns {string|null} evidence when every hit is the declaration. */
 function refuteSymbolReferenced(claim, headRef, git) {
   const result = git(
     'grep',
@@ -98,11 +113,11 @@ function refuteSymbolReferenced(claim, headRef, git) {
     '--',
   );
   if (result?.status !== 0 && result?.status !== 1) return null;
-  const outside = String(result.stdout ?? '')
+  const referenced = String(result.stdout ?? '')
     .split('\n')
     .filter((line) => line.length > 0)
-    .some((line) => hitFile(line, headRef) !== claim.path);
-  if (outside) return null;
+    .some((line) => !isDeclaration(parseHit(line, headRef), claim));
+  if (referenced) return null;
   return claim.path
     ? `git grep found no references outside ${claim.path}`
     : 'git grep found no references';

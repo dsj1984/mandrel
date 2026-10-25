@@ -114,6 +114,25 @@ test('AC-3: a confirmed claim, a git error, or no claim leaves the critical unch
   }
 });
 
+test('AC-3: a stale caller inside the claimed definition file still halts', () => {
+  const finding = critical({
+    kind: 'symbol-referenced',
+    symbol: 'f',
+    path: 'src/a.js',
+  });
+  const [out] = groundFindings({
+    findings: [finding],
+    headRef: HEAD,
+    gitSpawnFn: fakeGit({
+      grep: {
+        status: 0,
+        stdout: `${HEAD}:src/a.js:1:export function g() { return f(); }\n`,
+      },
+    }).fn,
+  });
+  assert.deepEqual(out, finding);
+});
+
 test('a non-critical finding is never grounded', () => {
   const git = fakeGit({ catFile: 0 });
   const finding = {
