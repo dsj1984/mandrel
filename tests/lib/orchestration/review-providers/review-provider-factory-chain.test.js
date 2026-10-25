@@ -244,6 +244,11 @@ test('chain: inline providers run in declaration order, findings merged', async 
   assert.equal(findings.length, 2);
   assert.equal(findings[0].title, 'A1');
   assert.equal(findings[1].title, 'B1');
+  assert.deepEqual(
+    findings.map((f) => f.provider),
+    ['a', 'b'],
+    'each merged finding names the entry that raised it',
+  );
 });
 
 test('chain: optional construction throw → skip + warn; non-optional → throw', () => {
