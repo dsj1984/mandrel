@@ -1616,7 +1616,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
-      "mi": 97.913
+      "mi": 100.094
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
@@ -1656,7 +1656,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/generated-diff.js",
-      "mi": 103.259
+      "mi": 105.387
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
@@ -1896,7 +1896,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "mi": 93.376
+      "mi": 94.286
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
