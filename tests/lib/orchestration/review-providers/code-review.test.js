@@ -228,6 +228,21 @@ test('prompt asks only for merge-blocking problems with file, line, why and how 
   assert.match(prompt, /Emit \{"findings":\[\]\} if there is nothing/);
 });
 
+test('#5904 AC-4: the prompt and schema ask for a structured claim, which reaches the finding', async () => {
+  const claim = { kind: 'symbol-referenced', symbol: 'fn', path: 'src/a.js' };
+  const stdout = envelope([{ title: 'T', body: 'B', claim }]);
+  const { provider, calls } = harness({ stdout });
+  const findings = await provider.runReview(INPUT);
+  const { prompt, args } = invokeCall(calls);
+  assert.match(prompt, /"kind":"path-absent"/);
+  assert.match(prompt, /"kind":"symbol-referenced"/);
+  const schema = JSON.parse(args[args.indexOf('--json-schema') + 1]);
+  const item = schema.properties.findings.items;
+  assert.deepEqual(item.properties.claim.required, ['kind']);
+  assert.ok(!item.required.includes('claim'), 'claim stays optional');
+  assert.deepEqual(findings[0].claim, claim);
+});
+
 test('prompt reads a shortcut: comment with ceiling and trigger as a decision', async () => {
   const { provider, calls } = harness();
   await provider.runReview({ ...INPUT, depth: 'light' });

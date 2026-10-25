@@ -8,6 +8,7 @@
  */
 
 import { isObject } from '../../json-utils.js';
+import { buildClaim } from './claim-grounding.js';
 
 /**
  * Unwrap a bare array, `{ findings }`, or either under `result`/`data`.
@@ -69,13 +70,19 @@ export function buildFinding(entry, { mapSeverity, defaultCategory }) {
       ? entry.category
       : defaultCategory;
   if (category !== undefined) finding.category = category;
+  return attachLocation(finding, entry);
+}
 
+/** Well-formed `file`, `line` and `claim` only. */
+function attachLocation(finding, entry) {
   if (typeof entry.file === 'string' && entry.file.length > 0) {
     finding.file = entry.file;
   }
   if (Number.isInteger(entry.line) && entry.line > 0) {
     finding.line = entry.line;
   }
+  const claim = buildClaim(entry.claim);
+  if (claim) finding.claim = claim;
   return finding;
 }
 

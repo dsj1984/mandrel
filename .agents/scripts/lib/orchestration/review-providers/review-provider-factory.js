@@ -198,31 +198,28 @@ export function buildProviderChain(entries, ctx) {
 }
 
 /**
- * @param {Record<string, number>} tally
- * @param {string} name
  * @param {Finding[]} findings
+ * @param {string} name
+ * @returns {Finding[]}
  */
-function recordCritical(tally, name, findings) {
-  const critical = findings.filter((f) => f?.severity === 'critical').length;
-  if (critical > 0) tally[name] = critical;
+function stampProvider(findings, name) {
+  return findings.map((f) => ({ ...f, provider: name }));
 }
 
 /**
- * Inline findings merge in declaration order; prompt entries render via
+ * Inline findings merge in declaration order, each stamped with its entry's
+ * `provider` name for attribution; prompt entries render via
  * `getPromptMessages`.
  *
  * @param {ProviderChain} chain
  * @param {{ logger?: { info?: Function, warn?: Function } }} [opts]
  * @returns {ReviewProvider & {
  *   getPromptMessages: (input: ReviewInput) => Promise<string[]>,
- *   getCriticalByProvider: () => Record<string, number>,
  *   chain: ProviderChain,
  * }}
  */
 export function createChainProvider(chain, opts = {}) {
   const logger = opts.logger;
-  /** Critical findings per entry from the last `runReview`, for attribution. */
-  let criticalByProvider = {};
 
   return {
     chain,
@@ -233,7 +230,6 @@ export function createChainProvider(chain, opts = {}) {
     async runReview(input) {
       /** @type {Finding[]} */
       const merged = [];
-      criticalByProvider = {};
       const ctx = {
         scope: input?.scope,
         labels: /** @type {ReadonlyArray<string>} */ (
@@ -253,18 +249,9 @@ export function createChainProvider(chain, opts = {}) {
             `[code-review] Inline provider "${entry.name}" returned a non-array; expected Finding[].`,
           );
         }
-        for (const f of findings) merged.push(f);
-        recordCritical(criticalByProvider, entry.name, findings);
+        merged.push(...stampProvider(findings, entry.name));
       }
       return merged;
-    },
-    /**
-     * Which entries raised the last run's critical findings, and how many.
-     *
-     * @returns {Record<string, number>}
-     */
-    getCriticalByProvider() {
-      return { ...criticalByProvider };
     },
     /**
      * Called after `runReview`.

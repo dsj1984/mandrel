@@ -384,6 +384,7 @@ test('runReview: preserves title/body/file/line/category from schema output', as
             file: 'src/a.js',
             line: 7,
             category: 'correctness',
+            claim: { kind: 'path-absent', path: 'src/b.js', symbol: null },
           },
           {
             severity: 'nit',
@@ -392,6 +393,7 @@ test('runReview: preserves title/body/file/line/category from schema output', as
             file: null,
             line: null,
             category: 'style',
+            claim: null,
           },
         ],
       }),
@@ -412,6 +414,7 @@ test('runReview: preserves title/body/file/line/category from schema output', as
       file: 'src/a.js',
       line: 7,
       category: 'correctness',
+      claim: { kind: 'path-absent', path: 'src/b.js' },
     },
     {
       severity: 'suggestion',
@@ -467,6 +470,7 @@ function assertStrictFindingsSchema(schema) {
   assert.deepEqual([...item.required].sort(), [
     'body',
     'category',
+    'claim',
     'file',
     'line',
     'severity',
@@ -482,6 +486,13 @@ function assertStrictFindingsSchema(schema) {
   );
   assert.deepEqual(item.properties.file.type, ['string', 'null']);
   assert.deepEqual(item.properties.line.type, ['integer', 'null']);
+  const claim = item.properties.claim;
+  assert.deepEqual(claim.type, ['object', 'null']);
+  assert.equal(claim.additionalProperties, false);
+  assert.deepEqual(
+    [...claim.required].sort(),
+    Object.keys(claim.properties).sort(),
+  );
 }
 
 function makeTempRoot() {
