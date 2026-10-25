@@ -140,7 +140,7 @@ function emptinessReason(delta, suite) {
  *
  * @returns {{ reason: string | null, delta: string[], dropped: number }}
  */
-export function deltaIneligibility({ delta, storyFiles, coveragePath }) {
+function deltaIneligibility({ delta, storyFiles, coveragePath }) {
   const suite = filterSuiteInputPaths(delta, coveragePath);
   const reason =
     emptinessReason(delta, suite) ??

@@ -14,7 +14,6 @@ import {
 import { tryScopedCapture } from '../../.agents/scripts/lib/coverage-capture-affected.js';
 import {
   closeDeltaIneligibility,
-  deltaIneligibility,
   formatFreshnessDetail,
   isCoverageConfigFile,
 } from '../../.agents/scripts/lib/coverage-capture-delta.js';
@@ -412,45 +411,36 @@ describe('delta-refresh helpers', () => {
 // Story #5880 — close's `test` delta re-credit shares these rules.
 describe('deltaIneligibility — the rules shared with close (Story #5880)', () => {
   const rule = (delta, storyFiles) =>
-    deltaIneligibility({ delta, storyFiles, coveragePath: CRAP.coveragePath });
+    closeDeltaIneligibility({ delta, storyFiles, config: {} });
 
   it('names a path shared with the Story change set', () => {
     assert.equal(
-      rule(['src/a.js'], ['src/a.js']).reason,
+      rule(['src/a.js'], ['src/a.js']),
       "delta shares src/a.js with the Story's change set",
     );
   });
 
   it('names a coverage-determining config file', () => {
     assert.match(
-      rule(['pnpm-lock.yaml'], []).reason,
+      rule(['pnpm-lock.yaml'], []),
       /coverage-determining config pnpm-lock\.yaml/,
     );
   });
 
   it('passes a disjoint, config-free delta', () => {
-    assert.deepEqual(rule(['src/b.js'], ['src/a.js']), {
-      reason: null,
-      delta: ['src/b.js'],
-      dropped: 0,
-    });
+    assert.equal(rule(['src/b.js'], ['src/a.js']), null);
   });
 
   it('AC-2: shared baseline and coverage-directory paths are not overlap', () => {
     const shared = ['baselines/coverage.json', 'coverage/lcov.info'];
-    assert.deepEqual(rule([...shared, 'src/b.js'], [...shared, 'src/a.js']), {
-      reason: null,
-      delta: ['src/b.js'],
-      dropped: 2,
-    });
+    assert.equal(rule([...shared, 'src/b.js'], [...shared, 'src/a.js']), null);
   });
 
   it('names a delta with no suite-input path', () => {
-    assert.deepEqual(rule(['baselines/crap.json'], []), {
-      reason: 'delta has no suite-input path',
-      delta: [],
-      dropped: 1,
-    });
+    assert.equal(
+      rule(['baselines/crap.json'], []),
+      'delta has no suite-input path',
+    );
   });
 
   it("AC-4: close's test delta and coverage-capture import the one rule, not a copy", () => {
