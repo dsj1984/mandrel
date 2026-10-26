@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.105.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.104.0...mandrel-v2.105.0) (2026-10-26)
+
+
+### Fixed
+
+* ground held-review claims in the reviewed repository's cwd, not the process cwd ([#5909](https://github.com/dsj1984/mandrel/issues/5909)) ([#5910](https://github.com/dsj1984/mandrel/issues/5910)) ([a86c601](https://github.com/dsj1984/mandrel/commit/a86c60138abc68ed3ec9c6ffd332cc4d98c5a37c))
+
 ## [2.104.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.103.0...mandrel-v2.104.0) (2026-10-25)
 
 
