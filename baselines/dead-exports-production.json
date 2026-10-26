@@ -657,10 +657,6 @@
     },
     {
       "file": ".agents/scripts/lib/error-redactor.js",
-      "symbol": "redactErrorMessage"
-    },
-    {
-      "file": ".agents/scripts/lib/error-redactor.js",
       "symbol": "resolveRepoRoot"
     },
     {
@@ -850,10 +846,6 @@
     {
       "file": ".agents/scripts/lib/mandrel-catalog.js",
       "symbol": "renderCatalog"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/metrics-ledger.js",
-      "symbol": "MAX_LEDGER_BYTES"
     },
     {
       "file": ".agents/scripts/lib/observability/metrics-ledger.js",
