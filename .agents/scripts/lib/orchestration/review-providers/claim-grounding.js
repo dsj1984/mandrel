@@ -162,16 +162,18 @@ function headResolves(git, headRef) {
  * unrefuted for want of a repository, and that is reported, not silent.
  * Probes only when some finding is groundable.
  *
- * @returns {import('./degraded-gates.js').GateDegradation | null}
+ * @returns {import('./degraded-gates.js').GateDegradation[]}
  */
-function headDegradation({ findings, headRef, cwd, git }) {
-  if (!findings.some(isGroundable) || headResolves(git, headRef)) return null;
-  return {
-    tool: 'claim-grounding',
-    gate: 'claim-grounding',
-    surface: 'head-ref',
-    reason: `head ${headRef} not resolvable in ${cwd}`,
-  };
+function headDegradations({ findings, headRef, cwd, git }) {
+  if (!findings.some(isGroundable) || headResolves(git, headRef)) return [];
+  return [
+    {
+      tool: 'claim-grounding',
+      gate: 'claim-grounding',
+      surface: 'head-ref',
+      reason: `head ${headRef} not resolvable in ${cwd}`,
+    },
+  ];
 }
 
 /** Names a degradation reason carries, split on its list punctuation. */
@@ -218,10 +220,10 @@ export function groundFindings({
   gitSpawnFn = gitSpawn,
 }) {
   const git = (...args) => gitSpawnFn(cwd, ...args);
-  const unresolvedHead = headDegradation({ findings, headRef, cwd, git });
-  const all = unresolvedHead
-    ? [...degradations, unresolvedHead]
-    : [...degradations];
+  const all = [
+    ...degradations,
+    ...headDegradations({ findings, headRef, cwd, git }),
+  ];
   return {
     findings: groundEach(findings, headRef, git, reasonTokens(all)),
     degradations: all,
