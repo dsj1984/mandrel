@@ -129,6 +129,7 @@ export async function computeStoryScopeReview({
   );
   const result = await runStoryReviewCore({
     storyId,
+    cwd,
     baseRef: base.ref,
     headRef,
     commentTargetId,

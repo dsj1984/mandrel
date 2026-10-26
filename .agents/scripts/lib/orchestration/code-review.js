@@ -80,11 +80,14 @@ function resolveStoryScope(opts, config) {
 /**
  * Run a Story-scope review. `headRef` is required; `baseRef` defaults to
  * the remote base branch; `commentTargetId` (e.g. a PR number) overrides
- * the post target while `ticketId` still labels the header.
+ * the post target while `ticketId` still labels the header. `cwd` is the
+ * reviewed repository the diff and claim grounding run in; unset, they fall
+ * back to `process.cwd()`.
  *
  * @param {{
  *   scope?: 'story',
  *   ticketId: number,
+ *   cwd?: string,
  *   baseRef?: string|null,
  *   headRef?: string|null,
  *   commentTargetId?: number|null,
@@ -144,8 +147,12 @@ function resolveProviderName(codeReviewConfig, reviewProvider) {
  */
 function resolveInjectedChangedFiles({ opts, baseRef, headRef }) {
   if (opts.changedFiles === undefined) {
-    return computeChangeSet({ baseRef, headRef, gitSpawnFn: opts.gitSpawnFn })
-      .files;
+    return computeChangeSet({
+      baseRef,
+      headRef,
+      cwd: opts.cwd,
+      gitSpawnFn: opts.gitSpawnFn,
+    }).files;
   }
   return Array.isArray(opts.changedFiles) ? opts.changedFiles : null;
 }
@@ -258,6 +265,24 @@ function resolveCriticalByProvider({ findings, providerName, severity }) {
   return tally;
 }
 
+/** Tally, halt verdict and per-provider criticals of grounded findings. */
+function scoreFindings(findings, providerName) {
+  const severity = countBySeverity(findings);
+  const halted = hasSurvivingCritical(severity);
+  return {
+    severity,
+    halted,
+    criticalByProvider: resolveCriticalByProvider({
+      findings,
+      providerName,
+      severity,
+    }),
+    blockerReason: halted
+      ? `code-review reported ${severity.critical} critical blocker(s)`
+      : null,
+  };
+}
+
 async function executeReviewPipeline({ opts, config, envelope }) {
   const {
     provider,
@@ -300,23 +325,14 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   );
 
   // Degraded gates ride beside the findings, never inside them.
-  const degradations = await collectProviderDegradations(
-    reviewProvider,
-    logger,
-  );
-  const findings = groundFindings({
+  const { findings, degradations } = groundFindings({
     findings: rawFindings,
     headRef,
-    degradations,
+    cwd: opts.cwd,
+    degradations: await collectProviderDegradations(reviewProvider, logger),
     gitSpawnFn: opts.gitSpawnFn,
   });
-  const severity = countBySeverity(findings);
-  const halted = hasSurvivingCritical(severity);
-  const criticalByProvider = resolveCriticalByProvider({
-    findings,
-    providerName,
-    severity,
-  });
+  const scored = scoreFindings(findings, providerName);
   const report = renderFindingsFn({
     scope,
     ticketId,
@@ -338,19 +354,17 @@ async function executeReviewPipeline({ opts, config, envelope }) {
 
   return {
     status: 'ok',
-    severity,
+    severity: scored.severity,
     findings,
     providerName,
     report,
     posted,
     postedCommentId,
     commentTargetId,
-    halted,
-    criticalByProvider,
+    halted: scored.halted,
+    criticalByProvider: scored.criticalByProvider,
     ...degradationEnvelope(degradations),
-    blockerReason: halted
-      ? `code-review reported ${severity.critical} critical blocker(s)`
-      : null,
+    blockerReason: scored.blockerReason,
   };
 }
 

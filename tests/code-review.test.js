@@ -326,3 +326,60 @@ test('postReviewComment: posts a held report to the given target', async () => {
   ]);
   assert.deepEqual(out, { posted: true, postedCommentId: 77 });
 });
+
+// --- Reviewed-repository cwd (Story #5909) ---------------------------------
+
+/** A git seam recording each call's cwd and verb; every probe succeeds. */
+function recordingGit() {
+  const calls = [];
+  const fn = (cwd, verb) => {
+    calls.push({ cwd, verb });
+    return { status: 0, stdout: 'a.js', stderr: '' };
+  };
+  return { fn, calls };
+}
+
+const claimCritical = () => ({
+  severity: 'critical',
+  title: 't',
+  body: 'b',
+  claim: { kind: 'path-absent', path: 'a.js' },
+});
+
+test('runCodeReview: diff enumeration and claim grounding run in opts.cwd', async () => {
+  const git = recordingGit();
+  await runCodeReview({
+    ...buildOpts({ findings: [claimCritical()], gitSpawnFn: git.fn }),
+    cwd: '/reviewed/repo',
+  });
+  assert.deepEqual(
+    git.calls.map((c) => c.verb),
+    ['diff', 'rev-parse', 'cat-file'],
+  );
+  assert.ok(git.calls.every((c) => c.cwd === '/reviewed/repo'));
+});
+
+test('runCodeReview: without cwd, the diff and grounding fall back to process.cwd()', async () => {
+  const git = recordingGit();
+  await runCodeReview(
+    buildOpts({ findings: [claimCritical()], gitSpawnFn: git.fn }),
+  );
+  assert.equal(git.calls.length, 3);
+  assert.ok(git.calls.every((c) => c.cwd === process.cwd()));
+});
+
+test('runCodeReview: no claim-bearing critical spawns no head probe and records no degradation', async () => {
+  const git = recordingGit();
+  const out = await runCodeReview({
+    ...buildOpts({
+      findings: [{ severity: 'critical', title: 't', body: 'b' }],
+      gitSpawnFn: git.fn,
+    }),
+    cwd: '/reviewed/repo',
+  });
+  assert.deepEqual(
+    git.calls.map((c) => c.verb),
+    ['diff'],
+  );
+  assert.equal(out.degraded, false);
+});

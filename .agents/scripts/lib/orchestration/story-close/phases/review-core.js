@@ -7,6 +7,11 @@ import { gitSpawn } from '../../../git-utils.js';
 import { computeChangeSet } from '../../change-set.js';
 import { runCodeReview } from '../../code-review.js';
 
+const progressLogger = (progress, tag) => ({
+  info: (m) => progress(tag, m),
+  warn: (m) => progress(tag, `⚠️ ${m}`),
+});
+
 /**
  * Run `runCodeReview` over one change set and return the review result.
  * Throws propagate; the caller picks the advisory posture. Review depth is
@@ -18,8 +23,12 @@ import { runCodeReview } from '../../code-review.js';
  * commit lands in between. An unenumerable diff injects `null` ("already
  * tried"), which the review honours without re-spawning git.
  *
+ * `cwd` is the reviewed repository: both the diff and claim grounding run
+ * there, never in the process cwd.
+ *
  * @param {{
  *   storyId: number|string,
+ *   cwd?: string,
  *   baseRef: string,
  *   headRef: string,
  *   commentTargetId?: number|null,
@@ -35,6 +44,7 @@ import { runCodeReview } from '../../code-review.js';
  */
 export async function runStoryReviewCore({
   storyId,
+  cwd,
   baseRef,
   headRef,
   commentTargetId = null,
@@ -45,20 +55,18 @@ export async function runStoryReviewCore({
   computeChangeSetFn = computeChangeSet,
   runCodeReviewFn = runCodeReview,
 }) {
-  const changeSet = computeChangeSetFn({ baseRef, headRef, gitSpawnFn });
+  const changeSet = computeChangeSetFn({ baseRef, headRef, cwd, gitSpawnFn });
 
   const opts = {
     scope: 'story',
     ticketId: Number(storyId),
+    cwd,
     baseRef,
     headRef,
     provider,
     changedFiles: changeSet.files,
     gitSpawnFn,
-    logger: {
-      info: (m) => progress(progressTag, m),
-      warn: (m) => progress(progressTag, `⚠️ ${m}`),
-    },
+    logger: progressLogger(progress, progressTag),
   };
   if (commentTargetId != null) {
     opts.commentTargetId = commentTargetId;

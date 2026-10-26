@@ -130,8 +130,8 @@ const REFUTERS = {
 
 /** @returns {Finding} */
 function groundFinding(finding, headRef, git) {
-  const refute = REFUTERS[finding?.claim?.kind];
-  if (finding?.severity !== 'critical' || !refute) return finding;
+  if (!isGroundable(finding)) return finding;
+  const refute = REFUTERS[finding.claim.kind];
   let evidence = null;
   try {
     evidence = refute(finding.claim, headRef, git);
@@ -140,6 +140,40 @@ function groundFinding(finding, headRef, git) {
   }
   if (!evidence) return finding;
   return { ...finding, severity: 'suggestion', ungrounded: evidence };
+}
+
+const isGroundable = (finding) =>
+  finding?.severity === 'critical' && Boolean(REFUTERS[finding?.claim?.kind]);
+
+function headResolves(git, headRef) {
+  try {
+    return (
+      git('rev-parse', '--verify', '--quiet', `${headRef}^{commit}`)?.status ===
+      0
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `cat-file` exits 128 for a missing path and an unknown ref alike, so the
+ * head is checked on its own: an unresolvable head means every claim stays
+ * unrefuted for want of a repository, and that is reported, not silent.
+ * Probes only when some finding is groundable.
+ *
+ * @returns {import('./degraded-gates.js').GateDegradation[]}
+ */
+function headDegradations({ findings, headRef, cwd, git }) {
+  if (!findings.some(isGroundable) || headResolves(git, headRef)) return [];
+  return [
+    {
+      tool: 'claim-grounding',
+      gate: 'claim-grounding',
+      surface: 'head-ref',
+      reason: `head ${headRef} not resolvable in ${cwd}`,
+    },
+  ];
 }
 
 /** Names a degradation reason carries, split on its list punctuation. */
@@ -155,7 +189,20 @@ function annotateContext(finding, tokens) {
   return { ...finding, context: TRUNCATED_CONTEXT };
 }
 
+function groundEach(findings, headRef, git, tokens) {
+  return findings.map((finding) => {
+    const grounded = groundFinding(finding, headRef, git);
+    return grounded && tokens.size > 0
+      ? annotateContext(grounded, tokens)
+      : grounded;
+  });
+}
+
 /**
+ * Ground every finding in `cwd`, the reviewed repository. `degradations`
+ * comes back with the head check's record appended when the head does not
+ * resolve there.
+ *
  * @param {{
  *   findings: Finding[],
  *   headRef: string,
@@ -163,7 +210,7 @@ function annotateContext(finding, tokens) {
  *   cwd?: string,
  *   gitSpawnFn?: typeof gitSpawn,
  * }} args
- * @returns {Finding[]}
+ * @returns {{ findings: Finding[], degradations: Array<{ reason: string }> }}
  */
 export function groundFindings({
   findings,
@@ -173,11 +220,12 @@ export function groundFindings({
   gitSpawnFn = gitSpawn,
 }) {
   const git = (...args) => gitSpawnFn(cwd, ...args);
-  const tokens = reasonTokens(degradations);
-  return findings.map((finding) => {
-    const grounded = groundFinding(finding, headRef, git);
-    return grounded && tokens.size > 0
-      ? annotateContext(grounded, tokens)
-      : grounded;
-  });
+  const all = [
+    ...degradations,
+    ...headDegradations({ findings, headRef, cwd, git }),
+  ];
+  return {
+    findings: groundEach(findings, headRef, git, reasonTokens(all)),
+    degradations: all,
+  };
 }
