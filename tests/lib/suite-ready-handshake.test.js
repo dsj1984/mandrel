@@ -396,7 +396,8 @@ describe('runSupervisedSuite — signal forwarding (Story #5913)', () => {
     let atSpawn = null;
     const code = await runSupervisedSuite({
       cmd: process.execPath,
-      args: ['-e', ''],
+      // Not '' — win32 spawns suites through cmd, which drops an empty argument.
+      args: ['-e', '0'],
       cwd: process.cwd(),
       spawnImpl: (...a) => {
         atSpawn = process.listenerCount('SIGTERM');

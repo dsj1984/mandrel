@@ -196,7 +196,8 @@ describe('superviseGroup — abort wiring', () => {
   it('#5913: the close gate spawns with forwarding already armed, and leaves none behind', async () => {
     const before = process.listenerCount('SIGTERM');
     let atSpawn = null;
-    const result = await defaultGateRunner(process.execPath, ['-e', ''], {
+    // Not '' — win32 spawns gates through cmd, which drops an empty argument.
+    const result = await defaultGateRunner(process.execPath, ['-e', '0'], {
       cwd: process.cwd(),
       gateName: 'lint',
       log: () => {},
