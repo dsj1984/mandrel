@@ -58,15 +58,16 @@ async function postAuditRecord({ post, surface }) {
 }
 
 /**
- * Remember the overridden CRITICALs so a re-review does not halt on them again.
+ * Remember the overridden CRITICALs so a re-review does not halt on them
+ * again, and the reason so the land-time disposition record carries it.
  *
- * @param {{ storyId: number, findings: Array<object>, config?: object }} args
+ * @param {{ storyId: number, findings: Array<object>, reason: string, config?: object }} args
  */
-function recordOverrides({ storyId, findings, config }) {
+function recordOverrides({ storyId, findings, ...deps }) {
   const ids = findings.filter((f) => f?.severity === 'critical').map(findingId);
   if (ids.length === 0) return;
   try {
-    recordOverriddenIds(storyId, ids, { config });
+    recordOverriddenIds(storyId, ids, deps);
   } catch (err) {
     Logger.warn(
       `[single-story-close] failed to record overridden review ids: ${err?.message ?? err}`,
@@ -133,6 +134,6 @@ export async function handleOverriddenReviewBlock({
     },
     config,
   });
-  recordOverrides({ storyId, findings, config });
+  recordOverrides({ storyId, findings, reason, config });
   return { overridden: true, reason, criticalCount };
 }

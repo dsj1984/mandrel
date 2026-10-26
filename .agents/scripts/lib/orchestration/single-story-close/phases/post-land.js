@@ -12,6 +12,7 @@ import path from 'node:path';
 
 import { gitSpawn as defaultGitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
+import { recordStoryDispositions as defaultRecordStoryDispositions } from '../../../observability/review-dispositions.js';
 import {
   emitCloseRecoveredFriction as defaultEmitCloseRecoveredFriction,
   emitRecoveredFrictionMarker as defaultEmitRecoveredFrictionMarker,
@@ -395,7 +396,8 @@ async function runLockedLocalSteps({
 
 /**
  * Run the post-land tail: friction markers, then the GitHub steps and the
- * locked local steps concurrently, then temp purge, then lease release.
+ * locked local steps concurrently, then review dispositions, temp purge and
+ * lease release.
  *
  * @param {object} args
  * @param {number} args.storyId
@@ -418,7 +420,8 @@ async function runLockedLocalSteps({
  * @param {Function} [args.reapPlanRunLabelsForStoryFn]
  * @param {Function} [args.rollUpEpicForStoryFn]
  * @param {Function} [args.reapWorktreePhaseFn]
- * @returns {Promise<{ followUps: boolean, statusResync: boolean, worktreeReap: boolean, refCleanup: boolean, baseFastForward: boolean, tempPurge: boolean, leaseRelease: boolean, epicRollup: boolean, details: Record<string, string|null> }>}
+ * @param {Function} [args.recordStoryDispositionsFn]
+ * @returns {Promise<{ followUps: boolean, statusResync: boolean, worktreeReap: boolean, refCleanup: boolean, baseFastForward: boolean, reviewDispositions: boolean, tempPurge: boolean, leaseRelease: boolean, epicRollup: boolean, details: Record<string, string|null> }>}
  */
 export async function runPostLandTail({
   storyId,
@@ -441,6 +444,7 @@ export async function runPostLandTail({
   reapPlanRunLabelsForStoryFn = defaultReapPlanRunLabelsForStory,
   rollUpEpicForStoryFn = defaultRollUpEpicForStory,
   reapWorktreePhaseFn = defaultReapWorktreePhase,
+  recordStoryDispositionsFn = defaultRecordStoryDispositions,
 }) {
   progress?.('POST-LAND', `🧾 Running land tail for Story #${storyId}...`);
 
@@ -522,6 +526,12 @@ export async function runPostLandTail({
   ]);
   const { worktreeReap, refCleanup, baseFastForward } = local;
 
+  // Before the purge, which reaps the review history it reads.
+  const reviewDispositions = await step(
+    () => recordStoryDispositionsFn({ storyId, config, progress }),
+    { name: 'review dispositions', progress },
+  );
+
   // After every step that reads the temp artifacts; `signals.ndjson` survives.
   const tempPurge = await step(
     () => stepTempPurge({ storyId, config, purgeStoryTempArtifactsFn }),
@@ -546,6 +556,7 @@ export async function runPostLandTail({
     worktreeReap: worktreeReap.ok,
     refCleanup: refCleanup.ok,
     baseFastForward: baseFastForward.ok,
+    reviewDispositions: reviewDispositions.ok,
     tempPurge: tempPurge.ok,
     leaseRelease: leaseRelease.ok,
     epicRollup: epicRollup.ok,
@@ -555,6 +566,7 @@ export async function runPostLandTail({
       worktreeReap: worktreeReap.detail,
       refCleanup: refCleanup.detail,
       baseFastForward: baseFastForward.detail,
+      reviewDispositions: reviewDispositions.detail,
       tempPurge: tempPurge.detail,
       leaseRelease: leaseRelease.detail,
       epicRollup: epicRollup.detail,
