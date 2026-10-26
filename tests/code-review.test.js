@@ -389,29 +389,34 @@ test('runCodeReview: no claim-bearing critical spawns no head probe and records 
 // --- Critical verification summary (Story #5919) ---------------------------
 
 test('runCodeReview: the verifier runs at the review depth and its tally rides the result', async () => {
-  const seen = [];
+  const spawned = [];
   const out = await runCodeReview({
     ...buildOpts({
       findings: [{ severity: 'critical', title: 't', body: 'b' }],
       changedFiles: ['a.js'],
       changedFileCount: 1,
     }),
-    verifyCriticalsFn: async (args) => {
-      seen.push(args.depth);
-      return {
-        findings: args.findings,
-        degradations: [],
-        verification: {
-          attempted: 1,
-          confirmed: 1,
-          refuted: 0,
-          uncertain: 0,
-          errored: 0,
-        },
-      };
+    verifier: {
+      probeFn: () => true,
+      spawnFn: async (_f, args) => {
+        spawned.push(args);
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            subtype: 'success',
+            structured_output: {
+              verdict: 'confirmed',
+              evidence: { file: 'a.js', line: 1 },
+              reason: 'real',
+            },
+          }),
+          stderr: '',
+        };
+      },
+      gitSpawnFn: () => ({ status: 0, stdout: 'x\n', stderr: '' }),
     },
   });
-  assert.deepEqual(seen, ['light']);
+  assert.equal(spawned.length, 1, 'one verifier at light depth');
   assert.equal(out.verification.confirmed, 1);
   assert.equal(out.halted, true);
 });

@@ -19,7 +19,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
-import { verifyCriticals } from '../../../.agents/scripts/lib/orchestration/review-providers/critical-verifier.js';
 
 function noopUpsert() {
   return async () => {};
@@ -300,20 +299,18 @@ const verdictEnvelope = (verdict) => ({
   stderr: '',
 });
 
-/** A verifier whose claude spawn answers `verdict`; records each prompt. */
+/** Verifier seams whose claude spawn answers `verdict`; records each prompt. */
 function stubVerifier(verdict) {
   const prompts = [];
-  const fn = (args) =>
-    verifyCriticals({
-      ...args,
-      probeFn: () => true,
-      spawnFn: async (_f, _a, options) => {
-        prompts.push(options.input);
-        return verdictEnvelope(verdict);
-      },
-      gitSpawnFn: () => ({ status: 0, stdout: 'a\nb\n', stderr: '' }),
-    });
-  return { fn, prompts };
+  const seams = {
+    probeFn: () => true,
+    spawnFn: async (_f, _a, options) => {
+      prompts.push(options.input);
+      return verdictEnvelope(verdict);
+    },
+    gitSpawnFn: () => ({ status: 0, stdout: 'a\nb\n', stderr: '' }),
+  };
+  return { seams, prompts };
 }
 
 function verifiedRun(findings, verifier, extra = {}) {
@@ -326,7 +323,7 @@ function verifiedRun(findings, verifier, extra = {}) {
     gitSpawnFn: () => ({ status: 1, stdout: '', stderr: '' }),
     resolveConfigFn: baseResolveConfig,
     upsertCommentFn: noopUpsert(),
-    verifyCriticalsFn: verifier.fn,
+    verifier: verifier.seams,
     deferPost: true,
     ...extra,
   });
@@ -407,9 +404,7 @@ test('#5919 AC-4: only findings still critical after grounding reach the verifie
 test('#5919 AC-3: a verifier error keeps the halt and adds a degradation', async () => {
   const out = await verifiedRun(
     [{ severity: 'critical', title: 'Bug', body: 'b' }],
-    {
-      fn: (args) => verifyCriticals({ ...args, probeFn: () => false }),
-    },
+    { seams: { probeFn: () => false } },
   );
   assert.equal(out.halted, true);
   assert.equal(out.degraded, true);

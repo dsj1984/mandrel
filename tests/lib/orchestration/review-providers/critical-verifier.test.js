@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { verifyCriticals } from '../../../../.agents/scripts/lib/orchestration/review-providers/critical-verifier.js';
+import { vetFindings } from '../../../../.agents/scripts/lib/orchestration/review-providers/critical-verifier.js';
 
 const MAX_VERIFIED_CRITICALS = 10;
 
@@ -52,16 +52,21 @@ const critical = (title, extra = {}) => ({
 
 function run(findings, answers, extra = {}) {
   const spawn = spawnStub(answers);
-  const out = verifyCriticals({
+  const { depth, ...seams } = extra;
+  const out = vetFindings({
     findings,
-    baseRef: 'origin/main',
-    headRef: 'HEAD1',
-    cwd: '/repo',
-    spawnFn: spawn.fn,
-    probeFn: () => true,
-    gitSpawnFn,
-    platform: 'linux',
-    ...extra,
+    reviewInput: { baseRef: 'origin/main', headRef: 'HEAD1', depth },
+    opts: {
+      cwd: '/repo',
+      gitSpawnFn,
+      verifier: {
+        spawnFn: spawn.fn,
+        probeFn: () => true,
+        platform: 'linux',
+        ...seams,
+      },
+    },
+    degradations: [],
   });
   return out.then((result) => ({ ...result, calls: spawn.calls }));
 }
@@ -139,7 +144,7 @@ test('AC-4: findings below critical are never sent to the verifier', async () =>
   ];
   const out = await run(findings, [envelope(REFUTED)]);
   assert.equal(out.calls.length, 0);
-  assert.equal(out.findings, findings);
+  assert.deepEqual(out.findings, findings);
   assert.equal(out.verification.attempted, 0);
 });
 

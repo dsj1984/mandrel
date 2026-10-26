@@ -102,7 +102,7 @@ function resolveStoryScope(opts, config) {
  *   createReviewProviderFn?: typeof createReviewProvider,
  *   upsertCommentFn?: typeof upsertStructuredComment,
  *   renderFindingsFn?: typeof renderFindings,
- *   verifyCriticalsFn?: Function,
+ *   verifier?: { spawnFn?: Function, probeFn?: Function, gitSpawnFn?: Function },
  *   deferPost?: boolean,
  * }} opts
  * @returns {Promise<{

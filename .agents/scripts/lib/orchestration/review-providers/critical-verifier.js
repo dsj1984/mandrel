@@ -270,7 +270,7 @@ function boundDegradation(skipped) {
  * @returns {Promise<{ findings: Finding[], degradations: GateDegradation[],
  *   verification: VerificationSummary }>}
  */
-export async function verifyCriticals(args) {
+async function verifyCriticals(args) {
   const verification = emptyVerification();
   const criticals = args.findings.filter((f) => f?.severity === 'critical');
   if (criticals.length === 0) {
@@ -315,7 +315,8 @@ export async function verifyCriticals(args) {
 
 /**
  * The pipeline step: ground every finding, then verify the CRITICALs left.
- * An injected review provider gets no verifier unless the caller injects one.
+ * An injected review provider gets no verifier unless `opts.verifier` (the
+ * spawn/probe/git seams) is given too.
  *
  * @param {{ findings: Finding[], reviewInput: { baseRef: string,
  *   headRef: string, depth?: string }, opts: object,
@@ -337,8 +338,7 @@ export async function vetFindings({
     gitSpawnFn: opts.gitSpawnFn,
   });
   const verify =
-    opts.verifyCriticalsFn ??
-    (opts.reviewProvider ? skipVerification : verifyCriticals);
+    opts.verifier || !opts.reviewProvider ? verifyCriticals : skipVerification;
   const verified = await verify({
     findings: grounded.findings,
     baseRef,
@@ -347,6 +347,7 @@ export async function vetFindings({
     cwd: opts.cwd,
     gitSpawnFn: opts.gitSpawnFn,
     logger: opts.logger,
+    ...opts.verifier,
   });
   return {
     findings: verified.findings,

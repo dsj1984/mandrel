@@ -29728,8 +29728,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/critical-verifier.js",
       "method": "vetFindings",
-      "startLine": 324,
-      "crap": 2
+      "startLine": 325,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/degraded-gates.js",
