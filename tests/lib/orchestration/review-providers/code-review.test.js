@@ -513,10 +513,14 @@ test('#5878 AC-3: a single file over the cap is reviewed alone, truncated, and d
   });
   await provider.runReview(INPUT);
   const { prompt } = invokeCall(calls);
-  assert.match(prompt, /diff truncated at 200000 characters/);
+  const cap = Number(/diff truncated at (\d+) characters/.exec(prompt)?.[1]);
+  assert.ok(cap < 200_000, 'the slice header and manifest come out of the cap');
   assert.ok(prompt.length < big.length);
-  const row = assertOneDegradation(provider, /^x truncated at 200000/);
-  assert.match(row.reason, new RegExp(`${big.length - 200_000} characters`));
+  const row = assertOneDegradation(
+    provider,
+    new RegExp(`^x truncated at ${cap}`),
+  );
+  assert.match(row.reason, new RegExp(`${big.length - cap} characters`));
 });
 
 test('a generated file is stubbed before the cap, so it cannot truncate the review', async () => {
@@ -829,5 +833,95 @@ test('#5764 AC-2: a capped callers block records one degradation naming the drop
   assertOneDegradation(
     provider,
     /callers block incomplete; not checked: loadWidget/,
+  );
+});
+
+/** The chunk index each changed file was packed into. */
+function chunkOf(prompts, files) {
+  return Object.fromEntries(
+    files.map((f) => [f, prompts.findIndex((p) => p.includes(`+++ b/${f}\n`))]),
+  );
+}
+
+test('#5912: every chunk is told it is a slice and carries the whole manifest, charged to its budget', async () => {
+  const files = Array.from({ length: 8 }, (_, i) => `src/f${i}.js`);
+  const diff = files.map((f) => section(f, 150_000)).join('');
+  const { provider, prompts } = perPromptHarness(diff, () => ({
+    status: 0,
+    stdout: envelope([]),
+    stderr: '',
+  }));
+  await provider.runReview(INPUT);
+  assert.equal(prompts.length, 6);
+  const manifest = `<manifest>\n${files.join('\n')}\n</manifest>\n`;
+  for (const [i, prompt] of prompts.entries()) {
+    assert.match(prompt, new RegExp(`chunk ${i + 1} of 6 of one change`));
+    assert.match(prompt, /never report a listed file as unchanged or missing/);
+    assert.doesNotMatch(prompt, /The diff below is authoritative/);
+    assert.ok(prompt.includes(manifest), 'files past the bound are listed too');
+    const body = prompt.slice(
+      prompt.indexOf('<diff>\n') + 7,
+      prompt.indexOf('\n</diff>'),
+    );
+    const note = prompt.slice(
+      prompt.indexOf('The diff below is chunk'),
+      prompt.indexOf('Answer with'),
+    );
+    assert.ok(body.length + manifest.length + note.length <= 200_000);
+  }
+});
+
+test('#5912: a diff at or under the cap keeps the whole-diff prompt, with no slice note or manifest', async () => {
+  const { provider, calls } = harness();
+  await provider.runReview(INPUT);
+  const { prompt } = invokeCall(calls);
+  assert.match(prompt, /The diff below is authoritative/);
+  assert.doesNotMatch(prompt, /<manifest>|chunk \d+ of/);
+  assert.match(prompt, /"kind":"file-unchanged"/);
+});
+
+test('#5912: source sections pack before tests and docs, grouped by directory', async () => {
+  const diff = [
+    section('tests/a.test.js', 10_000),
+    section('src/z/a.js', 150_000),
+    section('docs/guide.md', 10_000),
+    section('src/b.js', 150_000),
+    section('e2e/checkout.feature', 10_000),
+    section('src/z/c.spec.ts', 10_000),
+  ].join('');
+  const { provider, prompts } = perPromptHarness(diff, () => ({
+    status: 0,
+    stdout: envelope([]),
+    stderr: '',
+  }));
+  await provider.runReview(INPUT);
+  const at = chunkOf(prompts, [
+    'src/b.js',
+    'src/z/a.js',
+    'tests/a.test.js',
+    'e2e/checkout.feature',
+    'src/z/c.spec.ts',
+    'docs/guide.md',
+  ]);
+  assert.deepEqual(at, {
+    'src/b.js': 0,
+    'src/z/a.js': 1,
+    'tests/a.test.js': 1,
+    'e2e/checkout.feature': 1,
+    'src/z/c.spec.ts': 1,
+    'docs/guide.md': 1,
+  });
+  const order = (p) =>
+    [
+      'e2e/checkout.feature',
+      'src/z/c.spec.ts',
+      'tests/a.test.js',
+      'docs/guide.md',
+    ].map((f) => p.indexOf(`+++ b/${f}\n`));
+  const positions = order(prompts[1]);
+  assert.deepEqual(
+    positions,
+    [...positions].sort((a, b) => a - b),
+    'tests by directory, then docs',
   );
 });
