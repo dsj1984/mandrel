@@ -17,12 +17,12 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
 import { handleOverriddenReviewBlock } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/review-override.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 function noopUpsert() {
   return async () => {};
@@ -427,7 +427,7 @@ test('#5919: an injected review provider without a verifier is scored as returne
 });
 
 function tempDir(t, prefix) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const dir = makeTempDir(prefix);
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }

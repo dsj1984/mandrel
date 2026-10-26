@@ -5,7 +5,6 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -16,9 +15,10 @@ import {
   recordOverriddenIds,
 } from '../../../.agents/scripts/lib/orchestration/review-history.js';
 import { findingId } from '../../../.agents/scripts/lib/orchestration/review-providers/finding-identity.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 function deps(t) {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'review-history-'));
+  const tempRoot = makeTempDir('review-history-');
   t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
   return { tempRoot, config: { project: { paths: { tempRoot } } } };
 }
