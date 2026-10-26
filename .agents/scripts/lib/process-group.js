@@ -92,6 +92,25 @@ function stopForwarding() {
   detach?.();
 }
 
+function disarmIfIdle() {
+  if (supervised.size === 0) stopForwarding();
+}
+
+/**
+ * Spawn and supervise with forwarding armed first (#5913): a signal landing
+ * between the two is queued until this synchronous span ends, by when the
+ * child is registered and its group is killed. A throwing spawn disarms.
+ */
+export function spawnSupervised(spawnChild, supervise) {
+  startForwarding(process);
+  try {
+    const child = spawnChild();
+    return { child, supervisor: supervise(child) };
+  } finally {
+    disarmIfIdle();
+  }
+}
+
 /**
  * Kill the group on timeout, abort or parent signal; `release()` on exit.
  *
@@ -137,7 +156,7 @@ export function superviseGroup(
       if (timer) clearTimeout(timer);
       abortSignal?.removeEventListener('abort', onAbort);
       supervised.delete(child);
-      if (supervised.size === 0) stopForwarding();
+      disarmIfIdle();
     },
   };
 }

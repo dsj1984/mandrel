@@ -10,6 +10,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { describe, it } from 'node:test';
 import {
   execFileCapture,
@@ -20,6 +21,7 @@ import {
   spawnCaptureAsync,
   spawnChild,
 } from '../../.agents/scripts/lib/child-exec.js';
+import { streamChild } from '../../.agents/scripts/lib/child-stream.js';
 
 /**
  * The ceiling the wrapper must apply. Held here as an expectation rather than
@@ -299,5 +301,32 @@ describe('spawnCaptureAsync (Story #5480)', () => {
     const [, chattyBytes] = await Promise.all([slow, chatty]);
     assert.equal(chattyBytes, 512 * 1024);
     assert.deepEqual(order, ['chatty', 'slow']);
+  });
+});
+
+describe('streamChild — signal forwarding (Story #5913)', () => {
+  it('spawns with forwarding already armed, and leaves none behind', async () => {
+    const before = process.listenerCount('SIGTERM');
+    let atSpawn = null;
+    const result = await streamChild(process.execPath, ['-e', ''], {
+      spawnImpl: (...a) => {
+        atSpawn = process.listenerCount('SIGTERM');
+        return spawn(...a);
+      },
+    });
+    assert.equal(result.status, 0);
+    assert.equal(atSpawn, before + 1);
+    assert.equal(process.listenerCount('SIGTERM'), before);
+  });
+
+  it('a spawn that throws leaves no forwarding listener behind', async () => {
+    const before = process.listenerCount('SIGTERM');
+    const result = await streamChild(process.execPath, [], {
+      spawnImpl: () => {
+        throw new Error('spawn EINVAL');
+      },
+    });
+    assert.equal(result.status, 1);
+    assert.equal(process.listenerCount('SIGTERM'), before);
   });
 });

@@ -7,6 +7,7 @@ import { StringDecoder } from 'node:string_decoder';
 
 import {
   groupSpawnOptions,
+  spawnSupervised,
   superviseGroup,
   TIMEOUT_EXIT_CODE,
 } from './process-group.js';
@@ -71,13 +72,23 @@ export function streamChild(file, args, opts = {}) {
     const stdout = createTail(tailBytes);
     const stderr = createTail(tailBytes);
     let child;
+    let supervisor;
     try {
-      child = spawnImpl(file, args, {
-        ...rest,
-        ...groupSpawnOptions(),
-        shell: false,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      ({ child, supervisor } = spawnSupervised(
+        () =>
+          spawnImpl(file, args, {
+            ...rest,
+            ...groupSpawnOptions(),
+            shell: false,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          }),
+        (c) =>
+          superviseGroup(c, {
+            timeoutMs,
+            abortSignal: signal,
+            signalOnParentSignal: 'SIGTERM',
+          }),
+      ));
     } catch (err) {
       resolve({
         status: 1,
@@ -88,11 +99,6 @@ export function streamChild(file, args, opts = {}) {
       });
       return;
     }
-    const supervisor = superviseGroup(child, {
-      timeoutMs,
-      abortSignal: signal,
-      signalOnParentSignal: 'SIGTERM',
-    });
     let spawnError = null;
     let settled = false;
     const settle = (code) => {
