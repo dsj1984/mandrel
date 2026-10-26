@@ -7,7 +7,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 
-import { groundFindings } from '../../../../.agents/scripts/lib/orchestration/review-providers/claim-grounding.js';
+import {
+  groundFindings,
+  groundingDegradation,
+} from '../../../../.agents/scripts/lib/orchestration/review-providers/claim-grounding.js';
 
 const HEAD = 'abc123';
 const TRUNCATED_CONTEXT = 'reviewed-with-truncated-context';
@@ -205,4 +208,64 @@ test('real repository: an existing path and an unreferenced symbol are both refu
     findings.map((f) => f.severity),
     ['suggestion', 'suggestion', 'critical'],
   );
+});
+
+test('groundingDegradation: no groundable critical spawns no probe', () => {
+  const calls = [];
+  const out = groundingDegradation({
+    findings: [
+      {
+        severity: 'high',
+        title: 'T',
+        body: 'B',
+        claim: { kind: 'path-absent', path: 'a' },
+      },
+      critical(null),
+    ],
+    headRef: HEAD,
+    cwd: '/repo',
+    gitSpawnFn: (...args) => calls.push(args),
+  });
+  assert.equal(out, null);
+  assert.deepEqual(calls, []);
+});
+
+test('groundingDegradation: a resolvable head records nothing', () => {
+  const calls = [];
+  const out = groundingDegradation({
+    findings: [critical({ kind: 'path-absent', path: 'a' })],
+    headRef: HEAD,
+    cwd: '/repo',
+    gitSpawnFn: (...args) => {
+      calls.push(args);
+      return { status: 0 };
+    },
+  });
+  assert.equal(out, null);
+  assert.deepEqual(calls, [
+    ['/repo', 'rev-parse', '--verify', '--quiet', `${HEAD}^{commit}`],
+  ]);
+});
+
+test('groundingDegradation: an unresolvable head or a throwing spawn names the head and cwd', () => {
+  const expected = {
+    tool: 'claim-grounding',
+    gate: 'claim-grounding',
+    surface: 'head-ref',
+    reason: `head ${HEAD} not resolvable in /elsewhere`,
+  };
+  for (const gitSpawnFn of [
+    () => ({ status: 1 }),
+    () => {
+      throw new Error('spawn failed');
+    },
+  ]) {
+    const out = groundingDegradation({
+      findings: [critical({ kind: 'symbol-referenced', symbol: 'f' })],
+      headRef: HEAD,
+      cwd: '/elsewhere',
+      gitSpawnFn,
+    });
+    assert.deepEqual(out, expected);
+  }
 });

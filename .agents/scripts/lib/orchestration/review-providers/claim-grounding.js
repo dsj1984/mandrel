@@ -130,8 +130,8 @@ const REFUTERS = {
 
 /** @returns {Finding} */
 function groundFinding(finding, headRef, git) {
-  const refute = REFUTERS[finding?.claim?.kind];
-  if (finding?.severity !== 'critical' || !refute) return finding;
+  if (!isGroundable(finding)) return finding;
+  const refute = REFUTERS[finding.claim.kind];
   let evidence = null;
   try {
     evidence = refute(finding.claim, headRef, git);
@@ -140,6 +140,51 @@ function groundFinding(finding, headRef, git) {
   }
   if (!evidence) return finding;
   return { ...finding, severity: 'suggestion', ungrounded: evidence };
+}
+
+const isGroundable = (finding) =>
+  finding?.severity === 'critical' && Boolean(REFUTERS[finding?.claim?.kind]);
+
+function headResolves(git, headRef) {
+  try {
+    return (
+      git('rev-parse', '--verify', '--quiet', `${headRef}^{commit}`)?.status ===
+      0
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `cat-file` exits 128 for a missing path and an unknown ref alike, so the
+ * head is checked on its own: an unresolvable head means every claim stays
+ * unrefuted for want of a repository, and that is reported, not silent.
+ * Probes only when some finding is groundable.
+ *
+ * @param {{
+ *   findings: Finding[],
+ *   headRef: string,
+ *   cwd?: string,
+ *   gitSpawnFn?: typeof gitSpawn,
+ * }} args
+ * @returns {import('./degraded-gates.js').GateDegradation | null}
+ */
+export function groundingDegradation({
+  findings,
+  headRef,
+  cwd = process.cwd(),
+  gitSpawnFn = gitSpawn,
+}) {
+  if (!findings.some(isGroundable)) return null;
+  const git = (...args) => gitSpawnFn(cwd, ...args);
+  if (headResolves(git, headRef)) return null;
+  return {
+    tool: 'claim-grounding',
+    gate: 'claim-grounding',
+    surface: 'head-ref',
+    reason: `head ${headRef} not resolvable in ${cwd}`,
+  };
 }
 
 /** Names a degradation reason carries, split on its list punctuation. */
@@ -180,4 +225,20 @@ export function groundFindings({
       ? annotateContext(grounded, tokens)
       : grounded;
   });
+}
+
+/**
+ * `groundFindings` behind the head check, so the degradation it may record
+ * rides out with the findings it explains.
+ *
+ * @param {Parameters<typeof groundFindings>[0]} args
+ * @returns {{ findings: Finding[], degradations: Array<{ reason: string }> }}
+ */
+export function groundReviewFindings({ degradations = [], ...args }) {
+  const unresolvedHead = groundingDegradation(args);
+  const all = unresolvedHead ? [...degradations, unresolvedHead] : degradations;
+  return {
+    findings: groundFindings({ ...args, degradations: all }),
+    degradations: all,
+  };
 }
