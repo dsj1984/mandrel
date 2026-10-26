@@ -22517,6 +22517,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "scoreFindings",
+      "startLine": 269,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "runCodeReview",
       "startLine": 357,
       "crap": 1
@@ -29082,6 +29088,19 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "<anon (finding)#0>",
+      "startLine": 145,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "headResolves",
+      "startLine": 148,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
       "method": "groundFindings",
       "startLine": 153,
       "crap": 1
@@ -29097,6 +29116,25 @@
       "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
       "method": "<anon groundFindings/(finding)#0>",
       "startLine": 162,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "headDegradation",
+      "startLine": 167,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "groundEach",
+      "startLine": 190,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "<anon groundEach/(finding)#0>",
+      "startLine": 191,
       "crap": 3,
       "anonymous": true
     },
@@ -30673,9 +30711,42 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
+      "method": "computeStoryScopeReview",
+      "startLine": 100,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
+      "method": "<anon computeStoryScopeReview/(opts)#0>",
+      "startLine": 140,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
       "method": "runStoryScopeReview",
       "startLine": 145,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
+      "method": "settleStoryScopeReview",
+      "startLine": 153,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
+      "method": "<anon settleStoryScopeReview/(m)#0>",
+      "startLine": 169,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
+      "method": "<anon settleStoryScopeReview/(m)#1>",
+      "startLine": 170,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -33111,6 +33182,27 @@
       "method": "<anon runScopedFormatAutofix/(file,args,opts)#0>",
       "startLine": 184,
       "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",
+      "method": "<anon (progress,tag)#0>",
+      "startLine": 10,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",
+      "method": "<anon (progress,tag)#0/(m)#0>",
+      "startLine": 11,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",
+      "method": "<anon (progress,tag)#0/(m)#1>",
+      "startLine": 12,
+      "crap": 1,
       "anonymous": true
     },
     {
