@@ -17,6 +17,7 @@
 
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
+import { selectSensitivePathClasses } from '../../../.agents/scripts/lib/audit-suite/selector.js';
 import { resolveCeremonyForRisk } from '../../../.agents/scripts/lib/orchestration/ceremony-routing.js';
 import {
   buildComplexitySignals,
@@ -108,6 +109,38 @@ describe('buildComplexitySignals — signals, not routing (AC-1, AC-2)', () => {
       assert.deepEqual(signals.predictedPaths, []);
       assert.deepEqual(signals.sensitivePathClasses, []);
     }
+  });
+});
+
+describe('review depth and plan routing see the same consumer class', () => {
+  test('a consumer-only class reaches deriveChangeLevel and buildComplexitySignals alike', () => {
+    const injectedConfig = {
+      delivery: {
+        codeReview: {
+          sensitivePaths: {
+            'edge-auth': { filePatterns: ['apps/web/src/middleware.ts'] },
+          },
+        },
+      },
+    };
+    const selectSensitivePathClassesFn = (args) =>
+      selectSensitivePathClasses({ ...args, injectedConfig });
+    const file = 'apps/web/src/middleware.ts';
+
+    const review = deriveChangeLevel({
+      changedFiles: [file],
+      injectedRules: RULES,
+      selectSensitivePathClassesFn,
+    });
+    const plan = buildComplexitySignals({
+      seedText: `Harden ${file}.`,
+      injectedRules: RULES,
+      selectSensitivePathClassesFn,
+      pathExistsFn: () => true,
+    });
+
+    assert.deepEqual(review.classes, ['edge-auth']);
+    assert.deepEqual(plan.sensitivePathClasses, review.classes);
   });
 });
 

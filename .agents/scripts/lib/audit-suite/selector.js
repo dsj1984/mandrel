@@ -10,6 +10,7 @@ import { gitSpawn } from '../git-utils.js';
 import { resolveNavConfig } from '../orchestration/plan-navigation.js';
 import { withTimeout } from '../util/with-timeout.js';
 import { readAuditRulesSync } from './audit-rules-reader.js';
+import { resolveSensitivePaths } from './sensitive-paths.js';
 
 const DEFAULT_GIT_TIMEOUT_MS = 30000;
 
@@ -47,25 +48,32 @@ export function resolveLensTier(lens) {
 }
 
 /**
- * Manifest `sensitivePaths` classes the change set touches (review depth).
+ * `sensitivePaths` classes the change set touches (review depth and plan
+ * routing): the shipped manifest merged with the consumer's own classes.
  *
  * @param {{
  *   changedFiles?: string[],
  *   injectedRules?: { sensitivePaths?: Record<string, { filePatterns?: string[] }> },
+ *   injectedConfig?: object,
  * }} [params]
- * @returns {string[]} The matched class names, in manifest order.
+ * @returns {string[]} The matched class names, in effective-map order.
+ * @throws {Error} When the manifest or the config cannot be resolved.
  */
 export function selectSensitivePathClasses({
   changedFiles,
   injectedRules,
+  injectedConfig,
 } = {}) {
   const files = Array.isArray(changedFiles) ? changedFiles : [];
   if (files.length === 0) return [];
 
-  const rules = injectedRules ?? readAuditRulesSync();
+  const effective = resolveSensitivePaths({
+    rules: injectedRules ?? readAuditRulesSync(),
+    config: injectedConfig ?? resolveConfig(),
+  });
   const matched = [];
-  for (const [name, entry] of Object.entries(rules.sensitivePaths ?? {})) {
-    if (matchesAnyFilePattern(entry?.filePatterns ?? [], files)) {
+  for (const [name, entry] of Object.entries(effective)) {
+    if (matchesAnyFilePattern(entry.filePatterns, files)) {
       matched.push(name);
     }
   }
