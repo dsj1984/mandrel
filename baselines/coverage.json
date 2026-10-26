@@ -466,8 +466,14 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "lines": 96.93,
-      "branches": 89.67,
+      "lines": 97.01,
+      "branches": 90.26,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/sensitive-paths.js",
+      "lines": 100,
+      "branches": 85.71,
       "functions": 100
     },
     {
@@ -2453,7 +2459,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "lines": 100,
-      "branches": 85.29,
+      "branches": 85.71,
       "functions": 100
     },
     {

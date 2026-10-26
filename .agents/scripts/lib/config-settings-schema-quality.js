@@ -116,6 +116,25 @@ export const CODE_REVIEW_SCHEMA = {
         'Severity threshold for on-branch remediation in /mandrel-deliver Phase 5 (code-review). `medium` (default) routes 🔴/🟠/🟡 findings into the host-LLM focused-fix routing (Mediums batched per lens: one commit per lens, a single validation + rescan at the end) while 🟢 suggestions still graduate to follow-up issues; `high` reproduces the pre-4399 Critical/High-only routing. Hard cutover — no back-compat flag.',
       default: DEFAULT_CODE_REVIEW.autoFixSeverity,
     },
+    sensitivePaths: {
+      type: 'object',
+      description:
+        "The project's own sensitive-path classes, merged additively over the shipped `audit-rules.json` `sensitivePaths`: a class named like a shipped one appends its patterns to it, a new name adds a class, and no shipped class or pattern can be removed or narrowed. A changed file matching any class derives a `high` change level, which drives both code-review depth (`deep`, never `light`) and plan-time routing. Patterns are picomatch globs matched with `dot: true`.",
+      propertyNames: { pattern: '^[a-z0-9][a-z0-9-]*$' },
+      additionalProperties: {
+        type: 'object',
+        required: ['filePatterns'],
+        properties: {
+          description: { type: 'string' },
+          filePatterns: {
+            type: 'array',
+            minItems: 1,
+            items: { type: 'string', minLength: 1 },
+          },
+        },
+        additionalProperties: false,
+      },
+    },
   },
   additionalProperties: false,
 };

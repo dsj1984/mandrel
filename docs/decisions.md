@@ -810,6 +810,15 @@ runner and its import graph; no manifest, tool config or existing key names
 it, and `project.commands.test` cannot be narrowed without changing the
 identity every `test` credit hashes. Absent, close behaves as before.
 
+**Raised to 143 (2026-10-26, Story #5917)** for
+`delivery.codeReview.sensitivePaths`. Review depth and plan-time routing took
+their `high` change level only from the shipped `audit-rules.json` globs, so a
+one-file diff to a consumer's own auth middleware or schema resolved to
+`light`. Which paths are sensitive in a project is a fact about that project's
+layout; the manifest ships generic globs, no tool config names them, and
+deriving them from CODEOWNERS would need gitignore-to-picomatch translation.
+The merge is additive only, so the key can make review stricter, never looser.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,
