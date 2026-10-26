@@ -328,6 +328,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   const { findings, degradations } = groundFindings({
     findings: rawFindings,
     headRef,
+    baseRef,
     cwd: opts.cwd,
     degradations: await collectProviderDegradations(reviewProvider, logger),
     gitSpawnFn: opts.gitSpawnFn,

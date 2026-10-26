@@ -7,7 +7,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 
-import { groundFindings } from '../../../../.agents/scripts/lib/orchestration/review-providers/claim-grounding.js';
+import {
+  CLAIM_SCHEMA,
+  groundFindings,
+  STRICT_CLAIM_SCHEMA,
+} from '../../../../.agents/scripts/lib/orchestration/review-providers/claim-grounding.js';
 
 const HEAD = 'abc123';
 const TRUNCATED_CONTEXT = 'reviewed-with-truncated-context';
@@ -16,6 +20,7 @@ const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
 /** The head probe (`rev-parse`) is answered by `revParse` and kept apart from `calls`. */
 function fakeGit({
   catFile = 128,
+  diff = 0,
   grep = { status: 1, stdout: '' },
   revParse = 0,
 } = {}) {
@@ -28,6 +33,7 @@ function fakeGit({
     }
     calls.push(args);
     if (args[0] === 'cat-file') return { status: catFile, stdout: '' };
+    if (args[0] === 'diff') return { status: diff, stdout: '' };
     if (typeof grep === 'function') return grep(args);
     return { stderr: '', ...grep };
   };
@@ -283,4 +289,51 @@ test('head probe: an unresolvable head or a throwing spawn records a degradation
     assert.deepEqual(out.degradations, [expected]);
     assert.equal(out.findings[0].severity, 'critical');
   }
+});
+
+test('#5912: a file-unchanged claim on a path changed in base...head is downgraded', () => {
+  const git = fakeGit({ diff: 1 });
+  const {
+    findings: [out],
+  } = groundFindings({
+    findings: [critical({ kind: 'file-unchanged', path: 'src/callee.js' })],
+    headRef: HEAD,
+    baseRef: 'origin/main',
+    gitSpawnFn: git.fn,
+  });
+  assert.deepEqual(git.calls, [
+    ['diff', '--quiet', `origin/main...${HEAD}`, '--', 'src/callee.js'],
+  ]);
+  assert.equal(out.severity, 'suggestion');
+  assert.equal(
+    out.ungrounded,
+    `git diff origin/main...${HEAD} changes src/callee.js`,
+  );
+});
+
+test('#5912: an unchanged path, a git error or no base keeps a file-unchanged critical', () => {
+  const finding = critical({ kind: 'file-unchanged', path: 'src/callee.js' });
+  const cases = [
+    [fakeGit({ diff: 0 }), 'origin/main'],
+    [fakeGit({ diff: 128 }), 'origin/main'],
+    [fakeGit({ diff: 1 }), undefined],
+  ];
+  for (const [git, baseRef] of cases) {
+    const {
+      findings: [out],
+    } = groundFindings({
+      findings: [finding],
+      headRef: HEAD,
+      baseRef,
+      gitSpawnFn: git.fn,
+    });
+    assert.deepEqual(out, finding);
+  }
+});
+
+test('#5912: the Claude and Codex claim schemas both accept file-unchanged', () => {
+  assert.ok(CLAIM_SCHEMA.properties.kind.enum.includes('file-unchanged'));
+  assert.ok(
+    STRICT_CLAIM_SCHEMA.properties.kind.enum.includes('file-unchanged'),
+  );
 });
