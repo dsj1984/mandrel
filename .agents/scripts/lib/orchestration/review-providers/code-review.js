@@ -142,10 +142,19 @@ function splitSections(diff) {
 }
 
 /**
+ * The first chunk with room for `section` at or after the last chunk holding
+ * an earlier tier, so no test or doc sits in a chunk ahead of a source section.
+ */
+function openChunk(chunks, section, budget) {
+  const floor = chunks.findLastIndex((c) => c.tier < section.tier);
+  return chunks
+    .slice(Math.max(floor, 0))
+    .find((c) => c.size + section.text.length <= budget);
+}
+
+/**
  * First-fit, tier by tier, into chunks of at most `budget` characters; a
  * section over the budget gets a chunk of its own (truncated when reviewed).
- * A later tier fills only the last chunk an earlier tier used or a new one,
- * so no test or doc ever sits in a chunk ahead of a source section.
  *
  * @param {{ file: string, text: string }[]} sections
  * @param {number} budget
@@ -155,20 +164,14 @@ function packChunks(sections, budget) {
   const ordered = sections
     .map((s) => ({ ...s, tier: tierOf(s.file) }))
     .sort(compareSections);
-  let tier = 0;
-  let floor = 0;
   for (const section of ordered) {
-    if (section.tier !== tier) {
-      tier = section.tier;
-      floor = Math.max(chunks.length - 1, 0);
-    }
     const size = section.text.length;
-    const open = chunks.slice(floor).find((c) => c.size + size <= budget);
+    const open = openChunk(chunks, section, budget);
     if (open) {
       open.sections.push(section);
       open.size += size;
     } else {
-      chunks.push({ sections: [section], size });
+      chunks.push({ sections: [section], size, tier: section.tier });
     }
   }
   return chunks;
