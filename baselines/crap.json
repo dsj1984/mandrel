@@ -29075,6 +29075,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "refuteFileUnchanged",
+      "startLine": 133,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
       "method": "annotateContext",
       "startLine": 137,
       "crap": 2
@@ -29256,6 +29262,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon (index,total)#0>",
+      "startLine": 98,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon splitSections/(m)#0>",
       "startLine": 98,
       "crap": 1,
@@ -29270,9 +29283,28 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "tierOf",
+      "startLine": 110,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon (a,b)#0>",
+      "startLine": 115,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "packChunks",
       "startLine": 116,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "compareSections",
+      "startLine": 118,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
@@ -29299,6 +29331,13 @@
       "method": "buildPrompt",
       "startLine": 149,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon packChunks/(s)#0>",
+      "startLine": 156,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
@@ -29398,6 +29437,27 @@
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/(d)#0>",
       "startLine": 354,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(file)#0>",
+      "startLine": 354,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(s)#2>",
+      "startLine": 373,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(s)#3>",
+      "startLine": 382,
       "crap": 1,
       "anonymous": true
     },
