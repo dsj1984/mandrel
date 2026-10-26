@@ -1876,7 +1876,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",
-      "mi": 111.975
+      "mi": 112.699
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
