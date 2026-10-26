@@ -1419,6 +1419,19 @@
                 },
                 "additionalProperties": false
               }
+            },
+            "guidanceFile": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Project review guidance, a path relative to the project root. Unset, a root `REVIEW.md` is used when present; an absent file is a no-op. Its text is rendered into every LLM review provider's prompt after the framework's severity and anti-gaming rules, and over 8,000 characters is truncated with a degradation. Guidance may add failure classes and paths worth skipping but cannot lower a severity rule, excuse a `shortcut:`, or change the output shape."
+            },
+            "skipPaths": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Picomatch globs (`dot: true`) whose findings are dropped after grounding and before severity is counted; the report states how many were dropped. A finding is dropped when its file, or every instance file, matches. Only config sets skip paths: guidance prose cannot silence a finding."
             }
           },
           "additionalProperties": false

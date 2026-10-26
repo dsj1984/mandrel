@@ -819,6 +819,16 @@ layout; the manifest ships generic globs, no tool config names them, and
 deriving them from CODEOWNERS would need gitignore-to-picomatch translation.
 The merge is additive only, so the key can make review stricter, never looser.
 
+**Raised to 145 (2026-10-26, Story #5920)** for
+`delivery.codeReview.guidanceFile` and `delivery.codeReview.skipPaths`. The
+Story-scope reviewer had no way to learn what failure looks like in a given
+codebase, and a generated or vendored path drew the same findings every run.
+Which defects matter and which paths are not worth reviewing are facts about
+the consumer's code; no manifest or tool config holds them. `guidanceFile`
+defaults to a root `REVIEW.md`, so most projects never set it, and it can only
+add review prose under the framework's rules. `skipPaths` is config-only, so a
+guidance file can never silence a finding mechanically.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

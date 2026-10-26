@@ -11,9 +11,10 @@
 
 import { spawnSync } from 'node:child_process';
 import { resolveAgentrcRoot } from '../../config/git-roots.js';
-import { parseProviderFindings } from './parse-findings.js';
+import { BUG_CLASS_RULE, parseProviderFindings } from './parse-findings.js';
 import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
 import { renderDepthDirective } from './review-depth.js';
+import { renderGuidanceBlock } from './review-guidance.js';
 
 export const SECURITY_REVIEW_REMEDIATIONS = Object.freeze({
   install:
@@ -87,17 +88,23 @@ export function parseSecurityReviewFindings(rawStdout) {
   });
 }
 
-/** Wraps `/security-review` with an explicit JSON-emit instruction. */
+/**
+ * Wraps `/security-review`: severity rules, then the class rule and any
+ * project guidance, then the JSON-emit instruction.
+ */
 const SECURITY_REVIEW_INVOKE_PROMPT =
   'Run /security-review against the diff `{baseRef}`...`{headRef}` ' +
-  'for {scopeLabel} #{ticketId}. {depthDirective} After the review, emit ' +
-  'ONLY a JSON array of findings on stdout with this exact shape:\n\n' +
-  '```\n[{"severity":"critical|high|medium|suggestion","title":"...",' +
-  '"body":"...","file":"...","line":1,"category":"security"}]\n```\n\n' +
+  'for {scopeLabel} #{ticketId}. {depthDirective}\n\n' +
   'Use severity "critical" for blockers (must fix before merge), ' +
   '"high" for material risks, "medium" for issues worth fixing, and ' +
-  '"suggestion" for advisory notes. Emit `[]` if you find nothing. ' +
-  'No prose around the JSON.';
+  `"suggestion" for advisory notes. ${BUG_CLASS_RULE}\n\n` +
+  '{guidance}' +
+  'After the review, emit ONLY a JSON array of findings on stdout with ' +
+  'this exact shape:\n\n' +
+  '```\n[{"severity":"critical|high|medium|suggestion","title":"...",' +
+  '"body":"...","file":"...","line":1,"category":"security",' +
+  '"class":"...","instances":[{"file":"...","line":1}]}]\n```\n\n' +
+  'Emit `[]` if you find nothing. No prose around the JSON.';
 
 /**
  * @param {ReviewInput} input
@@ -115,7 +122,8 @@ export function buildSecurityReviewPrompt(input) {
     .replace('{headRef}', headRef)
     .replace('{scopeLabel}', scopeLabel)
     .replace('{ticketId}', ticketId)
-    .replace('{depthDirective}', renderDepthDirective(input?.depth));
+    .replace('{depthDirective}', renderDepthDirective(input?.depth))
+    .replace('{guidance}', () => renderGuidanceBlock(input?.guidance));
 }
 
 /**
@@ -197,7 +205,14 @@ export function createSecurityReviewProvider(deps = {}) {
         `[security-review] Invoking /security-review for ${scope} #${ticketId} (${baseRef}...${headRef})...`,
       );
 
-      const result = invokeFn({ scope, ticketId, baseRef, headRef });
+      const result = invokeFn({
+        scope,
+        ticketId,
+        baseRef,
+        headRef,
+        depth: input.depth,
+        guidance: input.guidance,
+      });
       if (result.status !== 0) {
         throw new Error(
           `[security-review] claude --print /security-review exited with ` +

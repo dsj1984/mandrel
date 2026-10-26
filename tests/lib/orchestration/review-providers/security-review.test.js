@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { resolveAgentrcRoot } from '../../../../.agents/scripts/lib/config/git-roots.js';
+import { renderGuidanceBlock } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-guidance.js';
 
 import {
   buildSecurityReviewPrompt,
@@ -249,4 +250,47 @@ test('runReview: `claude --print` spawns with an explicit cwd = the reviewed che
     headRef: 'story-5740',
   });
   assert.deepEqual(spawned, [{ file: 'claude', cwd: resolveAgentrcRoot() }]);
+});
+
+test('buildSecurityReviewPrompt: guidance renders after the severity and class rules and before the JSON-emit instruction', () => {
+  const input = {
+    scope: 'story',
+    ticketId: 7,
+    baseRef: 'main',
+    headRef: 'story-7',
+    depth: 'standard',
+  };
+  const guidance = 'Treat every raw SQL string as suspect. $&';
+  const bare = buildSecurityReviewPrompt(input);
+  const guided = buildSecurityReviewPrompt({ ...input, guidance });
+  assert.doesNotMatch(bare, /project-review-guidance/);
+  assert.equal(buildSecurityReviewPrompt({ ...input, guidance: null }), bare);
+  const block = renderGuidanceBlock(guidance);
+  assert.equal(guided.replace(block, ''), bare);
+  const at = guided.indexOf(block);
+  assert.ok(guided.indexOf('Use severity "critical" for blockers') < at);
+  assert.ok(guided.indexOf('every instance of the same defect') < at);
+  assert.ok(guided.indexOf('emit ONLY a JSON array') > at);
+  assert.match(block, /^The project's own review guidance follows\./);
+});
+
+test('runReview: the invoker receives depth and guidance', async () => {
+  let captured = null;
+  const provider = createSecurityReviewProvider({
+    probeFn: () => true,
+    invokeFn: (input) => {
+      captured = input;
+      return { status: 0, stdout: '[]', stderr: '' };
+    },
+  });
+  await provider.runReview({
+    scope: 'story',
+    ticketId: 7,
+    baseRef: 'main',
+    headRef: 'story-7',
+    depth: 'deep',
+    guidance: 'G',
+  });
+  assert.equal(captured.depth, 'deep');
+  assert.equal(captured.guidance, 'G');
 });

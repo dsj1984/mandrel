@@ -34,6 +34,7 @@ import {
   parseCodexFindings,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/codex.js';
 import { invokeCodexExec } from '../../../../.agents/scripts/lib/orchestration/review-providers/codex-cli.js';
+import { renderGuidanceBlock } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-guidance.js';
 
 const ALLOWED_SEVERITIES = new Set([
   'critical',
@@ -274,7 +275,7 @@ test('runReview: returns parsed Finding[] with canonical severities', async () =
   }
 });
 
-test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth', async () => {
+test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth + guidance', async () => {
   let captured = null;
   const provider = createCodexProvider({
     probeFn: presentProbe,
@@ -289,6 +290,7 @@ test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth'
     baseRef: 'epic/2815',
     headRef: 'story-2830',
     depth: 'deep',
+    guidance: 'Flag unbounded retries.',
   });
   assert.deepEqual(captured, {
     baseRef: 'epic/2815',
@@ -296,6 +298,7 @@ test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth'
     scope: 'story',
     ticketId: 2830,
     depth: 'deep',
+    guidance: 'Flag unbounded retries.',
   });
 });
 
@@ -471,7 +474,9 @@ function assertStrictFindingsSchema(schema) {
     'body',
     'category',
     'claim',
+    'class',
     'file',
+    'instances',
     'line',
     'severity',
     'title',
@@ -486,6 +491,14 @@ function assertStrictFindingsSchema(schema) {
   );
   assert.deepEqual(item.properties.file.type, ['string', 'null']);
   assert.deepEqual(item.properties.line.type, ['integer', 'null']);
+  assert.deepEqual(item.properties.class.type, ['string', 'null']);
+  const instances = item.properties.instances;
+  assert.deepEqual(instances.type, ['array', 'null']);
+  assert.equal(instances.items.additionalProperties, false);
+  assert.deepEqual(
+    [...instances.items.required].sort(),
+    Object.keys(instances.items.properties).sort(),
+  );
   const claim = item.properties.claim;
   assert.deepEqual(claim.type, ['object', 'null']);
   assert.equal(claim.additionalProperties, false);
@@ -555,4 +568,78 @@ test('invokeCodexExec: a missing last-message file is a failure, not an empty re
   );
   assert.equal(result.status, 1);
   assert.match(result.stderr, /no last-message file/);
+});
+
+async function codexPrompt(t, args) {
+  const tempRoot = makeTempRoot();
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+  const { run, calls } = fakeCodexRun({
+    lastMessage: JSON.stringify({ findings: [] }),
+  });
+  await invokeCodexExec(args, { run, tempRoot, cwd: tempRoot });
+  return calls[0].options.input;
+}
+
+test('invokeCodexExec: guidance renders after the rules and before the output-schema instruction', async (t) => {
+  const refs = { baseRef: 'main', headRef: 'story-1', depth: 'standard' };
+  const guidance = 'Every retry loop must be bounded. $& $1';
+  const bare = await codexPrompt(t, refs);
+  const guided = await codexPrompt(t, { ...refs, guidance });
+  assert.doesNotMatch(bare, /project-review-guidance/);
+  const block = renderGuidanceBlock(guidance);
+  assert.ok(guided.includes(`<project-review-guidance>\n${guidance}\n`));
+  assert.equal(guided.replace(block, ''), bare);
+  const at = guided.indexOf(block);
+  assert.ok(guided.indexOf('Do not modify any file') < at);
+  assert.ok(guided.indexOf('`class`') < at);
+  assert.ok(guided.indexOf('required output schema') > at);
+});
+
+test('parseCodexFindings: a strict-schema finding with null class and instances parses', () => {
+  const [finding, grouped] = parseCodexFindings(
+    JSON.stringify({
+      findings: [
+        {
+          severity: 'high',
+          title: 't',
+          body: 'b',
+          file: 'a.js',
+          line: 3,
+          category: 'bug',
+          class: null,
+          instances: null,
+          claim: null,
+        },
+        {
+          severity: 'high',
+          title: 'u',
+          body: 'b',
+          file: null,
+          line: null,
+          category: 'bug',
+          class: 'unbounded-retry',
+          instances: [
+            { file: 'a.js', line: 9 },
+            { file: 'b.js', line: null },
+          ],
+          claim: null,
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(finding, {
+    severity: 'high',
+    title: 't',
+    body: 'b',
+    category: 'bug',
+    file: 'a.js',
+    line: 3,
+  });
+  assert.equal(grouped.class, 'unbounded-retry');
+  assert.deepEqual(grouped.instances, [
+    { file: 'a.js', line: 9 },
+    { file: 'b.js' },
+  ]);
+  assert.equal(grouped.file, 'a.js');
+  assert.equal(grouped.line, 9);
 });

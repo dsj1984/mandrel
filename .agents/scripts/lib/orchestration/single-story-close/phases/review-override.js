@@ -9,6 +9,8 @@ import {
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
 } from '../../../observability/runtime-friction.js';
+import { recordOverriddenIds } from '../../review-history.js';
+import { findingId } from '../../review-providers/finding-identity.js';
 import {
   postStructuredComment,
   upsertStructuredComment,
@@ -56,8 +58,25 @@ async function postAuditRecord({ post, surface }) {
 }
 
 /**
+ * Remember the overridden CRITICALs so a re-review does not halt on them again.
+ *
+ * @param {{ storyId: number, findings: Array<object>, config?: object }} args
+ */
+function recordOverrides({ storyId, findings, config }) {
+  const ids = findings.filter((f) => f?.severity === 'critical').map(findingId);
+  if (ids.length === 0) return;
+  try {
+    recordOverriddenIds(storyId, ids, { config });
+  } catch (err) {
+    Logger.warn(
+      `[single-story-close] failed to record overridden review ids: ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
  * Records to the Story (upsert, so re-runs don't stack), the PR (append-only,
- * where reviewers look), and the friction stream.
+ * where reviewers look), the friction stream, and the review history.
  *
  * @param {{
  *   provider: object,
@@ -67,6 +86,7 @@ async function postAuditRecord({ post, surface }) {
  *   criticalCount: number,
  *   criticalByProvider?: Record<string, number>,
  *   reason: string,
+ *   findings?: Array<object>,
  *   config?: object,
  *   emitFrictionFn?: typeof emitRuntimeFriction,
  * }} args
@@ -80,6 +100,7 @@ export async function handleOverriddenReviewBlock({
   criticalCount,
   criticalByProvider = {},
   reason,
+  findings = [],
   config,
   emitFrictionFn = emitRuntimeFriction,
 }) {
@@ -112,5 +133,6 @@ export async function handleOverriddenReviewBlock({
     },
     config,
   });
+  recordOverrides({ storyId, findings, config });
   return { overridden: true, reason, criticalCount };
 }

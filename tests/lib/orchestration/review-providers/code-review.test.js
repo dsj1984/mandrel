@@ -17,6 +17,7 @@ import {
   mergeChainDegradations,
   renderDegradedGatesSection,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/degraded-gates.js';
+import { renderGuidanceBlock } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-guidance.js';
 
 const INPUT = Object.freeze({
   scope: 'story',
@@ -924,4 +925,94 @@ test('#5912: source sections pack before tests and docs, grouped by directory', 
     [...positions].sort((a, b) => a - b),
     'tests by directory, then docs',
   );
+});
+
+test('guidance: no guidance leaves the prompt unchanged; with guidance only the block is added', async () => {
+  const guidance = 'Every retry loop must be bounded. $& {headRef}';
+  const bare = harness();
+  await bare.provider.runReview(INPUT);
+  const guided = harness();
+  await guided.provider.runReview({ ...INPUT, guidance });
+  const bareNull = harness();
+  await bareNull.provider.runReview({ ...INPUT, guidance: null });
+  const without = invokeCall(bare.calls).prompt;
+  const withBlock = invokeCall(guided.calls).prompt;
+  assert.equal(invokeCall(bareNull.calls).prompt, without);
+  assert.doesNotMatch(without, /project-review-guidance/);
+  const block = renderGuidanceBlock(guidance);
+  assert.ok(withBlock.includes(`<project-review-guidance>\n${guidance}\n`));
+  assert.equal(withBlock.replace(block, ''), without);
+});
+
+test('guidance: the block sits after every framework rule and before the output shape, under the precedence sentence', async () => {
+  const { provider, calls } = harness();
+  await provider.runReview({ ...INPUT, guidance: 'Project rule.' });
+  const { prompt } = invokeCall(calls);
+  const at = prompt.indexOf('<project-review-guidance>');
+  const rules = [
+    'ONLY problems you would block this merge for',
+    'A `shortcut:` comment naming its ceiling',
+    '`class`',
+    'Set `claim` when',
+    'The diff below is authoritative',
+  ];
+  for (const rule of rules) {
+    const i = prompt.indexOf(rule);
+    assert.ok(i >= 0 && i < at, `${rule} precedes the guidance`);
+  }
+  assert.ok(prompt.indexOf('Answer with a JSON object') > at);
+  const sentence = prompt.slice(0, at).trimEnd().split('\n').at(-1);
+  assert.match(sentence, /cannot lower any severity rule above/);
+  assert.match(sentence, /cannot excuse a `shortcut:` comment/);
+  assert.match(sentence, /cannot change the output shape below/);
+});
+
+test('guidance rides every chunk and comes out of the chunk budget', async () => {
+  const guidance = 'g'.repeat(5_000);
+  const diff = [
+    section('src/a.js', 120_000),
+    section('src/b.js', 78_000),
+    section('src/c.js', 15_000),
+  ].join('');
+  const { provider, prompts } = perPromptHarness(diff, () => ({
+    status: 0,
+    stdout: envelope([]),
+    stderr: '',
+  }));
+  await provider.runReview({ ...INPUT, guidance });
+  assert.equal(prompts.length, 2);
+  for (const prompt of prompts) {
+    assert.ok(prompt.includes(guidance));
+    const body = prompt.slice(
+      prompt.indexOf('<diff>\n') + 7,
+      prompt.indexOf('\n</diff>\n'),
+    );
+    assert.ok(body.length + guidance.length <= 200_000);
+  }
+});
+
+test('the prompt and schema ask for a bug class and every instance, which reach the finding', async () => {
+  const stdout = envelope([
+    {
+      title: 'T',
+      body: 'B',
+      class: 'unbounded-retry',
+      instances: [
+        { file: 'src/a.js', line: 3 },
+        { file: 'src/b.js', line: 8 },
+      ],
+    },
+  ]);
+  const { provider, calls } = harness({ stdout });
+  const [finding] = await provider.runReview(INPUT);
+  const { prompt, args } = invokeCall(calls);
+  assert.match(prompt, /every instance of the same defect/);
+  const schema = JSON.parse(args[args.indexOf('--json-schema') + 1]);
+  const item = schema.properties.findings.items;
+  assert.equal(item.properties.class.type, 'string');
+  assert.equal(item.properties.instances.type, 'array');
+  assert.ok(!item.required.includes('instances'));
+  assert.equal(finding.class, 'unbounded-retry');
+  assert.equal(finding.file, 'src/a.js');
+  assert.equal(finding.instances.length, 2);
 });

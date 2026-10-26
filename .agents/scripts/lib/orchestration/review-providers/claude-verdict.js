@@ -22,6 +22,18 @@ export const FINDINGS_SCHEMA_JSON = JSON.stringify({
           file: { type: 'string' },
           line: { type: 'integer' },
           category: { type: 'string' },
+          class: { type: 'string' },
+          instances: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                file: { type: 'string' },
+                line: { type: 'integer' },
+              },
+              required: ['file'],
+            },
+          },
           claim: CLAIM_SCHEMA,
         },
         required: ['title', 'body'],

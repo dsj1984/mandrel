@@ -16,9 +16,13 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
+import { handleOverriddenReviewBlock } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/review-override.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 function noopUpsert() {
   return async () => {};
@@ -122,6 +126,7 @@ test('runCodeReview: passes scope/ticketId/baseRef/headRef to the adapter', asyn
     headRef: 'story-42',
     labels: [],
     depth: 'standard',
+    guidance: null,
   });
 });
 
@@ -419,4 +424,149 @@ test('#5919: an injected review provider without a verifier is scored as returne
   assert.equal(out.halted, true);
   assert.equal(out.verification.attempted, 0);
   assert.doesNotMatch(out.report, /Critical verification/);
+});
+
+function tempDir(t, prefix) {
+  const dir = makeTempDir(prefix);
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+function configWith(codeReview = {}) {
+  return () => ({
+    project: { baseBranch: 'main' },
+    delivery: {
+      codeReview: { providers: [{ name: 'native' }], ...codeReview },
+    },
+  });
+}
+
+async function review(adapter, extra = {}) {
+  return runCodeReview({
+    ticketId: 42,
+    headRef: 'story-42',
+    baseRef: 'main',
+    provider: {},
+    changedFiles: [],
+    reviewProvider: adapter,
+    resolveConfigFn: baseResolveConfig,
+    upsertCommentFn: noopUpsert(),
+    ...extra,
+  });
+}
+
+test('guidance: a root REVIEW.md reaches the adapter once; none yields null', async (t) => {
+  const cwd = tempDir(t, 'review-guidance-');
+  const bare = fakeAdapter([]);
+  await review(bare, { cwd });
+  assert.equal(bare.calls[0].guidance, null);
+  fs.writeFileSync(
+    path.join(cwd, 'REVIEW.md'),
+    '# Rules\nBound every retry.\n',
+  );
+  const guided = fakeAdapter([]);
+  await review(guided, { cwd });
+  assert.equal(guided.calls[0].guidance, '# Rules\nBound every retry.');
+});
+
+test('guidance: delivery.codeReview.guidanceFile names the file', async (t) => {
+  const cwd = tempDir(t, 'review-guidance-');
+  fs.mkdirSync(path.join(cwd, 'docs'));
+  fs.writeFileSync(path.join(cwd, 'docs', 'review.md'), 'Custom rules.');
+  fs.writeFileSync(path.join(cwd, 'REVIEW.md'), 'Root rules.');
+  const adapter = fakeAdapter([]);
+  await review(adapter, {
+    cwd,
+    resolveConfigFn: configWith({ guidanceFile: 'docs/review.md' }),
+  });
+  assert.equal(adapter.calls[0].guidance, 'Custom rules.');
+});
+
+test('AC-2: guidance over 8,000 characters is truncated and records a degradation', async (t) => {
+  const cwd = tempDir(t, 'review-guidance-');
+  fs.writeFileSync(path.join(cwd, 'REVIEW.md'), 'x'.repeat(8_500));
+  const adapter = fakeAdapter([]);
+  const out = await review(adapter, { cwd });
+  assert.equal(adapter.calls[0].guidance.length, 8_000);
+  assert.equal(out.degraded, true);
+  const row = out.degradations.find((d) => d.tool === 'review-guidance');
+  assert.match(row.reason, /truncated at 8000 characters: 500 characters/);
+  assert.match(out.report, /review-guidance/);
+});
+
+test('AC-4: a finding on a skipPaths file is dropped before severity is counted, and the report says how many', async () => {
+  const adapter = fakeAdapter([
+    { severity: 'critical', title: 'gen', body: 'b', file: 'gen/api.js' },
+    {
+      severity: 'critical',
+      title: 'mixed',
+      body: 'b',
+      file: 'gen/a.js',
+      instances: [{ file: 'gen/a.js' }, { file: 'src/a.js', line: 2 }],
+    },
+    { severity: 'high', title: 'kept', body: 'b', file: 'src/b.js' },
+  ]);
+  const out = await review(adapter, {
+    resolveConfigFn: configWith({ skipPaths: ['gen/**'] }),
+  });
+  assert.deepEqual(
+    out.findings.map((f) => f.title),
+    ['mixed', 'kept'],
+  );
+  assert.equal(out.severity.critical, 1);
+  assert.match(out.report, /\*\*Skipped by `skipPaths`\*\*: 1/);
+});
+
+function historyOpts(t) {
+  const tempRoot = tempDir(t, 'review-history-');
+  return { historyDeps: { config: { project: { paths: { tempRoot } } } } };
+}
+
+const retryAt = (line, severity = 'critical') => ({
+  severity,
+  title: 'Unbounded retry',
+  body: 'FULL-BODY',
+  file: 'src/a.js',
+  line,
+  class: 'unbounded-retry',
+});
+
+test('AC-6: a re-review at a moved head marks the same finding a repeat and renders it collapsed', async (t) => {
+  const opts = historyOpts(t);
+  const first = await review(fakeAdapter([retryAt(10)]), opts);
+  assert.ok(!first.findings[0].repeat);
+  assert.match(first.report, /FULL-BODY/);
+  const second = await review(fakeAdapter([retryAt(17)]), {
+    ...opts,
+    headRef: 'story-42-moved',
+  });
+  assert.equal(second.findings[0].repeat, true);
+  assert.doesNotMatch(second.report, /FULL-BODY/);
+  assert.match(second.report, /Previously raised \(1\)/);
+  const far = await review(fakeAdapter([retryAt(40)]), opts);
+  assert.ok(!far.findings[0].repeat, 'outside ±10 lines is a new location');
+});
+
+test('AC-7: a repeat of an overridden CRITICAL does not halt; one never overridden still halts', async (t) => {
+  const opts = historyOpts(t);
+  const first = await review(fakeAdapter([retryAt(10)]), opts);
+  assert.equal(first.halted, true);
+  const stillBlocking = await review(fakeAdapter([retryAt(12)]), opts);
+  assert.equal(stillBlocking.findings[0].repeat, true);
+  assert.equal(stillBlocking.halted, true);
+  await handleOverriddenReviewBlock({
+    provider: {},
+    storyId: 42,
+    prUrl: 'https://example.test/pr/1',
+    prNumber: null,
+    criticalCount: 1,
+    reason: 'false positive',
+    findings: stillBlocking.findings,
+    config: opts.historyDeps.config,
+    emitFrictionFn: async () => {},
+  });
+  const afterOverride = await review(fakeAdapter([retryAt(11)]), opts);
+  assert.equal(afterOverride.halted, false);
+  assert.equal(afterOverride.findings[0].severity, 'suggestion');
+  assert.equal(afterOverride.findings[0].ungrounded, 'overridden earlier');
 });

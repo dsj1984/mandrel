@@ -27,6 +27,7 @@ export async function resolveReviewHalt(
       criticalCount,
       criticalByProvider: reviewOutcome.criticalByProvider,
       reason: ctx.options.overrideReviewBlock,
+      findings: reviewOutcome.findings ?? [],
       config: deps.config,
     });
   }

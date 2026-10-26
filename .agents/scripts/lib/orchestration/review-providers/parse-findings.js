@@ -10,6 +10,15 @@
 import { isObject } from '../../json-utils.js';
 import { buildClaim } from './claim-grounding.js';
 
+/** Prompt rule shared by the LLM providers; the parser reads its two fields. */
+export const BUG_CLASS_RULE =
+  "Name each problem's bug class as a short kebab-case slug in `class`, " +
+  'and report every instance of the same defect in this diff as ONE ' +
+  'finding whose `instances` lists each location ({"file","line"}); ' +
+  '`file` and `line` name the first instance.';
+
+const CLASS_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 /**
  * Unwrap a bare array, `{ findings }`, or either under `result`/`data`.
  * A non-array result is returned for the caller to reject.
@@ -73,7 +82,34 @@ export function buildFinding(entry, { mapSeverity, defaultCategory }) {
   return attachLocation(finding, entry);
 }
 
-/** Well-formed `file`, `line` and `claim` only. */
+/** `{ file, line? }` when well-formed, else null. */
+function toInstance(raw) {
+  if (!isObject(raw) || typeof raw.file !== 'string' || raw.file.length === 0)
+    return null;
+  return Number.isInteger(raw.line) && raw.line > 0
+    ? { file: raw.file, line: raw.line }
+    : { file: raw.file };
+}
+
+/** `file`/`line` lead the list; malformed and repeated instances drop. */
+function buildInstances(finding, raw) {
+  const listed = Array.isArray(raw) ? raw.map(toInstance).filter(Boolean) : [];
+  if (listed.length === 0) return;
+  const lead = finding.file ? [toInstance(finding)] : [];
+  const seen = new Set();
+  finding.instances = [...lead, ...listed].filter((i) => {
+    const key = `${i.file}:${i.line ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const [first] = finding.instances;
+  finding.file = first.file;
+  if (first.line) finding.line = first.line;
+  else delete finding.line;
+}
+
+/** Well-formed `file`, `line`, `class`, `instances` and `claim` only. */
 function attachLocation(finding, entry) {
   if (typeof entry.file === 'string' && entry.file.length > 0) {
     finding.file = entry.file;
@@ -81,6 +117,9 @@ function attachLocation(finding, entry) {
   if (Number.isInteger(entry.line) && entry.line > 0) {
     finding.line = entry.line;
   }
+  const slug = coerceString(entry.class)?.toLowerCase();
+  if (slug && CLASS_SLUG.test(slug)) finding.class = slug;
+  buildInstances(finding, entry.instances);
   const claim = buildClaim(entry.claim);
   if (claim) finding.claim = claim;
   return finding;

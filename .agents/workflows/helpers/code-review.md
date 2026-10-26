@@ -91,6 +91,37 @@ size, and there is no "review harder" knob a deterministic scorer can turn (its
 module JSDoc documents this). When you (the host LLM) perform the Step 2 pillar
 review yourself, honor the `depth` semantics above directly.
 
+### Project review guidance and skip paths
+
+A consumer tells the Story-scope reviewer what failure looks like in its own
+codebase with a root `REVIEW.md`, or the file
+`delivery.codeReview.guidanceFile` names. Keep it **short, project-specific
+and evidence-required**: name the defect classes this codebase actually ships
+(a retry loop without a bound, a query built without the tenant filter), each
+with the file or pattern that shows it, and ask for proof rather than
+suspicion. Generic advice the framework prompt already carries only dilutes it.
+The review reads it once and renders it into every LLM provider's prompt
+after the framework's severity and anti-gaming rules, under a fixed sentence:
+guidance can add failure classes and paths worth skipping, but cannot lower a
+severity rule, excuse a `shortcut:` comment, or change the output shape. Over
+8,000 characters it is truncated and recorded as a degraded gate.
+
+Prose cannot silence a finding. Only `delivery.codeReview.skipPaths`
+(picomatch globs) drops findings, after grounding and verification and before
+severity is counted; the report states how many were dropped.
+
+### Bug classes, instances and repeats
+
+Each LLM finding names its bug `class` and lists every `instances` location of
+the same defect in the diff, rendered as one finding with an `Instances:`
+list. Its stable id (class or category, first instance file, and for a
+class-less finding its title; never a line number) rides a hidden
+`<!-- finding:<id> -->` marker. A per-Story review history records every run;
+a re-review renders a finding it already raised at an overlapping location
+collapsed under **Previously raised**. A repeat still halts unless an operator
+overrode that CRITICAL with `--override-review-block` earlier, in which case
+it is downgraded to a suggestion.
+
 ## Step 0 — Resolve Context
 
 1. Resolve `[TICKET_ID]` from `ticketId` (the Story for live `scope: story`).
@@ -349,6 +380,10 @@ surviving 🔴 still stops) or the escalation classes:
 Hard cutover per
 [`rules/git-conventions.md`](../../rules/git-conventions.md) § Contract
 Cutovers — no back-compat flag; `high` is opt-in to the old routing.
+
+A finding with several `instances` is **one defect in several places**: it
+counts as fixed only when every instance is fixed, so one fix round clears
+the class.
 
 ### 🔴 / 🟠 findings — per-finding ceremony (unchanged)
 

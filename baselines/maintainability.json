@@ -1280,7 +1280,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "mi": 93.624
+      "mi": 95.065
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
@@ -1627,6 +1627,10 @@
       "mi": 96.376
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "mi": 109.796
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
       "mi": 100.514
     },
@@ -1636,7 +1640,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
-      "mi": 99.991
+      "mi": 98.716
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
@@ -1644,11 +1648,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
-      "mi": 91.057
+      "mi": 87.641
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "mi": 104.572
+      "mi": 103.884
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/critical-verifier.js",
@@ -1659,8 +1663,12 @@
       "mi": 105.641
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/finding-identity.js",
+      "mi": 110.2
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
-      "mi": 98.461
+      "mi": 103.835
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/generated-diff.js",
@@ -1680,7 +1688,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
-      "mi": 96.118
+      "mi": 94.008
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/provider-severity.js",
@@ -1691,12 +1699,16 @@
       "mi": 128.162
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/review-guidance.js",
+      "mi": 99.125
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "mi": 97.991
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "mi": 101.248
+      "mi": 101.904
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/types.js",
@@ -1744,7 +1756,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "mi": 93.642
+      "mi": 92.964
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -1816,7 +1828,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js",
-      "mi": 97.516
+      "mi": 96.481
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-outcome.js",
@@ -1824,7 +1836,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
-      "mi": 107.61
+      "mi": 106.791
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/story-branch-catch-up.js",

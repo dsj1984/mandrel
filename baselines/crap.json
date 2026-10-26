@@ -22472,93 +22472,138 @@
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "resolveConfigBase",
-      "startLine": 37,
+      "startLine": 46,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "resolveCommentTargetId",
-      "startLine": 42,
+      "startLine": 51,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "resolveStoryScope",
-      "startLine": 57,
+      "startLine": 66,
       "crap": 5.150262960180315
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "resolveProviderName",
-      "startLine": 128,
+      "startLine": 138,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "<anon resolveProviderName/(p)#0>",
-      "startLine": 138,
+      "startLine": 148,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "resolveInjectedChangedFiles",
-      "startLine": 149,
+      "startLine": 159,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "buildReviewInput",
-      "startLine": 165,
+      "startLine": 175,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "resolvePromptMessages",
-      "startLine": 190,
+      "startLine": 200,
       "crap": 3.0885568513119535
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "postReviewComment",
-      "startLine": 209,
+      "startLine": 219,
       "crap": 3.000302104662482
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "postUnlessDeferred",
-      "startLine": 242,
+      "startLine": 252,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "resolveCriticalByProvider",
-      "startLine": 256,
+      "startLine": 266,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "<anon resolveCriticalByProvider/(f)#0>",
-      "startLine": 257,
+      "startLine": 267,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "scoreFindings",
-      "startLine": 270,
+      "startLine": 280,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "applySkipPaths",
+      "startLine": 301,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "<anon applySkipPaths/(f)#0>",
+      "startLine": 306,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "<anon applySkipPaths/(f)#0/(i)#0>",
+      "startLine": 307,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "<anon applySkipPaths/(f)#0/(file)#0>",
+      "startLine": 308,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "resolveHistoryDeps",
+      "startLine": 317,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "markAgainstHistory",
+      "startLine": 323,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "recordRun",
+      "startLine": 329,
+      "crap": 2.2560000000000002
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "executeReviewPipeline",
-      "startLine": 287,
-      "crap": 2.000416853246489
+      "startLine": 340,
+      "crap": 3.000671818049278
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "runCodeReview",
-      "startLine": 373,
+      "startLine": 436,
       "crap": 1
     },
     {
@@ -28904,6 +28949,109 @@
       "crap": 13
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "historyPath",
+      "startLine": 34,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "readReviewHistory",
+      "startLine": 46,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "updateReviewHistory",
+      "startLine": 68,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "toHistoryFinding",
+      "startLine": 78,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "appendReviewRun",
+      "startLine": 95,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "<anon appendReviewRun/(h)#0>",
+      "startLine": 98,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "recordOverriddenIds",
+      "startLine": 111,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "<anon recordOverriddenIds/(h)#0>",
+      "startLine": 114,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "sameLocation",
+      "startLine": 120,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "overlaps",
+      "startLine": 129,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "<anon overlaps/(a)#0/(b)#0>",
+      "startLine": 131,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "<anon overlaps/(a)#0>",
+      "startLine": 131,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "markRepeats",
+      "startLine": 143,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "<anon markRepeats/(r)#0>",
+      "startLine": 144,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "<anon markRepeats/(f)#0>",
+      "startLine": 148,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "method": "<anon markRepeats/(f)#0/(e)#0>",
+      "startLine": 152,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
       "method": "exportListNames",
       "startLine": 32,
@@ -29182,397 +29330,386 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "clip",
-      "startLine": 37,
+      "startLine": 49,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "tryParseJson",
-      "startLine": 46,
+      "startLine": 58,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "readAuthStatus",
-      "startLine": 62,
+      "startLine": 74,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "matchArrayEnd",
-      "startLine": 98,
+      "startLine": 110,
       "crap": 9.016486871565235
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "lastBareArray",
-      "startLine": 122,
+      "startLine": 134,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "asFindingList",
-      "startLine": 145,
+      "startLine": 157,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "parseVerdictText",
-      "startLine": 158,
+      "startLine": 170,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "toFindings",
-      "startLine": 167,
+      "startLine": 179,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "<anon toFindings/(entry)#0>",
-      "startLine": 169,
+      "startLine": 181,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "<anon toFindings/(entry)#0/()#0>",
-      "startLine": 171,
+      "startLine": 183,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "failureReason",
-      "startLine": 178,
+      "startLine": 190,
       "crap": 9
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "parseEnvelope",
-      "startLine": 196,
+      "startLine": 208,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "isSuccess",
-      "startLine": 201,
+      "startLine": 213,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "noVerdictReason",
-      "startLine": 210,
+      "startLine": 222,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "structuredFindings",
-      "startLine": 217,
+      "startLine": 229,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "resultTextFindings",
-      "startLine": 221,
+      "startLine": 233,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "method": "resolveVerdict",
-      "startLine": 232,
+      "startLine": 244,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon (index,total)#0>",
-      "startLine": 98,
+      "startLine": 102,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "tierOf",
-      "startLine": 110,
+      "startLine": 114,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon (a,b)#0>",
-      "startLine": 115,
+      "startLine": 119,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "compareSections",
-      "startLine": 118,
+      "startLine": 122,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "splitSections",
-      "startLine": 132,
+      "startLine": 136,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon splitSections/(m)#0>",
-      "startLine": 133,
+      "startLine": 137,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon splitSections/(start,i)#0>",
-      "startLine": 135,
+      "startLine": 139,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "openChunk",
-      "startLine": 148,
+      "startLine": 152,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon openChunk/(c)#0>",
-      "startLine": 149,
+      "startLine": 153,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon openChunk/(c)#1>",
-      "startLine": 152,
+      "startLine": 156,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "packChunks",
-      "startLine": 162,
+      "startLine": 166,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon packChunks/(s)#0>",
-      "startLine": 165,
+      "startLine": 169,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "dedupeFindings",
-      "startLine": 181,
+      "startLine": 185,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon dedupeFindings/(f)#0>",
-      "startLine": 183,
+      "startLine": 187,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "buildPrompt",
-      "startLine": 199,
+      "startLine": 203,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon buildPrompt/()#0>",
+      "startLine": 218,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "quoteWindowsArg",
-      "startLine": 224,
+      "startLine": 229,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "runClaude",
-      "startLine": 237,
+      "startLine": 242,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "assertInput",
-      "startLine": 255,
+      "startLine": 260,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "runAuthStatus",
-      "startLine": 269,
+      "startLine": 274,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "runReviewer",
-      "startLine": 278,
+      "startLine": 283,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "reviewInTempDir",
-      "startLine": 293,
+      "startLine": 298,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "assertCliPresent",
-      "startLine": 307,
+      "startLine": 312,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "createCodeReviewProviderForRegistry",
-      "startLine": 329,
+      "startLine": 334,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "noteDegradation",
-      "startLine": 337,
+      "startLine": 342,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "settle",
-      "startLine": 342,
+      "startLine": 347,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "reviewInChunks",
-      "startLine": 354,
+      "startLine": 359,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(s)#0>",
-      "startLine": 355,
+      "startLine": 360,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(s)#1>",
-      "startLine": 357,
+      "startLine": 362,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(file)#0>",
-      "startLine": 358,
+      "startLine": 363,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(c)#0/(s)#0>",
-      "startLine": 368,
+      "startLine": 374,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(c)#0>",
-      "startLine": 368,
+      "startLine": 374,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(s)#2>",
-      "startLine": 377,
+      "startLine": 383,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/reviewInChunks/(s)#3>",
-      "startLine": 386,
+      "startLine": 392,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon createCodeReviewProviderForRegistry/(d)#0>",
-      "startLine": 426,
+      "startLine": 432,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
       "method": "defaultProbeCodexCommand",
-      "startLine": 80,
+      "startLine": 97,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
       "method": "buildReviewPrompt",
-      "startLine": 97,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
-      "method": "readIfPresent",
       "startLine": 115,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "method": "readIfPresent",
+      "startLine": 135,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
       "method": "invokeCodexExec",
-      "startLine": 132,
+      "startLine": 153,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "method": "defaultProbeCodexCommand",
-      "startLine": 39,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "method": "buildCodexUnavailableError",
-      "startLine": 55,
+      "startLine": 34,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "method": "mapCodexSeverity",
-      "startLine": 90,
+      "startLine": 46,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "method": "parseCodexFindings",
-      "startLine": 101,
+      "startLine": 59,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "method": "buildCodexReviewPrompt",
-      "startLine": 114,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "method": "defaultInvokeCodexReview",
-      "startLine": 128,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "method": "createCodexProvider",
-      "startLine": 152,
-      "crap": 9.018589193278311
+      "startLine": 74,
+      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "method": "createCodexProviderForRegistry",
-      "startLine": 205,
+      "startLine": 135,
       "crap": 1.2962962962962963
     },
     {
@@ -29793,60 +29930,137 @@
       "crap": 2
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/finding-identity.js",
+      "method": "findingInstances",
+      "startLine": 16,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/finding-identity.js",
+      "method": "normalizeTitle",
+      "startLine": 27,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/finding-identity.js",
+      "method": "findingId",
+      "startLine": 42,
+      "crap": 4
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "method": "countBySeverity",
-      "startLine": 44,
+      "startLine": 45,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "<anon (i)#0>",
+      "startLine": 57,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "renderInstances",
+      "startLine": 60,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "<anon renderInstances/(i)#0>",
+      "startLine": 64,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "method": "renderFinding",
-      "startLine": 61,
-      "crap": 3
+      "startLine": 75,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "renderRepeat",
+      "startLine": 96,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "<anon renderRepeat/(i)#0>",
+      "startLine": 99,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "renderRepeatsSection",
+      "startLine": 108,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "renderFindingSections",
+      "startLine": 119,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "<anon renderFindingSections/(f)#0>",
+      "startLine": 121,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "<anon renderFindingSections/(f)#1>",
+      "startLine": 123,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "method": "<anon renderFindingSections/(f)#2>",
+      "startLine": 129,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "method": "renderManualPromptsSection",
-      "startLine": 76,
+      "startLine": 136,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "method": "<anon renderManualPromptsSection/(m)#0>",
-      "startLine": 78,
+      "startLine": 138,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "method": "renderFindings",
-      "startLine": 105,
+      "startLine": 166,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "method": "<anon renderFindings/(sev)#0>",
-      "startLine": 128,
+      "startLine": 192,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
-      "method": "<anon renderFindings/(f)#0>",
-      "startLine": 140,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "method": "renderVerificationLine",
-      "startLine": 167,
+      "startLine": 221,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "method": "buildAttribution",
-      "startLine": 179,
+      "startLine": 233,
       "crap": 4
     },
     {
@@ -30035,37 +30249,56 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "method": "unwrapEnvelope",
-      "startLine": 20,
+      "startLine": 29,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "method": "coerceString",
-      "startLine": 37,
+      "startLine": 46,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "method": "buildFinding",
-      "startLine": 54,
+      "startLine": 63,
       "crap": 10
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
-      "method": "attachLocation",
-      "startLine": 77,
+      "method": "toInstance",
+      "startLine": 86,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
+      "method": "buildInstances",
+      "startLine": 95,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
+      "method": "<anon buildInstances/(i)#0>",
+      "startLine": 100,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
+      "method": "attachLocation",
+      "startLine": 113,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "method": "parseProviderFindings",
-      "startLine": 99,
+      "startLine": 138,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "method": "<anon parseProviderFindings/(entry)#0>",
-      "startLine": 115,
+      "startLine": 154,
       "crap": 1,
       "anonymous": true
     },
@@ -30080,6 +30313,18 @@
       "method": "renderDepthDirective",
       "startLine": 44,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/review-guidance.js",
+      "method": "loadReviewGuidance",
+      "startLine": 26,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/review-guidance.js",
+      "method": "renderGuidanceBlock",
+      "startLine": 62,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
@@ -30187,62 +30432,69 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "probeClaudeCli",
-      "startLine": 34,
+      "startLine": 35,
       "crap": 1.7865270823850707
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "buildSecurityReviewUnavailableError",
-      "startLine": 51,
+      "startLine": 52,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "mapSecurityReviewSeverity",
-      "startLine": 70,
+      "startLine": 71,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "parseSecurityReviewFindings",
-      "startLine": 81,
+      "startLine": 82,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "buildSecurityReviewPrompt",
-      "startLine": 106,
+      "startLine": 113,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
+      "method": "<anon buildSecurityReviewPrompt/()#0>",
+      "startLine": 126,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "defaultInvokeSecurityReview",
-      "startLine": 128,
+      "startLine": 136,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "buildUnparseableFallbackFinding",
-      "startLine": 146,
+      "startLine": 154,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "createSecurityReviewProvider",
-      "startLine": 168,
-      "crap": 9.049299100687023
+      "startLine": 176,
+      "crap": 9.035217881292262
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "<anon createSecurityReviewProvider/(input)#0>",
-      "startLine": 175,
-      "crap": 1.0006086308726794,
+      "startLine": 183,
+      "crap": 1.0004347886579292,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "createSecurityReviewProviderForRegistry",
-      "startLine": 231,
+      "startLine": 246,
       "crap": 1.2962962962962963
     },
     {
@@ -30975,14 +31227,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "invokeStoryReviewCore",
-      "startLine": 52,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
       "method": "postStoryReviewCrossRef",
-      "startLine": 75,
+      "startLine": 52,
       "crap": 4
     },
     {
@@ -31000,15 +31246,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "runStoryScopeReview",
-      "startLine": 145,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
       "method": "settleStoryScopeReview",
       "startLine": 153,
-      "crap": 3
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
@@ -31023,6 +31263,12 @@
       "startLine": 170,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
+      "method": "runStoryScopeReview",
+      "startLine": 241,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -32365,32 +32611,45 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
       "method": "buildReviewOverrideBody",
-      "startLine": 23,
+      "startLine": 25,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
       "method": "postAuditRecord",
-      "startLine": 46,
-      "crap": 1.0939143501126973
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
+      "method": "recordOverrides",
+      "startLine": 65,
+      "crap": 2.1923365890308038
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
+      "method": "<anon recordOverrides/(f)#0>",
+      "startLine": 66,
+      "crap": 1.048084147257701,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
       "method": "handleOverriddenReviewBlock",
-      "startLine": 75,
+      "startLine": 95,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
       "method": "<anon handleOverriddenReviewBlock/()#0>",
-      "startLine": 92,
+      "startLine": 113,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
       "method": "<anon handleOverriddenReviewBlock/()#1>",
-      "startLine": 97,
+      "startLine": 118,
       "crap": 1,
       "anonymous": true
     },

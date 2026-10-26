@@ -66,7 +66,7 @@ export function parseCodexFindings(rawOutput) {
 /**
  * @param {{
  *   probeFn?: () => boolean,
- *   invokeFn?: (args: { baseRef: string, headRef: string, scope: string, ticketId: number, depth?: import('./types.js').ReviewDepth }) => { status: number, stdout: string, stderr: string } | Promise<{ status: number, stdout: string, stderr: string }>,
+ *   invokeFn?: (args: { baseRef: string, headRef: string, scope: string, ticketId: number, depth?: import('./types.js').ReviewDepth, guidance?: string|null }) => { status: number, stdout: string, stderr: string } | Promise<{ status: number, stdout: string, stderr: string }>,
  *   logger?: { info?: Function, warn?: Function, error?: Function },
  * }} [deps]
  * @returns {ReviewProvider}
@@ -86,7 +86,8 @@ export function createCodexProvider(deps = {}) {
      * @returns {Promise<Finding[]>}
      */
     async runReview(input) {
-      const { scope, ticketId, baseRef, headRef, depth } = input ?? {};
+      const { scope, ticketId, baseRef, headRef, depth, guidance } =
+        input ?? {};
       if (!baseRef || !headRef) {
         throw new TypeError(
           '[codex-review] runReview requires baseRef and headRef.',
@@ -109,6 +110,7 @@ export function createCodexProvider(deps = {}) {
         scope,
         ticketId,
         depth,
+        guidance,
       });
       if (result.status !== 0) {
         throw new Error(

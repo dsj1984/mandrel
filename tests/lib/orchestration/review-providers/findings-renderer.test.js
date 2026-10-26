@@ -10,6 +10,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { findingId } from '../../../../.agents/scripts/lib/orchestration/review-providers/finding-identity.js';
 
 import {
   countBySeverity,
@@ -157,11 +158,15 @@ test('renderFindings: deterministic snapshot for a fixed Finding[]', () => {
     '',
     'Concatenating user input into the query.',
     '',
+    `<!-- finding:${findingId(findings[0])} -->`,
+    '',
     '### 🟠 High Risk (1)',
     '',
     '#### 🟠 Missing await — `src/api/handler.js:88`',
     '',
     'Promise from `save()` is dropped.',
+    '',
+    `<!-- finding:${findingId(findings[2])} -->`,
     '',
     '### 🟡 Medium Risk (1)',
     '',
@@ -169,11 +174,15 @@ test('renderFindings: deterministic snapshot for a fixed Finding[]', () => {
     '',
     'Args list does not match signature.',
     '',
+    `<!-- finding:${findingId(findings[3])} -->`,
+    '',
     '### 🟢 Suggestion (1)',
     '',
     '#### 🟢 Rename helper — `src/util.js:3`',
     '',
     '`doThing` reads as a verb-only noun.',
+    '',
+    `<!-- finding:${findingId(findings[1])} -->`,
     '',
   ].join('\n');
 
@@ -265,4 +274,93 @@ test('renderFindings: states the critical-verification tally only when a verifie
     renderFindings({ ...base, verification: { attempted: 0 } }),
     /Critical verification/,
   );
+});
+
+test('renderFinding: a finding with several instances renders once, listing every location and its class', () => {
+  const finding = {
+    severity: 'critical',
+    title: 'Unbounded retry',
+    body: 'Loops forever on a 500.',
+    file: 'src/a.js',
+    line: 4,
+    class: 'unbounded-retry',
+    instances: [
+      { file: 'src/a.js', line: 4 },
+      { file: 'src/b.js', line: 19 },
+      { file: 'src/c.js' },
+    ],
+  };
+  const out = renderFindings({
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [finding],
+  });
+  assert.equal(out.match(/#### 🔴 Unbounded retry/g).length, 1);
+  assert.match(out, /`unbounded-retry`/);
+  assert.match(
+    out,
+    /Instances:\n- `src\/a\.js:4`\n- `src\/b\.js:19`\n- `src\/c\.js`/,
+  );
+  assert.ok(out.includes(`<!-- finding:${findingId(finding)} -->`));
+});
+
+test('renderFinding: a single-location finding carries no Instances list', () => {
+  const out = renderFinding({
+    severity: 'high',
+    title: 't',
+    body: 'b',
+    file: 'src/a.js',
+    line: 1,
+    instances: [{ file: 'src/a.js', line: 1 }],
+  });
+  assert.doesNotMatch(out, /Instances:/);
+});
+
+test('renderFindings: a repeat renders collapsed under Previously raised, without its body', () => {
+  const repeat = {
+    severity: 'critical',
+    title: 'Unbounded retry',
+    body: 'BODY-NOT-REPOSTED',
+    file: 'src/a.js',
+    line: 9,
+    class: 'unbounded-retry',
+    repeat: true,
+  };
+  const fresh = { severity: 'high', title: 'New one', body: 'fresh body' };
+  const out = renderFindings({
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [repeat, fresh],
+  });
+  assert.doesNotMatch(out, /BODY-NOT-REPOSTED/);
+  assert.doesNotMatch(out, /### 🔴 Critical Blocker \(/);
+  assert.match(out, /- 🔴 Critical Blocker: 1/);
+  assert.match(out, /### ♻️ Previously raised \(1\)/);
+  const id = findingId(repeat);
+  assert.match(
+    out,
+    new RegExp(`- 🔴 Unbounded retry — \`${id}\` — \`src/a\\.js:9\``),
+  );
+  assert.ok(out.includes(`<!-- finding:${id} -->`));
+  assert.match(out, /fresh body/);
+});
+
+test('renderFindings: states how many findings skipPaths dropped', () => {
+  const out = renderFindings({
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [],
+    skipped: 3,
+  });
+  assert.match(out, /\*\*Skipped by `skipPaths`\*\*: 3/);
+  const none = renderFindings({
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [],
+  });
+  assert.doesNotMatch(none, /skipPaths/);
 });
