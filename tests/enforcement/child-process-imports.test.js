@@ -173,8 +173,8 @@ const RAW_CAPTURE_SITES = {
   },
   '.agents/scripts/lib/close-validation/process.js': {
     reason:
-      'async gate runner: streams line-prefixed stdio as it arrives; spawn() has no buffer to overflow',
-    sites: { spawn: 1 },
+      'async gate runner: streams line-prefixed stdio as it arrives; spawn() is the injectable default seam and has no buffer to overflow',
+    sites: { 'spawn (seam)': 1 },
   },
   '.agents/scripts/lib/feedback-loop/graduator-gh.js': {
     reason: 'streaming spawn() seam; no buffer to overflow',
