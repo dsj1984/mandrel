@@ -13,6 +13,7 @@ import path from 'node:path';
 import {
   groupSpawnOptions,
   killProcessGroup,
+  spawnSupervised,
   superviseGroup,
   TIMEOUT_EXIT_CODE,
 } from './process-group.js';
@@ -198,17 +199,17 @@ export function runSupervisedSuite(opts) {
   const { cmd, args, cwd, env = {}, spawnImpl = spawn } = opts;
   const handshake = suiteReadyHandshake();
   return new Promise((resolve) => {
-    const child = spawnImpl(cmd, args, {
-      cwd,
-      env: { ...process.env, ...env, ...handshake.env },
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-      ...groupSpawnOptions(),
-    });
-    const supervisor = superviseSuite(child, {
-      ...opts,
-      readyFile: handshake.file,
-    });
+    const { child, supervisor } = spawnSupervised(
+      () =>
+        spawnImpl(cmd, args, {
+          cwd,
+          env: { ...process.env, ...env, ...handshake.env },
+          stdio: 'inherit',
+          shell: process.platform === 'win32',
+          ...groupSpawnOptions(),
+        }),
+      (c) => superviseSuite(c, { ...opts, readyFile: handshake.file }),
+    );
     let settled = false;
     const settle = (code) => {
       if (settled) return;

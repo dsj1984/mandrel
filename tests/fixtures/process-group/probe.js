@@ -69,6 +69,27 @@ export async function assertGone(pid, message, timeoutMs = 3_000) {
   );
 }
 
+/**
+ * SIGKILL the process group of the worker whose pid `pidFile` holds, so a red
+ * test leaves nothing running (Story #5913). Never throws.
+ *
+ * @param {string} pidFile
+ */
+export function reapGroupOf(pidFile) {
+  try {
+    const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+    const pgid = Number(
+      execFileSync('ps', ['-o', 'pgid=', '-p', String(pid)], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim(),
+    );
+    if (pgid > 0) process.kill(-pgid, 'SIGKILL');
+  } catch {
+    // No pid file, or the group is already gone.
+  }
+}
+
 /** Resolve `{ code, signal, ms }` when `child` exits. */
 export function waitForExit(child, startedAt = Date.now()) {
   return new Promise((resolve) => {

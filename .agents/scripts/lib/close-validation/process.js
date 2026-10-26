@@ -8,7 +8,11 @@ import {
   resolveFullSuiteLockBudget,
   withFullSuiteLockAsync,
 } from '../full-suite-lock.js';
-import { groupSpawnOptions, TIMEOUT_EXIT_CODE } from '../process-group.js';
+import {
+  groupSpawnOptions,
+  spawnSupervised,
+  TIMEOUT_EXIT_CODE,
+} from '../process-group.js';
 import { gateSupervision } from '../supervised-suite.js';
 
 /**
@@ -87,7 +91,7 @@ function isBiomeNoFilesProcessed(output) {
  *
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, timeoutMs?: number, lockOptions?: object, onLockEvent?: (event: object) => void, skipIfSatisfied?: () => {status: number}|undefined }} opts
+ * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, timeoutMs?: number, lockOptions?: object, onLockEvent?: (event: object) => void, skipIfSatisfied?: () => {status: number}|undefined, spawnImpl?: typeof spawn }} opts
  * @returns {Promise<{ status: number }>}
  */
 export function defaultGateRunner(cmd, args, opts = {}) {
@@ -132,11 +136,15 @@ function refusedGateStatus() {
  */
 function spawnGate(cmd, args, opts, lock) {
   const supervision = gateSupervision(opts, lock);
-  const child = spawnGateChild(cmd, args, opts.cwd, supervision.env);
   const output = gateOutput(opts);
-  pipePrefixed(child.stdout, output.prefix, output.tap);
-  pipePrefixed(child.stderr, output.prefix, output.tap);
-  const supervisor = supervision.supervise(child, output);
+  const { child, supervisor } = spawnSupervised(
+    () => spawnGateChild(cmd, args, opts.cwd, supervision.env, opts.spawnImpl),
+    (c) => {
+      pipePrefixed(c.stdout, output.prefix, output.tap);
+      pipePrefixed(c.stderr, output.prefix, output.tap);
+      return supervision.supervise(c, output);
+    },
+  );
   return new Promise((resolve) => {
     // 'close', not 'exit': only 'close' waits for both pipes to drain.
     child.on('close', (code, sig) => {
@@ -162,8 +170,8 @@ function spawnGate(cmd, args, opts, lock) {
  * @param {string} cwd
  * @param {Record<string, string>} [env]
  */
-function spawnGateChild(cmd, args, cwd, env) {
-  return spawn(cmd, args, {
+function spawnGateChild(cmd, args, cwd, env, spawnImpl = spawn) {
+  return spawnImpl(cmd, args, {
     cwd,
     shell: process.platform === 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],

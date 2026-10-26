@@ -660,7 +660,7 @@
     },
     {
       "path": ".agents/scripts/lib/child-stream.js",
-      "mi": 100.789
+      "mi": 103.336
     },
     {
       "path": ".agents/scripts/lib/claude/agents-projection.js",
@@ -704,7 +704,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
-      "mi": 112.269
+      "mi": 113.101
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/advisories.js",
@@ -2132,7 +2132,7 @@
     },
     {
       "path": ".agents/scripts/lib/supervised-suite.js",
-      "mi": 106.186
+      "mi": 107.205
     },
     {
       "path": ".agents/scripts/lib/temp-removal.js",

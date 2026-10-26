@@ -28,6 +28,7 @@ import {
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import {
   groupSpawnOptions,
+  spawnSupervised,
   superviseGroup,
 } from '../../.agents/scripts/lib/process-group.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
@@ -35,6 +36,8 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { hashCommandConfig } from '../../.agents/scripts/lib/validation-evidence.js';
 import {
   assertGone,
+  pidState,
+  reapGroupOf,
   waitForExit,
   waitForFile,
 } from '../fixtures/process-group/probe.js';
@@ -156,6 +159,55 @@ describe('superviseGroup — abort wiring', () => {
     const supervisor = superviseGroup(makeFakeChild());
     assert.equal(process.listenerCount('SIGTERM'), before + 1);
     supervisor.release();
+    assert.equal(process.listenerCount('SIGTERM'), before);
+  });
+
+  it('#5913: spawnSupervised arms forwarding before the spawn and keeps it while the child is supervised', () => {
+    const before = process.listenerCount('SIGTERM');
+    let atSpawn = null;
+    const { supervisor } = spawnSupervised(
+      () => {
+        atSpawn = process.listenerCount('SIGTERM');
+        return makeFakeChild();
+      },
+      (child) => superviseGroup(child),
+    );
+    assert.equal(atSpawn, before + 1);
+    assert.equal(process.listenerCount('SIGTERM'), before + 1);
+    supervisor.release();
+    assert.equal(process.listenerCount('SIGTERM'), before);
+  });
+
+  it('#5913: a spawn that throws disarms and rethrows', () => {
+    const before = process.listenerCount('SIGTERM');
+    assert.throws(
+      () =>
+        spawnSupervised(
+          () => {
+            throw new Error('spawn EINVAL');
+          },
+          (child) => superviseGroup(child),
+        ),
+      /spawn EINVAL/,
+    );
+    assert.equal(process.listenerCount('SIGTERM'), before);
+  });
+
+  it('#5913: the close gate spawns with forwarding already armed, and leaves none behind', async () => {
+    const before = process.listenerCount('SIGTERM');
+    let atSpawn = null;
+    // Not '' — win32 spawns gates through cmd, which drops an empty argument.
+    const result = await defaultGateRunner(process.execPath, ['-e', '0'], {
+      cwd: process.cwd(),
+      gateName: 'lint',
+      log: () => {},
+      spawnImpl: (...a) => {
+        atSpawn = process.listenerCount('SIGTERM');
+        return spawn(...a);
+      },
+    });
+    assert.deepEqual(result, { status: 0 });
+    assert.equal(atSpawn, before + 1);
     assert.equal(process.listenerCount('SIGTERM'), before);
   });
 });
@@ -280,7 +332,38 @@ describe('gate children are process groups (Story #5377)', {
     dir = makeTempDir('mandrel-gate-pgroup-');
   });
   afterEach(() => {
+    reapGroupOf(path.join(dir, 'worker.pid'));
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** Run the forced-window fixture; resolve once it has exited. */
+  async function signalDuringSpawn(mode, pidFile) {
+    const holder = spawn(
+      process.execPath,
+      [path.join(fixtures, 'signal-during-spawn.mjs'), mode, pidFile],
+      { stdio: 'ignore' },
+    );
+    return waitForExit(holder);
+  }
+
+  it('#5913: SIGTERM between spawn and supervision without a hold leaks the group (the old order)', async () => {
+    const pidFile = path.join(dir, 'worker.pid');
+    const { signal } = await signalDuringSpawn('bare', pidFile);
+    assert.equal(signal, 'SIGTERM');
+    const worker = Number(fs.readFileSync(pidFile, 'utf8'));
+    assert.equal(
+      pidState(worker).state,
+      'alive',
+      'the fixture forces the window',
+    );
+  });
+
+  it('#5913: with forwarding held across the spawn, the same SIGTERM kills the whole group', async () => {
+    const pidFile = path.join(dir, 'worker.pid');
+    const { signal } = await signalDuringSpawn('hold', pidFile);
+    assert.equal(signal, 'SIGTERM', 'it still dies of the signal');
+    const worker = Number(fs.readFileSync(pidFile, 'utf8'));
+    await assertGone(worker, 'the worker dies with its group');
   });
 
   it('AC-2: a close `test` gate killed by its timeout leaves no surviving worker and exits 124', async () => {

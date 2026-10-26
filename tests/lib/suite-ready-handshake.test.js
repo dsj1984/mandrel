@@ -34,6 +34,7 @@ import { TIMEOUT_EXIT_CODE } from '../../.agents/scripts/lib/process-group.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import {
   formatSuiteTimings,
+  runSupervisedSuite,
   SUITE_READY_FILE_ENV,
   suiteReadyHandshake,
   superviseSuite,
@@ -386,5 +387,41 @@ describe('branch coverage for the lock holder and the evidence-gate runner (Stor
     );
     assert.equal(out.status, 0);
     assert.ok(infos.includes('from the suite'));
+  });
+});
+
+describe('runSupervisedSuite — signal forwarding (Story #5913)', () => {
+  it('spawns with forwarding already armed, and leaves none behind', async () => {
+    const before = process.listenerCount('SIGTERM');
+    let atSpawn = null;
+    const code = await runSupervisedSuite({
+      cmd: process.execPath,
+      // Not '' — win32 spawns suites through cmd, which drops an empty argument.
+      args: ['-e', '0'],
+      cwd: process.cwd(),
+      spawnImpl: (...a) => {
+        atSpawn = process.listenerCount('SIGTERM');
+        return spawn(...a);
+      },
+    });
+    assert.equal(code, 0);
+    assert.equal(atSpawn, before + 1);
+    assert.equal(process.listenerCount('SIGTERM'), before);
+  });
+
+  it('a spawn that throws leaves no forwarding listener behind', async () => {
+    const before = process.listenerCount('SIGTERM');
+    await assert.rejects(
+      runSupervisedSuite({
+        cmd: process.execPath,
+        args: [],
+        cwd: process.cwd(),
+        spawnImpl: () => {
+          throw new Error('spawn EINVAL');
+        },
+      }),
+      /spawn EINVAL/,
+    );
+    assert.equal(process.listenerCount('SIGTERM'), before);
   });
 });

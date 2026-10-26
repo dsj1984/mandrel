@@ -12526,6 +12526,13 @@
     },
     {
       "path": ".agents/scripts/lib/child-stream.js",
+      "method": "<anon streamChild/(resolve)#0/(c)#0>",
+      "startLine": 85,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
       "method": "<anon streamChild/(resolve)#0/(code)#0>",
       "startLine": 98,
       "crap": 6,
@@ -12543,6 +12550,13 @@
       "method": "<anon streamChild/(resolve)#0/()#0>",
       "startLine": 119,
       "crap": 1.0029154518950438,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "<anon streamChild/(resolve)#0/()#1>",
+      "startLine": 125,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -13793,6 +13807,20 @@
       "method": "<anon spawnGate/(resolve)#0>",
       "startLine": 140,
       "crap": 1.0008638375985315,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/process.js",
+      "method": "<anon spawnGate/()#0>",
+      "startLine": 141,
+      "crap": 1.000512,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/process.js",
+      "method": "<anon spawnGate/(c)#0>",
+      "startLine": 142,
+      "crap": 1.000512,
       "anonymous": true
     },
     {
@@ -35627,6 +35655,18 @@
     },
     {
       "path": ".agents/scripts/lib/process-group.js",
+      "method": "disarmIfIdle",
+      "startLine": 95,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/process-group.js",
+      "method": "spawnSupervised",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/process-group.js",
       "method": "superviseGroup",
       "startLine": 109,
       "crap": 6
@@ -37989,6 +38029,13 @@
     },
     {
       "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon runSupervisedSuite/(resolve)#0/(c)#0>",
+      "startLine": 211,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
       "method": "<anon runSupervisedSuite/(resolve)#0/(code)#0>",
       "startLine": 213,
       "crap": 4,
@@ -37998,6 +38045,13 @@
       "path": ".agents/scripts/lib/supervised-suite.js",
       "method": "<anon runSupervisedSuite/(resolve)#0/()#0>",
       "startLine": 224,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon runSupervisedSuite/(resolve)#0/()#1>",
+      "startLine": 225,
       "crap": 1,
       "anonymous": true
     },
