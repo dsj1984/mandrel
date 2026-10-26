@@ -1942,8 +1942,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 96.7,
-      "branches": 87.64,
+      "lines": 96.84,
+      "branches": 87.78,
       "functions": 100
     },
     {
@@ -2452,8 +2452,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
-      "lines": 98.17,
-      "branches": 64.71,
+      "lines": 98.27,
+      "branches": 82.93,
       "functions": 100
     },
     {
@@ -2471,7 +2471,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
       "lines": 100,
-      "branches": 96.97,
+      "branches": 96.51,
       "functions": 100
     },
     {
@@ -2483,7 +2483,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "lines": 100,
-      "branches": 90.91,
+      "branches": 92.86,
       "functions": 100
     },
     {
@@ -2499,6 +2499,12 @@
       "functions": 83.33
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/critical-verifier.js",
+      "lines": 99.16,
+      "branches": 87.63,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/degraded-gates.js",
       "lines": 92.07,
       "branches": 85.37,
@@ -2507,7 +2513,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "lines": 100,
-      "branches": 94.59,
+      "branches": 94.74,
       "functions": 100
     },
     {

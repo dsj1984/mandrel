@@ -10,7 +10,7 @@ import { resolveConfig } from '../config-resolver.js';
 import { computeChangeSet } from './change-set.js';
 import { remoteBaseRef } from './review-base-ref.js';
 import { deriveChangeLevel, resolveDepth } from './review-depth.js';
-import { groundFindings } from './review-providers/claim-grounding.js';
+import { vetFindings } from './review-providers/critical-verifier.js';
 import {
   collectProviderDegradations,
   degradationEnvelope,
@@ -102,6 +102,7 @@ function resolveStoryScope(opts, config) {
  *   createReviewProviderFn?: typeof createReviewProvider,
  *   upsertCommentFn?: typeof upsertStructuredComment,
  *   renderFindingsFn?: typeof renderFindings,
+ *   verifier?: { spawnFn?: Function, probeFn?: Function, gitSpawnFn?: Function },
  *   deferPost?: boolean,
  * }} opts
  * @returns {Promise<{
@@ -325,13 +326,11 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   );
 
   // Degraded gates ride beside the findings, never inside them.
-  const { findings, degradations } = groundFindings({
+  const { findings, degradations, verification } = await vetFindings({
     findings: rawFindings,
-    headRef,
-    baseRef,
-    cwd: opts.cwd,
+    reviewInput,
+    opts,
     degradations: await collectProviderDegradations(reviewProvider, logger),
-    gitSpawnFn: opts.gitSpawnFn,
   });
   const scored = scoreFindings(findings, providerName);
   const report = renderFindingsFn({
@@ -343,6 +342,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     provider: providerName,
     promptMessages,
     degradations,
+    verification,
   });
 
   const { posted, postedCommentId } = await postUnlessDeferred(opts, {
@@ -365,6 +365,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     halted: scored.halted,
     criticalByProvider: scored.criticalByProvider,
     ...degradationEnvelope(degradations),
+    verification,
     blockerReason: scored.blockerReason,
   };
 }

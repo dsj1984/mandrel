@@ -98,6 +98,7 @@ function renderManualPromptsSection(messages) {
  *   provider?: string,
  *   promptMessages?: ReadonlyArray<string>,
  *   degradations?: ReadonlyArray<object>,
+ *   verification?: Record<string, number>,
  * }} input
  * @returns {string}
  */
@@ -120,6 +121,7 @@ export function renderFindings(input) {
     providerLine,
     `**Findings**: ${totalKnown}`,
     ...renderDegradedHeaderLines(degraded),
+    ...renderVerificationLine(input.verification),
     '',
     '### 📦 Severity Tier Counts',
     '',
@@ -154,6 +156,20 @@ export function renderFindings(input) {
   }
 
   return lines.join('\n');
+}
+
+/**
+ * The critical-verifier tally; nothing when no verifier ran.
+ *
+ * @param {Record<string, number>|undefined} v
+ * @returns {string[]}
+ */
+function renderVerificationLine(v) {
+  if (!(v?.attempted > 0)) return [];
+  return [
+    `**Critical verification**: ${v.attempted} attempted · ${v.confirmed} confirmed · ` +
+      `${v.refuted} refuted · ${v.uncertain} uncertain · ${v.errored} errored`,
+  ];
 }
 
 /**

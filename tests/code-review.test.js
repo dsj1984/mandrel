@@ -179,7 +179,8 @@ test('runCodeReview: output envelope keys are byte-compatible across depths', as
   // ran". The invariant this test guards is unchanged: the key set must be
   // identical across every depth, and `depth` must never leak into it.
   // `findings` / `providerName` were added by Story #5480 so a worker can
-  // deposit the held review close adopts.
+  // deposit the held review close adopts. `verification` (Story #5919) is the
+  // critical-verifier tally.
   const EXPECTED_KEYS = [
     'status',
     'severity',
@@ -193,6 +194,7 @@ test('runCodeReview: output envelope keys are byte-compatible across depths', as
     'criticalByProvider',
     'degraded',
     'degradations',
+    'verification',
     'blockerReason',
   ].sort();
 
@@ -382,4 +384,68 @@ test('runCodeReview: no claim-bearing critical spawns no head probe and records 
     ['diff'],
   );
   assert.equal(out.degraded, false);
+});
+
+// --- Critical verification summary (Story #5919) ---------------------------
+
+test('runCodeReview: the verifier runs at the review depth and its tally rides the result', async () => {
+  const spawned = [];
+  const out = await runCodeReview({
+    ...buildOpts({
+      findings: [{ severity: 'critical', title: 't', body: 'b' }],
+      changedFiles: ['a.js'],
+      changedFileCount: 1,
+    }),
+    verifier: {
+      probeFn: () => true,
+      spawnFn: async (_f, args) => {
+        spawned.push(args);
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            subtype: 'success',
+            structured_output: {
+              verdict: 'confirmed',
+              evidence: { file: 'a.js', line: 1 },
+              reason: 'real',
+            },
+          }),
+          stderr: '',
+        };
+      },
+      gitSpawnFn: () => ({ status: 0, stdout: 'x\n', stderr: '' }),
+    },
+  });
+  assert.equal(spawned.length, 1, 'one verifier at light depth');
+  assert.equal(out.verification.confirmed, 1);
+  assert.equal(out.halted, true);
+});
+
+test('review deposit: carries the verification tally, and an older deposit without it still adopts', async () => {
+  const { buildReviewDeposit, depositAsComputedReview } = await import(
+    '../.agents/scripts/lib/orchestration/review-deposit.js'
+  );
+  const verification = {
+    attempted: 2,
+    confirmed: 0,
+    refuted: 2,
+    uncertain: 0,
+    errored: 0,
+  };
+  const deposit = buildReviewDeposit({
+    storyId: 1,
+    headSha: 'abc',
+    baseRef: 'origin/main',
+    diffDigest: 'd',
+    result: { severity: { critical: 0 }, verification },
+  });
+  assert.deepEqual(deposit.verification, verification);
+  assert.deepEqual(
+    depositAsComputedReview(deposit).result.verification,
+    verification,
+  );
+  const { verification: _dropped, ...older } = deposit;
+  const adopted = depositAsComputedReview(older).result;
+  assert.equal(adopted.verification, null);
+  assert.equal(adopted.status, 'ok');
 });
