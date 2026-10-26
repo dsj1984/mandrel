@@ -12,7 +12,8 @@ import { gitSpawn } from '../../git-utils.js';
 import { isObject } from '../../json-utils.js';
 
 const TRUNCATED_CONTEXT = 'reviewed-with-truncated-context';
-const CLAIM_KINDS = ['path-absent', 'symbol-referenced'];
+const CLAIM_KINDS = ['path-absent', 'symbol-referenced', 'file-unchanged'];
+const PATH_KINDS = new Set(['path-absent', 'file-unchanged']);
 
 /** The optional `claim` property of the Claude findings schema. */
 export const CLAIM_SCHEMA = {
@@ -51,7 +52,7 @@ export function buildClaim(raw) {
   if (!isObject(raw)) return null;
   const path = nonBlank(raw.path);
   const symbol = nonBlank(raw.symbol);
-  if (raw.kind === 'path-absent' && path) return { kind: raw.kind, path };
+  if (PATH_KINDS.has(raw.kind)) return path ? { kind: raw.kind, path } : null;
   if (raw.kind !== 'symbol-referenced' || !symbol) return null;
   return path ? { kind: raw.kind, symbol, path } : { kind: raw.kind, symbol };
 }
@@ -72,7 +73,7 @@ export function groundingNotes(finding) {
 }
 
 /** @returns {string|null} evidence when the path exists at `headRef`. */
-function refutePathAbsent(claim, headRef, git) {
+function refutePathAbsent(claim, { headRef }, git) {
   const result = git('cat-file', '-e', `${headRef}:${claim.path}`);
   return result?.status === 0 ? `git cat-file found ${claim.path}` : null;
 }
@@ -101,7 +102,7 @@ function isDeclaration(hit, claim) {
 }
 
 /** @returns {string|null} evidence when every hit is the declaration. */
-function refuteSymbolReferenced(claim, headRef, git) {
+function refuteSymbolReferenced(claim, { headRef }, git) {
   const result = git(
     'grep',
     '-n',
@@ -123,18 +124,32 @@ function refuteSymbolReferenced(claim, headRef, git) {
     : 'git grep found no references';
 }
 
+/**
+ * `git diff --quiet` exits 1 only when the path differs across the range; 0,
+ * any other status or no base proves nothing.
+ *
+ * @returns {string|null} evidence when the path changed in base...head.
+ */
+function refuteFileUnchanged(claim, { baseRef, headRef }, git) {
+  const range = `${baseRef}...${headRef}`;
+  const changed =
+    baseRef && git('diff', '--quiet', range, '--', claim.path)?.status === 1;
+  return changed ? `git diff ${range} changes ${claim.path}` : null;
+}
+
 const REFUTERS = {
   'path-absent': refutePathAbsent,
   'symbol-referenced': refuteSymbolReferenced,
+  'file-unchanged': refuteFileUnchanged,
 };
 
 /** @returns {Finding} */
-function groundFinding(finding, headRef, git) {
+function groundFinding(finding, refs, git) {
   if (!isGroundable(finding)) return finding;
   const refute = REFUTERS[finding.claim.kind];
   let evidence = null;
   try {
-    evidence = refute(finding.claim, headRef, git);
+    evidence = refute(finding.claim, refs, git);
   } catch {
     evidence = null;
   }
@@ -189,9 +204,9 @@ function annotateContext(finding, tokens) {
   return { ...finding, context: TRUNCATED_CONTEXT };
 }
 
-function groundEach(findings, headRef, git, tokens) {
+function groundEach(findings, refs, git, tokens) {
   return findings.map((finding) => {
-    const grounded = groundFinding(finding, headRef, git);
+    const grounded = groundFinding(finding, refs, git);
     return grounded && tokens.size > 0
       ? annotateContext(grounded, tokens)
       : grounded;
@@ -199,13 +214,15 @@ function groundEach(findings, headRef, git, tokens) {
 }
 
 /**
- * Ground every finding in `cwd`, the reviewed repository. `degradations`
+ * Ground every finding in `cwd`, the reviewed repository; `baseRef` is
+ * needed only to refute a `file-unchanged` claim. `degradations`
  * comes back with the head check's record appended when the head does not
  * resolve there.
  *
  * @param {{
  *   findings: Finding[],
  *   headRef: string,
+ *   baseRef?: string|null,
  *   degradations?: ReadonlyArray<{ reason: string }>,
  *   cwd?: string,
  *   gitSpawnFn?: typeof gitSpawn,
@@ -215,6 +232,7 @@ function groundEach(findings, headRef, git, tokens) {
 export function groundFindings({
   findings,
   headRef,
+  baseRef,
   degradations = [],
   cwd = process.cwd(),
   gitSpawnFn = gitSpawn,
@@ -225,7 +243,12 @@ export function groundFindings({
     ...headDegradations({ findings, headRef, cwd, git }),
   ];
   return {
-    findings: groundEach(findings, headRef, git, reasonTokens(all)),
+    findings: groundEach(
+      findings,
+      { baseRef, headRef },
+      git,
+      reasonTokens(all),
+    ),
     degradations: all,
   };
 }

@@ -17,8 +17,8 @@
  * @property {string=}  provider     - Chain entry that raised it.
  *
  * @typedef {object} FindingClaim
- * @property {'path-absent'|'symbol-referenced'} kind
- * @property {string=} path    - Absent path, or the symbol's definition file.
+ * @property {'path-absent'|'symbol-referenced'|'file-unchanged'} kind
+ * @property {string=} path    - Absent or unchanged path, or the symbol's definition file.
  * @property {string=} symbol
  *
  * @typedef {'story'} ReviewScope

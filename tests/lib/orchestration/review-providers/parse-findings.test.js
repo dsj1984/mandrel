@@ -198,6 +198,16 @@ test('buildClaim: keeps a well-formed path-absent or symbol-referenced claim', (
   );
 });
 
+test('#5912 buildClaim: keeps a file-unchanged claim with a path, drops one without', () => {
+  assert.deepEqual(buildClaim({ kind: 'file-unchanged', path: ' a.js ' }), {
+    kind: 'file-unchanged',
+    path: 'a.js',
+  });
+  for (const path of [undefined, null, '  ']) {
+    assert.equal(buildClaim({ kind: 'file-unchanged', path }), null);
+  }
+});
+
 test('buildFinding: a malformed claim is dropped, never kept for grounding', () => {
   for (const claim of [
     null,

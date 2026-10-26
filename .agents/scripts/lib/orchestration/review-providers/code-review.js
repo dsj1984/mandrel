@@ -13,7 +13,9 @@
  * review with no verdict records one degraded gate via `getDegradations()`
  * and returns no findings, so "never ran" cannot read as "found nothing".
  * A diff over the cap is reviewed chunk by chunk (file-aligned, sequential,
- * findings merged); what went unchecked — a truncated file, files past the
+ * findings merged). Source sections pack before tests and docs, and every
+ * chunk is told it is a slice and handed the whole changed-file manifest so
+ * a file changed in another chunk never reads as unchanged. What went unchecked — a truncated file, files past the
  * chunk bound, a chunk with no verdict, a capped `<callers>` block — is
  * recorded beside the findings, naming the files.
  *
@@ -77,16 +79,49 @@ const PROMPT_HEAD =
   'input, command or test that exposes it). A `shortcut:` comment naming ' +
   'its ceiling and trigger is a decision, not a finding, unless this diff ' +
   'itself crosses the ceiling.\n\n' +
-  'The diff below is authoritative — files on disk may not reflect it. ' +
+  '{scopeNote}' +
   'Answer with a JSON object of this exact shape, no prose around it:\n\n' +
   '{"findings":[{"title":"...","body":"Why it is wrong: ... How to show it ' +
   'fails: ...","file":"...","line":1,"category":"bug","claim":null}]}\n\n' +
   'Set `claim` when the problem rests on a checkable fact: ' +
   '{"kind":"path-absent","path":"<file>"} when a file the change needs is ' +
   'missing, or {"kind":"symbol-referenced","symbol":"<name>","path":"<its ' +
-  'definition file>"} when a removed or renamed symbol still has callers. ' +
-  'Otherwise leave it null.\n\n' +
+  'definition file>"} when a removed or renamed symbol still has callers, ' +
+  'or {"kind":"file-unchanged","path":"<file>"} when the problem is that ' +
+  'another file was not updated. Otherwise leave it null.\n\n' +
   'Emit {"findings":[]} if there is nothing you would block the merge for.\n\n';
+
+const WHOLE_DIFF_NOTE =
+  'The diff below is authoritative — files on disk may not reflect it. ';
+
+/** @param {number} index - 1-based. @param {number} total */
+const sliceNote = (index, total) =>
+  `The diff below is chunk ${index} of ${total} of one change, split for ` +
+  'size; files on disk may not reflect it. Every file in <manifest> is ' +
+  'changed by this change, even when its hunks sit in another chunk: never ' +
+  'report a listed file as unchanged or missing, and set a file-unchanged ' +
+  'claim on any problem that rests on another file not being updated. ';
+
+const TEST_PATH =
+  /(?:^|\/)(?:__tests__|tests?|e2e|features)\/|\.(?:test|spec)\.|\.feature$/;
+const DOCS_PATH = /(?:^|\/)docs\/|\.(?:md|mdx|txt)$/i;
+
+/** Pack order: 0 source, 1 tests, 2 docs — the chunk bound falls on the last. */
+function tierOf(file) {
+  if (TEST_PATH.test(file)) return 1;
+  return DOCS_PATH.test(file) ? 2 : 0;
+}
+
+const compareText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+/** Tier, then directory, then path. */
+function compareSections(a, b) {
+  return (
+    a.tier - b.tier ||
+    compareText(path.posix.dirname(a.file), path.posix.dirname(b.file)) ||
+    compareText(a.file, b.file)
+  );
+}
 
 /**
  * Split a diff at `diff --git` boundaries into per-file sections.
@@ -107,7 +142,18 @@ function splitSections(diff) {
 }
 
 /**
- * First-fit, in diff order, into chunks of at most `budget` characters; a
+ * The first chunk with room for `section` at or after the last chunk holding
+ * an earlier tier, so no test or doc sits in a chunk ahead of a source section.
+ */
+function openChunk(chunks, section, budget) {
+  const floor = chunks.findLastIndex((c) => c.tier < section.tier);
+  return chunks
+    .slice(Math.max(floor, 0))
+    .find((c) => c.size + section.text.length <= budget);
+}
+
+/**
+ * First-fit, tier by tier, into chunks of at most `budget` characters; a
  * section over the budget gets a chunk of its own (truncated when reviewed).
  *
  * @param {{ file: string, text: string }[]} sections
@@ -115,14 +161,17 @@ function splitSections(diff) {
  */
 function packChunks(sections, budget) {
   const chunks = [];
-  for (const section of sections) {
+  const ordered = sections
+    .map((s) => ({ ...s, tier: tierOf(s.file) }))
+    .sort(compareSections);
+  for (const section of ordered) {
     const size = section.text.length;
-    const open = chunks.find((c) => c.size + size <= budget);
+    const open = openChunk(chunks, section, budget);
     if (open) {
       open.sections.push(section);
       open.size += size;
     } else {
-      chunks.push({ sections: [section], size });
+      chunks.push({ sections: [section], size, tier: section.tier });
     }
   }
   return chunks;
@@ -144,15 +193,23 @@ function dedupeFindings(findings) {
  * @param {string} diff
  * @param {string} callers - the `<callers>` section, or '' below `deep`.
  * @param {number} [cap]
+ * @param {string} [scope] - the slice note and `<manifest>` of a chunk.
  * @returns {string}
  */
-function buildPrompt(input, diff, callers, cap = MAX_DIFF_CHARS) {
+function buildPrompt(
+  input,
+  diff,
+  callers,
+  cap = MAX_DIFF_CHARS,
+  scope = WHOLE_DIFF_NOTE,
+) {
   const truncated = diff.length > cap;
   const body = truncated ? diff.slice(0, cap) : diff;
   const note = truncated ? `\n[diff truncated at ${cap} characters]\n` : '';
   const head = PROMPT_HEAD.replace('{baseRef}', input.baseRef)
     .replace('{headRef}', input.headRef)
     .replace('{ticketId}', String(input.ticketId))
+    .replace('{scopeNote}', scope)
     .replace('{depthDirective}', renderDepthDirective(input.depth));
   return `${head}<diff>\n${body}${note}\n</diff>\n${callers}`;
 }
@@ -288,10 +345,23 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
     return [];
   }
 
-  /** The `<callers>` block rides every chunk, so it comes out of the budget. */
+  /**
+   * The `<callers>` block, the slice note and the manifest ride every chunk,
+   * so they come out of the budget; chunk numbers are one digit, so the
+   * note's length is fixed before packing.
+   */
   async function reviewInChunks(input, text, callers) {
-    const budget = MAX_DIFF_CHARS - callers.length;
-    const chunks = packChunks(splitSections(text), budget);
+    const sections = splitSections(text).filter((s) => s.text.length > 0);
+    const files = sections
+      .map((s) => s.file)
+      .filter((file) => file !== '(unnamed)');
+    const manifest = `<manifest>\n${files.join('\n')}\n</manifest>\n`;
+    const budget =
+      MAX_DIFF_CHARS -
+      callers.length -
+      manifest.length -
+      sliceNote(MAX_REVIEW_CHUNKS, MAX_REVIEW_CHUNKS).length;
+    const chunks = packChunks(sections, budget);
     const overflow = chunks
       .splice(MAX_REVIEW_CHUNKS)
       .flatMap((c) => c.sections.map((s) => s.file));
@@ -302,7 +372,7 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
       );
     }
     const findings = [];
-    for (const chunk of chunks) {
+    for (const [index, chunk] of chunks.entries()) {
       const files = chunk.sections.map((s) => s.file).join(', ');
       if (chunk.size > budget) {
         noteDegradation(
@@ -315,6 +385,7 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
         chunk.sections.map((s) => s.text).join(''),
         callers,
         budget,
+        sliceNote(index + 1, chunks.length) + manifest,
       );
       const verdict = await reviewInTempDir(prompt, runDeps);
       if ('reason' in verdict) {
