@@ -1942,8 +1942,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 96.84,
-      "branches": 87.78,
+      "lines": 96.39,
+      "branches": 89.47,
       "functions": 100
     },
     {
@@ -2463,6 +2463,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-history.js",
+      "lines": 100,
+      "branches": 83.72,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
       "lines": 100,
       "branches": 95,
@@ -2476,8 +2482,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
-      "lines": 99.59,
-      "branches": 85.19,
+      "lines": 99.61,
+      "branches": 87.8,
       "functions": 100
     },
     {
@@ -2511,9 +2517,15 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "path": ".agents/scripts/lib/orchestration/review-providers/finding-identity.js",
       "lines": 100,
       "branches": 94.74,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
+      "lines": 100,
+      "branches": 93.44,
       "functions": 100
     },
     {
@@ -2543,7 +2555,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "lines": 100,
-      "branches": 97.96,
+      "branches": 98.68,
       "functions": 100
     },
     {
@@ -2559,6 +2571,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/review-guidance.js",
+      "lines": 100,
+      "branches": 93.75,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "lines": 94.46,
       "branches": 89.41,
@@ -2566,8 +2584,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "lines": 91.85,
-      "branches": 63.89,
+      "lines": 92.34,
+      "branches": 64.86,
       "functions": 80
     },
     {
@@ -2747,7 +2765,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js",
       "lines": 100,
-      "branches": 83.33,
+      "branches": 66.67,
       "functions": 100
     },
     {
@@ -2758,8 +2776,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
-      "lines": 95.69,
-      "branches": 87.5,
+      "lines": 97.1,
+      "branches": 86.67,
       "functions": 100
     },
     {
