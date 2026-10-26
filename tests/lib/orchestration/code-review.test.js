@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
+import { verifyCriticals } from '../../../.agents/scripts/lib/orchestration/review-providers/critical-verifier.js';
 
 function noopUpsert() {
   return async () => {};
@@ -289,4 +290,138 @@ test('#5904 AC-5: a degradation naming the finding file annotates it without cha
   assert.equal(out.findings[0].context, 'reviewed-with-truncated-context');
   assert.equal(out.halted, true);
   assert.equal(out.degraded, true);
+});
+
+// --- Critical verifier (Story #5919) ---------------------------------------
+
+const verdictEnvelope = (verdict) => ({
+  status: 0,
+  stdout: JSON.stringify({ subtype: 'success', structured_output: verdict }),
+  stderr: '',
+});
+
+/** A verifier whose claude spawn answers `verdict`; records each prompt. */
+function stubVerifier(verdict) {
+  const prompts = [];
+  const fn = (args) =>
+    verifyCriticals({
+      ...args,
+      probeFn: () => true,
+      spawnFn: async (_f, _a, options) => {
+        prompts.push(options.input);
+        return verdictEnvelope(verdict);
+      },
+      gitSpawnFn: () => ({ status: 0, stdout: 'a\nb\n', stderr: '' }),
+    });
+  return { fn, prompts };
+}
+
+function verifiedRun(findings, verifier, extra = {}) {
+  return runCodeReview({
+    ticketId: 5919,
+    headRef: 'deadbeef',
+    provider: {},
+    changedFiles: [],
+    reviewProvider: { runReview: async () => findings },
+    gitSpawnFn: () => ({ status: 1, stdout: '', stderr: '' }),
+    resolveConfigFn: baseResolveConfig,
+    upsertCommentFn: noopUpsert(),
+    verifyCriticalsFn: verifier.fn,
+    deferPost: true,
+    ...extra,
+  });
+}
+
+test('#5919 AC-1: a refuted critical renders unverified and does not halt', async () => {
+  const verifier = stubVerifier({
+    verdict: 'refuted',
+    evidence: null,
+    reason: 'the null is guarded',
+  });
+  const out = await verifiedRun(
+    [
+      {
+        severity: 'critical',
+        title: 'Bug',
+        body: 'b',
+        provider: 'code-review',
+      },
+    ],
+    verifier,
+  );
+  assert.equal(out.halted, false);
+  assert.equal(out.blockerReason, null);
+  assert.deepEqual(out.criticalByProvider, {});
+  assert.equal(out.findings[0].provider, 'code-review');
+  assert.equal(out.findings[0].unverified, 'the null is guarded');
+  assert.match(out.report, /Not blocking: unverified — the null is guarded/);
+  assert.match(
+    out.report,
+    /Critical verification\*\*: 1 attempted · 0 confirmed · 1 refuted/,
+  );
+  assert.equal(out.verification.refuted, 1);
+});
+
+test('#5919 AC-2: a confirmed critical with evidence at head halts', async () => {
+  const verifier = stubVerifier({
+    verdict: 'confirmed',
+    evidence: { file: 'a.js', line: 1 },
+    reason: 'real',
+  });
+  const out = await verifiedRun(
+    [{ severity: 'critical', title: 'Bug', body: 'b' }],
+    verifier,
+  );
+  assert.equal(out.halted, true);
+  assert.equal(out.degraded, false);
+  assert.equal(out.verification.confirmed, 1);
+});
+
+test('#5919 AC-4: only findings still critical after grounding reach the verifier', async () => {
+  const verifier = stubVerifier({ verdict: 'refuted', reason: 'x' });
+  const out = await verifiedRun(
+    [
+      {
+        severity: 'critical',
+        title: 'Grounded away',
+        body: 'b',
+        claim: { kind: 'path-absent', path: 'db/x.sql' },
+      },
+      { severity: 'high', title: 'High one', body: 'b' },
+      { severity: 'critical', title: 'Kept', body: 'b' },
+    ],
+    verifier,
+    {
+      gitSpawnFn: (_cwd, verb) => ({
+        status: verb === 'cat-file' || verb === 'rev-parse' ? 0 : 1,
+        stdout: '',
+        stderr: '',
+      }),
+    },
+  );
+  assert.equal(verifier.prompts.length, 1);
+  assert.match(verifier.prompts[0], /Kept/);
+  assert.equal(out.verification.attempted, 1);
+});
+
+test('#5919 AC-3: a verifier error keeps the halt and adds a degradation', async () => {
+  const out = await verifiedRun(
+    [{ severity: 'critical', title: 'Bug', body: 'b' }],
+    {
+      fn: (args) => verifyCriticals({ ...args, probeFn: () => false }),
+    },
+  );
+  assert.equal(out.halted, true);
+  assert.equal(out.degraded, true);
+  assert.equal(out.degradations[0].tool, 'critical-verifier');
+  assert.match(out.report, /critical-verification/);
+});
+
+test('#5919: an injected review provider without a verifier is scored as returned', async () => {
+  const out = await groundingRun({
+    findings: [{ severity: 'critical', title: 'Bug', body: 'b' }],
+  });
+  assert.equal(out.halted, true);
+  assert.equal(out.verification.attempted, 0);
+  assert.doesNotMatch(out.report, /Critical verification/);
 });

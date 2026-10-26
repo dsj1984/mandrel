@@ -57,6 +57,8 @@ export function buildClaim(raw) {
   return path ? { kind: raw.kind, symbol, path } : { kind: raw.kind, symbol };
 }
 
+const NOT_BLOCKING = ['ungrounded', 'unverified'];
+
 /**
  * Report lines saying why a finding did not block, or was reviewed blind.
  *
@@ -64,10 +66,9 @@ export function buildClaim(raw) {
  * @returns {string[]}
  */
 export function groundingNotes(finding) {
-  const notes = [];
-  if (finding.ungrounded) {
-    notes.push(`_Not blocking: ungrounded — ${finding.ungrounded}._`);
-  }
+  const notes = NOT_BLOCKING.filter((key) => finding[key]).map(
+    (key) => `_Not blocking: ${key} — ${finding[key]}._`,
+  );
   if (finding.context) notes.push(`_Context: ${finding.context}._`);
   return notes;
 }

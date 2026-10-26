@@ -227,13 +227,14 @@ function quoteWindowsArg(arg) {
 }
 
 /**
- * Async, so close's concurrent gate children keep draining.
+ * Async, so close's concurrent gate children keep draining. Shared with the
+ * critical verifier.
  *
  * @param {ReadonlyArray<string>} args
  * @param {{ cwd: string, input?: string, timeout: number, run?: Function, platform: string }} opts
  * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
  */
-function runClaude(args, { cwd, input, timeout, run, platform }) {
+export function runClaude(args, { cwd, input, timeout, run, platform }) {
   const shell = platform === 'win32';
   return spawnCaptureAsync(
     'claude',

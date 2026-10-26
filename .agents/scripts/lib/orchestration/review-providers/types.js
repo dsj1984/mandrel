@@ -13,6 +13,7 @@
  * @property {string=}  category     - e.g. 'security', 'lint'.
  * @property {FindingClaim=} claim   - Structured, checkable claim.
  * @property {string=}  ungrounded   - Why a refuted critical was downgraded.
+ * @property {string=}  unverified   - The verifier's reason for refuting a critical.
  * @property {string=}  context      - 'reviewed-with-truncated-context'.
  * @property {string=}  provider     - Chain entry that raised it.
  *

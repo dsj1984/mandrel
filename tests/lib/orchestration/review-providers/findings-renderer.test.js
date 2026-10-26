@@ -224,3 +224,45 @@ test('renderFinding: an ungrounded or truncated-context finding says why', () =>
     /Not blocking|Context:/,
   );
 });
+
+test('renderFinding: a verifier-refuted finding says it is not blocking and why', () => {
+  const text = renderFinding({
+    severity: 'suggestion',
+    title: 'Null deref',
+    body: 'b',
+    unverified: 'the value is checked on L4',
+  });
+  assert.match(
+    text,
+    /_Not blocking: unverified — the value is checked on L4\._/,
+  );
+});
+
+test('renderFindings: states the critical-verification tally only when a verifier ran', () => {
+  const base = {
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [],
+    provider: 'native',
+  };
+  const ran = renderFindings({
+    ...base,
+    verification: {
+      attempted: 3,
+      confirmed: 1,
+      refuted: 1,
+      uncertain: 0,
+      errored: 1,
+    },
+  });
+  assert.match(
+    ran,
+    /\*\*Critical verification\*\*: 3 attempted · 1 confirmed · 1 refuted · 0 uncertain · 1 errored/,
+  );
+  assert.doesNotMatch(renderFindings(base), /Critical verification/);
+  assert.doesNotMatch(
+    renderFindings({ ...base, verification: { attempted: 0 } }),
+    /Critical verification/,
+  );
+});

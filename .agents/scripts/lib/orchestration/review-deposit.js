@@ -115,6 +115,7 @@ export function buildReviewDeposit({
     report: result.report ?? '',
     degraded: !!result.degraded,
     degradations: Array.isArray(result.degradations) ? result.degradations : [],
+    verification: result.verification ?? null,
     blockerReason: result.blockerReason ?? null,
   };
 }
@@ -140,6 +141,7 @@ export function depositAsComputedReview(deposit) {
       criticalByProvider: deposit.criticalByProvider,
       degraded: deposit.degraded,
       degradations: deposit.degradations,
+      verification: deposit.verification ?? null,
       blockerReason: deposit.blockerReason,
     },
   };
