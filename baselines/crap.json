@@ -29127,6 +29127,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
+      "method": "headDegradations",
+      "startLine": 167,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claim-grounding.js",
       "method": "groundEach",
       "startLine": 190,
       "crap": 1
