@@ -162,23 +162,10 @@ function headResolves(git, headRef) {
  * unrefuted for want of a repository, and that is reported, not silent.
  * Probes only when some finding is groundable.
  *
- * @param {{
- *   findings: Finding[],
- *   headRef: string,
- *   cwd?: string,
- *   gitSpawnFn?: typeof gitSpawn,
- * }} args
  * @returns {import('./degraded-gates.js').GateDegradation | null}
  */
-export function groundingDegradation({
-  findings,
-  headRef,
-  cwd = process.cwd(),
-  gitSpawnFn = gitSpawn,
-}) {
-  if (!findings.some(isGroundable)) return null;
-  const git = (...args) => gitSpawnFn(cwd, ...args);
-  if (headResolves(git, headRef)) return null;
+function headDegradation({ findings, headRef, cwd, git }) {
+  if (!findings.some(isGroundable) || headResolves(git, headRef)) return null;
   return {
     tool: 'claim-grounding',
     gate: 'claim-grounding',
@@ -200,25 +187,7 @@ function annotateContext(finding, tokens) {
   return { ...finding, context: TRUNCATED_CONTEXT };
 }
 
-/**
- * @param {{
- *   findings: Finding[],
- *   headRef: string,
- *   degradations?: ReadonlyArray<{ reason: string }>,
- *   cwd?: string,
- *   gitSpawnFn?: typeof gitSpawn,
- * }} args
- * @returns {Finding[]}
- */
-export function groundFindings({
-  findings,
-  headRef,
-  degradations = [],
-  cwd = process.cwd(),
-  gitSpawnFn = gitSpawn,
-}) {
-  const git = (...args) => gitSpawnFn(cwd, ...args);
-  const tokens = reasonTokens(degradations);
+function groundEach(findings, headRef, git, tokens) {
   return findings.map((finding) => {
     const grounded = groundFinding(finding, headRef, git);
     return grounded && tokens.size > 0
@@ -228,17 +197,33 @@ export function groundFindings({
 }
 
 /**
- * `groundFindings` behind the head check, so the degradation it may record
- * rides out with the findings it explains.
+ * Ground every finding in `cwd`, the reviewed repository. `degradations`
+ * comes back with the head check's record appended when the head does not
+ * resolve there.
  *
- * @param {Parameters<typeof groundFindings>[0]} args
+ * @param {{
+ *   findings: Finding[],
+ *   headRef: string,
+ *   degradations?: ReadonlyArray<{ reason: string }>,
+ *   cwd?: string,
+ *   gitSpawnFn?: typeof gitSpawn,
+ * }} args
  * @returns {{ findings: Finding[], degradations: Array<{ reason: string }> }}
  */
-export function groundReviewFindings({ degradations = [], ...args }) {
-  const unresolvedHead = groundingDegradation(args);
-  const all = unresolvedHead ? [...degradations, unresolvedHead] : degradations;
+export function groundFindings({
+  findings,
+  headRef,
+  degradations = [],
+  cwd = process.cwd(),
+  gitSpawnFn = gitSpawn,
+}) {
+  const git = (...args) => gitSpawnFn(cwd, ...args);
+  const unresolvedHead = headDegradation({ findings, headRef, cwd, git });
+  const all = unresolvedHead
+    ? [...degradations, unresolvedHead]
+    : [...degradations];
   return {
-    findings: groundFindings({ ...args, degradations: all }),
+    findings: groundEach(findings, headRef, git, reasonTokens(all)),
     degradations: all,
   };
 }

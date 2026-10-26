@@ -7,24 +7,31 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 
-import {
-  groundFindings,
-  groundingDegradation,
-} from '../../../../.agents/scripts/lib/orchestration/review-providers/claim-grounding.js';
+import { groundFindings } from '../../../../.agents/scripts/lib/orchestration/review-providers/claim-grounding.js';
 
 const HEAD = 'abc123';
 const TRUNCATED_CONTEXT = 'reviewed-with-truncated-context';
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
 
-function fakeGit({ catFile = 128, grep = { status: 1, stdout: '' } } = {}) {
+/** The head probe (`rev-parse`) is answered by `revParse` and kept apart from `calls`. */
+function fakeGit({
+  catFile = 128,
+  grep = { status: 1, stdout: '' },
+  revParse = 0,
+} = {}) {
   const calls = [];
-  const fn = (_cwd, ...args) => {
+  const probes = [];
+  const fn = (cwd, ...args) => {
+    if (args[0] === 'rev-parse') {
+      probes.push([cwd, ...args]);
+      return { status: revParse };
+    }
     calls.push(args);
     if (args[0] === 'cat-file') return { status: catFile, stdout: '' };
     if (typeof grep === 'function') return grep(args);
     return { stderr: '', ...grep };
   };
-  return { fn, calls };
+  return { fn, calls, probes };
 }
 
 function critical(claim, extra = {}) {
@@ -33,7 +40,9 @@ function critical(claim, extra = {}) {
 
 test('AC-1: a path-absent claim whose path exists at the head is downgraded', () => {
   const git = fakeGit({ catFile: 0 });
-  const [out] = groundFindings({
+  const {
+    findings: [out],
+  } = groundFindings({
     findings: [critical({ kind: 'path-absent', path: 'db/0398.sql' })],
     headRef: HEAD,
     gitSpawnFn: git.fn,
@@ -52,7 +61,9 @@ test('AC-2: a symbol-referenced claim with hits only in its definition file is d
       stdout: `${HEAD}:src/flags.js:3:export function f() {}\n`,
     },
   });
-  const [out] = groundFindings({
+  const {
+    findings: [out],
+  } = groundFindings({
     findings: [
       critical({
         kind: 'symbol-referenced',
@@ -74,7 +85,9 @@ test('AC-2: a symbol-referenced claim with hits only in its definition file is d
 });
 
 test('AC-2: a symbol with no hits at all is downgraded', () => {
-  const [out] = groundFindings({
+  const {
+    findings: [out],
+  } = groundFindings({
     findings: [critical({ kind: 'symbol-referenced', symbol: 'gone' })],
     headRef: HEAD,
     gitSpawnFn: fakeGit().fn,
@@ -108,7 +121,9 @@ test('AC-3: a confirmed claim, a git error, or no claim leaves the critical unch
     [{ severity: 'critical', title: 'T', body: 'B' }, fakeGit({ catFile: 0 })],
   ];
   for (const [finding, git] of cases) {
-    const [out] = groundFindings({
+    const {
+      findings: [out],
+    } = groundFindings({
       findings: [finding],
       headRef: HEAD,
       gitSpawnFn: git.fn,
@@ -123,7 +138,9 @@ test('AC-3: a stale caller inside the claimed definition file still halts', () =
     symbol: 'f',
     path: 'src/a.js',
   });
-  const [out] = groundFindings({
+  const {
+    findings: [out],
+  } = groundFindings({
     findings: [finding],
     headRef: HEAD,
     gitSpawnFn: fakeGit({
@@ -145,7 +162,8 @@ test('a non-critical finding is never grounded', () => {
     claim: { kind: 'path-absent', path: 'x' },
   };
   assert.deepEqual(
-    groundFindings({ findings: [finding], headRef: HEAD, gitSpawnFn: git.fn }),
+    groundFindings({ findings: [finding], headRef: HEAD, gitSpawnFn: git.fn })
+      .findings,
     [finding],
   );
   assert.deepEqual(git.calls, []);
@@ -166,7 +184,7 @@ test('AC-5: a degradation naming the file, claim path or claim symbol marks trun
         'review bounded at 6 chunks: 2 file(s) not reviewed: db/a.sql, db/b.sql',
     },
   ];
-  const findings = groundFindings({
+  const { findings } = groundFindings({
     findings: [
       { severity: 'high', title: 'file', body: 'b', file: 'src/big.js' },
       critical(
@@ -195,7 +213,7 @@ test('AC-5: a degradation naming the file, claim path or claim symbol marks trun
 
 test('real repository: an existing path and an unreferenced symbol are both refuted at HEAD', () => {
   const symbol = ['zz', 'NoSuchSymbol', '5904'].join('');
-  const findings = groundFindings({
+  const { findings } = groundFindings({
     findings: [
       critical({ kind: 'path-absent', path: 'package.json' }),
       critical({ kind: 'symbol-referenced', symbol }),
@@ -210,9 +228,9 @@ test('real repository: an existing path and an unreferenced symbol are both refu
   );
 });
 
-test('groundingDegradation: no groundable critical spawns no probe', () => {
-  const calls = [];
-  const out = groundingDegradation({
+test('head probe: no groundable critical spawns no probe and records nothing', () => {
+  const git = fakeGit();
+  const out = groundFindings({
     findings: [
       {
         severity: 'high',
@@ -223,49 +241,46 @@ test('groundingDegradation: no groundable critical spawns no probe', () => {
       critical(null),
     ],
     headRef: HEAD,
+    degradations: [{ reason: 'r' }],
     cwd: '/repo',
-    gitSpawnFn: (...args) => calls.push(args),
+    gitSpawnFn: git.fn,
   });
-  assert.equal(out, null);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(git.probes, []);
+  assert.deepEqual(out.degradations, [{ reason: 'r' }]);
 });
 
-test('groundingDegradation: a resolvable head records nothing', () => {
-  const calls = [];
-  const out = groundingDegradation({
+test('head probe: a resolvable head is probed once in cwd and records nothing', () => {
+  const git = fakeGit({ catFile: 0 });
+  const out = groundFindings({
     findings: [critical({ kind: 'path-absent', path: 'a' })],
     headRef: HEAD,
     cwd: '/repo',
-    gitSpawnFn: (...args) => {
-      calls.push(args);
-      return { status: 0 };
-    },
+    gitSpawnFn: git.fn,
   });
-  assert.equal(out, null);
-  assert.deepEqual(calls, [
+  assert.deepEqual(git.probes, [
     ['/repo', 'rev-parse', '--verify', '--quiet', `${HEAD}^{commit}`],
   ]);
+  assert.deepEqual(out.degradations, []);
 });
 
-test('groundingDegradation: an unresolvable head or a throwing spawn names the head and cwd', () => {
+test('head probe: an unresolvable head or a throwing spawn records a degradation and keeps the critical', () => {
   const expected = {
     tool: 'claim-grounding',
     gate: 'claim-grounding',
     surface: 'head-ref',
     reason: `head ${HEAD} not resolvable in /elsewhere`,
   };
-  for (const gitSpawnFn of [
-    () => ({ status: 1 }),
-    () => {
-      throw new Error('spawn failed');
-    },
-  ]) {
-    const out = groundingDegradation({
-      findings: [critical({ kind: 'symbol-referenced', symbol: 'f' })],
+  const throwing = () => {
+    throw new Error('spawn failed');
+  };
+  for (const gitSpawnFn of [fakeGit({ revParse: 128 }).fn, throwing]) {
+    const out = groundFindings({
+      findings: [critical({ kind: 'path-absent', path: 'db/a.sql' })],
       headRef: HEAD,
       cwd: '/elsewhere',
       gitSpawnFn,
     });
-    assert.deepEqual(out, expected);
+    assert.deepEqual(out.degradations, [expected]);
+    assert.equal(out.findings[0].severity, 'critical');
   }
 });

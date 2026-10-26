@@ -10,7 +10,7 @@ import { resolveConfig } from '../config-resolver.js';
 import { computeChangeSet } from './change-set.js';
 import { remoteBaseRef } from './review-base-ref.js';
 import { deriveChangeLevel, resolveDepth } from './review-depth.js';
-import { groundReviewFindings } from './review-providers/claim-grounding.js';
+import { groundFindings } from './review-providers/claim-grounding.js';
 import {
   collectProviderDegradations,
   degradationEnvelope,
@@ -325,7 +325,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   );
 
   // Degraded gates ride beside the findings, never inside them.
-  const { findings, degradations } = groundReviewFindings({
+  const { findings, degradations } = groundFindings({
     findings: rawFindings,
     headRef,
     cwd: opts.cwd,
