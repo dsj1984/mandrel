@@ -41,8 +41,8 @@
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "duplicatedLines": 9,
-      "totalLines": 593,
-      "percentage": 1.52
+      "totalLines": 588,
+      "percentage": 1.53
     },
     {
       "path": ".agents/scripts/generate-skills-index.js",

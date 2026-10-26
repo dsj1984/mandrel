@@ -48,7 +48,7 @@ export function planMetricsPath(epicId, config) {
  * @param {number} maxBytes
  * @returns {Promise<boolean>} true when a rotation happened.
  */
-async function rotateIfNeeded(filePath, incomingBytes, maxBytes) {
+export async function rotateIfNeeded(filePath, incomingBytes, maxBytes) {
   let size = 0;
   try {
     size = (await fs.stat(filePath)).size;

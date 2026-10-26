@@ -1779,6 +1779,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/observability/review-dispositions.js",
+      "lines": 100,
+      "branches": 88.06,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
       "lines": 96.56,
       "branches": 86.49,
@@ -2465,7 +2471,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-history.js",
       "lines": 100,
-      "branches": 83.72,
+      "branches": 85.42,
       "functions": 100
     },
     {
@@ -2716,9 +2722,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/post-land.js",
-      "lines": 99.48,
-      "branches": 94.31,
-      "functions": 89.66
+      "lines": 99.49,
+      "branches": 94.35,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pr-body-trailers.js",
@@ -3763,6 +3769,12 @@
       "lines": 77.58,
       "branches": 82.35,
       "functions": 83.33
+    },
+    {
+      "path": ".agents/scripts/review-dispositions-report.js",
+      "lines": 96.69,
+      "branches": 100,
+      "functions": 80
     },
     {
       "path": ".agents/scripts/single-story-close.js",

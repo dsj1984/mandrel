@@ -1171,6 +1171,10 @@
       "mi": 105.855
     },
     {
+      "path": ".agents/scripts/lib/observability/review-dispositions.js",
+      "mi": 104.967
+    },
+    {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
       "mi": 92.613
     },
@@ -2505,6 +2509,10 @@
     {
       "path": ".agents/scripts/resync-status-column.js",
       "mi": 94.096
+    },
+    {
+      "path": ".agents/scripts/review-dispositions-report.js",
+      "mi": 105.673
     },
     {
       "path": ".agents/scripts/run-tests.js",

@@ -72,6 +72,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'resolve-doc-tiers.js',
   'resolve-stories.js',
   'resync-status-column.js',
+  'review-dispositions-report.js',
   'run-tests.js',
   'single-story-close.js',
   'single-story-confirm-merge.js',

@@ -9,13 +9,14 @@
  *   class: string|null, instances: { file: string, line?: number }[],
  *   ungrounded?: string, unverified?: string }} HistoryFinding
  * @typedef {{ runs: { headSha: string, findings: HistoryFinding[] }[],
- *   overridden: string[] }} ReviewHistory
+ *   overridden: string[], overrideReason?: string }} ReviewHistory
  */
 
 import nodeFs from 'node:fs';
 import path from 'node:path';
 
 import { storyReviewDepositPath } from '../config/temp-paths.js';
+import { redactErrorMessage } from '../error-redactor.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
 import {
   findingId,
@@ -25,6 +26,8 @@ import {
 const KIND = 'story-review-history';
 /** An instance this many lines from an earlier one is the same location. */
 const LINE_WINDOW = 10;
+/** Same bound as the `review-block-overridden` friction signal. */
+const OVERRIDE_REASON_LIMIT = 500;
 
 /**
  * @param {number} storyId
@@ -37,6 +40,14 @@ function historyPath(storyId, config) {
     `story-review-history-${storyId}.json`,
   );
 }
+
+/** @param {string} reason */
+const redactReason = (reason) =>
+  redactErrorMessage(reason.slice(0, OVERRIDE_REASON_LIMIT));
+
+/** @param {unknown} reason @param {(r: string) => string} [map] */
+const reasonField = (reason, map = (r) => r) =>
+  typeof reason === 'string' ? { overrideReason: map(reason) } : {};
 
 /**
  * @param {number} storyId
@@ -52,6 +63,7 @@ export function readReviewHistory(storyId, { config, fsImpl = nodeFs } = {}) {
       return {
         runs: record.runs,
         overridden: Array.isArray(record.overridden) ? record.overridden : [],
+        ...reasonField(record.overrideReason),
       };
     }
   } catch {
@@ -106,12 +118,17 @@ export function appendReviewRun(storyId, { headSha, findings }, deps) {
 /**
  * @param {number} storyId
  * @param {string[]} ids - the overridden CRITICALs.
- * @param {{ config?: object, fsImpl?: typeof nodeFs }} [deps]
+ * @param {{ config?: object, fsImpl?: typeof nodeFs, reason?: string }} [deps]
+ *   `reason` is stored redacted and clipped.
  */
 export function recordOverriddenIds(storyId, ids, deps) {
   updateReviewHistory(
     storyId,
-    (h) => ({ ...h, overridden: [...new Set([...h.overridden, ...ids])] }),
+    (h) => ({
+      ...h,
+      overridden: [...new Set([...h.overridden, ...ids])],
+      ...reasonField(deps?.reason, redactReason),
+    }),
     deps,
   );
 }

@@ -105,6 +105,10 @@
         },
         "refCleanup": { "type": "boolean" },
         "baseFastForward": { "type": "boolean" },
+        "reviewDispositions": {
+          "type": "boolean",
+          "description": "Each finding the Story-scope reviews raised was recorded to the local review-dispositions ledger before the temp purge reaped the review history. No history, or a Story already recorded, reports true. Only a ledger failure reports false, and like every tail step that degrades the report, never the land."
+        },
         "tempPurge": {
           "type": "boolean",
           "description": "Story #4794 — the merged Story's spent temp artifacts (gate transcripts, validation evidence) were purged under delivery.tempRetention. A disabled policy reports true: the operator turned the purge off, so doing nothing IS the correct outcome. Only a real failure — an unreadable temp root, an undeletable artifact — reports false, and like every tail step that degrades the report, never the land."

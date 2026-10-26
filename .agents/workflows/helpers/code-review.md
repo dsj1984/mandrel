@@ -122,6 +122,24 @@ collapsed under **Previously raised**. A repeat still halts unless an operator
 overrode that CRITICAL with `--override-review-block` earlier, in which case
 it is downgraded to a suggestion.
 
+### Review dispositions
+
+When a Story lands, the post-land tail (before the temp purge reaps the
+history) appends one record per finding id the Story's reviews raised to the
+local, never-committed `<tempRoot>/review-dispositions.ndjson` (rotated at
+1 MB, one `.1` generation kept). Precedence, with the last run as the final
+review: `overridden` (an operator overrode it; the record carries the
+redacted reason, clipped to 500 characters), `downgraded-ungrounded` and
+`refuted-by-verifier` (flagged in the final run), `open-at-merge` (in the
+final run otherwise), `fixed-on-branch` (raised earlier, absent from the
+final run). A record holds ids, provider, severity, class and run count only,
+never a title, body, path or excerpt; a Story already recorded appends
+nothing. Summarize with
+`node .agents/scripts/review-dispositions-report.js [--since <YYYY-MM-DD>] [--json]`:
+per provider and severity, each disposition's count and rate, the precision
+proxy (fixed-on-branch + open-at-merge over all) and the false-blocker proxy
+(overridden + refuted + downgraded over all criticals).
+
 ## Step 0 — Resolve Context
 
 1. Resolve `[TICKET_ID]` from `ticketId` (the Story for live `scope: story`).
