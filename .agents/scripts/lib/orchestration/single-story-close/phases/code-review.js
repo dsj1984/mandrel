@@ -200,6 +200,8 @@ export async function settleStoryScopeReview({
     halted: !!result.halted,
     severity: sev,
     criticalByProvider: result.criticalByProvider,
+    // The override records these ids so a re-review does not halt on them.
+    findings: Array.isArray(result.findings) ? result.findings : [],
     posted: result.posted,
     postedCommentId: result.postedCommentId ?? null,
     ...degradationEnvelope(result.degradations),
@@ -228,6 +230,7 @@ export async function settleStoryScopeReview({
  *   skipped?: boolean,
  *   severity?: { critical: number, high: number, medium: number, suggestion: number },
  *   criticalByProvider?: Record<string, number>,
+ *   findings?: Array<object>,
  *   posted?: boolean,
  *   postedCommentId?: number|null,
  *   degraded?: boolean,

@@ -14,6 +14,7 @@ import {
   renderDegradedHeaderLines,
   renderNoFindingsBlock,
 } from './degraded-gates.js';
+import { findingId, findingInstances } from './finding-identity.js';
 
 /**
  * @type {ReadonlyArray<Severity>}
@@ -52,8 +53,21 @@ export function countBySeverity(findings) {
   return counts;
 }
 
+/** @param {{ file: string, line?: number }} i */
+const formatLocation = (i) => (i.line ? `${i.file}:${i.line}` : i.file);
+
+/** An `Instances:` list when the finding has more than one location. */
+function renderInstances(finding) {
+  const instances = findingInstances(finding);
+  if (instances.length < 2) return [];
+  return [
+    `Instances:\n${instances.map((i) => `- \`${formatLocation(i)}\``).join('\n')}`,
+  ];
+}
+
 /**
- * The body is emitted verbatim; adapters own its markdown.
+ * The body is emitted verbatim; adapters own its markdown. The hidden marker
+ * carries the finding's stable id.
  *
  * @param {Finding} finding
  * @returns {string}
@@ -63,10 +77,56 @@ export function renderFinding(finding) {
   const emoji = meta ? meta.emoji : '⚪';
   const attribution = buildAttribution(finding);
   const category = finding.category ? ` _[${finding.category}]_` : '';
-  const header = `#### ${emoji} ${finding.title}${attribution}${category}`;
-  return [`${header}\n\n${finding.body}`, ...groundingNotes(finding)].join(
-    '\n\n',
+  const cls = finding.class ? ` \`${finding.class}\`` : '';
+  const header = `#### ${emoji} ${finding.title}${attribution}${category}${cls}`;
+  return [
+    `${header}\n\n${finding.body}`,
+    ...renderInstances(finding),
+    ...groundingNotes(finding),
+    `<!-- finding:${findingId(finding)} -->`,
+  ].join('\n\n');
+}
+
+/**
+ * A repeat collapses to title, id and locations: it was posted in full before.
+ *
+ * @param {Finding} finding
+ * @returns {string}
+ */
+function renderRepeat(finding) {
+  const emoji = SEVERITY_META[finding.severity]?.emoji ?? '⚪';
+  const where = findingInstances(finding)
+    .map((i) => `\`${formatLocation(i)}\``)
+    .join(', ');
+  return (
+    `- ${emoji} ${finding.title} — \`${findingId(finding)}\`` +
+    `${where ? ` — ${where}` : ''} <!-- finding:${findingId(finding)} -->`
   );
+}
+
+/** @param {ReadonlyArray<Finding>} repeats */
+function renderRepeatsSection(repeats) {
+  if (repeats.length === 0) return [];
+  return [
+    `### ♻️ Previously raised (${repeats.length})`,
+    '',
+    ...repeats.map(renderRepeat),
+    '',
+  ];
+}
+
+/** Fresh findings render in full per tier; repeats render collapsed. */
+function renderFindingSections(findings) {
+  const lines = [];
+  const fresh = findings.filter((f) => f && !f.repeat);
+  for (const sev of SEVERITY_ORDER) {
+    const tierFindings = fresh.filter((f) => f.severity === sev);
+    if (tierFindings.length === 0) continue;
+    const meta = SEVERITY_META[sev];
+    lines.push(`### ${meta.emoji} ${meta.label} (${tierFindings.length})`, '');
+    for (const finding of tierFindings) lines.push(renderFinding(finding), '');
+  }
+  return [...lines, ...renderRepeatsSection(findings.filter((f) => f?.repeat))];
 }
 
 /**
@@ -99,6 +159,7 @@ function renderManualPromptsSection(messages) {
  *   promptMessages?: ReadonlyArray<string>,
  *   degradations?: ReadonlyArray<object>,
  *   verification?: Record<string, number>,
+ *   skipped?: number,
  * }} input
  * @returns {string}
  */
@@ -122,6 +183,9 @@ export function renderFindings(input) {
     `**Findings**: ${totalKnown}`,
     ...renderDegradedHeaderLines(degraded),
     ...renderVerificationLine(input.verification),
+    ...(input.skipped > 0
+      ? [`**Skipped by \`skipPaths\`**: ${input.skipped}`]
+      : []),
     '',
     '### 📦 Severity Tier Counts',
     '',
@@ -136,17 +200,7 @@ export function renderFindings(input) {
   if (totalKnown === 0) {
     lines.push(...renderNoFindingsBlock(degraded));
   } else {
-    for (const sev of SEVERITY_ORDER) {
-      const tierFindings = findings.filter((f) => f && f.severity === sev);
-      if (tierFindings.length === 0) continue;
-      const meta = SEVERITY_META[sev];
-      lines.push(`### ${meta.emoji} ${meta.label} (${tierFindings.length})`);
-      lines.push('');
-      for (const finding of tierFindings) {
-        lines.push(renderFinding(finding));
-        lines.push('');
-      }
-    }
+    lines.push(...renderFindingSections(findings));
   }
 
   const promptLines = renderManualPromptsSection(promptMessages ?? []);

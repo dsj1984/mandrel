@@ -18,8 +18,10 @@ import { resolveAgentrcRoot } from '../../config/git-roots.js';
 import { resolvedTempRoot } from '../../config/temp-paths.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { STRICT_CLAIM_SCHEMA } from './claim-grounding.js';
+import { BUG_CLASS_RULE } from './parse-findings.js';
 import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
 import { renderDepthDirective } from './review-depth.js';
+import { renderGuidanceBlock } from './review-guidance.js';
 
 const PROBE_TIMEOUT_MS = 5000;
 const INVOKE_TIMEOUT_MS = 15 * 60 * 1000;
@@ -55,6 +57,8 @@ const FINDINGS_SCHEMA = Object.freeze({
           'file',
           'line',
           'category',
+          'class',
+          'instances',
           'claim',
         ],
         properties: {
@@ -64,6 +68,19 @@ const FINDINGS_SCHEMA = Object.freeze({
           file: { type: ['string', 'null'] },
           line: { type: ['integer', 'null'] },
           category: { type: 'string' },
+          class: { type: ['string', 'null'] },
+          instances: {
+            type: ['array', 'null'],
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['file', 'line'],
+              properties: {
+                file: { type: 'string' },
+                line: { type: ['integer', 'null'] },
+              },
+            },
+          },
           claim: STRICT_CLAIM_SCHEMA,
         },
       },
@@ -91,10 +108,11 @@ export function defaultProbeCodexCommand(opts = {}) {
 }
 
 /**
- * @param {{ baseRef: string, headRef: string, depth?: ReviewDepth }} args
+ * @param {{ baseRef: string, headRef: string, depth?: ReviewDepth,
+ *   guidance?: string|null }} args
  * @returns {string}
  */
-function buildReviewPrompt({ baseRef, headRef, depth }) {
+function buildReviewPrompt({ baseRef, headRef, depth, guidance }) {
   return (
     `Review the code changes in the git diff \`${baseRef}...${headRef}\` ` +
     `of this repository (run \`git diff ${baseRef}...${headRef}\` to read ` +
@@ -103,8 +121,10 @@ function buildReviewPrompt({ baseRef, headRef, depth }) {
     'the change introduces. For each one give the file and line in the new ' +
     'version when attributable (otherwise null), a short title, a markdown ' +
     'body explaining why it is wrong and how to fix it, and a category. ' +
-    'Do not modify any file. Report findings ONLY through the required ' +
-    'output schema; an empty `findings` array means no problems.\n'
+    `Do not modify any file.\n\n${BUG_CLASS_RULE}\n\n` +
+    renderGuidanceBlock(guidance) +
+    'Report findings ONLY through the required output schema; an empty ' +
+    '`findings` array means no problems.\n'
   );
 }
 
@@ -125,7 +145,8 @@ function readIfPresent(file) {
  * tempRoot (removed afterwards). The prompt rides stdin; the last-message
  * file becomes `stdout`.
  *
- * @param {{ baseRef: string, headRef: string, depth?: ReviewDepth }} args
+ * @param {{ baseRef: string, headRef: string, depth?: ReviewDepth,
+ *   guidance?: string|null }} args
  * @param {{ run?: Function, tempRoot?: string, cwd?: string }} [deps]
  * @returns {Promise<InvokeResult>}
  */

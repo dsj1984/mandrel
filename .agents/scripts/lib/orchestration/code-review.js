@@ -5,20 +5,29 @@
  * never post), and report `halted` on any surviving critical finding.
  */
 
+import picomatch from 'picomatch';
 import { hasSurvivingCritical } from '../audit-suite/findings.js';
 import { resolveConfig } from '../config-resolver.js';
+import { PROJECT_ROOT } from '../project-root.js';
 import { computeChangeSet } from './change-set.js';
 import { remoteBaseRef } from './review-base-ref.js';
 import { deriveChangeLevel, resolveDepth } from './review-depth.js';
+import {
+  appendReviewRun,
+  markRepeats,
+  readReviewHistory,
+} from './review-history.js';
 import { vetFindings } from './review-providers/critical-verifier.js';
 import {
   collectProviderDegradations,
   degradationEnvelope,
 } from './review-providers/degraded-gates.js';
+import { findingInstances } from './review-providers/finding-identity.js';
 import {
   countBySeverity,
   renderFindings,
 } from './review-providers/findings-renderer.js';
+import { loadReviewGuidance } from './review-providers/review-guidance.js';
 import { createReviewProvider } from './review-providers/review-provider-factory.js';
 import { upsertStructuredComment } from './ticketing.js';
 
@@ -103,6 +112,7 @@ function resolveStoryScope(opts, config) {
  *   upsertCommentFn?: typeof upsertStructuredComment,
  *   renderFindingsFn?: typeof renderFindings,
  *   verifier?: { spawnFn?: Function, probeFn?: Function, gitSpawnFn?: Function },
+ *   historyDeps?: { config?: object, fsImpl?: object },
  *   deferPost?: boolean,
  * }} opts
  * @returns {Promise<{
@@ -284,6 +294,49 @@ function scoreFindings(findings, providerName) {
   };
 }
 
+/**
+ * Drop findings whose file, or every instance file, matches a `skipPaths`
+ * glob. Config only: guidance prose cannot reach this.
+ */
+function applySkipPaths(findings, skipPaths) {
+  if (!Array.isArray(skipPaths) || skipPaths.length === 0) {
+    return { findings, skipped: 0 };
+  }
+  const isSkipped = picomatch(skipPaths, { dot: true });
+  const kept = findings.filter((f) => {
+    const files = findingInstances(f).map((i) => i.file);
+    return !(files.length > 0 && files.every((file) => isSkipped(file)));
+  });
+  return { findings: kept, skipped: findings.length - kept.length };
+}
+
+/**
+ * The Story's review history seam. An injected review provider runs without
+ * one unless `opts.historyDeps` is given, so tests never share a history.
+ */
+function resolveHistoryDeps(opts, config) {
+  if (opts.historyDeps) return opts.historyDeps;
+  return opts.reviewProvider ? null : { config };
+}
+
+/** Mark the findings an earlier run of this Story already raised. */
+function markAgainstHistory(findings, ticketId, historyDeps) {
+  if (!historyDeps) return findings;
+  return markRepeats(findings, readReviewHistory(ticketId, historyDeps));
+}
+
+/** Best-effort: a history write failure never fails the review. */
+function recordRun({ ticketId, headRef, findings, historyDeps, logger }) {
+  if (!historyDeps) return;
+  try {
+    appendReviewRun(ticketId, { headSha: headRef, findings }, historyDeps);
+  } catch (err) {
+    logger?.warn?.(
+      `[code-review] Could not record the review history: ${err?.message ?? err}`,
+    );
+  }
+}
+
 async function executeReviewPipeline({ opts, config, envelope }) {
   const {
     provider,
@@ -304,13 +357,14 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     `[code-review] Running ${providerName} adapter for Story #${ticketId} (${baseRef}...${headRef})...`,
   );
 
-  const reviewInput = buildReviewInput({
-    opts,
-    scope,
-    ticketId,
-    baseRef,
-    headRef,
+  const guidance = loadReviewGuidance({
+    codeReviewConfig,
+    root: opts.cwd ?? PROJECT_ROOT,
   });
+  const reviewInput = {
+    ...buildReviewInput({ opts, scope, ticketId, baseRef, headRef }),
+    guidance: guidance.guidance,
+  };
 
   const rawFindings = await reviewProvider.runReview(reviewInput);
   if (!Array.isArray(rawFindings)) {
@@ -326,12 +380,19 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   );
 
   // Degraded gates ride beside the findings, never inside them.
-  const { findings, degradations, verification } = await vetFindings({
+  const vetted = await vetFindings({
     findings: rawFindings,
     reviewInput,
     opts,
-    degradations: await collectProviderDegradations(reviewProvider, logger),
+    degradations: [
+      ...(await collectProviderDegradations(reviewProvider, logger)),
+      ...(guidance.degradation ? [guidance.degradation] : []),
+    ],
   });
+  const { degradations, verification } = vetted;
+  const skip = applySkipPaths(vetted.findings, codeReviewConfig?.skipPaths);
+  const historyDeps = resolveHistoryDeps(opts, config);
+  const findings = markAgainstHistory(skip.findings, ticketId, historyDeps);
   const scored = scoreFindings(findings, providerName);
   const report = renderFindingsFn({
     scope,
@@ -343,7 +404,9 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     promptMessages,
     degradations,
     verification,
+    skipped: skip.skipped,
   });
+  recordRun({ ticketId, headRef, findings, historyDeps, logger });
 
   const { posted, postedCommentId } = await postUnlessDeferred(opts, {
     upsertCommentFn,

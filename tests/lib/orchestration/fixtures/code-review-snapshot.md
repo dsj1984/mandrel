@@ -17,11 +17,15 @@
 
 Module `src/a.js` reports a critical maintainability tier (worst method 12.0).
 
+<!-- finding:6788da43f9dd -->
+
 ### 🟠 High Risk (1)
 
 #### 🟠 Lint check failed (2 error(s)) _[lint]_
 
 Scoped lint reported 2 error(s) and 1 warning(s) on the changed surface.
+
+<!-- finding:1ec52e8f2907 -->
 
 ### 🟡 Medium Risk (1)
 
@@ -29,8 +33,12 @@ Scoped lint reported 2 error(s) and 1 warning(s) on the changed surface.
 
 Module `src/b.js` reports a size/volume warning (module 60.0).
 
+<!-- finding:7a1d00dc76bd -->
+
 ### 🟢 Suggestion (1)
 
 #### 🟢 Lint runner could not execute _[lint]_
 
 The scoped lint runner produced no parseable output.
+
+<!-- finding:b1189f150e41 -->

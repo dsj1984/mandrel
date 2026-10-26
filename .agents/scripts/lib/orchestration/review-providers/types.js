@@ -16,6 +16,9 @@
  * @property {string=}  unverified   - The verifier's reason for refuting a critical.
  * @property {string=}  context      - 'reviewed-with-truncated-context'.
  * @property {string=}  provider     - Chain entry that raised it.
+ * @property {string=}  class        - Kebab-case bug class.
+ * @property {{ file: string, line?: number }[]=} instances - Every location; the first is `file`/`line`.
+ * @property {boolean=} repeat       - An earlier run of this Story raised it.
  *
  * @typedef {object} FindingClaim
  * @property {'path-absent'|'symbol-referenced'|'file-unchanged'} kind
@@ -33,6 +36,8 @@
  * @property {string}      headRef
  * @property {ReviewDepth=} depth    - Diff-derived thoroughness lever; LLM-backed
  *   providers MUST render it into their prompt. Absent → `standard`.
+ * @property {(string|null)=} guidance - Project review guidance; LLM-backed
+ *   providers render it via `renderGuidanceBlock`.
  *
  * @typedef {object} ReviewProvider
  * @property {(input: ReviewInput) => Promise<Finding[]>} runReview

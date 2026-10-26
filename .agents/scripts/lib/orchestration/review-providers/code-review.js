@@ -38,7 +38,9 @@ import {
   resolveVerdict,
 } from './claude-verdict.js';
 import { readDiff } from './generated-diff.js';
+import { BUG_CLASS_RULE } from './parse-findings.js';
 import { renderDepthDirective } from './review-depth.js';
+import { renderGuidanceBlock } from './review-guidance.js';
 import { probeClaudeCli } from './security-review.js';
 
 const CLAUDE_ARGS = Object.freeze([
@@ -79,16 +81,18 @@ const PROMPT_HEAD =
   'input, command or test that exposes it). A `shortcut:` comment naming ' +
   'its ceiling and trigger is a decision, not a finding, unless this diff ' +
   'itself crosses the ceiling.\n\n' +
-  '{scopeNote}' +
-  'Answer with a JSON object of this exact shape, no prose around it:\n\n' +
-  '{"findings":[{"title":"...","body":"Why it is wrong: ... How to show it ' +
-  'fails: ...","file":"...","line":1,"category":"bug","claim":null}]}\n\n' +
+  `${BUG_CLASS_RULE}\n\n` +
   'Set `claim` when the problem rests on a checkable fact: ' +
   '{"kind":"path-absent","path":"<file>"} when a file the change needs is ' +
   'missing, or {"kind":"symbol-referenced","symbol":"<name>","path":"<its ' +
   'definition file>"} when a removed or renamed symbol still has callers, ' +
   'or {"kind":"file-unchanged","path":"<file>"} when the problem is that ' +
   'another file was not updated. Otherwise leave it null.\n\n' +
+  '{scopeNote}{guidance}' +
+  'Answer with a JSON object of this exact shape, no prose around it:\n\n' +
+  '{"findings":[{"title":"...","body":"Why it is wrong: ... How to show it ' +
+  'fails: ...","file":"...","line":1,"category":"bug","class":"...",' +
+  '"instances":[{"file":"...","line":1}],"claim":null}]}\n\n' +
   'Emit {"findings":[]} if there is nothing you would block the merge for.\n\n';
 
 const WHOLE_DIFF_NOTE =
@@ -210,7 +214,8 @@ function buildPrompt(
     .replace('{headRef}', input.headRef)
     .replace('{ticketId}', String(input.ticketId))
     .replace('{scopeNote}', scope)
-    .replace('{depthDirective}', renderDepthDirective(input.depth));
+    .replace('{depthDirective}', renderDepthDirective(input.depth))
+    .replace('{guidance}', () => renderGuidanceBlock(input.guidance));
   return `${head}<diff>\n${body}${note}\n</diff>\n${callers}`;
 }
 
@@ -347,7 +352,7 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
   }
 
   /**
-   * The `<callers>` block, the slice note and the manifest ride every chunk,
+   * The `<callers>` block, guidance, the slice note and the manifest ride every chunk,
    * so they come out of the budget; chunk numbers are one digit, so the
    * note's length is fixed before packing.
    */
@@ -360,6 +365,7 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
     const budget =
       MAX_DIFF_CHARS -
       callers.length -
+      renderGuidanceBlock(input.guidance).length -
       manifest.length -
       sliceNote(MAX_REVIEW_CHUNKS, MAX_REVIEW_CHUNKS).length;
     const chunks = packChunks(sections, budget);

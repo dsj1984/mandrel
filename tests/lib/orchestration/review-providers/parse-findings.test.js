@@ -315,3 +315,65 @@ test('parseProviderFindings: double-envelope {result:{findings}} resolves', () =
   assert.equal(out.length, 1);
   assert.equal(out[0].title, 'X');
 });
+
+const parseAll = (entries) =>
+  parseProviderFindings(JSON.stringify(entries), {
+    errorPrefix: 'x',
+    mapSeverity: () => 'high',
+  });
+
+test('buildFinding: class is a kebab-case slug; anything else is dropped', () => {
+  const [ok, upper, bad, empty] = parseAll([
+    { title: 't', body: 'b', class: 'unbounded-retry' },
+    { title: 't', body: 'b', class: ' Missing-Await ' },
+    { title: 't', body: 'b', class: 'not a slug!' },
+    { title: 't', body: 'b', class: null },
+  ]);
+  assert.equal(ok.class, 'unbounded-retry');
+  assert.equal(upper.class, 'missing-await');
+  assert.ok(!('class' in bad));
+  assert.ok(!('class' in empty));
+});
+
+test('buildFinding: file/line lead the instances; malformed and repeated instances drop', () => {
+  const [finding] = parseAll([
+    {
+      title: 't',
+      body: 'b',
+      file: 'src/a.js',
+      line: 4,
+      instances: [
+        { file: 'src/a.js', line: 4 },
+        { file: 'src/b.js', line: 0 },
+        { file: '' },
+        'src/c.js',
+        { line: 3 },
+        { file: 'src/d.js', line: 7 },
+      ],
+    },
+  ]);
+  assert.deepEqual(finding.instances, [
+    { file: 'src/a.js', line: 4 },
+    { file: 'src/b.js' },
+    { file: 'src/d.js', line: 7 },
+  ]);
+  assert.equal(finding.file, 'src/a.js');
+  assert.equal(finding.line, 4);
+});
+
+test('buildFinding: with no file, the first instance becomes file/line', () => {
+  const [finding, none] = parseAll([
+    {
+      title: 't',
+      body: 'b',
+      line: 99,
+      instances: [{ file: 'src/b.js' }, { file: 'src/c.js', line: 2 }],
+    },
+    { title: 't', body: 'b', file: 'src/a.js', instances: 'nope' },
+  ]);
+  assert.equal(finding.file, 'src/b.js');
+  assert.ok(!('line' in finding));
+  assert.equal(finding.instances.length, 2);
+  assert.ok(!('instances' in none));
+  assert.equal(none.file, 'src/a.js');
+});
