@@ -99,6 +99,42 @@ describe('deriveChangeLevel — the level comes from the diff, not a claim', () 
   });
 });
 
+describe('deriveChangeLevel — consumer sensitive paths (delivery.codeReview.sensitivePaths)', () => {
+  const CONFIG = {
+    delivery: {
+      codeReview: {
+        sensitivePaths: {
+          'edge-auth': { filePatterns: ['apps/web/src/middleware.ts'] },
+        },
+      },
+    },
+  };
+
+  test('a one-file change to a consumer-sensitive path derives high and resolves deep', () => {
+    const changedFiles = ['apps/web/src/middleware.ts'];
+    const { level, classes } = deriveChangeLevel({
+      changedFiles,
+      injectedRules: RULES,
+      injectedConfig: CONFIG,
+    });
+    assert.equal(level, 'high');
+    assert.deepEqual(classes, ['edge-auth']);
+    assert.equal(
+      resolveDepth({ derivedLevel: level, changedFileCount: 1 }),
+      'deep',
+    );
+  });
+
+  test('without the consumer block the same change derives low', () => {
+    const { level } = deriveChangeLevel({
+      changedFiles: ['apps/web/src/middleware.ts'],
+      injectedRules: RULES,
+      injectedConfig: {},
+    });
+    assert.equal(level, 'low');
+  });
+});
+
 describe('resolveDepth — deep tier', () => {
   test('a NARROW diff touching a sensitive path → deep (the level alone)', () => {
     // The load-bearing case: width says "trivial", the sensitive path says

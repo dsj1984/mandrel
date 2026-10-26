@@ -331,6 +331,10 @@
       "mi": 100.79
     },
     {
+      "path": ".agents/scripts/lib/audit-suite/sensitive-paths.js",
+      "mi": 108.115
+    },
+    {
       "path": ".agents/scripts/lib/audit-suite/story-checklist.js",
       "mi": 108.361
     },

@@ -16,8 +16,9 @@ export const DEFAULT_DIFF_WIDTH = Object.freeze({
 });
 
 /**
- * `high` when the changed files hit a `sensitivePaths` class in
- * `audit-rules.json` — this is what keeps a narrow auth or migration diff
+ * `high` when the changed files hit a `sensitivePaths` class (the shipped
+ * `audit-rules.json` classes merged with `delivery.codeReview.sensitivePaths`)
+ * — this is what keeps a narrow auth or migration diff
  * deep. Single source of the level for review depth and dispatch routing
  * (predicted footprint vs actual diff). `null` on an empty set or unreadable
  * manifest; consumers treat `null` as the more thorough posture. Never throws.
@@ -25,6 +26,7 @@ export const DEFAULT_DIFF_WIDTH = Object.freeze({
  * @param {{
  *   changedFiles?: string[]|null,
  *   injectedRules?: object,
+ *   injectedConfig?: object,
  *   selectSensitivePathClassesFn?: typeof selectSensitivePathClasses,
  * }} [input]
  * @returns {{ level: ChangeLevel|null, classes: string[] }}
@@ -40,7 +42,11 @@ export function deriveChangeLevel(input = {}) {
     input.selectSensitivePathClassesFn ?? selectSensitivePathClasses;
   let classes;
   try {
-    classes = select({ changedFiles, injectedRules: input.injectedRules });
+    classes = select({
+      changedFiles,
+      injectedRules: input.injectedRules,
+      injectedConfig: input.injectedConfig,
+    });
   } catch {
     // An unreadable/invalid manifest is not evidence the change is safe.
     return { level: null, classes: [] };
