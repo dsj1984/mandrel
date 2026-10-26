@@ -97,7 +97,7 @@ function disarmIfIdle() {
 }
 
 /**
- * Spawn and supervise with forwarding armed first (#5913): a signal landing
+ * Spawn and supervise with forwarding armed first: a signal landing
  * between the two is queued until this synchronous span ends, by when the
  * child is registered and its group is killed. A throwing spawn disarms.
  */
