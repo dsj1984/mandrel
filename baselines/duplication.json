@@ -40,9 +40,9 @@
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
-      "duplicatedLines": 19,
+      "duplicatedLines": 9,
       "totalLines": 588,
-      "percentage": 3.23
+      "percentage": 1.53
     },
     {
       "path": ".agents/scripts/generate-skills-index.js",
@@ -289,12 +289,6 @@
       "duplicatedLines": 10,
       "totalLines": 165,
       "percentage": 6.06
-    },
-    {
-      "path": ".agents/scripts/review-dispositions-report.js",
-      "duplicatedLines": 10,
-      "totalLines": 121,
-      "percentage": 8.26
     },
     {
       "path": ".agents/scripts/validate-skills.js",

@@ -43,15 +43,23 @@ function renderTable(label, groups) {
     pct(t.precision),
     pct(t.falseBlocker),
   ]);
-  const widths = header.map((h, i) =>
-    Math.max(h.length, ...rows.map((r) => r[i].length)),
-  );
-  const line = (cells) =>
-    cells
-      .map((c, i) => c.padEnd(widths[i]))
+  return alignRows([header, ...rows]).join('\n');
+}
+
+/** @param {string[][]} rows @returns {string[]} space-padded columns. */
+function alignRows(rows) {
+  const widths = [];
+  for (const row of rows) {
+    row.forEach((cell, i) => {
+      widths[i] = Math.max(widths[i] ?? 0, cell.length);
+    });
+  }
+  return rows.map((row) =>
+    row
+      .map((cell, i) => cell.padEnd(widths[i]))
       .join('  ')
-      .trimEnd();
-  return [line(header), ...rows.map(line)].join('\n');
+      .trimEnd(),
+  );
 }
 
 /**
