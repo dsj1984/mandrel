@@ -15,6 +15,18 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.106.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.105.0...mandrel-v2.106.0) (2026-10-26)
+
+
+### Added
+
+* held code review: tell each chunk it is a slice, ground "file unchanged" claims, and pack source before tests ([#5912](https://github.com/dsj1984/mandrel/issues/5912)) ([#5914](https://github.com/dsj1984/mandrel/issues/5914)) ([4a86123](https://github.com/dsj1984/mandrel/commit/4a8612322467cdd8cc8fa70f0081f59e558d8b81))
+
+
+### Fixed
+
+* process groups: arm parent-signal forwarding before spawning, so a SIGTERM during spawn never leaks the child's group ([#5913](https://github.com/dsj1984/mandrel/issues/5913)) ([#5916](https://github.com/dsj1984/mandrel/issues/5916)) ([87201fe](https://github.com/dsj1984/mandrel/commit/87201fe15038c5f236fc6c8084a0791ad5254719))
+
 ## [2.105.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.104.0...mandrel-v2.105.0) (2026-10-26)
 
 
