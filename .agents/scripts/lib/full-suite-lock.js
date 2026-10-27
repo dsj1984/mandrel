@@ -395,17 +395,23 @@ function captureInLock(runCaptureFn, captureOpts) {
  * @template T
  * @param {{ argv: string[], cwd: string,
  *   env?: Record<string, string|undefined>, log?: (m: string) => void,
- *   config?: object }} opts
+ *   config?: object, lockOptions?: object }} opts `lockOptions`: test seams.
  * @param {(lock: { lockWaitMs: number, env: Record<string, string> }) => Promise<T>} spawn
  * @returns {Promise<T|number>}
  */
 export function withSuiteAdmission(
-  { argv, cwd, env = process.env, log, config },
+  { argv, cwd, env = process.env, log, config, lockOptions },
   spawn,
 ) {
   const resolved = config ?? resolveConfig({ cwd });
   return withFullSuiteLockAsync(
-    { ...fullSuiteLockPolicy(resolved, env, argv), cwd, env, log },
+    {
+      ...fullSuiteLockPolicy(resolved, env, argv),
+      ...lockOptions,
+      cwd,
+      env,
+      log,
+    },
     spawn,
   );
 }
