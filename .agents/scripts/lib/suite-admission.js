@@ -310,8 +310,8 @@ function createDeclaredAttempt(opts) {
   };
   return {
     tryOnce: () => underAdmissionMutex(opts, admit),
-    heldPath: () => heldPath,
     release: () => held?.release(),
+    heldPath: () => heldPath,
   };
 }
 
@@ -326,6 +326,7 @@ function createDeclaredAttempt(opts) {
  */
 function createExclusiveAttempt(opts) {
   let held = null;
+  let heldPath = null;
   const drained = () => {
     const live = readLiveReservations(opts);
     if (live === null || live.length === 0) return held;
@@ -347,14 +348,15 @@ function createExclusiveAttempt(opts) {
       });
       if (!first.acquired) return first;
       held = first;
+      heldPath = opts.lockPath;
     }
     const verdict = underAdmissionMutex(opts, drained);
     return verdict.reason === 'error' ? held : verdict;
   };
   return {
     tryOnce,
-    heldPath: () => (held ? opts.lockPath : null),
     release: () => held?.release(),
+    heldPath: () => heldPath,
   };
 }
 

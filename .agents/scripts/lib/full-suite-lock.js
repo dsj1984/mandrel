@@ -210,6 +210,10 @@ function consult(probe, applies) {
 export async function withFullSuiteLockAsync(options, spawn) {
   const opts = withDefaults(options);
   if (isRefused(opts)) return refuse(opts);
+  return admitAndSpawn(opts, spawn);
+}
+
+function admitAndSpawn(opts, spawn) {
   const inherited = inheritedMarker(opts);
   return inherited === null
     ? lockAndSpawn(opts, spawn)
