@@ -141,6 +141,89 @@ describe('suite admission across processes (Story #5668)', () => {
     assert.equal(started().length, 3, 'the third ran once capacity freed');
   });
 
+  describe('a hand-run consumer through withSuiteAdmission (Story #5929)', () => {
+    const COVERAGE = 'pnpm run test:coverage:affected';
+    const atCapacity = {
+      delivery: {
+        execution: {
+          capacity: 16,
+          workloads: [{ command: COVERAGE, weight: 8 }],
+        },
+      },
+    };
+
+    function reservationCount() {
+      try {
+        return fs.readdirSync(`${lockPath}.reservations`).length;
+      } catch {
+        return 0;
+      }
+    }
+
+    async function twoHolders() {
+      const holders = ['a', 'b'].map((name) =>
+        contend(name, {
+          config: atCapacity,
+          command: COVERAGE,
+          holdUntil: releaseFile(name),
+        }),
+      );
+      await until(
+        () => at('a', 'start') && at('b', 'start'),
+        'two weight-8 runs to start',
+      );
+      return holders;
+    }
+
+    function startOf(name) {
+      return events().find((e) => e.name === name && e.event === 'start');
+    }
+
+    it('unmarked, it waits for capacity beside two live weight-8 runs', async () => {
+      const [a, b] = await twoHolders();
+      const hand = contend('hand', {
+        config: atCapacity,
+        command: COVERAGE,
+        viaHelper: true,
+        holdMs: 0,
+      });
+      await until(
+        () => events().some((e) => e.name === 'hand' && e.event === 'blocked'),
+        'the hand run to report it is held by capacity',
+      );
+      assert.equal(at('hand', 'start'), undefined, '8 + 8 + 8 exceeds 16');
+      fs.writeFileSync(releaseFile('a'), '');
+      assert.equal(await hand.exited, 0);
+      assert.ok(at('hand', 'start') >= at('a', 'end'));
+      assert.ok(startOf('hand').marker, 'its own child is marked');
+      fs.writeFileSync(releaseFile('b'), '');
+      assert.equal(await a.exited, 0);
+      assert.equal(await b.exited, 0);
+    });
+
+    it("marked with another process's live reservation, it runs at once without reserving", async () => {
+      const [a, b] = await twoHolders();
+      const parentMarker = startOf('a').marker;
+      assert.ok(parentMarker, 'the admitted child is handed its reservation');
+      assert.equal(reservationCount(), 2);
+      const child = contend('child', {
+        config: atCapacity,
+        command: COVERAGE,
+        viaHelper: true,
+        env: { MANDREL_SUITE_RESERVATION: parentMarker },
+        holdUntil: releaseFile('child'),
+      });
+      await until(() => at('child', 'start'), 'the marked run to start');
+      assert.equal(reservationCount(), 2, 'no third reservation');
+      assert.equal(startOf('child').marker, parentMarker);
+      fs.writeFileSync(releaseFile('child'), '');
+      assert.equal(await child.exited, 0);
+      for (const name of ['a', 'b']) fs.writeFileSync(releaseFile(name), '');
+      assert.equal(await a.exited, 0);
+      assert.equal(await b.exited, 0);
+    });
+  });
+
   it('two runs sharing a resource never overlap', async () => {
     const workloads = config(
       { command: LONG, weight: 2, resources: ['db'] },

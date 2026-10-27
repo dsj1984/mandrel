@@ -240,13 +240,13 @@ export function runLockedSuite(
       onLockProgress: lockHooks.onLockProgress,
       ...lockOptions,
     },
-    ({ lockWaitMs }) =>
+    (lock) =>
       runSuiteImpl({
         cmd,
         args,
         cwd,
         timeoutMs,
-        lockWaitMs,
+        ...lock,
         onTimings: (t) => {
           log(`[evidence-gate] ${formatSuiteTimings(t)}`);
           lockHooks.onTimings(t);

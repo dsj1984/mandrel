@@ -99,7 +99,7 @@ export function defaultGateRunner(cmd, args, opts = {}) {
   // `skipIfSatisfied` re-probes after the wait: evidence another suite
   // deposited meanwhile is returned instead of spawning.
   return withFullSuiteLockAsync(gateLockOptions(opts), (lock) =>
-    spawnGate(cmd, args, opts, lock),
+    spawnGate(cmd, args, { ...opts, env: { ...opts.env, ...lock.env } }, lock),
   );
 }
 

@@ -403,6 +403,35 @@ A config still carrying the retired key is a hard validation failure; the
   reporters. `coverage-capture.js` fails a green run that leaves no artifact
   there (and writes no capture stamp), and a full-scope coverage or CRAP
   refresh with no artifact exits non-zero naming the path.
+- **Admission for a script you run by hand.** Every suite spawn Mandrel
+  admits under `execution.fullSuiteLock` carries `MANDREL_SUITE_RESERVATION`,
+  the absolute path of the lockfile or reservation it holds, and every
+  descendant inherits it. A consumer script that may also be started by hand
+  (say `test:coverage:affected`, run from an agent shell) admits itself
+  through the materialized lock library rather than bypassing admission:
+
+  ```js
+  import { withSuiteAdmission } from '../.agents/scripts/lib/full-suite-lock.js';
+
+  const code = await withSuiteAdmission(
+    { argv: ['pnpm', 'run', 'test:coverage:affected'], cwd: process.cwd() },
+    ({ env }) => runSuite({ env: { ...process.env, ...env } }),
+  );
+  process.exit(code);
+  ```
+
+  Pass `argv` exactly as it appears in `execution.workloads[]`. `env` (default
+  `process.env`), `log` and `config` (default: resolved from `cwd`) are
+  optional. When the environment already names a live reservation in this
+  repository's lock home, the callback runs at once inside it and nothing new
+  is reserved. Otherwise, including when that reservation's file is gone,
+  its holder has died or its heartbeat is stale, the run queues for its
+  declared workload, or exclusively when the argv is undeclared, exactly as a
+  Mandrel caller would. The callback's `env` names the reservation that
+  admitted it; merge it into the child's environment. The helper resolves to
+  the callback's result, `75` when the wait expires, or `78` when the
+  declared weight exceeds `capacity`. With `MANDREL_FULL_SUITE_LOCK=0` or
+  `fullSuiteLock: false` it calls the callback directly with an empty `env`.
 - **Duplication needs jscpd.** The duplication gate scans with `jscpd` 4, an
   **optional peer dependency** of `mandrel`: a project that enables
   `quality.gates.duplication` installs it itself — `npm i -D jscpd@^4`.

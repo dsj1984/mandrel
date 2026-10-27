@@ -2,16 +2,20 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { runLockedSuite } from '../../.agents/scripts/evidence-gate.js';
 import { defaultGateRunner } from '../../.agents/scripts/lib/close-validation/process.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
   FULL_SUITE_LOCK_ENV,
+  fullSuiteLockPolicy,
   isFullSuiteLockEnabled,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
   lockedCapture,
   resolveFullSuiteLockBudget,
   resolveFullSuiteLockPath,
+  SUITE_RESERVATION_ENV,
   withFullSuiteLockAsync,
+  withSuiteAdmission,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { isFirstInLine } from '../../.agents/scripts/lib/full-suite-queue.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
@@ -1243,6 +1247,411 @@ describe('full-suite lock (Story #5173)', () => {
       const code = await wrapped({ cwd: dir, log: () => {} });
       assert.equal(code, ADMISSION_REFUSED_EXIT_CODE);
       assert.equal(spawns, 0);
+    });
+  });
+});
+
+/**
+ * Story #5929 — an admitted spawn is marked, and a descendant asking for
+ * admission under a live marker runs inside its parent's reservation.
+ */
+describe('suite reservation marker (Story #5929)', () => {
+  const FOCUSED = 'npm run test:focused';
+  const config = {
+    delivery: {
+      execution: {
+        capacity: 16,
+        workloads: [{ command: FOCUSED, weight: 8 }],
+      },
+    },
+  };
+  let dir;
+  let lockPath;
+
+  beforeEach(() => {
+    dir = makeTempDir('mandrel-fsl-marker-');
+    lockPath = path.join(dir, 'full-suite.lock');
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const reservations = () => {
+    try {
+      return fs.readdirSync(`${lockPath}.reservations`);
+    } catch {
+      return [];
+    }
+  };
+
+  function declared(extra = {}) {
+    return {
+      ...fullSuiteLockPolicy(config, {}, FOCUSED.split(' ')),
+      cwd: dir,
+      lockPath,
+      env: {},
+      ...extra,
+    };
+  }
+
+  /** Holds a declared reservation open until the returned release runs. */
+  async function holdReservation() {
+    let release;
+    let marker;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+    const ready = new Promise((resolve) => {
+      withFullSuiteLockAsync(declared(), async ({ env }) => {
+        marker = env[SUITE_RESERVATION_ENV];
+        resolve();
+        await held;
+        return 0;
+      });
+    });
+    await ready;
+    return { marker, release };
+  }
+
+  it('a declared spawn sees the absolute path of its live reservation', async () => {
+    let seen;
+    await withFullSuiteLockAsync(declared(), async ({ env }) => {
+      seen = env[SUITE_RESERVATION_ENV];
+      assert.ok(
+        fs.existsSync(seen),
+        'the reservation is live during the spawn',
+      );
+      return 0;
+    });
+    assert.ok(path.isAbsolute(seen));
+    assert.equal(path.dirname(seen), `${lockPath}.reservations`);
+    assert.equal(fs.existsSync(seen), false, 'released after the spawn');
+  });
+
+  it('an exclusive spawn sees the legacy lockfile', async () => {
+    let seen;
+    await withFullSuiteLockAsync(
+      { cwd: dir, lockPath, env: {} },
+      async ({ env }) => {
+        seen = env[SUITE_RESERVATION_ENV];
+        return 0;
+      },
+    );
+    assert.equal(seen, lockPath);
+  });
+
+  it('no marker when the lock is disabled or nothing is held', async () => {
+    const envs = [];
+    const record = async ({ env }) => {
+      envs.push(env);
+      return 0;
+    };
+    await withFullSuiteLockAsync(declared({ enabled: false }), record);
+    // A temp dir outside any repository has no lock home: fail open.
+    await withFullSuiteLockAsync({ cwd: dir, env: {} }, record);
+    assert.deepEqual(envs, [{}, {}]);
+  });
+
+  it('the capture, evidence-gate and close gate children all receive the marker', async () => {
+    let captureEnv;
+    await lockedCapture(
+      async (opts) => {
+        captureEnv = opts.env;
+        return 0;
+      },
+      {},
+      {},
+      { lockPath },
+    )({ cwd: dir, env: { MANDREL_COVERAGE_BASE_REF: 'origin/main' } });
+    assert.equal(captureEnv[SUITE_RESERVATION_ENV], lockPath);
+    assert.equal(
+      captureEnv.MANDREL_COVERAGE_BASE_REF,
+      'origin/main',
+      'the capture keeps its own env',
+    );
+
+    let suiteEnv;
+    await runLockedSuite(
+      { cmd: 'npm', args: ['test'], cwd: dir, log: () => {} },
+      {
+        config: {},
+        env: {},
+        lockOptions: { lockPath },
+        runSuiteImpl: async (opts) => {
+          suiteEnv = opts.env;
+          return 0;
+        },
+      },
+    );
+    assert.equal(suiteEnv[SUITE_RESERVATION_ENV], lockPath);
+
+    // The child prints the value: on Windows the gate spawns through cmd,
+    // which mangles a quoted path inlined into an `-e` script.
+    const gateLines = [];
+    const result = await defaultGateRunner(
+      process.execPath,
+      ['-e', `console.log(process.env.${SUITE_RESERVATION_ENV})`],
+      {
+        cwd: dir,
+        gateName: 'test',
+        log: (m) => gateLines.push(m),
+        fullSuiteLock: true,
+        lockOptions: { lockPath },
+      },
+    );
+    assert.deepEqual(result, { status: 0 });
+    assert.ok(
+      gateLines.includes(`[test] ${lockPath}`),
+      `the gate child printed ${JSON.stringify(gateLines)}`,
+    );
+  });
+
+  it('a nested call under a live marker spawns without a second reservation', async () => {
+    const parent = await holdReservation();
+    try {
+      assert.equal(reservations().length, 1);
+      let nested;
+      const code = await withFullSuiteLockAsync(
+        declared({ env: { [SUITE_RESERVATION_ENV]: parent.marker } }),
+        async (lock) => {
+          nested = lock;
+          assert.equal(reservations().length, 1, 'no second reservation');
+          return 0;
+        },
+      );
+      assert.equal(code, 0);
+      assert.deepEqual(nested, {
+        lockWaitMs: 0,
+        env: { [SUITE_RESERVATION_ENV]: parent.marker },
+      });
+    } finally {
+      parent.release();
+    }
+  });
+
+  it('a coverage capture under a live marker runs inside it', async () => {
+    const parent = await holdReservation();
+    try {
+      let captureEnv;
+      const code = await lockedCapture(
+        async (opts) => {
+          captureEnv = opts.env;
+          assert.equal(reservations().length, 1, 'no second reservation');
+          return 0;
+        },
+        config,
+        { [SUITE_RESERVATION_ENV]: parent.marker },
+        { lockPath, waitMs: 0 },
+      )({ cwd: dir });
+      assert.equal(code, 0);
+      assert.equal(captureEnv[SUITE_RESERVATION_ENV], parent.marker);
+    } finally {
+      parent.release();
+    }
+  });
+
+  describe('a marker that is not a live holder in this lock home queues', () => {
+    const deadPidBody = 'full-suite\n0\n999999999\n';
+
+    async function queuesUnder(marker) {
+      const parent = await holdReservation();
+      const other = await holdReservation();
+      try {
+        let spawns = 0;
+        const code = await withFullSuiteLockAsync(
+          declared({
+            env: { [SUITE_RESERVATION_ENV]: marker },
+            waitMs: 0,
+          }),
+          async () => {
+            spawns += 1;
+            return 0;
+          },
+        );
+        return { code, spawns };
+      } finally {
+        parent.release();
+        other.release();
+      }
+    }
+
+    it('a removed reservation file', async () => {
+      const gone = path.join(`${lockPath}.reservations`, 'w8~~1-gone.lock');
+      assert.deepEqual(await queuesUnder(gone), {
+        code: LOCK_WAIT_EXPIRED_EXIT_CODE,
+        spawns: 0,
+      });
+    });
+
+    it('a reservation whose holder pid is dead', async () => {
+      const dead = path.join(
+        `${lockPath}.reservations`,
+        'w8~~999999999-dead.lock',
+      );
+      fs.mkdirSync(path.dirname(dead), { recursive: true });
+      fs.writeFileSync(dead, deadPidBody);
+      assert.deepEqual(await queuesUnder(dead), {
+        code: LOCK_WAIT_EXPIRED_EXIT_CODE,
+        spawns: 0,
+      });
+    });
+
+    it('a heartbeat older than the stale threshold', async () => {
+      const parent = await holdReservation();
+      try {
+        const old = new Date(Date.now() - FULL_SUITE_STALE_MS - 60_000);
+        fs.utimesSync(parent.marker, old, old);
+        let seen;
+        await withFullSuiteLockAsync(
+          declared({ env: { [SUITE_RESERVATION_ENV]: parent.marker } }),
+          async ({ env }) => {
+            seen = env[SUITE_RESERVATION_ENV];
+            return 0;
+          },
+        );
+        assert.ok(seen, 'admitted under a reservation of its own');
+        assert.notEqual(seen, parent.marker);
+      } finally {
+        parent.release();
+      }
+    });
+
+    it("a live file outside this repository's lock home", async () => {
+      const foreign = path.join(dir, 'elsewhere', 'w8~~1-x.lock');
+      fs.mkdirSync(path.dirname(foreign), { recursive: true });
+      const holder = acquireSweepLock({
+        lockPath: foreign,
+        timeoutMs: 600_000,
+        heartbeatMs: 0,
+      });
+      try {
+        assert.deepEqual(await queuesUnder(foreign), {
+          code: LOCK_WAIT_EXPIRED_EXIT_CODE,
+          spawns: 0,
+        });
+      } finally {
+        holder.release();
+      }
+    });
+  });
+
+  describe('withSuiteAdmission', () => {
+    const run = (extra, spawn) =>
+      withSuiteAdmission(
+        {
+          argv: FOCUSED.split(' '),
+          cwd: dir,
+          env: {},
+          config,
+          lockOptions: { lockPath },
+          ...extra,
+        },
+        spawn,
+      );
+
+    it('runs inside a live marker without creating any lock file', async () => {
+      const parent = await holdReservation();
+      try {
+        const before = reservations();
+        const code = await run(
+          { env: { [SUITE_RESERVATION_ENV]: parent.marker } },
+          async () => 0,
+        );
+        assert.equal(code, 0);
+        assert.deepEqual(reservations(), before);
+        assert.equal(fs.existsSync(lockPath), false);
+      } finally {
+        parent.release();
+      }
+    });
+
+    it('a dead-holder marker is ignored and the call queues', async () => {
+      const dead = path.join(
+        `${lockPath}.reservations`,
+        'w8~~999999999-dead.lock',
+      );
+      fs.mkdirSync(path.dirname(dead), { recursive: true });
+      fs.writeFileSync(dead, 'full-suite\n0\n999999999\n');
+      const a = await holdReservation();
+      const b = await holdReservation();
+      let spawns = 0;
+      try {
+        const code = await run(
+          {
+            env: { [SUITE_RESERVATION_ENV]: dead },
+            lockOptions: { lockPath, waitMs: 0 },
+          },
+          async () => {
+            spawns += 1;
+            return 0;
+          },
+        );
+        assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
+        assert.equal(spawns, 0);
+      } finally {
+        a.release();
+        b.release();
+      }
+    });
+
+    it('takes its own reservation and marks its child when unmarked', async () => {
+      let seen;
+      const code = await run({}, async ({ env }) => {
+        seen = env[SUITE_RESERVATION_ENV];
+        return 0;
+      });
+      assert.equal(code, 0);
+      assert.equal(path.dirname(seen), `${lockPath}.reservations`);
+    });
+
+    it('an expired wait resolves 75 and a refusal 78, spawning nothing', async () => {
+      const a = await holdReservation();
+      const b = await holdReservation();
+      let spawns = 0;
+      const count = async () => {
+        spawns += 1;
+        return 0;
+      };
+      try {
+        const expired = await run(
+          { lockOptions: { lockPath, waitMs: 0 } },
+          count,
+        );
+        assert.equal(expired, LOCK_WAIT_EXPIRED_EXIT_CODE);
+      } finally {
+        a.release();
+        b.release();
+      }
+      const refused = await run(
+        {
+          config: {
+            delivery: {
+              execution: {
+                capacity: 4,
+                workloads: [{ command: FOCUSED, weight: 8 }],
+              },
+            },
+          },
+        },
+        count,
+      );
+      assert.equal(refused, ADMISSION_REFUSED_EXIT_CODE);
+      assert.equal(spawns, 0);
+    });
+
+    it('MANDREL_FULL_SUITE_LOCK=0 spawns at once with no marker', async () => {
+      let seen;
+      const code = await run(
+        { env: { [FULL_SUITE_LOCK_ENV]: '0' } },
+        async ({ env }) => {
+          seen = env;
+          return 0;
+        },
+      );
+      assert.equal(code, 0);
+      assert.deepEqual(seen, {});
+      assert.deepEqual(reservations(), []);
     });
   });
 });

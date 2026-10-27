@@ -720,6 +720,14 @@
       "symbol": "resolveFullSuiteLockPath"
     },
     {
+      "file": ".agents/scripts/lib/full-suite-lock.js",
+      "symbol": "SUITE_RESERVATION_ENV"
+    },
+    {
+      "file": ".agents/scripts/lib/full-suite-lock.js",
+      "symbol": "withSuiteAdmission"
+    },
+    {
       "file": ".agents/scripts/lib/full-suite-queue.js",
       "symbol": "readLockHolder"
     },
