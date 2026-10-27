@@ -21,6 +21,12 @@ import {
   readLockHolderPid,
 } from './single-story-sweep/sweep-lock.js';
 
+/**
+ * Set on every spawn made under a held lockfile or reservation, naming it, so
+ * a descendant that asks for admission runs inside its parent's.
+ */
+export const SUITE_RESERVATION_ENV = 'MANDREL_SUITE_RESERVATION';
+
 /** `EX_CONFIG`: a declared weight the capacity can never admit. */
 export const ADMISSION_REFUSED_EXIT_CODE = 78;
 
@@ -259,6 +265,7 @@ function createDeclaredAttempt(opts) {
   const { workload, capacity } = opts;
   const acquire = opts.acquireReservationFn ?? acquireSweepLock;
   let held = null;
+  let heldPath = null;
   const admit = () => {
     const legacy = liveLegacyHolder(opts);
     if (legacy) return blocked({ reason: 'exclusive', holder: legacy });
@@ -289,17 +296,21 @@ function createDeclaredAttempt(opts) {
     } catch {
       return { acquired: false, reason: 'error' };
     }
+    const file = path.join(dir, reservationName(workload));
     const result = acquire({
-      lockPath: path.join(dir, reservationName(workload)),
+      lockPath: file,
       timeoutMs: opts.staleMs,
       heartbeatMs: HOLDER_HEARTBEAT_MS,
       fsImpl: opts.fsImpl,
     });
-    if (result.acquired) held = result;
-    return result.acquired ? result : { acquired: false, reason: 'error' };
+    if (!result.acquired) return { acquired: false, reason: 'error' };
+    held = result;
+    heldPath = file;
+    return result;
   };
   return {
     tryOnce: () => underAdmissionMutex(opts, admit),
+    heldPath: () => heldPath,
     release: () => held?.release(),
   };
 }
@@ -342,8 +353,37 @@ function createExclusiveAttempt(opts) {
   };
   return {
     tryOnce,
+    heldPath: () => (held ? opts.lockPath : null),
     release: () => held?.release(),
   };
+}
+
+/** The child environment naming `heldPath`; empty when nothing is held. */
+export function reservationEnv(heldPath) {
+  return heldPath ? { [SUITE_RESERVATION_ENV]: heldPath } : {};
+}
+
+/**
+ * The marker `env` inherits, when it names a live holder in this lock home:
+ * the legacy lockfile or one of its reservations, with a live pid and a fresh
+ * heartbeat. Any other path — another repository's, a stray file — is `null`.
+ *
+ * @param {{ env?: Record<string, string|undefined>,
+ *   lockHomeFn: () => string|null, staleMs: number, fsImpl: object,
+ *   nowFn: () => number, killFn?: Function }} probe
+ * @returns {string|null}
+ */
+export function inheritedReservation({ env, lockHomeFn, ...probe }) {
+  const marker = env?.[SUITE_RESERVATION_ENV];
+  if (typeof marker !== 'string' || !path.isAbsolute(marker)) return null;
+  const home = lockHomeFn();
+  if (home === null) return null;
+  const file = path.resolve(marker);
+  const inHome =
+    file === path.resolve(home) ||
+    (path.dirname(file) === reservationsDir(path.resolve(home)) &&
+      RESERVATION_RE.test(path.basename(file)));
+  return inHome && holderState(file, probe).live ? marker : null;
 }
 
 const LOCK_TAG = '[full-suite-lock]';

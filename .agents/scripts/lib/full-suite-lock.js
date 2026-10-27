@@ -15,6 +15,7 @@ import path from 'node:path';
 
 import { getQuality } from './config/quality.js';
 import { mainCheckoutRoot } from './config/temp-paths.js';
+import { resolveConfig } from './config-resolver.js';
 import { packageScriptArgv } from './detect-package-manager.js';
 import { isFirstInLine, waitInLine } from './full-suite-queue.js';
 import { acquireSweepLock } from './single-story-sweep/sweep-lock.js';
@@ -24,12 +25,15 @@ import {
   createAttempt,
   describeRefusal,
   FULL_SUITE_STALE_MS,
+  inheritedReservation,
+  reservationEnv,
   resolveAdmission,
   resolveSuiteCapacity,
+  SUITE_RESERVATION_ENV,
 } from './suite-admission.js';
 import { defaultSleep } from './util/sleep.js';
 
-export { ADMISSION_REFUSED_EXIT_CODE };
+export { ADMISSION_REFUSED_EXIT_CODE, SUITE_RESERVATION_ENV };
 
 /** Environment escape hatch: set to `0`/`false`/`off`/`no` to disable. */
 export const FULL_SUITE_LOCK_ENV = 'MANDREL_FULL_SUITE_LOCK';
@@ -59,6 +63,7 @@ const LOCK_DEFAULTS = Object.freeze({
   pollMs: DEFAULT_POLL_MS,
   reportMs: DEFAULT_REPORT_MS,
   fsImpl: fs,
+  env: process.env,
   nowFn: Date.now,
   sleepFn: (ms) => defaultSleep(ms),
   acquireOnceFn: (opts) => acquireSweepLock(opts),
@@ -180,6 +185,7 @@ function consult(probe, applies) {
  * @param {{
  *   cwd: string,
  *   enabled?: boolean,
+ *   env?: Record<string, string|undefined>,
  *   log?: (m: string) => void,
  *   waitMs?: number,
  *   pollMs?: number,
@@ -196,20 +202,40 @@ function consult(probe, applies) {
  *   onLockProgress?: (progress: import('./full-suite-queue.js').LockProgress) => void,
  *   rerunCommand?: string,
  * }} opts A non-`undefined` `skipIfSatisfied` return stands in for the spawn.
- * @param {(timing: { lockWaitMs: number }) => Promise<T>} spawn
+ *   `env` naming a live holder in this lock home spawns at once, inside it.
+ * @param {(lock: { lockWaitMs: number, env: Record<string, string> }) => Promise<T>} spawn
+ *   `env` carries {@link SUITE_RESERVATION_ENV} for the child; merge it in.
  * @returns {Promise<T>}
  */
 export async function withFullSuiteLockAsync(options, spawn) {
   const opts = withDefaults(options);
   if (isRefused(opts)) return refuse(opts);
+  const inherited = inheritedMarker(opts);
+  return inherited === null
+    ? lockAndSpawn(opts, spawn)
+    : spawnInside(opts, inherited, spawn);
+}
+
+async function lockAndSpawn(opts, spawn) {
   const begun = beginLock(opts);
   try {
     const wait = await awaitTurn(opts, begun);
     reportOutcome(opts.onLockOutcome, wait);
-    return await spawnOrStandIn(opts, wait, spawn);
+    return await spawnOrStandIn(opts, wait, spawn, begun.attempt);
   } finally {
     begun.attempt?.release();
   }
+}
+
+function inheritedMarker(opts) {
+  return inheritedReservation({ ...opts, lockHomeFn: () => lockHome(opts) });
+}
+
+function spawnInside(opts, marker, spawn) {
+  opts.log(
+    `${LOCK_TAG} ↪ already admitted under ${path.basename(marker)} — spawning inside it.`,
+  );
+  return spawn({ lockWaitMs: 0, env: reservationEnv(marker) });
 }
 
 function isRefused({ enabled, workload }) {
@@ -253,7 +279,7 @@ function withDefaults(options) {
   return opts;
 }
 
-async function spawnOrStandIn(opts, wait, spawn) {
+async function spawnOrStandIn(opts, wait, spawn, attempt) {
   const probe = consult(opts.skipIfSatisfied, wait.waited);
   if (probe.satisfied) {
     opts.log(
@@ -263,13 +289,16 @@ async function spawnOrStandIn(opts, wait, spawn) {
   }
   return wait.expired
     ? opts.onWaitExpired(wait.holder)
-    : await timedSpawn(opts, wait, spawn);
+    : await timedSpawn(opts, wait, spawn, attempt);
 }
 
 /** Wait and execution reach progress as separate figures. */
-async function timedSpawn(opts, wait, spawn) {
+async function timedSpawn(opts, wait, spawn, attempt) {
   const startedAt = opts.nowFn();
-  const result = await spawn({ lockWaitMs: wait.waitedMs ?? 0 });
+  const result = await spawn({
+    lockWaitMs: wait.waitedMs ?? 0,
+    env: reservationEnv(attempt?.heldPath?.()),
+  });
   if (wait.waited) reportCompleted(opts, wait, opts.nowFn() - startedAt);
   return result;
 }
@@ -338,13 +367,47 @@ export function lockedCapture(
           env,
           coverageCaptureArgv(config, captureOpts),
         ),
+        env,
         ...lockOptions,
         cwd: captureOpts.cwd,
         log: captureOpts.log,
         skipIfSatisfied: freshnessProbe(captureOpts),
       },
-      ({ lockWaitMs }) => runCaptureFn({ ...captureOpts, lockWaitMs }),
+      captureInLock(runCaptureFn, captureOpts),
     );
+}
+
+/** The lock's marker joins the capture's own `env`, never replacing it. */
+function captureInLock(runCaptureFn, captureOpts) {
+  return ({ lockWaitMs, env }) =>
+    runCaptureFn({
+      ...captureOpts,
+      env: { ...captureOpts.env, ...env },
+      lockWaitMs,
+    });
+}
+
+/**
+ * The consumer entry point: admit `argv` exactly as an in-framework caller
+ * would, or — when `env` already names a live holder — run inside it.
+ * Resolves to `spawn`'s result, 75 on an expired wait, or 78 on a refusal.
+ *
+ * @template T
+ * @param {{ argv: string[], cwd: string,
+ *   env?: Record<string, string|undefined>, log?: (m: string) => void,
+ *   config?: object }} opts
+ * @param {(lock: { lockWaitMs: number, env: Record<string, string> }) => Promise<T>} spawn
+ * @returns {Promise<T|number>}
+ */
+export function withSuiteAdmission(
+  { argv, cwd, env = process.env, log, config },
+  spawn,
+) {
+  const resolved = config ?? resolveConfig({ cwd });
+  return withFullSuiteLockAsync(
+    { ...fullSuiteLockPolicy(resolved, env, argv), cwd, env, log },
+    spawn,
+  );
 }
 
 /**
