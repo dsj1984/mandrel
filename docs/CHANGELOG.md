@@ -15,6 +15,21 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.107.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.106.0...mandrel-v2.107.0) (2026-10-27)
+
+
+### Added
+
+* code review: consumer review guidance (REVIEW.md), bug-class findings with every instance, and no repeat findings ([#5920](https://github.com/dsj1984/mandrel/issues/5920)) ([#5925](https://github.com/dsj1984/mandrel/issues/5925)) ([120b8d3](https://github.com/dsj1984/mandrel/commit/120b8d3c88ba253550c7c5f1540643a6b51c10df))
+* held review: an independent fresh-context verifier confirms each CRITICAL before it can halt ([#5919](https://github.com/dsj1984/mandrel/issues/5919)) ([#5923](https://github.com/dsj1984/mandrel/issues/5923)) ([d58f454](https://github.com/dsj1984/mandrel/commit/d58f454f1fd16906d1e13c5e41c9f91056279f40))
+* review depth: let a consumer declare its own sensitive paths, merged over the shipped manifest ([#5917](https://github.com/dsj1984/mandrel/issues/5917)) ([#5922](https://github.com/dsj1984/mandrel/issues/5922)) ([ae22338](https://github.com/dsj1984/mandrel/commit/ae223384120ef4866716dec21bc08f5c8973974a))
+* review dispositions: record what happened to every Story-scope finding, with per-provider and per-severity rates ([#5918](https://github.com/dsj1984/mandrel/issues/5918)) ([#5926](https://github.com/dsj1984/mandrel/issues/5926)) ([9afe0d6](https://github.com/dsj1984/mandrel/commit/9afe0d65d01b7dc6fb4fee8add6a743dde1524aa))
+
+
+### Fixed
+
+* held review: &lt;callers&gt; symbol extraction reads code only, never prose in strings, comments or docs ([#5927](https://github.com/dsj1984/mandrel/issues/5927)) ([#5928](https://github.com/dsj1984/mandrel/issues/5928)) ([70ef990](https://github.com/dsj1984/mandrel/commit/70ef990dc3ba408db95e47f2ad45d5362d86ad1c))
+
 ## [2.106.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.105.0...mandrel-v2.106.0) (2026-10-26)
 
 
