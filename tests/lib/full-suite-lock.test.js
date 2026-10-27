@@ -1426,6 +1426,27 @@ describe('suite reservation marker (Story #5929)', () => {
     }
   });
 
+  it('a coverage capture under a live marker runs inside it', async () => {
+    const parent = await holdReservation();
+    try {
+      let captureEnv;
+      const code = await lockedCapture(
+        async (opts) => {
+          captureEnv = opts.env;
+          assert.equal(reservations().length, 1, 'no second reservation');
+          return 0;
+        },
+        config,
+        { [SUITE_RESERVATION_ENV]: parent.marker },
+        { lockPath, waitMs: 0 },
+      )({ cwd: dir });
+      assert.equal(code, 0);
+      assert.equal(captureEnv[SUITE_RESERVATION_ENV], parent.marker);
+    } finally {
+      parent.release();
+    }
+  });
+
   describe('a marker that is not a live holder in this lock home queues', () => {
     const deadPidBody = 'full-suite\n0\n999999999\n';
 
@@ -1538,6 +1559,35 @@ describe('suite reservation marker (Story #5929)', () => {
         assert.equal(fs.existsSync(lockPath), false);
       } finally {
         parent.release();
+      }
+    });
+
+    it('a dead-holder marker is ignored and the call queues', async () => {
+      const dead = path.join(
+        `${lockPath}.reservations`,
+        'w8~~999999999-dead.lock',
+      );
+      fs.mkdirSync(path.dirname(dead), { recursive: true });
+      fs.writeFileSync(dead, 'full-suite\n0\n999999999\n');
+      const a = await holdReservation();
+      const b = await holdReservation();
+      let spawns = 0;
+      try {
+        const code = await run(
+          {
+            env: { [SUITE_RESERVATION_ENV]: dead },
+            lockOptions: { lockPath, waitMs: 0 },
+          },
+          async () => {
+            spawns += 1;
+            return 0;
+          },
+        );
+        assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
+        assert.equal(spawns, 0);
+      } finally {
+        a.release();
+        b.release();
       }
     });
 
