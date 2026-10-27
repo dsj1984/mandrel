@@ -27,8 +27,16 @@ const DECLARATION_PATTERNS = Object.freeze([
 ]);
 const EXPORT_LIST = /\bexport\s*\{([^}]*)\}/g;
 const NEW_FILE_HEADER = /^\+\+\+ b\/(.+)$/;
+/** `+++ b/` follows `--- a/`, so a deletion keeps its old path. */
+const FILE_HEADER = /^(?:\+\+\+ b|--- a)\//;
 /** Comment prose ("the function returns…") declares nothing. */
 const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
+/** Docs and data hunks are prose: "the class or function…" declares nothing. */
+const PROSE_FILE =
+  /\.(?:md|mdx|markdown|txt|rst|json|jsonc|ya?ml|toml|lock|csv|html|svg)$/i;
+/** A string runs to its close quote, or to end of line when unclosed. */
+const STRING_LITERAL = /(['"`])(?:\\.|(?!\1)[^\\])*(?:\1|$)/g;
+const INLINE_COMMENT = /\/\*.*?\*\/|\/\/.*$/g;
 
 /** `export { A, B as C }` exports `A` and `C`. */
 function exportListNames(list) {
@@ -62,27 +70,39 @@ function scanDiff(diff) {
   const found = new Set();
   const files = [];
   let inHunk = false;
+  let prose = false;
   for (const line of diff.split('\n')) {
     if (line.startsWith('diff --git ')) {
       inHunk = false;
+      prose = false;
       continue;
     }
     if (!inHunk) {
       const header = NEW_FILE_HEADER.exec(line);
       if (header && !files.includes(header[1])) files.push(header[1]);
+      if (FILE_HEADER.test(line)) prose = PROSE_FILE.test(line);
       if (line.startsWith('@@')) inHunk = true;
       continue;
     }
+    if (prose) continue;
     for (const name of symbolsOnLine(changedCode(line))) found.add(name);
   }
   return { found, files };
 }
 
-/** The code of a `+`/`-` hunk line; `''` for context and comment-only lines. */
+/**
+ * The code of a `+`/`-` hunk line with strings blanked, then comments cut
+ * (that order keeps a `//` inside a URL string); `''` for context and
+ * comment-only lines.
+ */
 function changedCode(line) {
   const body = line.slice(1);
   if (!/^[+-]/.test(line) || COMMENT_LINE.test(body)) return '';
-  return body;
+  return withoutProse(body);
+}
+
+function withoutProse(code) {
+  return code.replace(STRING_LITERAL, "''").replace(INLINE_COMMENT, '');
 }
 
 /** Longest first: short names grep noisily. */

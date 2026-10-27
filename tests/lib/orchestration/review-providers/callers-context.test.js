@@ -185,3 +185,52 @@ test('a failed lookup is reported as unchecked, and no hits renders a placeholde
     'callers block incomplete; not checked: alpha (lookup failed)',
   );
 });
+
+const PROSE_DIFF = [
+  'diff --git a/src/rules.js b/src/rules.js',
+  '--- a/src/rules.js',
+  '+++ b/src/rules.js',
+  '@@ -0,0 +1,10 @@',
+  '+export const BUG_CLASS_RULE =',
+  '+  "Name each problem\'s bug class as a short kebab-case slug in `class`, " +',
+  "+  'and the function is pure';",
+  "+test('the prompt asks for a bug class and every instance', () => {});",
+  '+const msg = `a class or function rules`;',
+  "+export const URL_BASE = 'https://x.test/function nope';",
+  '+export function markRepeats() {}',
+  '+recordRun(); /* class the */ export class FindingLedger {}',
+  '+const n = 1; // the function returns early',
+  '+function findingId() {}',
+  'diff --git a/docs/review.md b/docs/review.md',
+  '--- a/docs/review.md',
+  '+++ b/docs/review.md',
+  '@@ -1 +1,2 @@',
+  '+list. Its stable id (class or category, first instance file, and for a',
+  '+the function is described as a review function rules',
+].join('\n');
+
+test('prose in strings, template literals, inline comments and docs hunks never yields a symbol', () => {
+  const { grepped } = run({ diff: PROSE_DIFF });
+  for (const word of ['and', 'as', 'is', 'or', 'rules', 'the', 'review']) {
+    assert.ok(!grepped.includes(word), `stop-word "${word}" was grepped`);
+  }
+  assert.deepEqual(grepped, [
+    'BUG_CLASS_RULE',
+    'FindingLedger',
+    'markRepeats',
+    'findingId',
+    'URL_BASE',
+  ]);
+});
+
+test('the symbol cap is spent on real identifiers and names only real ones as dropped', () => {
+  const { grepped, reason } = run({
+    diff: PROSE_DIFF,
+    caps: { ...CAPS, maxSymbols: 3 },
+  });
+  assert.deepEqual(grepped, ['BUG_CLASS_RULE', 'FindingLedger', 'markRepeats']);
+  assert.equal(
+    reason,
+    'callers block incomplete; not checked: findingId (symbol cap), URL_BASE (symbol cap)',
+  );
+});
