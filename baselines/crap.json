@@ -29282,6 +29282,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
+      "method": "withoutProse",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
       "method": "<anon callerGrepArgs/(file)#0>",
       "startLine": 105,
       "crap": 1,
