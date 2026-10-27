@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.108.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.107.0...mandrel-v2.108.0) (2026-10-27)
+
+
+### Added
+
+* mark admitted suite spawns and export a self-admitting wrapper so hand-run consumer scripts cannot bypass or double-book suite admission ([#5929](https://github.com/dsj1984/mandrel/issues/5929)) ([#5930](https://github.com/dsj1984/mandrel/issues/5930)) ([ed43efc](https://github.com/dsj1984/mandrel/commit/ed43efcc573ac2171f1c59654b2c58bd8059761c))
+
 ## [2.107.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.106.0...mandrel-v2.107.0) (2026-10-27)
 
 
