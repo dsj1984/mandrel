@@ -1386,21 +1386,25 @@ describe('suite reservation marker (Story #5929)', () => {
     );
     assert.equal(suiteEnv[SUITE_RESERVATION_ENV], lockPath);
 
+    // The child prints the value: on Windows the gate spawns through cmd,
+    // which mangles a quoted path inlined into an `-e` script.
+    const gateLines = [];
     const result = await defaultGateRunner(
       process.execPath,
-      [
-        '-e',
-        `process.exit(process.env.${SUITE_RESERVATION_ENV} === ${JSON.stringify(lockPath)} ? 0 : 3)`,
-      ],
+      ['-e', `console.log(process.env.${SUITE_RESERVATION_ENV})`],
       {
         cwd: dir,
         gateName: 'test',
-        log: () => {},
+        log: (m) => gateLines.push(m),
         fullSuiteLock: true,
         lockOptions: { lockPath },
       },
     );
     assert.deepEqual(result, { status: 0 });
+    assert.ok(
+      gateLines.includes(`[test] ${lockPath}`),
+      `the gate child printed ${JSON.stringify(gateLines)}`,
+    );
   });
 
   it('a nested call under a live marker spawns without a second reservation', async () => {
