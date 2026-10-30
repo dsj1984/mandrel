@@ -1036,9 +1036,9 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
-      "lines": 91.28,
-      "branches": 92.11,
-      "functions": 81.25
+      "lines": 93.81,
+      "branches": 92.86,
+      "functions": 87.5
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/advisories.js",
@@ -2139,6 +2139,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "lines": 98.67,
+      "branches": 92.31,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/handoff-state.js",
       "lines": 100,
       "branches": 100,
@@ -2902,9 +2908,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 97.63,
-      "branches": 83.26,
-      "functions": 97.67
+      "lines": 97.71,
+      "branches": 85.94,
+      "functions": 97.87
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",

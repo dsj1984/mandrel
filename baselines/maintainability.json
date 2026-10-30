@@ -1411,6 +1411,10 @@
       "mi": 95.98
     },
     {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "mi": 101.57
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/handoff-state.js",
       "mi": 115.924
     },
