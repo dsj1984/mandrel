@@ -798,6 +798,17 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
     assert.equal(h.blocks.length, 0);
   });
 
+  test('an unclassified merge failure is fix-required with its stderr', async () => {
+    const h = harness({
+      sync: { synced: false, kind: 'merge-failed', stderr: 'boom ' },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'base-merge');
+    assert.equal(envelope.steps.at(-1).detail, 'merge failed: boom');
+    assert.deepEqual(spawned(h.runCommand), []);
+  });
+
   // Story #5520 AC-2 — the shared sync resolved a baseline-only conflict, so
   // the handoff proceeds and names what it took from the base.
   test('a baseline-only conflict the sync resolved proceeds and is named', async () => {
