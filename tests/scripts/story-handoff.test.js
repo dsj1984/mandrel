@@ -1863,6 +1863,18 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     assert.equal(callFor(h, 'format').args.at(-1), 'a.css');
   });
 
+  test('AC-2: a format scope that cannot resolve is fix-required before any spawn', async () => {
+    const h = harness();
+    h.deps.scopeGate = () => {
+      throw new Error('bad ref');
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.match(envelope.steps.at(-1).detail, /lint\/format gates: bad ref/);
+    assert.deepEqual(spawned(h.runCommand), []);
+  });
+
   test('AC-3: a baselines-only seat commit carries the lint credit to the seated head', async () => {
     const h = harness({
       outputs: {
