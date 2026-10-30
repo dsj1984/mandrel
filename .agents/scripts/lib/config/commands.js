@@ -1,6 +1,7 @@
 /**
  * `project.commands.*` tri-state: absent → default; own-present `null` →
  * disabled (optional gates only); string → that command. Anything else throws.
+ * A no-default key (`testChanged`) resolves absent the same as `null`.
  */
 
 import { isObject } from '../json-utils.js';
@@ -14,11 +15,18 @@ export const COMMANDS_DEFAULTS = Object.freeze({
   formatWrite: 'npx biome format --write .',
 });
 
+/** Every known key's absent value — a default, or `null` (disabled, no argv). */
+const ABSENT_COMMANDS = Object.freeze({
+  ...COMMANDS_DEFAULTS,
+  testChanged: null,
+});
+
 /** The gates an explicit `null` disables. */
 const OPTIONAL_COMMAND_KEYS = Object.freeze([
   'typecheck',
   'lint',
   'formatCheck',
+  'testChanged',
 ]);
 
 /** @param {string} raw */
@@ -54,6 +62,17 @@ function disabledCommand(key) {
   return { argv: [], raw: null, disabled: true, source: 'disabled' };
 }
 
+/** @param {object} commands @param {string} key */
+function isUnset(commands, key) {
+  return !Object.hasOwn(commands, key) || commands[key] === undefined;
+}
+
+/** @param {string} key */
+function absentCommand(key) {
+  const fallback = ABSENT_COMMANDS[key];
+  return fallback ? enabled(fallback, 'default') : disabledCommand(key);
+}
+
 /** @param {string} key @param {unknown} value */
 function configuredCommand(key, value) {
   const raw = typeof value === 'string' ? value.trim() : '';
@@ -65,22 +84,20 @@ function configuredCommand(key, value) {
 
 /** @param {string} key */
 function assertKnownKey(key) {
-  if (!Object.hasOwn(COMMANDS_DEFAULTS, key)) {
+  if (!Object.hasOwn(ABSENT_COMMANDS, key)) {
     throw configError(`.${key} is not a known command`);
   }
 }
 
 /**
  * @param {object|null|undefined} config
- * @param {keyof typeof COMMANDS_DEFAULTS} key
+ * @param {keyof typeof COMMANDS_DEFAULTS | 'testChanged'} key
  * @returns {{ argv: string[], raw: string|null, disabled: boolean, source: 'default'|'disabled'|'config' }}
  */
 export function resolveProjectCommand(config, key) {
   assertKnownKey(key);
   const commands = commandsBlock(config);
-  if (!Object.hasOwn(commands, key) || commands[key] === undefined) {
-    return enabled(COMMANDS_DEFAULTS[key], 'default');
-  }
+  if (isUnset(commands, key)) return absentCommand(key);
   return commands[key] === null
     ? disabledCommand(key)
     : configuredCommand(key, commands[key]);
@@ -89,7 +106,7 @@ export function resolveProjectCommand(config, key) {
 /** Projection over {@link resolveProjectCommand}; a disabled gate keeps `null`. */
 export function getCommands(config) {
   return Object.fromEntries(
-    Object.keys(COMMANDS_DEFAULTS).map((key) => [
+    Object.keys(ABSENT_COMMANDS).map((key) => [
       key,
       resolveProjectCommand(config, key).raw,
     ]),
