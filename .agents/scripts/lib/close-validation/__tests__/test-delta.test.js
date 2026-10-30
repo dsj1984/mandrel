@@ -5,7 +5,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { Volume } from 'memfs';
 
 import { resolveConfig } from '../../config-resolver.js';
 import { applyTestDelta } from '../test-delta.js';
@@ -15,19 +14,20 @@ const SINCE = 'c'.repeat(40);
 const TEST_CHANGED = 'pnpm vitest run --changed $MANDREL_CHANGED_SINCE';
 const FULL_TEST = Object.freeze({ name: 'test', cmd: 'npm', args: ['test'] });
 
+/** Resolve a fixture `.agentrc.json` held in an in-memory fs (only the two calls the resolver makes). */
 function loadConfig(commands) {
-  const vol = new Volume();
-  vol.mkdirSync(ROOT, { recursive: true });
-  vol.writeFileSync(
-    path.join(ROOT, '.agentrc.json'),
-    JSON.stringify({
-      project: {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        ...(commands ? { commands } : {}),
-      },
-    }),
-  );
-  return resolveConfig({ cwd: ROOT, ctx: { fs: vol } });
+  const agentrc = path.join(ROOT, '.agentrc.json');
+  const body = JSON.stringify({
+    project: {
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+      ...(commands ? { commands } : {}),
+    },
+  });
+  const fs = {
+    existsSync: (p) => p === agentrc,
+    readFileSync: () => body,
+  };
+  return resolveConfig({ cwd: ROOT, ctx: { fs } });
 }
 
 function planTestGate(config) {
