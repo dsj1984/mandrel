@@ -1,8 +1,8 @@
 // tests/scripts/story-handoff.test.js
 //
 // Story #5518 — the story-worker's tail is one deterministic command. The
-// engine runs preflight → base merge → credited run → seat → push → held
-// review, prints one envelope, hands fixable failures back as
+// engine runs base merge → preflight → credited run → seat → post-capture →
+// push → held review, prints one envelope, hands fixable failures back as
 // `fix-required` (exit 2) and blocks (exit 1) only on what the worker cannot
 // change by editing the branch. Every seam is injected: no real git, suite or
 // provider runs here.
@@ -26,9 +26,17 @@ import {
   buildDefaultGates,
   resolveCreditedDepositor,
 } from '../../.agents/scripts/lib/close-validation/gates.js';
+import {
+  applyChangedFileScope,
+  runCloseValidation,
+} from '../../.agents/scripts/lib/close-validation/runner.js';
 import { withFullSuiteLockAsync } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { runStoryHandoff } from '../../.agents/scripts/lib/orchestration/story-handoff.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import {
+  hashCommandConfig,
+  shouldSkip,
+} from '../../.agents/scripts/lib/validation-evidence.js';
 import { runStoryHandoffCli } from '../../.agents/scripts/story-handoff.js';
 
 const CLI = path.join(
@@ -105,10 +113,31 @@ function gitWorld({
  * A child-process double keyed on the script (or binary) each step spawns.
  * `outputs[key]` is `{ status, stdout }`; the default is a clean pass.
  */
+function commandKey(cmd, args) {
+  if (cmd !== 'node') return cmd;
+  const script = path.basename(args[0]);
+  // A non-`test` evidence-gate deposit is keyed by its gate (`lint`, `format`).
+  const at = args.indexOf('--gate');
+  const gate = at === -1 ? null : args[at + 1];
+  if (script === 'evidence-gate.js' && gate !== 'test') return gate;
+  if (script === 'quality-preview.js' && args.includes('crap')) {
+    return 'quality-preview.js --only crap';
+  }
+  if (script === 'check-baselines.js')
+    return gate ? `${script} ${gate}` : script;
+  return `${script}${args.includes('--production') ? ' --production' : ''}`;
+}
+
+/** Format is scoped out unless a test opts in; lint passes through. */
+const scopeOutFormat = ({ gate }) =>
+  gate.skip || gate.changedFileScope
+    ? { gate, skip: true }
+    : { gate, cmd: gate.cmd, args: gate.args, skip: false };
+
 function commandDouble(world, outputs = {}) {
   const calls = [];
   const defaults = {
-    npm: { status: 0, stdout: 'lint clean' },
+    lint: { status: 0, stdout: 'lint clean' },
     'quality-preview.js': { status: 0, stdout: 'preview clean' },
     'coverage-capture.js': {
       status: 0,
@@ -120,8 +149,7 @@ function commandDouble(world, outputs = {}) {
     git: { status: 0, stdout: '' },
   };
   const run = async (cmd, args, opts) => {
-    const production = args.includes('--production') ? ' --production' : '';
-    const key = cmd === 'node' ? `${path.basename(args[0])}${production}` : cmd;
+    const key = commandKey(cmd, args);
     calls.push({ key, cmd, args, opts });
     const out = outputs[key] ?? defaults[key] ?? { status: 0, stdout: '' };
     if (key === 'git' && out.status === 0) world.remote = world.head;
@@ -168,6 +196,9 @@ function harness({
     },
     logDir: path.join(tempRoot, 'orchestration'),
     now: () => 0,
+    evidenceCwd: tempRoot,
+    scopeGate: scopeOutFormat,
+    presentBaselines: [],
   };
   const run = () => runStoryHandoff({ storyId: STORY, cwd, config }, deps);
   return { run, runCommand, blocks, reviews, world, deps };
@@ -183,10 +214,11 @@ describe('story-handoff — the happy path (AC-1)', () => {
     assert.equal(exitCode, 0);
     assert.equal(envelope.status, 'ready');
     assert.deepEqual(stepNames(envelope), [
-      'preflight',
       'base-merge',
+      'preflight',
       'credited-run',
       'seat',
+      'post-capture',
       'push',
       'review',
     ]);
@@ -199,11 +231,13 @@ describe('story-handoff — the happy path (AC-1)', () => {
       suggestion: 2,
     });
     assert.deepEqual(spawned(h.runCommand), [
-      'npm',
+      'lint',
       'quality-preview.js',
       'coverage-capture.js',
       'update-crap-baseline.js',
       'update-maintainability-baseline.js',
+      'quality-preview.js --only crap',
+      'check-baselines.js',
       'git',
     ]);
     assert.equal(h.reviews.length, 1, 'the held review is computed once');
@@ -402,11 +436,11 @@ describe('story-handoff — the preflight runs the standalone ratchets (#5528)',
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 0);
     assert.deepEqual(spawned(h.runCommand).slice(0, 6), [
-      'npm',
+      'lint',
       'quality-preview.js',
       ...Object.keys(RATCHET_BASELINES),
     ]);
-    assert.match(envelope.steps[0].detail, /dead-exports-production/);
+    assert.match(envelope.steps[1].detail, /dead-exports-production/);
   });
 
   test('a test-only export ends fix-required at preflight with the production evidence, before the suite or the push (AC-1)', async () => {
@@ -680,7 +714,7 @@ describe('story-handoff — idempotent re-run (AC-3)', () => {
 
 describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
   const cases = [
-    ['a lint finding', { outputs: { npm: { status: 1 } } }, 'preflight'],
+    ['a lint finding', { outputs: { lint: { status: 1 } } }, 'preflight'],
     [
       'a quality-preview finding',
       { outputs: { 'quality-preview.js': { status: 1 } } },
@@ -759,7 +793,20 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'base-merge');
     assert.deepEqual(envelope.conflictFiles, ['a.js', 'b.md']);
+    assert.deepEqual(stepNames(envelope), ['base-merge']);
+    assert.deepEqual(spawned(h.runCommand), [], 'no preflight check spawns');
     assert.equal(h.blocks.length, 0);
+  });
+
+  test('an unclassified merge failure is fix-required with its stderr', async () => {
+    const h = harness({
+      sync: { synced: false, kind: 'merge-failed', stderr: 'boom ' },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'base-merge');
+    assert.equal(envelope.steps.at(-1).detail, 'merge failed: boom');
+    assert.deepEqual(spawned(h.runCommand), []);
   });
 
   // Story #5520 AC-2 — the shared sync resolved a baseline-only conflict, so
@@ -945,7 +992,7 @@ describe('story-handoff — the default block writes the label and the friction 
 
   test('a fix-required settle writes no label and no comment', async () => {
     const touched = [];
-    const h = harness({ outputs: { npm: { status: 1 } } });
+    const h = harness({ outputs: { lint: { status: 1 } } });
     delete h.deps.block;
     h.deps.createProviderFn = () => {
       touched.push('provider');
@@ -1673,10 +1720,11 @@ describe('story-handoff — the review runs beside the credited run (Story #5905
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'review');
     assert.deepEqual(stepNames(envelope), [
-      'preflight',
       'base-merge',
+      'preflight',
       'credited-run',
       'seat',
+      'post-capture',
       'push',
       'review',
     ]);
@@ -1713,5 +1761,272 @@ describe('story-handoff — the review runs beside the credited run (Story #5905
     assert.equal(envelope.failedStep, 'credited-run');
     assert.equal(settled, true);
     assert.equal(envelope.steps.at(-1).name, 'credited-run');
+  });
+});
+
+describe('story-handoff — close-identity deposits and post-capture scoring (Story #5937)', () => {
+  const lintHash = hashCommandConfig({
+    cmd: 'npm',
+    args: ['run', 'lint'],
+    cwd: '/work',
+  });
+  const callFor = (h, key) => h.runCommand.calls.find((c) => c.key === key);
+  const evidenceSkip = (gateName, sha, configHash) =>
+    shouldSkip(
+      { storyId: STORY, gateName, currentSha: sha, configHash },
+      { cwd: tempRoot, standalone: true },
+    );
+  const readState = () =>
+    JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+
+  test('AC-2: lint deposits through evidence-gate with close lint argv and command hash', async () => {
+    const h = harness();
+    await h.run();
+    const lint = callFor(h, 'lint');
+    const closeLint = buildDefaultGates({
+      config: configFor(),
+      baseBranch: 'main',
+      cwd: '/work',
+      packageScripts: CAPTURE_SCRIPTS,
+    }).find((g) => g.name === 'lint');
+    assert.deepEqual(lint.args.slice(1), [
+      '--standalone',
+      '--scope-id',
+      String(STORY),
+      '--gate',
+      'lint',
+      '--worktree',
+      '/work',
+      '--cwd',
+      tempRoot,
+      '--',
+      closeLint.cmd,
+      ...closeLint.args,
+    ]);
+    assert.deepEqual(readState().lintCredit, {
+      head: HEAD,
+      configHash: lintHash,
+    });
+  });
+
+  test('AC-2: format deposits the argv close executes after its own scoping', async () => {
+    const config = configFor({
+      project: {
+        baseBranch: 'main',
+        paths: { tempRoot },
+        commands: { formatCheck: 'npx prettier --check .' },
+      },
+    });
+    const h = harness({ config });
+    h.deps.scopeGate = applyChangedFileScope;
+    await h.run();
+    const format = callFor(h, 'format');
+    assert.deepEqual(format.args.slice(-5), [
+      '--',
+      'npx',
+      'prettier',
+      '--check',
+      '.',
+    ]);
+  });
+
+  test('AC-2: a disabled or scoped-out format deposits nothing', async () => {
+    const disabled = harness({
+      config: configFor({
+        project: {
+          baseBranch: 'main',
+          paths: { tempRoot },
+          commands: { formatCheck: null },
+        },
+      }),
+    });
+    disabled.deps.scopeGate = applyChangedFileScope;
+    await disabled.run();
+    assert.ok(!spawned(disabled.runCommand).includes('format'));
+    const scopedOut = harness();
+    await scopedOut.run();
+    assert.ok(!spawned(scopedOut.runCommand).includes('format'));
+  });
+
+  test('AC-2: biome processing zero scoped files is clean, as close treats it', async () => {
+    const h = harness({
+      outputs: {
+        format: {
+          status: 1,
+          stdout: 'No files were processed in the specified paths',
+        },
+      },
+    });
+    h.deps.scopeGate = ({ gate }) => ({
+      gate,
+      cmd: gate.cmd,
+      args: [...gate.args.slice(0, -1), 'a.css'],
+      skip: Boolean(gate.skip),
+      tolerateNoFilesProcessed: gate.name === 'format',
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.equal(callFor(h, 'format').args.at(-1), 'a.css');
+  });
+
+  test('AC-2: a format scope that cannot resolve is fix-required before any spawn', async () => {
+    const h = harness();
+    h.deps.scopeGate = () => {
+      throw new Error('bad ref');
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.match(envelope.steps.at(-1).detail, /lint\/format gates: bad ref/);
+    assert.deepEqual(spawned(h.runCommand), []);
+  });
+
+  test('AC-3: a baselines-only seat commit carries the lint credit to the seated head', async () => {
+    const h = harness({
+      outputs: {
+        'update-crap-baseline.js': { status: 0, stdout: 'seated: 2' },
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.headSha, SEATED_HEAD);
+    const lintGate = buildDefaultGates({
+      config: configFor(),
+      baseBranch: 'main',
+      cwd: '/work',
+      packageScripts: CAPTURE_SCRIPTS,
+    }).find((g) => g.name === 'lint');
+    const close = await runCloseValidation({
+      cwd: tempRoot,
+      worktreePath: '/work',
+      gates: [lintGate],
+      storyId: STORY,
+      standalone: true,
+      getHeadSha: () => SEATED_HEAD,
+      getTreeFingerprint: () => null,
+      runner: () => assert.fail('close must not re-run lint'),
+      runProjections: async () => {},
+    });
+    assert.deepEqual(
+      close.skipped.map((x) => [x.gate.name, x.reason]),
+      [['lint', 'evidence-match']],
+    );
+    assert.equal(evidenceSkip('format', SEATED_HEAD, lintHash).skip, false);
+  });
+
+  test('AC-3: a seat commit touching anything outside baselines/ carries nothing', async () => {
+    const h = harness({
+      outputs: {
+        'update-crap-baseline.js': { status: 0, stdout: 'seated: 2' },
+      },
+    });
+    const run = h.deps.runCommand;
+    h.deps.runCommand = async (cmd, args, opts) => {
+      const res = await run(cmd, args, opts);
+      if (h.world.dirty.length > 0) h.world.dirty.push('src/a.js');
+      return res;
+    };
+    await h.run();
+    assert.equal(evidenceSkip('lint', SEATED_HEAD, lintHash).skip, false);
+  });
+
+  test('AC-4: a CRAP regression in the fresh capture is fix-required and pushes nothing', async () => {
+    const h = harness({
+      outputs: { 'quality-preview.js --only crap': { status: 1 } },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'post-capture');
+    assert.match(envelope.steps.at(-1).detail, /quality-preview-crap/);
+    assert.ok(envelope.evidencePath);
+    assert.ok(!spawned(h.runCommand).includes('git'), 'nothing was pushed');
+    assert.equal(h.blocks.length, 0);
+    const preview = callFor(h, 'quality-preview.js --only crap');
+    assert.deepEqual(preview.args, [
+      '.agents/scripts/quality-preview.js',
+      '--only',
+      'crap',
+      '--changed-since',
+      'origin/main',
+    ]);
+  });
+
+  const baselinesConfig = () =>
+    configFor({
+      delivery: {
+        quality: {
+          gates: {
+            maintainability: { enabled: true },
+            crap: { enabled: true },
+          },
+        },
+      },
+    });
+
+  for (const [gate, kind] of [
+    ['check-baselines-independent', 'maintainability'],
+    ['check-baselines-coverage', 'crap'],
+  ]) {
+    test(`AC-5: a ${kind} baselines breach names ${gate} and pushes nothing`, async () => {
+      const h = harness({
+        config: baselinesConfig(),
+        outputs: { [`check-baselines.js ${kind}`]: { status: 1 } },
+      });
+      h.deps.presentBaselines = ['maintainability', 'crap'];
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 2);
+      assert.equal(envelope.failedStep, 'post-capture');
+      const detail = envelope.steps.at(-1).detail;
+      assert.match(detail, new RegExp(`${gate} \\(kinds: ${kind}\\)`));
+      assert.ok(!spawned(h.runCommand).includes('git'));
+    });
+  }
+
+  test('AC-6: post-capture runs once after depositor and seat, lock-free, and skips at an unchanged head', async () => {
+    const h = harness({ config: baselinesConfig() });
+    h.deps.presentBaselines = ['maintainability', 'crap'];
+    const { envelope } = await h.run();
+    const post = envelope.steps.find((s) => s.name === 'post-capture');
+    assert.equal(post.outcome, 'ran');
+    const keys = spawned(h.runCommand);
+    assert.deepEqual(
+      keys.slice(keys.indexOf('update-maintainability-baseline.js') + 1),
+      [
+        'quality-preview.js --only crap',
+        'check-baselines.js maintainability',
+        'check-baselines.js crap',
+        'git',
+      ],
+    );
+    const baselines = callFor(h, 'check-baselines.js crap');
+    assert.equal(baselines.opts.env.BASELINE_REF, 'origin/main');
+    for (const call of h.runCommand.calls.slice(-4, -1)) {
+      assert.ok(
+        !Object.keys(call.opts.env).some((k) => /LOCK_EVENT/.test(k)),
+        'no lock-event channel reaches a post-capture child',
+      );
+    }
+    h.runCommand.calls.length = 0;
+    const again = await h.run();
+    const rerun = again.envelope.steps.find((s) => s.name === 'post-capture');
+    assert.equal(rerun.outcome, 'skipped');
+    assert.ok(
+      !spawned(h.runCommand).includes('quality-preview.js --only crap'),
+    );
+  });
+
+  test('AC-7: without a coverage capture no post-capture CRAP runs, but baselines still do', async () => {
+    const h = harness({ scripts: { test: 'x' }, config: baselinesConfig() });
+    h.deps.presentBaselines = ['maintainability', 'crap'];
+    const { envelope } = await h.run();
+    assert.equal(envelope.depositor, 'test');
+    const keys = spawned(h.runCommand);
+    assert.ok(!keys.includes('quality-preview.js --only crap'));
+    assert.ok(keys.includes('check-baselines.js maintainability'));
+    assert.ok(keys.includes('check-baselines.js crap'));
   });
 });

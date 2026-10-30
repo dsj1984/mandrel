@@ -63,7 +63,7 @@ function reportGateExit({ gate, status, cwd, log }) {
   return { gate, status, cwd, outcome: 'failed' };
 }
 
-function applyChangedFileScope({ gate, spawnCwd, log }) {
+export function applyChangedFileScope({ gate, spawnCwd, log }) {
   // A skip decided when the gate list was built wins over everything.
   if (gate.skip) {
     log(`[close-validation] ⏭ ${gate.name} skipped (${gate.skip.reason})`);

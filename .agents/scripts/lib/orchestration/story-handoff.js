@@ -1,10 +1,11 @@
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail as one
- * deterministic sequence: blocking preflight (lint, quality-preview, baselined
- * ratchets) → base merge → the one credited run with the held review beside
- * it → baseline seating → push + remote-ref check → review awaited. It runs
- * exactly what deliver-digest § 5 and deliver-reference § Held review define,
- * changing nothing close credits or adopts, and settles one envelope:
+ * deterministic sequence: base merge → blocking preflight (lint and format
+ * deposited as close's credit, quality-preview, baselined ratchets) → the one
+ * credited run with the held review beside it → baseline seating → close's
+ * post-capture CRAP and baselines scoring → push + remote-ref check → review
+ * awaited. It runs exactly what deliver-digest § 5 and deliver-reference
+ * define, with close's own gate identities, and settles one envelope:
  *
  * - `ready` (exit 0) — hand off.
  * - `fix-required` (exit 2) — the worker can fix it by editing the branch;
@@ -27,14 +28,13 @@ import {
   createLockEventChannel,
   summarizeLockEvents,
 } from '../close-lock-events.js';
-import {
-  resolveGateCommand,
-  resolveTestGateArgv,
-} from '../close-validation/commands.js';
+import { resolveTestGateArgv } from '../close-validation/commands.js';
 import {
   isCrapGateEnabled,
   resolveCreditedDepositor,
 } from '../close-validation/gates.js';
+import { isBiomeNoFilesProcessed } from '../close-validation/process.js';
+import { applyChangedFileScope } from '../close-validation/runner.js';
 import {
   orchestrationLogDir,
   storyReviewDepositPath,
@@ -47,10 +47,17 @@ import { syncBranchFromBase } from '../git/sync-from-base.js';
 import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
+import { PROJECT_ROOT } from '../project-root.js';
 import { describeBlocking } from '../suite-admission.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
 import { defaultSleep } from '../util/sleep.js';
 import { runStreamed } from './evidence-stream.js';
+import {
+  carryLintCredit,
+  creditedPreflight,
+  lintCredit,
+  scorePostCapture,
+} from './handoff-gates.js';
 import { handoffStatePath } from './handoff-state.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
@@ -314,21 +321,11 @@ function describeSuiteFailure(status) {
 }
 
 /**
- * The lint preflight, absent when `project.commands.lint` is `null`.
- *
- * @param {object} config
- * @returns {Array<{ key: string, cmd: string, args: string[] }>}
- */
-function lintPreflight(config) {
-  const lint = resolveGateCommand(config, 'lint');
-  return lint.disabled ? [] : [{ key: 'lint', cmd: lint.cmd, args: lint.args }];
-}
-
-/**
- * Lint, quality-preview, then each ratchet whose baseline is committed.
+ * Lint and format (deposited), quality-preview, then each ratchet whose
+ * baseline is committed.
  *
  * @param {object} ctx
- * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean }>}
+ * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean, deposit?: object }>}
  */
 function preflightChecks(ctx) {
   const ratchets = RATCHETS.filter((r) =>
@@ -340,7 +337,7 @@ function preflightChecks(ctx) {
     gated: true,
   }));
   return [
-    ...lintPreflight(ctx.config),
+    ...creditedPreflight(ctx),
     {
       key: 'quality-preview',
       cmd: 'node',
@@ -364,6 +361,10 @@ function preflightChecks(ctx) {
 function preflightFinding(check, run) {
   const gateFailed = check.gated === true && SIGNALS.gateFail.test(run.output);
   if (run.status === 0 && !gateFailed) return null;
+  // Close downgrades biome's all-paths-ignored exit the same way.
+  if (check.tolerateNoFilesProcessed && isBiomeNoFilesProcessed(run.output)) {
+    return null;
+  }
   const offending = check.gated
     ? run.output
         .split(/\r?\n/)
@@ -383,7 +384,16 @@ async function stepPreflight(ctx) {
       `preflight already passed at ${ctx.head.slice(0, 12)}`,
     );
   }
-  const checks = preflightChecks(ctx);
+  ctx.state.lintCredit = null;
+  let checks;
+  try {
+    checks = preflightChecks(ctx);
+  } catch (err) {
+    return fixRequired(
+      name,
+      `could not resolve close's lint/format gates: ${err?.message ?? err}`,
+    );
+  }
   for (const check of checks) {
     const run = await runLogged(
       ctx,
@@ -395,6 +405,7 @@ async function stepPreflight(ctx) {
     if (finding) {
       return fixRequired(name, finding, { evidencePath: run.evidencePath });
     }
+    if (check.key === 'lint') ctx.state.lintCredit = lintCredit(ctx, check);
   }
   ctx.state.preflightHead = ctx.head;
   return ran(name, `${checks.map((c) => c.key).join(', ')} clean`);
@@ -575,13 +586,17 @@ async function commitSeatedRows(ctx, total, evidencePath) {
       { evidencePath: ctx.writeEvidence('seat-commit', detail) },
     );
   }
-  const creditedPrior = ctx.state.creditHead === ctx.head;
+  const priorHead = ctx.head;
+  const creditedPrior = ctx.state.creditHead === priorHead;
   ctx.head = headSha(ctx) ?? ctx.head;
   ctx.state.seatHead = ctx.head;
   // Both capture-stamp digests leave `baselines/` out, so a baseline-JSON-only
   // commit keeps the credit it already holds.
   if (creditedPrior && ctx.depositor === 'coverage-capture') {
     recordCredit(ctx, { ...ctx.state.creditTimings, head: ctx.head });
+  }
+  if (paths.every((p) => p.startsWith('baselines/'))) {
+    carryLintCredit(ctx, priorHead);
   }
   return ran(name, `seated ${total} row(s) and committed them`, {
     evidencePath,
@@ -839,7 +854,35 @@ function stepReview(ctx) {
 }
 
 /**
- * The run's step order. On the evidence-gate path the `test` credit is keyed
+ * Pure scoring after depositor and seat: no lock, no suite, no evidence, so
+ * close re-scores them and stays authoritative.
+ *
+ * @param {object} ctx @returns {Promise<StepResult>}
+ */
+async function stepPostCapture(ctx) {
+  const name = 'post-capture';
+  const { postCaptureHead, creditHead } = ctx.state;
+  if (postCaptureHead === ctx.head && creditHead === ctx.head) {
+    return skipped(name, `already clean at ${ctx.head.slice(0, 12)}`);
+  }
+  const { gates, failed } = await scorePostCapture(ctx, (...a) =>
+    runLogged(ctx, ...a),
+  );
+  if (failed) {
+    return fixRequired(name, failed.finding, {
+      evidencePath: failed.evidencePath,
+      gate: failed.gate,
+    });
+  }
+  ctx.state.postCaptureHead = ctx.head;
+  return gates.length > 0
+    ? ran(name, `${gates.map((g) => g.name).join(', ')} clean`)
+    : skipped(name, 'no post-capture gate registered');
+}
+
+/**
+ * The run's step order. The base merges first, so every check scores the
+ * tree that is pushed. On the evidence-gate path the `test` credit is keyed
  * on the tree, so seating (static MI) goes first and cannot void it; the
  * capture stamp's digests leave `baselines/` out, so a baseline seat after it
  * keeps the stamp fresh.
@@ -852,7 +895,14 @@ function stepOrder(depositor) {
     depositor === 'test'
       ? [stepSeat, stepCreditedRun]
       : [stepCreditedRun, stepSeat];
-  return [stepPreflight, stepBaseMerge, ...middle, stepPush, stepReview];
+  return [
+    stepBaseMerge,
+    stepPreflight,
+    ...middle,
+    stepPostCapture,
+    stepPush,
+    stepReview,
+  ];
 }
 
 /**
@@ -907,7 +957,7 @@ function precheck(ctx) {
  *
  * @param {string} statePath
  * @param {(tag: string, msg: string) => void} progress
- * @returns {{ preflightHead?: string, creditHead?: string, creditTimings?: object, seatHead?: string }}
+ * @returns {{ preflightHead?: string, lintCredit?: { head: string, configHash: string }|null, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string }}
  */
 function readState(statePath, progress) {
   let raw;
@@ -984,7 +1034,11 @@ async function defaultBlock({
  *   reraise?: (signal: string) => void,
  *   evidenceFs?: typeof fs,
  *   now?: () => number,
- * }} deps `runCommand` receives `onChunk`, `signal` and (when set)
+ *   evidenceCwd?: string,
+ *   scopeGate?: typeof applyChangedFileScope,
+ *   presentBaselines?: string[],
+ * }} deps `evidenceCwd` anchors close's evidence store (the main checkout);
+ *   `runCommand` receives `onChunk`, `signal` and (when set)
  *   `timeoutMs` beside `cwd`/`env`; a runner that never calls `onChunk`
  *   still gets its whole output written at settle.
  * @returns {Promise<{ envelope: object, exitCode: number }>}
@@ -1011,6 +1065,9 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     reraise,
     evidenceFs,
     now = Date.now,
+    evidenceCwd = PROJECT_ROOT,
+    scopeGate = applyChangedFileScope,
+    presentBaselines,
   } = deps;
   const block =
     deps.block ??
@@ -1047,17 +1104,16 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     lockPollMs,
     env,
     now,
+    evidenceCwd,
+    scopeGate,
+    presentBaselines,
+    getChangedFilesFn,
     state: readState(statePath, progress),
     review: null,
     reviewPending: null,
     reviewMs: null,
     reviewPath: storyReviewDepositPath(storyId, config),
-    depositor: selectCreditedDepositor({
-      config,
-      scripts: readPackageScriptsFn(cwd),
-      cwd,
-      getChangedFilesImpl: getChangedFilesFn,
-    }),
+    scripts: readPackageScriptsFn(cwd),
     storyProgress,
     // Undefined fields take runStreamed's defaults.
     stream: {
@@ -1074,6 +1130,12 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
       return file;
     },
   };
+  ctx.depositor = selectCreditedDepositor({
+    config,
+    scripts: ctx.scripts,
+    cwd,
+    getChangedFilesImpl: getChangedFilesFn,
+  });
   ctx.head = headSha(ctx);
 
   const steps = [];

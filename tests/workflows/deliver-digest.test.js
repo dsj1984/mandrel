@@ -320,12 +320,18 @@ describe('deliver-digest § 5 — the one credited run (#5174, #5313, #5324)', (
   // gates; when that merge moves the tree, both the worker's test credit and
   // the push's coverage stamp go stale and close re-runs the whole suite.
   // Merging first makes that sync a no-op.
-  it('merges the base into the Story branch ahead of the credited run and the push', () => {
+  // Since the base merge runs ahead of the preflight too.
+  it('merges the base into the Story branch ahead of every check', () => {
     const doc = digest();
     assertDocMentions(
       doc,
-      /merge\s+`origin\/<baseBranch>` into the Story branch \*\*first\*\*, ahead of this run and\s+the push/,
-      'the digest must bring the branch level with the base before the credited run',
+      /merge\s+`origin\/<baseBranch>` into the Story branch\s+\*\*first\*\*, ahead of every check/,
+      'the digest must bring the branch level with the base before any check',
+    );
+    assertDocMentions(
+      doc,
+      /post-capture checks: close's `quality-preview-crap` and `check-baselines`/,
+      'the digest must name the post-capture checks after the seat',
     );
     assertDocMentions(
       doc,

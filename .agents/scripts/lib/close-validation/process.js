@@ -70,7 +70,7 @@ const MARKER_PROBE_TAIL_LINES = 32;
  * @param {string} output - Combined stdout/stderr.
  * @returns {boolean}
  */
-function isBiomeNoFilesProcessed(output) {
+export function isBiomeNoFilesProcessed(output) {
   return (
     typeof output === 'string' && output.includes(BIOME_NO_FILES_PROCESSED)
   );

@@ -129,9 +129,9 @@ the authoritative gate — do not pre-run it. Your whole tail is one command:
 
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
-It runs the blocking preflight, the base merge, the one credited run, the
-`--seat-missing` seat, the push with its remote-ref check, and the held
-review, then prints one envelope (what each step runs:
+It runs the base merge, the blocking preflight, the one credited run, the
+`--seat-missing` seat, the post-capture checks, the push with its remote-ref
+check, and the held review, then prints one envelope (what each step runs:
 [`deliver-digest.md`](../workflows/helpers/deliver-digest.md) § 5).
 `ready` → return. `fix-required` (exit 2) → fix the cause it names, commit,
 re-run it; the same cause surviving the same fix twice is your blocked path.

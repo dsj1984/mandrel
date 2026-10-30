@@ -367,15 +367,26 @@ sibling to unblock, and the foreground wait is the cheapest path to `landed`.
 
 ## Preflight (before close) {#preflight}
 
-Digest § 5 states the rule: `story-handoff.js` runs, before the credited
-suite run, the configured `project.commands.lint` (falling back to
-`npm run lint`), `quality-preview.js --changed-since origin/<baseBranch>`,
-then the shipped standalone ratchets CI's `baselines` job runs —
-`check-dead-exports.js` (default and `--production`), `check-arch-cycles.js`
-and `check-cyclomatic.js` — in the worktree; a finding is `fix-required` —
-fix, commit, re-run it. It runs **before** the credited run because a
-fix commit afterwards would void that run's credit.
+Digest § 5 states the rule: `story-handoff.js` runs, after the base merge
+and before the credited suite run, close's own `lint` and `format` gates,
+`quality-preview.js --changed-since origin/<baseBranch>`, then the shipped
+standalone ratchets CI's `baselines` job runs — `check-dead-exports.js`
+(default and `--production`), `check-arch-cycles.js` and
+`check-cyclomatic.js` — in the worktree; a finding is `fix-required` — fix,
+commit, re-run it. It runs **before** the credited run because a fix commit
+afterwards would void that run's credit.
 
+- **Lint and format are close's credit.** The handoff takes both entries from
+  close's `buildDefaultGates` (same config, base branch, worktree and
+  evidence root) and runs them through `evidence-gate.js --standalone
+  --gate <name>`, so the pass lands in close's evidence store keyed to the
+  post-merge HEAD and tree, with close's command hash. `format` runs the argv
+  close's runner scopes to the changed files, and deposits nothing when that
+  scoping skips it or `project.commands.formatCheck` is `null`. Close on the
+  handed-off HEAD skips both as `evidence-match`. A baselines-only seat commit
+  re-keys the `lint` record to the seated HEAD; `format` is not carried (its
+  argv names the changed files). Any other commit, or a close-time base move,
+  re-runs them.
 - **Why.** Close runs lint and the maintainability half of the preview
   (`quality-preview-mi`) in its parallel phase, but a regression found there
   still costs a close round-trip. Seconds of preflight in the worktree is
@@ -391,6 +402,7 @@ fix commit afterwards would void that run's credit.
   rows. Close does not run them — CI stays their backstop.
 - **Close stays authoritative.** Its `quality-preview-crap` gate scores a
   fresh capture after `coverage-capture`; a preflight pass never skips it.
+  The handoff's post-capture step (§ Credited run) runs that gate early too.
 
 ## Credited run (situational) {#credited-run}
 
@@ -437,6 +449,15 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   over the in-scope files is exactly 100% — a lower rate means the artifact's
   coordinates predate the tree. The refusal names the rate, the unresolved
   files and the fix: re-run the digest § 5 capture, then seat.
+- **Post-capture checks.** After depositor and seat, the handoff runs close's
+  `quality-preview-crap` entry — only when the depositor is
+  `coverage-capture`, so a project with no capture keeps its CRAP behaviour —
+  and every registered `check-baselines` entry (`single`, or `independent`
+  plus `coverage`), each with close's argv and env (`BASELINE_REF`). A
+  non-zero exit is `fix-required` naming the gate and its kinds, with the log
+  as evidence; nothing is pushed. They are pure scoring: no lock, no suite,
+  no evidence, so close re-scores them. A re-run at a credited, unchanged
+  HEAD skips them.
 - **Seat order vs credit.** Neither capture-stamp digest reads
   `baselines/`, so a baseline-JSON-only seat commit leaves it fresh and the
   capture credit stands. The evidence-gate `test` credit is keyed on the tree, so on that

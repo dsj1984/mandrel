@@ -113,12 +113,11 @@ or an unregistered merge driver: it flips `agent::blocked` and posts
 close, opens a PR or writes another label. Outruns the sync Bash ceiling → run
 it in the **background**.
 
-1. **Preflight — blocking.** `project.commands.lint`,
+1. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
+   **first**, ahead of every check: close's base-sync then no-ops.
+2. **Preflight — blocking.** `lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
-   baselined standalone ratchet (dead exports, cycles, cyclomatic) — [`deliver-reference.md`](deliver-reference.md) § Preflight.
-2. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
-   **first**, ahead of this run and the push: close's base-sync then no-ops,
-   so neither stamp goes stale.
+   baselined ratchet — [`deliver-reference.md`](deliver-reference.md) § Preflight.
 3. **One depositor**, by the one predicate close registers `coverage-capture`
    on — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →
@@ -129,12 +128,13 @@ it in the **background**.
      --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`.
      Signal: `✓ test passed` — the `test` evidence close reads.
 4. **Seat.** CRAP or MI gate on → `--seat-missing` for each (signal
-   `seated: N`), committed as `chore(baselines): baseline-refresh: …`.
+   `seated: N`), committed as `chore(baselines): baseline-refresh: …`; then
+   post-capture checks: close's `quality-preview-crap` and `check-baselines`.
 5. **Push** `story-<id>`; the remote ref must equal HEAD.
 6. **Held review** beside step 3, which a CRITICAL aborts —
    [`deliver-reference.md`](deliver-reference.md) § Held review.
 
-A later commit voids either credit; a baseline-JSON seat keeps the stamp. It
+A later commit voids any credit; a baseline-JSON seat keeps the stamp. It
 reads the **output**, not the exit code: a run that prints no signal
 deposits nothing. Seat order, runner shapes, redraft rounds:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
