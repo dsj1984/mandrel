@@ -57,4 +57,16 @@ describe('handoff-state — readCreditTimings', () => {
     );
     assert.equal(readCreditTimings(7, config()), null, 'corrupt');
   });
+
+  // Story #5937 — the lint carry-forward and post-capture keys share the file.
+  it('reads the credit beside the lint credit and post-capture head', () => {
+    const creditTimings = { head: 'h1', suiteTimings: spawn, spawns: [spawn] };
+    write({
+      creditHead: 'h1',
+      creditTimings,
+      lintCredit: { head: 'h1', configHash: 'sha256:x' },
+      postCaptureHead: 'h1',
+    });
+    assert.deepEqual(readCreditTimings(7, config()), creditTimings);
+  });
 });

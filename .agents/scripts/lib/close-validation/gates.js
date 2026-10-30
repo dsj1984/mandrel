@@ -396,7 +396,7 @@ const COVERAGE_CAPTURE_ARGS = Object.freeze([
  * the CRAP half stays serial behind coverage-capture. Every name MUST be in
  * the `gateName` enum of `validation-evidence.schema.json`.
  */
-const QUALITY_PREVIEW_GATE_NAMES = Object.freeze({
+export const QUALITY_PREVIEW_GATE_NAMES = Object.freeze({
   maintainability: 'quality-preview-mi',
   crap: 'quality-preview-crap',
 });
