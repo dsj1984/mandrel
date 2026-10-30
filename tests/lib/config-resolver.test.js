@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
+import { resolveProjectCommand } from '../../.agents/scripts/lib/config/commands.js';
 import { resolveAgentrcRoot } from '../../.agents/scripts/lib/config/git-roots.js';
 import { CRAP_GATE_DEFAULTS } from '../../.agents/scripts/lib/config/quality.js';
 import {
@@ -246,6 +247,38 @@ describe('helper accessors against the post-reshape shape', () => {
       project: { ...REQ.project, commands: { test: 'pytest' } },
     });
     assert.equal(cmds.test, 'pytest');
+  });
+
+  it('getCommands projects the five defaults plus a null testChanged when unset', () => {
+    assert.deepEqual(getCommands({ project: REQ.project }), {
+      ...COMMANDS_DEFAULTS,
+      testChanged: null,
+    });
+  });
+
+  it('getCommands carries a configured testChanged and maps null to null', () => {
+    const withCmd = (testChanged) =>
+      getCommands({ project: { ...REQ.project, commands: { testChanged } } });
+    assert.equal(
+      withCmd('pnpm vitest --changed').testChanged,
+      'pnpm vitest --changed',
+    );
+    assert.equal(withCmd(null).testChanged, null);
+  });
+
+  it('resolveProjectCommand reports a null testChanged disabled and rejects unknown keys', () => {
+    const config = { project: { commands: { testChanged: null } } };
+    assert.deepEqual(resolveProjectCommand(config, 'testChanged'), {
+      argv: [],
+      raw: null,
+      disabled: true,
+      source: 'disabled',
+    });
+    assert.equal(resolveProjectCommand({}, 'testChanged').disabled, true);
+    assert.throws(
+      () => resolveProjectCommand({}, 'deploy'),
+      /deploy is not a known command/,
+    );
   });
 
   it('getPaths derives every *Root from agentRoot', () => {
@@ -623,6 +656,10 @@ describe('config-resolver — commands defaults', () => {
     const { project } = resolveConfig({ bustCache: true });
     assert.equal(project.commands.test, COMMANDS_DEFAULTS.test);
     assert.equal(project.commands.formatCheck, COMMANDS_DEFAULTS.formatCheck);
+    assert.deepEqual(project.commands, {
+      ...COMMANDS_DEFAULTS,
+      testChanged: null,
+    });
   });
 });
 
