@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.109.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.108.0...mandrel-v2.109.0) (2026-10-30)
+
+
+### Added
+
+* handoff merges the base first, deposits lint/format credit close reuses, and scores CRAP and baselines after the capture ([#5937](https://github.com/dsj1984/mandrel/issues/5937)) ([#5941](https://github.com/dsj1984/mandrel/issues/5941)) ([76f7191](https://github.com/dsj1984/mandrel/commit/76f71918fb06cfc5b99ce2db42039b420b64027f))
+
+
+### Fixed
+
+* **deps:** pin re2js ^2.8.7 tree-wide to clear GHSA-gg6h-894w-4m9c (refs [#5932](https://github.com/dsj1984/mandrel/issues/5932)) ([#5938](https://github.com/dsj1984/mandrel/issues/5938)) ([cf7a25e](https://github.com/dsj1984/mandrel/commit/cf7a25e473514f9061048efa90d46db324c8babd))
+* resolveConfig() keeps project.commands.testChanged so close's base-moved delta re-credit fires ([#5936](https://github.com/dsj1984/mandrel/issues/5936)) ([#5940](https://github.com/dsj1984/mandrel/issues/5940)) ([7931049](https://github.com/dsj1984/mandrel/commit/7931049e346eb29d9139c334a7421c18bcf60271))
+
 ## [2.108.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.107.0...mandrel-v2.108.0) (2026-10-27)
 
 
