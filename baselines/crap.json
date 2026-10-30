@@ -14760,8 +14760,20 @@
     },
     {
       "path": ".agents/scripts/lib/config/commands.js",
+      "method": "isUnset",
+      "startLine": 66,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
       "method": "assertKnownKey",
       "startLine": 67,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "absentCommand",
+      "startLine": 71,
       "crap": 2
     },
     {
