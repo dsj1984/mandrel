@@ -834,6 +834,7 @@ describe('ci-rerun-guard over the REST transport (Story #5793)', () => {
             check_runs: [
               {
                 name: 'test',
+                conclusion: 'failure',
                 details_url: 'https://github.com/o/r/actions/runs/4242/job/1',
               },
             ],

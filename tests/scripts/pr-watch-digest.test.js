@@ -220,8 +220,16 @@ describe('the default gh probes (Story #5009)', () => {
     withTempRoot((tempRoot) => {
       const { calls, run } = ghRunner({
         'pr checks': JSON.stringify([
-          { name: 'lint', link: 'https://github.com/o/r/actions/runs/111' },
-          { name: 'test', link: 'https://github.com/o/r/actions/runs/222' },
+          {
+            name: 'lint',
+            link: 'https://github.com/o/r/actions/runs/111',
+            bucket: 'fail',
+          },
+          {
+            name: 'test',
+            link: 'https://github.com/o/r/actions/runs/222',
+            bucket: 'fail',
+          },
         ]),
         'run view': ['line one', 'line two', 'AssertionError: boom'].join('\n'),
       });
@@ -249,7 +257,7 @@ describe('the default gh probes (Story #5009)', () => {
         'checks',
         '42',
         '--json',
-        'name,link',
+        'name,link,bucket,completedAt',
       ]);
       assert.deepEqual(calls[1].args, ['run', 'view', '222', '--log-failed']);
       // The shared surface's policy reaches the real spawn site.
@@ -308,7 +316,11 @@ describe('the default gh probes (Story #5009)', () => {
     withTempRoot((tempRoot) => {
       const { run } = ghRunner({
         'pr checks': JSON.stringify([
-          { name: 'test', link: 'https://github.com/o/r/actions/runs/9' },
+          {
+            name: 'test',
+            link: 'https://github.com/o/r/actions/runs/9',
+            bucket: 'fail',
+          },
         ]),
         'run view': Array.from({ length: 60 }, (_, i) => `l${i}`).join('\n'),
       });

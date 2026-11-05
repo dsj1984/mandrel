@@ -31,14 +31,27 @@ import {
 const MAX_PRIOR_REDS = 10;
 
 /**
- * Verdicts earning the one same-SHA rerun: proven environment faults no
- * commit can fix. `pre-existing` is excluded — a real defect on `main`.
+ * Verdicts earning the one same-SHA green: proven environment faults no
+ * commit can fix, or a fresh run an operator-approved governance label
+ * started. `pre-existing` is excluded — a real defect on `main`.
  *
- * @type {readonly ['capacity', 'unreproducible-tier']}
+ * @type {readonly ['capacity', 'unreproducible-tier', 'governance-label']}
  */
 export const RERUN_ALLOWANCE_VERDICTS = Object.freeze([
   'capacity',
   'unreproducible-tier',
+  'governance-label',
+]);
+
+/** The audited recovery verdict: allowance only, never an intake filing. */
+export const GOVERNANCE_LABEL_VERDICT = 'governance-label';
+
+/** REST check-run conclusions that mean the run failed. */
+const FAILED_REST_CONCLUSIONS = new Set([
+  'failure',
+  'timed_out',
+  'action_required',
+  'startup_failure',
 ]);
 
 /**
@@ -141,14 +154,21 @@ function resolvePrHeadShaRest({ prRef, cwd, spawnFn }) {
   return typeof sha === 'string' && sha.length > 0 ? sha : null;
 }
 
-/** `[{ name, link }]` for the PR head's check runs, as `gh pr checks --json` gives it. */
+/** `[{ name, link, failed, completedAt }]` for the PR head's check runs. */
 function readCheckLinks({ prRef, cwd, spawnFn }) {
   if (!prSurfaceUsesRest()) {
-    return readGhJson(['pr', 'checks', prRef, '--json', 'name,link'], {
-      cwd,
-      spawnFn,
-      anyExit: true,
-    });
+    const rows = readGhJson(
+      ['pr', 'checks', prRef, '--json', 'name,link,bucket,completedAt'],
+      { cwd, spawnFn, anyExit: true },
+    );
+    return Array.isArray(rows)
+      ? rows.map((e) => ({
+          name: e?.name,
+          link: e?.link ?? null,
+          failed: e?.bucket === 'fail',
+          completedAt: e?.completedAt ?? null,
+        }))
+      : null;
   }
   const sha = resolvePrHeadShaRest({ prRef, cwd, spawnFn });
   if (!sha) return null;
@@ -159,23 +179,54 @@ function readCheckLinks({ prRef, cwd, spawnFn }) {
   return (runs?.check_runs ?? []).map((run) => ({
     name: run?.name,
     link: run?.details_url ?? run?.html_url ?? null,
+    failed: FAILED_REST_CONCLUSIONS.has(
+      String(run?.conclusion ?? '').toLowerCase(),
+    ),
+    completedAt: run?.completed_at ?? null,
   }));
+}
+
+function runIdOfLink(link) {
+  const m = link ? /\/runs\/(\d+)/.exec(String(link)) : null;
+  return m ? m[1] : null;
+}
+
+/** The hinted run when given, else the most recently completed one. */
+function pickFailedEntry(failed, runId) {
+  if (runId != null) {
+    return failed.find((e) => runIdOfLink(e.link) === String(runId)) ?? null;
+  }
+  const byRecency = [...failed].sort((a, b) =>
+    String(b.completedAt ?? '').localeCompare(String(a.completedAt ?? '')),
+  );
+  return byRecency[0] ?? null;
 }
 
 /**
  * The failing check's run id and URL (the intake filing needs the link).
- * Best-effort.
+ * Only a FAILED entry qualifies — a same-name green run from another
+ * workflow run on the head is never blamed; none → nulls. Best-effort.
  *
+ * @param {{ prRef: string, checkName: string, runId?: string|number|null, cwd: string, spawnFn?: Function }} opts
  * @returns {{ runId: string|null, url: string|null }}
  */
-function resolveFailingCheckRun({ prRef, checkName, cwd, spawnFn }) {
+function resolveFailingCheckRun({
+  prRef,
+  checkName,
+  runId = null,
+  cwd,
+  spawnFn,
+}) {
   const parsed = readCheckLinks({ prRef, cwd, spawnFn });
-  const entry = Array.isArray(parsed)
-    ? parsed.find((e) => e?.name === checkName)
-    : null;
-  const link = entry?.link ? String(entry.link) : null;
-  const m = link ? /\/runs\/(\d+)/.exec(link) : null;
-  return { runId: m ? m[1] : null, url: link };
+  const failed = Array.isArray(parsed)
+    ? parsed.filter((e) => e?.name === checkName && e.failed)
+    : [];
+  const entry = pickFailedEntry(failed, runId);
+  const url = entry?.link ? String(entry.link) : null;
+  return {
+    runId: runIdOfLink(url) ?? (runId != null ? String(runId) : null),
+    url,
+  };
 }
 
 /**
@@ -312,8 +363,9 @@ function renderDigestMarkdown(digest, failures) {
  * @param {number|string|null} [opts.storyId] The v2 delivery scope.
  * @param {number} opts.prNumber
  * @param {string|null} [opts.headSha] PR head SHA at the moment of the red.
- * @param {Array<{name:string, outcome:string, required?:boolean}>} opts.failures
+ * @param {Array<{name:string, outcome:string, required?:boolean, runId?:string|number}>} opts.failures
  *   `required` is recorded per entry; anything but `false` is stored as `true`.
+ *   A `runId` names the red run itself.
  * @param {string} opts.tempRoot
  * @param {string} opts.cwd
  * @param {string} opts.prRef
@@ -345,8 +397,17 @@ export function writeCiDigest({
     outcome: 'failure',
     required: true,
   };
+  // A failure carrying its own run id (the close path's red rollup runs)
+  // pins the lookup to that run.
+  const hintedRunId = primary.runId != null ? String(primary.runId) : null;
   const checkRun =
-    checkRunFn({ prRef, checkName: primary.name, cwd, spawnFn }) ?? {};
+    checkRunFn({
+      prRef,
+      checkName: primary.name,
+      runId: hintedRunId,
+      cwd,
+      spawnFn,
+    }) ?? {};
   const logTail = logTailFn({ runId: checkRun.runId, cwd, spawnFn });
   const previous = readCiDigest({ storyId, tempRoot, cwd });
   const digest = {
@@ -384,8 +445,9 @@ export function writeCiDigest({
  *   verdict: string,
  *   tempRoot: string,
  *   cwd: string,
+ *   evidence?: object|null,
  *   now?: () => Date,
- * }} opts
+ * }} opts `evidence` — the verdict's audit facts, stored on the allowance.
  * @returns {{ verdict: string, headSha: string, recordedAt: string } | null}
  */
 export function recordRerunAllowance({
@@ -393,6 +455,7 @@ export function recordRerunAllowance({
   verdict,
   tempRoot,
   cwd,
+  evidence = null,
   now = () => new Date(),
 }) {
   if (!RERUN_ALLOWANCE_VERDICTS.includes(verdict)) return null;
@@ -403,6 +466,7 @@ export function recordRerunAllowance({
     verdict,
     headSha: digest.headSha,
     recordedAt: now().toISOString(),
+    ...(evidence ? { evidence } : {}),
   };
   try {
     writeFileAtomic(
@@ -550,6 +614,12 @@ export function formatRerunViolation({ digest, headSha, prNumber, reason }) {
     '   verdict also records the one-rerun allowance for this head SHA, so a',
     '   single rerun of the failed job is then admitted; `pre-existing` does',
     '   not, because it names a real defect a rerun cannot remove.',
+    '3. When the green came from a fresh run that an operator-approved',
+    '   governance label (e.g. `migration:destructive-ok`) started on this',
+    '   head, record the audited recovery instead — `node',
+    '   .agents/scripts/file-ci-gap.js --story <id> --verdict governance-label',
+    '   --label <name>` — then resume. It proves the label was added after',
+    '   the red, files no intake issue, and admits this one green.',
   ].join('\n');
 }
 

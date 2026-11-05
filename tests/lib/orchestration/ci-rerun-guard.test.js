@@ -15,6 +15,7 @@ import { recordRequiredRed } from '../../../.agents/scripts/lib/orchestration/ci
 import {
   classifyGreenVerdict,
   readCiDigest,
+  recordRerunAllowance,
   writeCiDigest,
 } from '../../../.agents/scripts/lib/orchestration/ci-rerun-guard.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
@@ -185,6 +186,117 @@ describe('classifyGreenVerdict — advisory-cleared', () => {
     assert.equal(
       classifyGreenVerdict({ digest: null, headSha: HEAD, checks }).verdict,
       'clean',
+    );
+  });
+});
+
+/**
+ * Story #5945 — two same-name checks on one head (an earlier failed run and a
+ * later green one a governance label started): the digest blames the failed
+ * run, never the green one.
+ */
+describe('writeCiDigest — same-name check attribution', () => {
+  const RUNS = 'https://github.com/o/r/actions/runs';
+  let tempRoot;
+  beforeEach(() => {
+    tempRoot = makeTempDir('mandrel-5945-');
+  });
+  afterEach(() => rmSync(tempRoot, { recursive: true, force: true }));
+
+  function digestFrom(rows, failure) {
+    const spawnFn = (_file, args) => ({
+      status: 0,
+      stdout: args[0] === 'pr' ? JSON.stringify(rows) : '',
+      stderr: '',
+    });
+    writeCiDigest({
+      storyId: STORY,
+      prNumber: 1,
+      headSha: HEAD,
+      failures: [failure],
+      tempRoot,
+      cwd: tempRoot,
+      prRef: '1',
+      logTailFn: () => '',
+      spawnFn,
+    });
+    return readCiDigest({ storyId: STORY, tempRoot, cwd: tempRoot });
+  }
+
+  const failedThenGreen = [
+    {
+      name: 'migration-guards',
+      link: `${RUNS}/100/job/1`,
+      bucket: 'fail',
+      completedAt: '2026-11-01T10:00:00Z',
+    },
+    {
+      name: 'migration-guards',
+      link: `${RUNS}/200/job/2`,
+      bucket: 'pass',
+      completedAt: '2026-11-01T11:00:00Z',
+    },
+  ];
+
+  it('names the failed run even when a later same-name run succeeded', () => {
+    const digest = digestFrom([...failedThenGreen].reverse(), {
+      name: 'migration-guards',
+      outcome: 'failure',
+    });
+    assert.equal(digest.runId, '100');
+    assert.equal(digest.runUrl, `${RUNS}/100/job/1`);
+  });
+
+  it('records the run the failure itself names over another failed same-name run', () => {
+    const rows = [
+      {
+        name: 'migration-guards',
+        link: `${RUNS}/300/job/3`,
+        bucket: 'fail',
+        completedAt: '2026-11-01T12:00:00Z',
+      },
+      ...failedThenGreen,
+    ];
+    const digest = digestFrom(rows, {
+      name: 'migration-guards',
+      outcome: 'failure',
+      runId: 100,
+    });
+    assert.equal(digest.runId, '100');
+    assert.equal(digest.runUrl, `${RUNS}/100/job/1`);
+  });
+
+  it('records nulls rather than a green run when no same-name check failed', () => {
+    const digest = digestFrom([failedThenGreen[1]], {
+      name: 'migration-guards',
+      outcome: 'failure',
+    });
+    assert.equal(digest.runId, null);
+    assert.equal(digest.runUrl, null);
+  });
+
+  it('admits the same-head green once a governance-label allowance is recorded', () => {
+    digestFrom(failedThenGreen, {
+      name: 'migration-guards',
+      outcome: 'failure',
+    });
+    const before = readCiDigest({ storyId: STORY, tempRoot, cwd: tempRoot });
+    assert.equal(
+      classifyGreenVerdict({ digest: before, headSha: HEAD }).verdict,
+      'rerun',
+    );
+    const allowance = recordRerunAllowance({
+      storyId: STORY,
+      verdict: 'governance-label',
+      tempRoot,
+      cwd: tempRoot,
+      evidence: { label: 'migration:destructive-ok', actor: 'admin' },
+    });
+    assert.equal(allowance.evidence.label, 'migration:destructive-ok');
+    const after = readCiDigest({ storyId: STORY, tempRoot, cwd: tempRoot });
+    assert.equal(
+      classifyGreenVerdict({ digest: after, headSha: HEAD }).verdict,
+      'rerun-permitted',
     );
   });
 });

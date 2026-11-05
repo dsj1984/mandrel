@@ -812,11 +812,12 @@ async function resolveAdvisoryUnlanded(ctx, probe, elapsedSeconds) {
   };
 }
 
-/** `{ name, outcome }` of a red rollup run, as the CI digest records it. */
+/** `{ name, outcome, runId? }` of a red rollup run, as the CI digest records it. */
 function failureOfRun(run) {
   return {
     name: run?.name ?? 'unknown',
     outcome: String(run?.conclusion ?? 'failure').toLowerCase(),
+    ...(run?.runId ? { runId: run.runId } : {}),
   };
 }
 
