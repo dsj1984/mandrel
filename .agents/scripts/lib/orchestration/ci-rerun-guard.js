@@ -37,7 +37,7 @@ const MAX_PRIOR_REDS = 10;
  *
  * @type {readonly ['capacity', 'unreproducible-tier', 'governance-label']}
  */
-export const RERUN_ALLOWANCE_VERDICTS = Object.freeze([
+const RERUN_ALLOWANCE_VERDICTS = Object.freeze([
   'capacity',
   'unreproducible-tier',
   'governance-label',
