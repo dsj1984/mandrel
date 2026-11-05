@@ -385,3 +385,136 @@ describe('file-ci-gap — the one-rerun allowance (Story #5343)', () => {
     rmSync(tempRoot, { recursive: true, force: true });
   });
 });
+
+/**
+ * Story #5945 — `governance-label`: an operator-approved label started a
+ * fresh green run on the red head. Proven transition → allowance + audit
+ * comment, no intake filing; unproven → refusal, nothing written.
+ */
+describe('file-ci-gap — governance-label recovery', () => {
+  const LABEL = 'migration:destructive-ok';
+  const RED_AT = '2026-11-01T10:00:00.000Z';
+  const history = (overrides = {}) => ({
+    labels: [LABEL],
+    events: [
+      {
+        event: 'labeled',
+        label: { name: LABEL },
+        actor: { login: 'repo-admin' },
+        created_at: '2026-11-01T10:05:00Z',
+      },
+    ],
+    ...overrides,
+  });
+
+  function setup() {
+    const tempRoot = makeTempDir('mandrel-ci-gap-gov-');
+    const digestPath = path.join(tempRoot, 'story-5300-ci-digest.json');
+    writeFileSync(
+      digestPath,
+      JSON.stringify({ ...DIGEST, headSha: 'head-1', generatedAt: RED_AT }),
+    );
+    return { tempRoot, digestPath };
+  }
+
+  function recover(tempRoot, overrides = {}) {
+    const filed = [];
+    const provider = stubProvider();
+    const run = runFileCiGap({
+      ...BASE,
+      digest: undefined,
+      tempRoot,
+      cwd: process.cwd(),
+      verdict: 'governance-label',
+      label: LABEL,
+      ports: stubPorts({
+        createIssue: async (args) => {
+          filed.push(args);
+          return { url: null, number: null, error: null };
+        },
+      }),
+      provider,
+      labelHistoryFn: () => history(),
+      greenRunFn: () => ({
+        runId: '200',
+        url: 'https://github.com/acme/product/actions/runs/200',
+      }),
+      ...overrides,
+    });
+    return { run, filed, provider };
+  }
+
+  it('records the allowance and an audit comment, and files no intake issue', async () => {
+    const { tempRoot, digestPath } = setup();
+    const { run, filed, provider } = recover(tempRoot);
+    const result = await run;
+    assert.equal(result.issue, null);
+    assert.equal(filed.length, 0, 'a recovery is not a CI gap');
+    assert.equal(result.rerunAllowance.verdict, 'governance-label');
+    assert.equal(result.rerunAllowance.headSha, 'head-1');
+    assert.equal(result.rerunAllowance.evidence.actor, 'repo-admin');
+    const onDisk = JSON.parse(readFileSync(digestPath, 'utf8'));
+    assert.deepEqual(onDisk.rerunAllowance, result.rerunAllowance);
+    const body = provider.posted[0].body;
+    assert.equal(provider.posted[0].type, 'friction');
+    assert.match(body, /migration:destructive-ok/);
+    assert.match(body, /@repo-admin/);
+    assert.match(body, /actions\/runs\/34553187641/, 'names the red run');
+    assert.match(body, /actions\/runs\/200/, 'names the green run');
+    assert.doesNotMatch(
+      JSON.stringify(provider.labelWrites),
+      /friction::/,
+      'no friction:: label is applied',
+    );
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  for (const [why, overrides] of [
+    ['--label is missing', { label: null }],
+    [
+      'the label is no longer on the PR',
+      { labelHistoryFn: () => history({ labels: [] }) },
+    ],
+    [
+      'the only labeled event predates the red',
+      {
+        labelHistoryFn: () =>
+          history({
+            events: [
+              {
+                event: 'labeled',
+                label: { name: LABEL },
+                actor: { login: 'x' },
+                created_at: '2026-11-01T09:00:00Z',
+              },
+            ],
+          }),
+      },
+    ],
+    ['the label history is unreadable', { labelHistoryFn: () => null }],
+  ]) {
+    it(`refuses and writes nothing when ${why}`, async () => {
+      const { tempRoot, digestPath } = setup();
+      const { run, provider } = recover(tempRoot, overrides);
+      await assert.rejects(run);
+      const onDisk = JSON.parse(readFileSync(digestPath, 'utf8'));
+      assert.equal(onDisk.rerunAllowance, undefined);
+      assert.equal(provider.posted.length, 0);
+      rmSync(tempRoot, { recursive: true, force: true });
+    });
+  }
+
+  it('writes nothing on a dry run but still proves the transition', async () => {
+    const { tempRoot, digestPath } = setup();
+    const { run, provider } = recover(tempRoot, { dryRun: true });
+    const result = await run;
+    assert.equal(result.decision, 'dry-run');
+    assert.equal(result.evidence.label, LABEL);
+    assert.equal(
+      JSON.parse(readFileSync(digestPath, 'utf8')).rerunAllowance,
+      undefined,
+    );
+    assert.equal(provider.posted.length, 0);
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+});

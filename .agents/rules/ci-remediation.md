@@ -68,6 +68,7 @@ the two options above. Name the verdict you reached in the `friction` comment.
 | **pre-existing** | The same check fails on an unmodified `main` too | Option 2 — `file-ci-gap.js --verdict pre-existing`; remediate here only if it blocks this delivery |
 | **capacity** | Proven exhaustion of a runner resource, not a property of the diff (see below) | Option 2 — `file-ci-gap.js --verdict capacity` (`meta::framework-gap` unless `--owner` routes it elsewhere) **and** escalate to the operator |
 | **unreproducible-tier** | The tier cannot be exercised in this sandbox at all, proven by an attempted attach (see below) | Option 2 — `file-ci-gap.js --verdict unreproducible-tier` (`meta::framework-gap` unless `--owner` routes it elsewhere) **and** escalate on first encounter |
+| **governance-label** | The red was a governance check awaiting an operator-approved label; adding it started a fresh run on the same head, which passed | Recovery, not a gap — `file-ci-gap.js --verdict governance-label --label <name>` (§ Governance-label recovery); files nothing |
 
 Why the verdict set carries these last two is recorded in
 [`docs/decisions.md` ADR 20260906-5160a](../../docs/decisions.md).
@@ -158,11 +159,31 @@ it names a real defect someone owns and a rerun cannot remove it. Skipping,
 quarantining or loosening a test to reach green stays forbidden under every
 verdict, always.
 
+### Governance-label recovery
+
+Some checks are designed to stay red until an authorized person approves a
+governance label, such as `migration:destructive-ok`. Adding the label starts a
+**fresh** workflow run on the same head SHA. That run gets a new run ID; it is
+not a rerun of the failed job. Its green is still on the red head, so the
+guard reads it as a forbidden rerun. Record the audited recovery instead:
+
+```bash
+node .agents/scripts/file-ci-gap.js --story <id> --verdict governance-label --label <name>
+```
+
+It reads the PR's issue events and refuses (non-zero exit, nothing written)
+unless the label is still on the PR **and** a `labeled` event for it is newer
+than the red. On proof it stamps the one-green allowance on the digest. It
+then posts a `friction` comment recording the label, who added it, when, and
+the red and green run links. It files **no** intake issue and applies no
+`friction::*` label: the CI did what it was built to do. Nothing is faked and
+no check is loosened. Resume the watch; the same-SHA green is admitted once.
+
 ## Verifier
 
 The check is resolved only when it is **green with no rerun of the failed job**
-— save the one a recorded `capacity` / `unreproducible-tier` verdict buys (§
-above) — and the diff carries **no `.skip` / `.only`, no quarantine, and no
+— save the one a recorded `capacity` / `unreproducible-tier` verdict buys,
+or the fresh run a recorded `governance-label` recovery admits (§§ above) — and the diff carries **no `.skip` / `.only`, no quarantine, and no
 deleted or loosened assertion** introduced to reach green. You may **not**
 re-run a failed job to "see if it goes green," and you may **not** skip,
 `.only`, or quarantine a flaky test to get a green bar. Both mask the defect
@@ -174,7 +195,8 @@ on the **first red** — GitHub's native auto-merge fires server-side, so it
 races any attempt to detect a rerun-green and block it after the fact. On the
 first red the watcher **disarms native auto-merge** (a disarm failure is a
 blocker, not a warning) and records the PR **head SHA** in the digest
-alongside the failing check-run identity. On green it adjudicates:
+alongside the failing check-run identity: the **failed** run of that
+check, never a same-name green run from another workflow run on the head. On green it adjudicates:
 
 - **Same head SHA, with a recorded allowance** → the one rerun the section
   above buys. The digest is retired (spending the allowance), auto-merge is
@@ -183,7 +205,9 @@ alongside the failing check-run identity. On green it adjudicates:
   job. The watcher exits non-zero, flips the Story to `agent::blocked` with a
   `friction` comment, and requires the CI-gap intake issue
   (`file-ci-gap.js` — run link and failure signature are already in the
-  digest) before the delivery proceeds.
+  digest) before the delivery proceeds. When the green came from a fresh run
+  an operator-approved label started, record `--verdict governance-label`
+  instead (§ Governance-label recovery).
 - **New head SHA** → fix at source. The digest is retired, auto-merge is
   re-armed, and the delivery continues unobstructed.
 - **Same head SHA, every recorded failure advisory, each now green**

@@ -132,7 +132,7 @@
     },
     {
       "path": ".agents/scripts/file-ci-gap.js",
-      "mi": 85.371
+      "mi": 86.725
     },
     {
       "path": ".agents/scripts/generate-config-docs.js",
@@ -1280,7 +1280,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "mi": 95.296
+      "mi": 96.92
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",

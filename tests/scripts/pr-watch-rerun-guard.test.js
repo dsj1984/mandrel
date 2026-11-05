@@ -642,43 +642,48 @@ describe('one rerun after a recorded verdict (Story #5343)', () => {
     });
   });
 
-  it('admits the green, retires the digest and re-arms auto-merge', async () => {
-    await withTempRoot(async (tempRoot) => {
-      const rec = recorder();
-      seedDigest(tempRoot, 5343, ALLOWED);
-      const blocks = [];
-      let reArmed = 0;
-      const code = await runPrWatch(
-        watchOpts({
-          checks: GREEN_CHECKS,
-          tempRoot,
-          storyId: 5343,
-          rec,
-          headShaFn: () => 'same-sha',
-          reArmAutoMergeFn: async () => {
-            reArmed += 1;
-            return { enabled: true };
-          },
-          blockDeliveryFn: async (args) => {
-            blocks.push(args);
-            return { blocked: true, commented: true };
-          },
-        }),
-      );
+  for (const verdict of ['capacity', 'governance-label']) {
+    it(`admits the green, retires the digest and re-arms auto-merge (${verdict})`, async () => {
+      await withTempRoot(async (tempRoot) => {
+        const rec = recorder();
+        seedDigest(tempRoot, 5343, {
+          ...ALLOWED,
+          rerunAllowance: { ...ALLOWED.rerunAllowance, verdict },
+        });
+        const blocks = [];
+        let reArmed = 0;
+        const code = await runPrWatch(
+          watchOpts({
+            checks: GREEN_CHECKS,
+            tempRoot,
+            storyId: 5343,
+            rec,
+            headShaFn: () => 'same-sha',
+            reArmAutoMergeFn: async () => {
+              reArmed += 1;
+              return { enabled: true };
+            },
+            blockDeliveryFn: async (args) => {
+              blocks.push(args);
+              return { blocked: true, commented: true };
+            },
+          }),
+        );
 
-      assert.equal(code, 0, 'the admitted rerun is a green exit');
-      assert.equal(blocks.length, 0, 'nothing is blocked');
-      assert.equal(reArmed, 1);
-      // Spending the allowance IS retiring the digest: that is what makes it
-      // exactly one rerun rather than an open licence on this head.
-      assert.equal(
-        existsSync(path.join(tempRoot, 'story-5343-ci-digest.json')),
-        false,
-      );
-      const out = JSON.parse(rec.lines.print[0]);
-      assert.equal(out.rerunGuard.verdict, 'rerun-permitted');
+        assert.equal(code, 0, 'the admitted rerun is a green exit');
+        assert.equal(blocks.length, 0, 'nothing is blocked');
+        assert.equal(reArmed, 1);
+        // Spending the allowance IS retiring the digest: that is what makes it
+        // exactly one rerun rather than an open licence on this head.
+        assert.equal(
+          existsSync(path.join(tempRoot, 'story-5343-ci-digest.json')),
+          false,
+        );
+        const out = JSON.parse(rec.lines.print[0]);
+        assert.equal(out.rerunGuard.verdict, 'rerun-permitted');
+      });
     });
-  });
+  }
 
   it('still blocks a same-SHA green with no allowance on the digest', async () => {
     await withTempRoot(async (tempRoot) => {
@@ -834,6 +839,7 @@ describe('ci-rerun-guard over the REST transport (Story #5793)', () => {
             check_runs: [
               {
                 name: 'test',
+                conclusion: 'failure',
                 details_url: 'https://github.com/o/r/actions/runs/4242/job/1',
               },
             ],

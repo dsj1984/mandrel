@@ -812,12 +812,18 @@ async function resolveAdvisoryUnlanded(ctx, probe, elapsedSeconds) {
   };
 }
 
-/** `{ name, outcome }` of a red rollup run, as the CI digest records it. */
+/** `{ name, outcome, runId? }` of a red rollup run, as the CI digest records it. */
 function failureOfRun(run) {
   return {
     name: run?.name ?? 'unknown',
     outcome: String(run?.conclusion ?? 'failure').toLowerCase(),
+    ...runIdField(run),
   };
+}
+
+/** `{ runId }` when the rollup run carries one, else nothing. */
+function runIdField(run) {
+  return run?.runId ? { runId: run.runId } : {};
 }
 
 /** `policy-impact=failure, …` — the checks a block names. */
