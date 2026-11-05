@@ -154,23 +154,25 @@ function resolvePrHeadShaRest({ prRef, cwd, spawnFn }) {
   return typeof sha === 'string' && sha.length > 0 ? sha : null;
 }
 
+/** `gh pr checks` rows in {@link readCheckLinks}'s shape; `null` when unread. */
+function readGhCheckRows({ prRef, cwd, spawnFn }) {
+  const rows = readGhJson(
+    ['pr', 'checks', prRef, '--json', 'name,link,bucket,completedAt'],
+    { cwd, spawnFn, anyExit: true },
+  );
+  if (!Array.isArray(rows)) return null;
+  return rows.map((e) => ({
+    name: e?.name,
+    link: e?.link ?? null,
+    failed: e?.bucket === 'fail',
+    passed: e?.bucket === 'pass',
+    completedAt: e?.completedAt ?? null,
+  }));
+}
+
 /** `[{ name, link, failed, passed, completedAt }]` for the PR head's check runs. */
 function readCheckLinks({ prRef, cwd, spawnFn }) {
-  if (!prSurfaceUsesRest()) {
-    const rows = readGhJson(
-      ['pr', 'checks', prRef, '--json', 'name,link,bucket,completedAt'],
-      { cwd, spawnFn, anyExit: true },
-    );
-    return Array.isArray(rows)
-      ? rows.map((e) => ({
-          name: e?.name,
-          link: e?.link ?? null,
-          failed: e?.bucket === 'fail',
-          passed: e?.bucket === 'pass',
-          completedAt: e?.completedAt ?? null,
-        }))
-      : null;
-  }
+  if (!prSurfaceUsesRest()) return readGhCheckRows({ prRef, cwd, spawnFn });
   const sha = resolvePrHeadShaRest({ prRef, cwd, spawnFn });
   if (!sha) return null;
   const runs = readGhJson(
@@ -221,7 +223,7 @@ function resolveFailingCheckRun({
 }) {
   const parsed = readCheckLinks({ prRef, cwd, spawnFn });
   const failed = Array.isArray(parsed)
-    ? parsed.filter((e) => e?.name === checkName && e.failed)
+    ? parsed.filter((e) => e?.name === checkName).filter((e) => e.failed)
     : [];
   const entry = pickEntry(failed, runId);
   const url = entry?.link ? String(entry.link) : null;
@@ -418,7 +420,7 @@ export function writeCiDigest({
   };
   // A failure carrying its own run id (the close path's red rollup runs)
   // pins the lookup to that run.
-  const hintedRunId = primary.runId != null ? String(primary.runId) : null;
+  const hintedRunId = runIdOf(primary);
   const checkRun =
     checkRunFn({
       prRef,
@@ -454,6 +456,16 @@ export function writeCiDigest({
   return { jsonPath: paths.jsonPath, mdPath: paths.mdPath };
 }
 
+/** A failure entry's own red run id as a string, else `null`. */
+function runIdOf(failure) {
+  return failure.runId != null ? String(failure.runId) : null;
+}
+
+/** `{ evidence }` when given, else nothing — an audit-free allowance stays as before. */
+function evidenceField(evidence) {
+  return evidence ? { evidence } : {};
+}
+
 /**
  * Stamp the one-rerun allowance, called by `file-ci-gap.js` after filing.
  * Keyed on the digest's own head SHA so it cannot apply to a later head.
@@ -485,7 +497,7 @@ export function recordRerunAllowance({
     verdict,
     headSha: digest.headSha,
     recordedAt: now().toISOString(),
-    ...(evidence ? { evidence } : {}),
+    ...evidenceField(evidence),
   };
   try {
     writeFileAtomic(

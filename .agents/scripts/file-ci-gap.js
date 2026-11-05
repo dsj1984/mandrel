@@ -177,6 +177,18 @@ function renderRerunLine(rerunAllowance) {
     : 'This verdict does **not** license a re-run of the failed job.';
 }
 
+/** The injected digest, else the Story's on-disk one; throws when absent. */
+function loadCiDigest({ sid, digest, digestRoot, cwd }) {
+  const ciDigest =
+    digest ?? readCiDigest({ storyId: sid, tempRoot: digestRoot, cwd });
+  if (!ciDigest) {
+    throw new Error(
+      `no CI digest for Story #${sid}. The digest is written by \`pr-watch-with-update.js --story ${sid}\` on the first red; without it there is no run link or failure signature to file.`,
+    );
+  }
+  return ciDigest;
+}
+
 /**
  * @param {object} opts
  * @returns {Promise<object>}
@@ -208,24 +220,19 @@ export async function runFileCiGap({
   const resolved = config ?? resolveConfig();
   // Must resolve exactly as `pr-watch-with-update.js` does when writing it.
   const digestRoot = tempRoot ?? resolved?.project?.paths?.tempRoot ?? 'temp';
-  const ciDigest =
-    digest ?? readCiDigest({ storyId: sid, tempRoot: digestRoot, cwd });
-  if (!ciDigest) {
-    throw new Error(
-      `no CI digest for Story #${sid}. The digest is written by \`pr-watch-with-update.js --story ${sid}\` on the first red; without it there is no run link or failure signature to file.`,
-    );
-  }
+  const ciDigest = loadCiDigest({ sid, digest, digestRoot, cwd });
 
   if (verdict === GOVERNANCE_LABEL_VERDICT) {
     return runGovernanceRecovery({
       sid,
       label,
-      prNumber: prNumber ?? ciDigest.prNumber ?? null,
+      prNumber,
       digest: ciDigest,
       digestRoot,
       cwd,
       dryRun,
-      ticketing: provider ?? (dryRun ? null : createProvider(resolved)),
+      provider,
+      config: resolved,
       labelHistoryFn,
       greenRunFn,
     });
@@ -402,15 +409,17 @@ export function renderGovernanceComment({ digest, evidence }) {
 async function runGovernanceRecovery({
   sid,
   label,
-  prNumber,
+  prNumber: prFlag,
   digest,
   digestRoot,
   cwd,
   dryRun,
-  ticketing,
+  provider,
+  config,
   labelHistoryFn,
   greenRunFn,
 }) {
+  const prNumber = prFlag ?? digest.prNumber ?? null;
   if (!label) {
     throw new Error(
       `--verdict ${GOVERNANCE_LABEL_VERDICT} requires --label <name>: the operator-approved label that started the fresh run.`,
@@ -460,6 +469,7 @@ async function runGovernanceRecovery({
       `could not record the allowance on the CI digest for Story #${sid}.`,
     );
   }
+  const ticketing = provider ?? createProvider(config);
   if (ticketing) {
     try {
       await upsertStructuredComment(ticketing, sid, 'friction', body);
