@@ -3503,6 +3503,57 @@
       "crap": 3.072
     },
     {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "method": "readGhApi",
+      "startLine": 306,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "method": "readPrLabelHistory",
+      "startLine": 322,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "method": "<anon readPrLabelHistory/(l)#0>",
+      "startLine": 337,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "method": "proveLabelTransition",
+      "startLine": 348,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "method": "<anon proveLabelTransition/(e)#0>",
+      "startLine": 353,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "method": "<anon proveLabelTransition/(a,b)#0>",
+      "startLine": 359,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "method": "renderGovernanceComment",
+      "startLine": 374,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "method": "runGovernanceRecovery",
+      "startLine": 402,
+      "crap": 8.091553486760676
+    },
+    {
       "path": ".agents/scripts/generate-config-docs.js",
       "method": "canonicalJson",
       "startLine": 54,
@@ -22541,6 +22592,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "<anon readCheckLinks/(e)#0>",
+      "startLine": 165,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "resolveFailingCheckRun",
       "startLine": 176,
       "crap": 5
@@ -22554,9 +22612,35 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "runIdOfLink",
+      "startLine": 191,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "resolvePrHeadSha",
       "startLine": 193,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "pickEntry",
+      "startLine": 197,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "<anon pickEntry/(e)#0>",
+      "startLine": 199,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "<anon pickEntry/(a,b)#0>",
+      "startLine": 201,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
@@ -22575,6 +22659,19 @@
       "method": "summarizeRed",
       "startLine": 238,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "resolvePassingCheckRun",
+      "startLine": 241,
+      "crap": 9.320987654320987
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
+      "method": "<anon resolvePassingCheckRun/(e)#0>",
+      "startLine": 244,
+      "crap": 4.809327846364883,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
