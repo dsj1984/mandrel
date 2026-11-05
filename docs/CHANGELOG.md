@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.110.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.109.0...mandrel-v2.110.0) (2026-11-05)
+
+
+### Fixed
+
+* close lifts PR-body trailers from merge commits and takes the PR type from the Story branch's own commits ([#5942](https://github.com/dsj1984/mandrel/issues/5942)) ([#5943](https://github.com/dsj1984/mandrel/issues/5943)) ([adbc4f6](https://github.com/dsj1984/mandrel/commit/adbc4f6d608a43ba79beeeb2b217ee494a8b1ead))
+
 ## [2.109.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.108.0...mandrel-v2.109.0) (2026-10-30)
 
 
