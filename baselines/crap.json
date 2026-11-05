@@ -32401,6 +32401,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
+      "method": "readOwnCommits",
+      "startLine": 80,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "normalizePrTitle",
       "startLine": 87,
       "crap": 4
