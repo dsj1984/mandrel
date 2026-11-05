@@ -154,7 +154,7 @@ function resolvePrHeadShaRest({ prRef, cwd, spawnFn }) {
   return typeof sha === 'string' && sha.length > 0 ? sha : null;
 }
 
-/** `[{ name, link, failed, completedAt }]` for the PR head's check runs. */
+/** `[{ name, link, failed, passed, completedAt }]` for the PR head's check runs. */
 function readCheckLinks({ prRef, cwd, spawnFn }) {
   if (!prSurfaceUsesRest()) {
     const rows = readGhJson(
@@ -166,6 +166,7 @@ function readCheckLinks({ prRef, cwd, spawnFn }) {
           name: e?.name,
           link: e?.link ?? null,
           failed: e?.bucket === 'fail',
+          passed: e?.bucket === 'pass',
           completedAt: e?.completedAt ?? null,
         }))
       : null;
@@ -182,6 +183,7 @@ function readCheckLinks({ prRef, cwd, spawnFn }) {
     failed: FAILED_REST_CONCLUSIONS.has(
       String(run?.conclusion ?? '').toLowerCase(),
     ),
+    passed: String(run?.conclusion ?? '').toLowerCase() === 'success',
     completedAt: run?.completed_at ?? null,
   }));
 }
@@ -192,11 +194,11 @@ function runIdOfLink(link) {
 }
 
 /** The hinted run when given, else the most recently completed one. */
-function pickFailedEntry(failed, runId) {
+function pickEntry(rows, runId) {
   if (runId != null) {
-    return failed.find((e) => runIdOfLink(e.link) === String(runId)) ?? null;
+    return rows.find((e) => runIdOfLink(e.link) === String(runId)) ?? null;
   }
-  const byRecency = [...failed].sort((a, b) =>
+  const byRecency = [...rows].sort((a, b) =>
     String(b.completedAt ?? '').localeCompare(String(a.completedAt ?? '')),
   );
   return byRecency[0] ?? null;
@@ -221,12 +223,29 @@ function resolveFailingCheckRun({
   const failed = Array.isArray(parsed)
     ? parsed.filter((e) => e?.name === checkName && e.failed)
     : [];
-  const entry = pickFailedEntry(failed, runId);
+  const entry = pickEntry(failed, runId);
   const url = entry?.link ? String(entry.link) : null;
   return {
     runId: runIdOfLink(url) ?? (runId != null ? String(runId) : null),
     url,
   };
+}
+
+/**
+ * The latest green run of `checkName` on the PR head — the governance-label
+ * recovery's audit names it. Best-effort; nulls when none.
+ *
+ * @param {{ prRef: string, checkName: string, cwd: string, spawnFn?: Function }} opts
+ * @returns {{ runId: string|null, url: string|null }}
+ */
+export function resolvePassingCheckRun({ prRef, checkName, cwd, spawnFn }) {
+  const parsed = readCheckLinks({ prRef, cwd, spawnFn });
+  const passed = Array.isArray(parsed)
+    ? parsed.filter((e) => e?.name === checkName && e.passed)
+    : [];
+  const entry = pickEntry(passed, null);
+  const url = entry?.link ? String(entry.link) : null;
+  return { runId: runIdOfLink(url), url };
 }
 
 /**
