@@ -23,11 +23,14 @@ const RECORD_SEP = '\u0000';
 
 /**
  * Whole messages (bodies carry the breaking footer), oldest-first for the
- * type tie-break. A failed read returns `[]`, degrading to safe defaults.
+ * type tie-break. Merge commits are included (a delivery trailer can sit on
+ * one) unless `scope` narrows the read. A failed read returns `[]`,
+ * degrading to safe defaults.
  *
  * @param {{
  *   storyBranch: string,
  *   baseBranch: string,
+ *   scope?: string[],
  *   cwd?: string,
  *   gitSpawn?: typeof defaultGitSpawn,
  *   logger?: { warn?: Function },
@@ -37,6 +40,7 @@ const RECORD_SEP = '\u0000';
 function readBranchCommits({
   storyBranch,
   baseBranch,
+  scope = [],
   cwd = process.cwd(),
   gitSpawn = defaultGitSpawn,
   logger = DefaultLogger,
@@ -47,7 +51,7 @@ function readBranchCommits({
     const result = gitSpawn(
       cwd,
       'log',
-      '--no-merges',
+      ...scope,
       '--reverse',
       '--format=%B%x00',
       range,
@@ -72,6 +76,14 @@ function readBranchCommits({
   }
 }
 
+/** The Story's own first-parent commits: merged-in history must not pick the type. */
+function readOwnCommits(read) {
+  return readBranchCommits({
+    ...read,
+    scope: ['--first-parent', '--no-merges'],
+  });
+}
+
 /**
  * A conventional title is kept verbatim; prose is synthesized as
  * `<derivedType>: <shaped title>`. Either gets `(#<id>)` and, if breaking, `!`.
@@ -80,6 +92,7 @@ function readBranchCommits({
  *   storyTitle: string,
  *   storyId: number|string,
  *   commitMessages?: string[],
+ *   ownCommitMessages?: string[],
  *   storyBody?: string,
  * }} args
  * @returns {{ title: string, breaking: boolean, breakingNotes: string[] }}
@@ -88,6 +101,7 @@ function normalizePrTitle({
   storyTitle,
   storyId,
   commitMessages = [],
+  ownCommitMessages = commitMessages,
   storyBody = '',
 }) {
   const idSuffix = `(#${storyId})`;
@@ -99,7 +113,11 @@ function normalizePrTitle({
 
   const subject = isConventionalSubject(trimmed)
     ? trimmed
-    : synthesizeSubject({ description: trimmed, storyId, commitMessages });
+    : synthesizeSubject({
+        description: trimmed,
+        storyId,
+        commitMessages: ownCommitMessages,
+      });
 
   const marked = breaking ? markBreaking(subject) : subject;
   return { title: `${marked} ${idSuffix}`, breaking, breakingNotes: notes };
@@ -171,16 +189,13 @@ export function buildPullRequestFields({
   config,
   progress = () => {},
 }) {
-  const commitMessages = readBranchCommits({
-    storyBranch,
-    baseBranch,
-    cwd,
-    gitSpawn,
-  });
+  const read = { storyBranch, baseBranch, cwd, gitSpawn };
+  const commitMessages = readBranchCommits(read);
   const { title, breaking, breakingNotes } = normalizePrTitle({
     storyTitle,
     storyId,
     commitMessages,
+    ownCommitMessages: readOwnCommits(read),
     storyBody,
   });
   if (breaking) announceBreaking(breakingNotes, progress);

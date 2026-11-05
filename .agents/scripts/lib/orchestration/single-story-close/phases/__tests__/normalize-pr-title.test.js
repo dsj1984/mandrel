@@ -9,19 +9,25 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 
+import { makeTempDir } from '../../../../test-temp.js';
 import { buildPullRequestFields } from '../normalize-pr-title.js';
 import { liftTrailers } from '../pr-body-trailers.js';
 
 const NUL = String.fromCharCode(0);
 
-/** A `gitSpawn` stand-in that replays `messages` as one `git log` payload. */
-function gitLog(messages) {
+/**
+ * A `gitSpawn` stand-in replaying `messages` for the full read and
+ * `ownMessages` for the `--first-parent` own-commit read.
+ */
+function gitLog(messages, ownMessages = messages) {
   const calls = [];
   const fn = (cwd, ...args) => {
     calls.push({ cwd, args });
-    return { status: 0, stdout: messages.map((m) => `${m}${NUL}\n`).join('') };
+    const replay = args.includes('--first-parent') ? ownMessages : messages;
+    return { status: 0, stdout: replay.map((m) => `${m}${NUL}\n`).join('') };
   };
   fn.calls = calls;
   return fn;
@@ -33,6 +39,7 @@ function build({
   storyId = 4321,
   storyBody = '',
   messages = [],
+  ownMessages = messages,
   trailerKeys,
 }) {
   return buildPullRequestFields({
@@ -42,7 +49,7 @@ function build({
     storyBranch: `story-${storyId}`,
     baseBranch: 'main',
     cwd: '/repo',
-    gitSpawn: gitLog(messages),
+    gitSpawn: gitLog(messages, ownMessages),
     config: trailerKeys && {
       delivery: { pullRequest: { bodyTrailers: trailerKeys } },
     },
@@ -264,13 +271,20 @@ test('the branch read is oldest-first over the base..head range', () => {
     cwd: '/repo',
     gitSpawn,
   });
-  assert.deepEqual(gitSpawn.calls[0].args, [
-    'log',
-    '--no-merges',
-    '--reverse',
-    '--format=%B%x00',
-    'main..story-1',
-  ]);
+  assert.deepEqual(
+    gitSpawn.calls.map((c) => c.args),
+    [
+      ['log', '--reverse', '--format=%B%x00', 'main..story-1'],
+      [
+        'log',
+        '--first-parent',
+        '--no-merges',
+        '--reverse',
+        '--format=%B%x00',
+        'main..story-1',
+      ],
+    ],
+  );
   // Same hidden rank and same count → the oldest commit's type wins.
   assert.equal(title, 'docs: a sweep (#1)');
 });
@@ -292,4 +306,81 @@ test('a failed or throwing read degrades to the default type', () => {
     assert.equal(title, 'chore: a sweep (#1)');
     assert.equal(breaking, false);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Merge commits (Story #5942)
+// ---------------------------------------------------------------------------
+
+test('merged-in commits cannot set the type; only the own-commit read does', () => {
+  const { title } = build({
+    storyTitle: 'Restyle the hero',
+    messages: ['style: own tweak', 'revert: their undo', 'merge their branch'],
+    ownMessages: ['style: own tweak'],
+  });
+  assert.equal(title, 'style: restyle the hero (#4321)');
+});
+
+test('a trailer on a merge commit is overridden by a later regular commit', () => {
+  const { body } = build({
+    storyTitle: 'Tidy up',
+    messages: [
+      'chore: merge lab-a\n\nDesign-lab-branch: lab-a',
+      'fix: follow-up\n\nDesign-lab-branch: lab-b',
+    ],
+    ownMessages: ['fix: follow-up\n\nDesign-lab-branch: lab-b'],
+    trailerKeys: ['Design-lab-branch'],
+  });
+  assert.match(body, /\nDesign-lab-branch: lab-b$/);
+});
+
+/** Run git in `cwd` with a fixed identity so commits need no host config. */
+function git(cwd, ...args) {
+  return execFileSync(
+    'git',
+    [
+      '-c',
+      'user.name=t',
+      '-c',
+      'user.email=t@t',
+      '-c',
+      'commit.gpgsign=false',
+      ...args,
+    ],
+    { cwd, encoding: 'utf8' },
+  );
+}
+
+test('a real --no-ff merge carries its trailer into the body and leaves the type alone', () => {
+  const repo = makeTempDir('pr-merge-');
+  git(repo, 'init', '-q', '-b', 'main');
+  git(repo, 'commit', '-q', '--allow-empty', '-m', 'chore: root');
+  git(repo, 'checkout', '-q', '-b', 'lab');
+  git(repo, 'commit', '-q', '--allow-empty', '-m', 'revert: undo my tweak');
+  git(repo, 'checkout', '-q', '-b', 'story-7', 'main');
+  git(repo, 'commit', '-q', '--allow-empty', '-m', 'style: own tweak');
+  git(
+    repo,
+    'merge',
+    '-q',
+    '--no-ff',
+    'lab',
+    '-m',
+    'chore: merge lab',
+    '-m',
+    'Design-lab-branch: lab',
+  );
+
+  const { title, body } = buildPullRequestFields({
+    storyTitle: 'Restyle the hero',
+    storyId: 7,
+    storyBranch: 'story-7',
+    baseBranch: 'main',
+    cwd: repo,
+    config: {
+      delivery: { pullRequest: { bodyTrailers: ['Design-lab-branch'] } },
+    },
+  });
+  assert.equal(title, 'style: restyle the hero (#7)');
+  assert.match(body, /\nDesign-lab-branch: lab$/);
 });
