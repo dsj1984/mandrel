@@ -19,6 +19,8 @@
  * @property {string=}  class        - Kebab-case bug class.
  * @property {{ file: string, line?: number }[]=} instances - Every location; the first is `file`/`line`.
  * @property {boolean=} repeat       - An earlier run of this Story raised it.
+ * @property {string=}  carried      - An earlier CRITICAL kept blocking; the re-check's reason.
+ * @property {string=}  carriedId    - A carried finding's recorded id.
  *
  * @typedef {object} FindingClaim
  * @property {'path-absent'|'symbol-referenced'|'file-unchanged'} kind

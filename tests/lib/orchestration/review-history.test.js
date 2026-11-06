@@ -10,6 +10,7 @@ import test from 'node:test';
 
 import {
   appendReviewRun,
+  earlierCriticals,
   markRepeats,
   readReviewHistory,
   recordOverriddenIds,
@@ -97,6 +98,10 @@ test('appendReviewRun and recordOverriddenIds write one history beside the depos
     class: 'unbounded-retry',
     instances: [{ file: 'src/a.js', line: 10 }, { file: 'src/b.js' }],
     unverified: 'refuted',
+    title: 'Retry loop has no bound on 3 calls',
+    body: 'b',
+    file: 'src/a.js',
+    line: 10,
   });
   assert.deepEqual(record.overridden, [findingId(f)]);
 });
@@ -167,4 +172,108 @@ test('markRepeats: a repeat of an overridden CRITICAL is downgraded; a fresh one
   assert.equal(repeat.repeat, true);
   const [fresh] = markRepeats([f], { runs: [], overridden: [id] });
   assert.equal(fresh.severity, 'critical');
+});
+
+// --- Earlier CRITICALs (Story #5974) ---------------------------------------
+
+test('appendReviewRun: a critical keeps what re-verification needs; lower severities stay id-only', (t) => {
+  const { config } = deps(t);
+  const claim = { kind: 'path-absent', path: 'db/x.sql' };
+  appendReviewRun(
+    7,
+    {
+      headSha: 'abc',
+      findings: [
+        finding({ body: 'x'.repeat(5000), claim }),
+        finding({ severity: 'high', title: 'Other' }),
+      ],
+      earlierCriticals: [{ id: 'old', status: 'refuted', reason: 'guarded' }],
+    },
+    { config },
+  );
+  const [run] = readReviewHistory(7, { config }).runs;
+  const [critical, high] = run.findings;
+  assert.equal(critical.body.length, 4000);
+  assert.deepEqual(critical.claim, claim);
+  assert.equal(critical.title, 'Retry loop has no bound on 3 calls');
+  assert.deepEqual(Object.keys(high).sort(), [
+    'class',
+    'id',
+    'instances',
+    'provider',
+    'severity',
+  ]);
+  assert.deepEqual(run.earlierCriticals, [
+    { id: 'old', status: 'refuted', reason: 'guarded' },
+  ]);
+});
+
+const rec = (id, over = {}) => ({
+  id,
+  severity: 'critical',
+  instances: [{ file: 'src/a.js', line: 1 }],
+  ...over,
+});
+
+test('earlierCriticals: survivors open, resolutions close, a re-raise re-opens, overrides end overridden', () => {
+  const history = {
+    runs: [
+      {
+        headSha: 'h1',
+        findings: [
+          rec('open'),
+          rec('fixed'),
+          rec('refuted-in-run', { unverified: 'no' }),
+          rec('ungrounded', { ungrounded: 'no' }),
+          rec('high', { severity: 'high' }),
+          rec('over'),
+        ],
+      },
+      {
+        headSha: 'h2',
+        findings: [rec('open', { carried: 'uncertain' }), rec('back')],
+        earlierCriticals: [
+          { id: 'fixed', status: 'fixed', reason: 'gone' },
+          { id: 'open', status: 'still-open', reason: 'uncertain' },
+        ],
+      },
+      {
+        headSha: 'h3',
+        findings: [],
+        earlierCriticals: [{ id: 'back', status: 'refuted', reason: 'r' }],
+      },
+      { headSha: 'h4', findings: [rec('back')] },
+    ],
+    overridden: ['over'],
+  };
+  const out = earlierCriticals(history);
+  assert.deepEqual(
+    out.map((e) => [e.id, e.status, e.headSha]),
+    [
+      ['open', 'open', 'h1'],
+      ['fixed', 'fixed', 'h1'],
+      ['over', 'overridden', 'h1'],
+      ['back', 'open', 'h4'],
+    ],
+  );
+  assert.equal(out[1].reason, 'gone');
+});
+
+test('#5974 AC-9: a history written before earlier-CRITICAL outcomes reads as open, without stored content', (t) => {
+  const { config, tempRoot } = deps(t);
+  const dir = path.join(tempRoot, 'orchestration');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'story-review-history-7.json'),
+    JSON.stringify({
+      kind: 'story-review-history',
+      storyId: 7,
+      runs: [{ headSha: 'a', findings: [rec('legacy')] }],
+      overridden: [],
+    }),
+  );
+  const [entry] = earlierCriticals(readReviewHistory(7, { config }));
+  assert.equal(entry.status, 'open');
+  assert.equal(entry.finding.title, undefined);
+  assert.deepEqual(earlierCriticals({ runs: [], overridden: [] }), []);
 });

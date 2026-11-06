@@ -256,6 +256,18 @@ function boundDegradation(skipped) {
   ];
 }
 
+function voterContext(args) {
+  return {
+    baseRef: args.baseRef,
+    headRef: args.headRef,
+    cwd: args.cwd ?? PROJECT_ROOT,
+    spawnFn: args.spawnFn,
+    platform: args.platform ?? process.platform,
+    gitSpawnFn: args.gitSpawnFn ?? gitSpawn,
+    cliPresent: (args.probeFn ?? probeClaudeCli)(),
+  };
+}
+
 /**
  * Verify every `critical` finding; findings below critical are never sent.
  * One verifier at `light`/`standard`, three at `deep`.
@@ -278,15 +290,7 @@ async function verifyCriticals(args) {
   }
   const checked = criticals.slice(0, MAX_VERIFIED_CRITICALS);
   const voters = args.depth === 'deep' ? 3 : 1;
-  const ctx = {
-    baseRef: args.baseRef,
-    headRef: args.headRef,
-    cwd: args.cwd ?? PROJECT_ROOT,
-    spawnFn: args.spawnFn,
-    platform: args.platform ?? process.platform,
-    gitSpawnFn: args.gitSpawnFn ?? gitSpawn,
-    cliPresent: (args.probeFn ?? probeClaudeCli)(),
-  };
+  const ctx = voterContext(args);
   args.logger?.info?.(
     `[code-review] Verifying ${checked.length} critical(s) with ${voters} verifier(s) each...`,
   );
@@ -309,6 +313,56 @@ async function verifyCriticals(args) {
   return {
     findings: args.findings.map((f) => settled.get(f) ?? f),
     degradations,
+    verification,
+  };
+}
+
+/** Whether the review gets a verifier: built-in, or injected seams. */
+const hasVerifier = (opts) => Boolean(opts.verifier || !opts.reviewProvider);
+
+/**
+ * Re-check earlier CRITICALs at the current head: one call each whatever the
+ * depth, the same pool and cap as `verifyCriticals`. Each result is the voter
+ * outcome; past the cap or with no verifier the outcome is `skipped`.
+ *
+ * @param {{ findings: Finding[], reviewInput: { baseRef: string,
+ *   headRef: string }, opts: object }} args
+ * @returns {Promise<{ results: { outcome: string, reason: string }[],
+ *   degradations: GateDegradation[], verification: VerificationSummary }>}
+ */
+export async function recheckCriticals({ findings, reviewInput, opts }) {
+  const verification = emptyVerification();
+  if (findings.length === 0 || !hasVerifier(opts)) {
+    const reason = 'no verifier for this review';
+    return {
+      results: findings.map(() => ({ outcome: 'skipped', reason })),
+      degradations: [],
+      verification,
+    };
+  }
+  const checked = findings.slice(0, MAX_VERIFIED_CRITICALS);
+  const ctx = voterContext({
+    baseRef: reviewInput.baseRef,
+    headRef: reviewInput.headRef,
+    cwd: opts.cwd,
+    gitSpawnFn: opts.gitSpawnFn,
+    ...opts.verifier,
+  });
+  const votes = await runPooled(
+    checked.map((f) => () => runVoter(f, ctx)),
+    MAX_IN_FLIGHT,
+  );
+  for (const v of votes) verification[v.outcome] += 1;
+  verification.attempted = votes.length;
+  return {
+    results: findings.map(
+      (_, i) =>
+        votes[i] ?? { outcome: 'skipped', reason: 'verification cap reached' },
+    ),
+    degradations: [
+      ...checked.flatMap((f, i) => voteDegradations(f, [votes[i]])),
+      ...boundDegradation(findings.slice(MAX_VERIFIED_CRITICALS)),
+    ],
     verification,
   };
 }
@@ -337,8 +391,7 @@ export async function vetFindings({
     degradations,
     gitSpawnFn: opts.gitSpawnFn,
   });
-  const verify =
-    opts.verifier || !opts.reviewProvider ? verifyCriticals : skipVerification;
+  const verify = hasVerifier(opts) ? verifyCriticals : skipVerification;
   const verified = await verify({
     findings: grounded.findings,
     baseRef,

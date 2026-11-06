@@ -8,16 +8,22 @@
 import picomatch from 'picomatch';
 import { hasSurvivingCritical } from '../audit-suite/findings.js';
 import { resolveConfig } from '../config-resolver.js';
+import { gitSpawn } from '../git-utils.js';
 import { PROJECT_ROOT } from '../project-root.js';
 import { computeChangeSet } from './change-set.js';
 import { remoteBaseRef } from './review-base-ref.js';
 import { deriveChangeLevel, resolveDepth } from './review-depth.js';
 import {
   appendReviewRun,
+  earlierCriticals,
   markRepeats,
+  raisedAgain,
   readReviewHistory,
 } from './review-history.js';
-import { vetFindings } from './review-providers/critical-verifier.js';
+import {
+  recheckCriticals,
+  vetFindings,
+} from './review-providers/critical-verifier.js';
 import {
   collectProviderDegradations,
   degradationEnvelope,
@@ -319,17 +325,155 @@ function resolveHistoryDeps(opts, config) {
   return opts.reviewProvider ? null : { config };
 }
 
-/** Mark the findings an earlier run of this Story already raised. */
-function markAgainstHistory(findings, ticketId, historyDeps) {
-  if (!historyDeps) return findings;
-  return markRepeats(findings, readReviewHistory(ticketId, historyDeps));
+/** How the current run settles an earlier CRITICAL it raised again, if it did. */
+function settleInRun(entry, findings) {
+  const again = findings.filter((f) => raisedAgain(f, entry.finding));
+  if (again.some((f) => f.severity === 'critical')) {
+    return { status: 'still-open' };
+  }
+  const flagged = again.find((f) => f.unverified || f.ungrounded);
+  return flagged
+    ? { status: 'refuted', reason: flagged.unverified || flagged.ungrounded }
+    : null;
 }
 
+/** A stored history record as a CRITICAL the verifier can re-check. */
+function storedCritical({ id, finding: f }) {
+  const optional = Object.entries({
+    file: f.file ?? f.instances?.[0]?.file,
+    line: f.line,
+    claim: f.claim,
+    class: f.class,
+    provider: f.provider,
+  }).filter(([, v]) => v != null);
+  return {
+    severity: 'critical',
+    title: f.title ?? `Earlier CRITICAL ${id}`,
+    body: f.body ?? '',
+    ...Object.fromEntries(optional),
+    instances: f.instances ?? [],
+    carriedId: id,
+  };
+}
+
+/** Reporting only: did the instance files change since the raising head? */
+function instanceFilesChanged({ finding, headSha }, headRef, opts) {
+  const files = (finding.instances ?? []).map((i) => i.file);
+  if (files.length === 0) return false;
+  try {
+    const out = (opts.gitSpawnFn ?? gitSpawn)(
+      opts.cwd ?? PROJECT_ROOT,
+      'diff',
+      '--name-only',
+      headSha,
+      headRef,
+      '--',
+      ...files,
+    );
+    return out?.status === 0 && String(out.stdout ?? '').trim() !== '';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Settle every open earlier CRITICAL: re-raised, refuted in this run, or else
+ * re-verified at the current head. Only a verifier refutation resolves an
+ * absent one; anything else carries it into this run's findings as blocking.
+ */
+async function carryForward({ findings, history, reviewInput, opts }) {
+  const outcomes = [];
+  const absent = [];
+  for (const entry of earlierCriticals(history)) {
+    if (entry.status !== 'open') continue;
+    const inRun = settleInRun(entry, findings);
+    if (inRun) outcomes.push({ id: entry.id, ...inRun });
+    else absent.push(entry);
+  }
+  const stored = absent.map(storedCritical);
+  const checked = await recheckCriticals({
+    findings: stored,
+    reviewInput,
+    opts,
+  });
+  const carried = [];
+  absent.forEach((entry, i) => {
+    const { outcome, reason } = checked.results[i];
+    if (outcome === 'refuted') {
+      const fixed = instanceFilesChanged(entry, reviewInput.headRef, opts);
+      outcomes.push({
+        id: entry.id,
+        status: fixed ? 'fixed' : 'refuted',
+        reason,
+      });
+      return;
+    }
+    carried.push({ ...stored[i], carried: reason });
+    outcomes.push({ id: entry.id, status: 'still-open', reason });
+  });
+  return { ...checked, findings: [...findings, ...carried], outcomes };
+}
+
+/** Every earlier surviving CRITICAL with this run's status for the comment. */
+function earlierSection(history, outcomes) {
+  const now = new Map(outcomes.map((o) => [o.id, o]));
+  return earlierCriticals(history).map((e) => {
+    const settled = now.get(e.id) ?? e;
+    return {
+      id: e.id,
+      title: e.finding.title ?? null,
+      instances: e.finding.instances ?? [],
+      headSha: e.headSha,
+      status: settled.status,
+      ...(settled.reason ? { reason: settled.reason } : {}),
+    };
+  });
+}
+
+/**
+ * Mark repeats, then carry forward the open earlier CRITICALs. Without a
+ * history seam the findings pass through unchanged.
+ */
+async function applyHistory({
+  findings,
+  ticketId,
+  historyDeps,
+  reviewInput,
+  opts,
+}) {
+  if (!historyDeps) {
+    return { findings, outcomes: null, earlier: [], degradations: [] };
+  }
+  const history = readReviewHistory(ticketId, historyDeps);
+  const carry = await carryForward({
+    findings: markRepeats(findings, history),
+    history,
+    reviewInput,
+    opts,
+  });
+  return { ...carry, earlier: earlierSection(history, carry.outcomes) };
+}
+
+/** Sum two verifier tallies; an absent second one adds nothing. */
+const addVerification = (a, b = {}) =>
+  Object.fromEntries(Object.entries(a).map(([k, n]) => [k, n + (b[k] ?? 0)]));
+
 /** Best-effort: a history write failure never fails the review. */
-function recordRun({ ticketId, headRef, findings, historyDeps, logger }) {
+function recordRun({
+  ticketId,
+  headRef,
+  findings,
+  outcomes,
+  historyDeps,
+  logger,
+}) {
   if (!historyDeps) return;
   try {
-    appendReviewRun(ticketId, { headSha: headRef, findings }, historyDeps);
+    appendReviewRun(
+      ticketId,
+      { headSha: headRef, findings, earlierCriticals: outcomes },
+      historyDeps,
+    );
   } catch (err) {
     logger?.warn?.(
       `[code-review] Could not record the review history: ${err?.message ?? err}`,
@@ -389,10 +533,18 @@ async function executeReviewPipeline({ opts, config, envelope }) {
       ...(guidance.degradation ? [guidance.degradation] : []),
     ],
   });
-  const { degradations, verification } = vetted;
   const skip = applySkipPaths(vetted.findings, codeReviewConfig?.skipPaths);
   const historyDeps = resolveHistoryDeps(opts, config);
-  const findings = markAgainstHistory(skip.findings, ticketId, historyDeps);
+  const carry = await applyHistory({
+    findings: skip.findings,
+    ticketId,
+    historyDeps,
+    reviewInput,
+    opts,
+  });
+  const { findings } = carry;
+  const degradations = [...vetted.degradations, ...carry.degradations];
+  const verification = addVerification(vetted.verification, carry.verification);
   const scored = scoreFindings(findings, providerName);
   const report = renderFindingsFn({
     scope,
@@ -405,8 +557,16 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     degradations,
     verification,
     skipped: skip.skipped,
+    earlierCriticals: carry.earlier,
   });
-  recordRun({ ticketId, headRef, findings, historyDeps, logger });
+  recordRun({
+    ticketId,
+    headRef,
+    findings,
+    outcomes: carry.outcomes,
+    historyDeps,
+    logger,
+  });
 
   const { posted, postedCommentId } = await postUnlessDeferred(opts, {
     upsertCommentFn,

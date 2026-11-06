@@ -6,7 +6,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { vetFindings } from '../../../../.agents/scripts/lib/orchestration/review-providers/critical-verifier.js';
+import {
+  recheckCriticals,
+  vetFindings,
+} from '../../../../.agents/scripts/lib/orchestration/review-providers/critical-verifier.js';
 
 const MAX_VERIFIED_CRITICALS = 10;
 
@@ -266,4 +269,67 @@ test('a verdict in the result text counts; an unknown verdict is an error', asyn
 test('the prompt tells the verifier to read code at the head ref', async () => {
   const out = await run([critical('Bug')], [envelope(REFUTED)]);
   assert.match(out.calls[0].options.input, /git show HEAD1:<path>/);
+});
+
+// --- Re-checking earlier CRITICALs (Story #5974) ---------------------------
+
+function recheck(findings, spawnFn, extra = {}) {
+  return recheckCriticals({
+    findings,
+    reviewInput: { baseRef: 'origin/main', headRef: 'HEAD1', depth: 'deep' },
+    opts: {
+      cwd: '/repo',
+      gitSpawnFn,
+      verifier: { spawnFn, probeFn: () => true, platform: 'linux', ...extra },
+    },
+  });
+}
+
+test('#5974 AC-5: one call per earlier CRITICAL at any depth, 3 in flight, capped at 10', async () => {
+  const findings = Array.from({ length: MAX_VERIFIED_CRITICALS + 1 }, (_, i) =>
+    critical(`Bug ${i}`),
+  );
+  let inFlight = 0;
+  let peak = 0;
+  let calls = 0;
+  const out = await recheck(findings, async () => {
+    calls += 1;
+    inFlight += 1;
+    peak = Math.max(peak, inFlight);
+    await new Promise((resolve) => setImmediate(resolve));
+    inFlight -= 1;
+    return envelope(REFUTED);
+  });
+  assert.equal(calls, MAX_VERIFIED_CRITICALS);
+  assert.equal(peak, 3);
+  assert.equal(out.verification.attempted, MAX_VERIFIED_CRITICALS);
+  assert.equal(out.results[0].outcome, 'refuted');
+  assert.equal(out.results.at(-1).outcome, 'skipped');
+  assert.equal(out.degradations.length, 1);
+  assert.equal(out.degradations[0].surface, 'critical-verification');
+  assert.match(out.degradations[0].reason, /"Bug 10"/);
+});
+
+test('#5974 AC-5: a missing CLI or an unproven confirmation degrades; no verifier skips', async () => {
+  const noCli = await recheck(
+    [critical('Bug')],
+    async () => envelope(REFUTED),
+    {
+      probeFn: () => false,
+    },
+  );
+  assert.equal(noCli.results[0].outcome, 'errored');
+  assert.match(noCli.degradations[0].reason, /claude CLI not found/);
+  const unproven = await recheck([critical('Bug')], async () =>
+    envelope({ ...CONFIRMED, evidence: { file: 'src/none.js', line: 1 } }),
+  );
+  assert.equal(unproven.results[0].outcome, 'uncertain');
+  assert.equal(unproven.degradations.length, 1);
+  const none = await recheckCriticals({
+    findings: [critical('Bug')],
+    reviewInput: { baseRef: 'origin/main', headRef: 'HEAD1' },
+    opts: { reviewProvider: {} },
+  });
+  assert.equal(none.results[0].outcome, 'skipped');
+  assert.equal(none.verification.attempted, 0);
 });
