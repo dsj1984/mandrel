@@ -17,6 +17,7 @@ import {
 } from './lib/observability/story-outcome.js';
 import { structuredCommentMarker } from './lib/orchestration/ticketing/reads.js';
 import { createProvider } from './lib/provider-factory.js';
+import { alignRows } from './review-dispositions-report.js';
 
 const USAGE = {
   invocation:
@@ -136,22 +137,6 @@ export function summarizeOutcomes(comments) {
     unreadable,
     rows,
   };
-}
-
-/** @param {string[][]} rows @returns {string[]} space-padded columns. */
-function alignRows(rows) {
-  const widths = [];
-  for (const row of rows) {
-    row.forEach((cell, i) => {
-      widths[i] = Math.max(widths[i] ?? 0, cell.length);
-    });
-  }
-  return rows.map((row) =>
-    row
-      .map((cell, i) => cell.padEnd(widths[i]))
-      .join('  ')
-      .trimEnd(),
-  );
 }
 
 function renderReport(report) {
