@@ -382,3 +382,67 @@ describe('writer.writeFile — envelope stamps survive serialization (#4969)', (
     }
   });
 });
+
+describe('write() — a scoped write cannot cross a scoring-semantics boundary', () => {
+  let dir;
+  beforeEach(() => {
+    dir = makeTempDir('writer-semantics-');
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const stale = () => ({
+    ...write(FIXTURES.crap),
+    scoringSemantics: 'method-identity-v3',
+  });
+  const refresh = (scope, priorEnvelope) =>
+    write({
+      kind: 'crap',
+      rows: [{ path: 'src/a.js', method: 'foo', startLine: 10, crap: 3 }],
+      prior: priorEnvelope.rows,
+      priorEnvelope,
+      scope,
+    });
+
+  it('AC-10: refuses a diff-scoped refresh naming --full-scope and leaves the file untouched', () => {
+    const file = path.join(dir, 'crap.json');
+    const prior = stale();
+    writeFile(file, prior);
+    const before = readFileSync(file, 'utf-8');
+    assert.throws(
+      () => refresh({ mode: 'diff', files: new Set(['src/a.js']) }, prior),
+      /--full-scope/,
+    );
+    assert.equal(readFileSync(file, 'utf-8'), before);
+  });
+
+  it('refuses an unstamped prior too, since the kind stamps one', () => {
+    const { scoringSemantics: _drop, ...unstamped } = stale();
+    assert.throws(
+      () => refresh({ mode: 'diff', files: new Set(['src/a.js']) }, unstamped),
+      /<unstamped>/,
+    );
+  });
+
+  it('AC-10: a full-scope refresh under the same conditions re-seeds the file', () => {
+    const file = path.join(dir, 'crap.json');
+    writeFile(file, stale());
+    writeFile(file, refresh(null, stale()));
+    const written = JSON.parse(readFileSync(file, 'utf-8'));
+    assert.equal(written.scoringSemantics, 'method-identity-v4');
+    assert.deepEqual(
+      written.rows.map((r) => r.crap),
+      [3],
+    );
+  });
+
+  it('allows a scoped write whose prior already carries the running stamp', () => {
+    const current = write(FIXTURES.crap);
+    const result = refresh(
+      { mode: 'diff', files: new Set(['src/a.js']) },
+      current,
+    );
+    assert.equal(result.scoringSemantics, 'method-identity-v4');
+  });
+});
