@@ -104,6 +104,10 @@
         "epicRollup"
       ],
       "properties": {
+        "reviewRecord": {
+          "type": "boolean",
+          "description": "The merged PR carries a verification-results review record: close's own post (details.reviewRecord already-recorded), the handoff deposit matching the merged head posted at land (posted-from-deposit), or an Unreviewed marker (unreviewed-no-deposit | unreviewed-stale-deposit). A tail run without a PR number reports true with no-pr. Only a failed read or post reports false, and like every tail step that degrades the report, never the land."
+        },
         "followUps": { "type": "boolean" },
         "statusResync": { "type": "boolean" },
         "worktreeReap": {
