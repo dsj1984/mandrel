@@ -36467,15 +36467,80 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "refBehind",
+      "startLine": 746,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon refPush(ctx,sha)#0>",
+      "startLine": 755,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "rulesetFailure",
+      "startLine": 762,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon rulesetFailure/shas.map(sha)#0>",
+      "startLine": 764,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "stepTargets",
+      "startLine": 779,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "reviewVerdict",
       "startLine": 781,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon stepTargets/range.filter(_,i)#0>",
+      "startLine": 782,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon ref-behind(ctx,evidence)#0>",
+      "startLine": 787,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon ruleset-eval-failed(ctx,ev,range)#0>",
+      "startLine": 788,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "computeHeldReview",
       "startLine": 793,
       "crap": 3.017578125
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "firstParentRange",
+      "startLine": 816,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "steppedPush",
+      "startLine": 839,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
@@ -36488,6 +36553,13 @@
       "method": "<anon startReview/catch(err)#0>",
       "startLine": 846,
       "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon steppedPush/map(sha)#0>",
+      "startLine": 848,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -36509,6 +36581,12 @@
       "startLine": 861,
       "crap": 2,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "pushOrStep",
+      "startLine": 866,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
