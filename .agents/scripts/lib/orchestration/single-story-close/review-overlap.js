@@ -1,19 +1,23 @@
 /**
  * The Story-scope review, overlapped with the close-validation gates: started
  * once the pre-gate self-heal commits land and held (computed, never posted)
- * until the PR exists. A worker deposit whose diff digest matches the diff at
- * that point **is** the held result, so nothing is computed. After PR-open a
- * pushed diff with a different digest discards it for a serial review — a
- * clean base-sync merge moves HEAD without changing the digest. The held
- * promise never rejects, so an abandoned review leaves no unhandled rejection.
+ * until the PR exists. A deposit whose diff digest matches the diff at that
+ * point **is** the held result, so nothing is computed. After PR-open a
+ * pushed diff with a different digest discards it for a serial review of the
+ * pushed SHA — a base-sync merge that moves only offsets keeps the digest.
+ * Every non-degraded review close computes is deposited when it settles, so a
+ * retry on the same diff adopts it. The held promise never rejects, so an
+ * abandoned review leaves no unhandled rejection.
  */
 
 import { postReviewComment } from '../code-review.js';
 import {
+  buildReviewDeposit,
   computeReviewDiffDigest,
   depositAsComputedReview,
   probeHeldReviewDiff,
   resolveRefSha,
+  writeReviewDeposit,
 } from '../review-deposit.js';
 import { upsertStructuredComment } from '../ticketing.js';
 import {
@@ -29,33 +33,76 @@ function resolveBranchSha({ cwd, storyBranch, gitSpawnFn }) {
   return resolveRefSha({ cwd, ref: storyBranch, gitSpawnFn });
 }
 
-/** A held result already in hand: the worker deposit. */
+/** A held result already in hand: the deposit. */
 function adoptedSettlement(deposit, atMs) {
   const value = depositAsComputedReview(deposit);
   return Promise.resolve({ ok: true, value, endedAtMs: atMs });
 }
 
-/** Compute the review of `sha`, held unposted; never rejects. */
-function computeHeldReview({ sha, nowMs, ...args }) {
+/** Deposit a computed result; a failed write is a warning, never a failure. */
+function depositReview(args, held, result) {
+  if (!result || result.degraded || !held.diffDigest) return;
+  const { writeDepositFn = writeReviewDeposit, progress } = args;
+  try {
+    const deposit = buildReviewDeposit({
+      storyId: Number(args.storyId),
+      headSha: held.sha,
+      baseRef: held.baseRef,
+      diffDigest: held.diffDigest,
+      result,
+    });
+    writeDepositFn(deposit, { config: args.config });
+  } catch (err) {
+    progress(
+      'REVIEW',
+      `⚠️ Could not deposit the Story-scope review: ${err?.message ?? err}`,
+    );
+  }
+}
+
+/** Compute the review of `held.sha`, held unposted; never rejects. */
+function computeHeldReview(args, held) {
+  const { nowMs = Date.now } = args;
   return computeStoryScopeReview({
     ...args,
-    headRef: sha,
+    headRef: held.sha,
     deferPost: true,
   }).then(
-    (value) => ({ ok: true, value, endedAtMs: nowMs() }),
+    (value) => {
+      const endedAtMs = nowMs();
+      depositReview(args, held, value.result);
+      return { ok: true, value, endedAtMs };
+    },
     (error) => ({ ok: false, error, endedAtMs: nowMs() }),
   );
+}
+
+/** Adopt the matching deposit for `sha`, else compute (and deposit) it. */
+function holdReview(args, sha) {
+  const { progress, nowMs = Date.now } = args;
+  const { baseRef, diffDigest, deposit } = probeHeldReviewDiff({
+    ...args,
+    sha,
+  });
+  const startedAtMs = nowMs();
+  const held = { sha, baseRef, diffDigest, adopted: !!deposit, startedAtMs };
+  if (deposit) {
+    progress('REVIEW', `♻️ Adopting the deposited review; none computed.`);
+    return { ...held, settled: adoptedSettlement(deposit, startedAtMs) };
+  }
+  return { ...held, settled: computeHeldReview(args, held) };
 }
 
 /**
  * @param {{ cwd: string, storyId: number, storyBranch: string,
  *   baseBranch: string, provider: object, runCodeReviewFn: Function,
  *   gitSpawnFn: Function, progress: Function, config?: object,
- *   readDepositFn?: Function, nowMs?: () => number }} args
+ *   readDepositFn?: Function, writeDepositFn?: Function,
+ *   nowMs?: () => number }} args
  * @returns {HeldReview|null} null when the SHA is unresolvable.
  */
 export function startHeldReview(args) {
-  const { cwd, storyBranch, gitSpawnFn, progress, nowMs = Date.now } = args;
+  const { cwd, storyBranch, gitSpawnFn, progress } = args;
   const sha = resolveBranchSha({ cwd, storyBranch, gitSpawnFn });
   if (!sha) {
     progress(
@@ -64,18 +111,7 @@ export function startHeldReview(args) {
     );
     return null;
   }
-  const { baseRef, diffDigest, deposit } = probeHeldReviewDiff({
-    ...args,
-    sha,
-  });
-  const startedAtMs = nowMs();
-  const held = { sha, baseRef, diffDigest, adopted: !!deposit, startedAtMs };
-  if (deposit) {
-    progress('REVIEW', `♻️ Adopting the worker's held review; none computed.`);
-    return { ...held, settled: adoptedSettlement(deposit, startedAtMs) };
-  }
-  const settled = computeHeldReview({ ...args, sha, nowMs });
-  return { ...held, settled };
+  return holdReview(args, sha);
 }
 
 /** Drop a held review unposted. */
@@ -116,18 +152,20 @@ async function postHeldReview(held, args) {
 }
 
 /**
- * Post a held review whose diff digest matches the pushed diff (phase
- * untimed: it records its own wall time), else run the serial review.
+ * Post a held review whose diff digest matches the pushed diff, else review
+ * the pushed SHA serially (deposited before it posts). Either phase is
+ * untimed: the review records its own wall time.
  *
  * @returns {Promise<object>} the review outcome.
  */
 export async function reviewAfterPrOpen(args) {
   const { held, setPhase, progress } = args;
+  const sha = resolveBranchSha(args);
   if (held && args.prNumber != null) {
     const pushedDigest = computeReviewDiffDigest({
       cwd: args.cwd,
       baseRef: held.baseRef,
-      headRef: resolveBranchSha(args),
+      headRef: sha,
       gitSpawnFn: args.gitSpawnFn,
     });
     if (pushedDigest !== null && pushedDigest === held.diffDigest) {
@@ -146,16 +184,9 @@ export async function reviewAfterPrOpen(args) {
     );
   }
   setPhase('code-review');
-  return await runStoryScopeReview({
-    cwd: args.cwd,
-    storyId: args.storyId,
-    storyBranch: args.storyBranch,
-    baseBranch: args.baseBranch,
-    prUrl: args.prUrl,
-    prNumber: args.prNumber,
-    provider: args.provider,
-    runCodeReviewFn: args.runCodeReviewFn,
-    gitSpawnFn: args.gitSpawnFn,
-    progress,
-  });
+  if (args.prNumber != null && sha) {
+    args.pauseTimer();
+    return await postHeldReview(holdReview(args, sha), args);
+  }
+  return await runStoryScopeReview(args);
 }

@@ -59,6 +59,7 @@ export async function openAndReviewPr(ctx, deps) {
     provider: deps.provider,
     runCodeReviewFn: deps.runCodeReview,
     gitSpawnFn: deps.git.gitSpawn,
+    config: deps.config,
     progress,
     setPhase: ctx.setPhase,
     pauseTimer: ctx.phaseTimer.pause,
