@@ -67,7 +67,7 @@ import {
   settleOverBudget,
 } from './handoff-gates.js';
 import {
-  raisedDuplicationRows,
+  raisedDuplicationSuffix,
   rescoreDuplication,
 } from './handoff-rescore.js';
 import { handoffStatePath } from './handoff-state.js';
@@ -1029,16 +1029,7 @@ async function stepPostCapture(ctx) {
     runLogged(ctx, ...a),
   );
   if (failed) {
-    const raised = failed.scoresDuplication
-      ? raisedDuplicationRows(ctx, {
-          baselineRef: failed.baselineRef,
-          limit: MAX_OFFENDING_LINES,
-        })
-      : [];
-    const rows =
-      raised.length > 0
-        ? `; raised duplication rows: ${raised.join('; ')}`
-        : '';
+    const rows = raisedDuplicationSuffix(ctx, failed, MAX_OFFENDING_LINES);
     return fixRequired(name, `${failed.finding}${rows}`, {
       evidencePath: failed.evidencePath,
       gate: failed.gate,

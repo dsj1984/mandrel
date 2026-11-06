@@ -117,7 +117,7 @@ function rowsOf(text) {
  * @param {{ baselineRef?: string, limit: number, readFile?: (p: string) => string }} opts
  * @returns {string[]}
  */
-export function raisedDuplicationRows(
+function raisedDuplicationRows(
   ctx,
   {
     baselineRef = `origin/${ctx.baseBranch}`,
@@ -146,4 +146,24 @@ export function raisedDuplicationRows(
     lines.push(`${file} ${pct(before)} → ${pct(head)}${clones}`);
   }
   return lines.slice(0, limit);
+}
+
+/**
+ * The post-capture finding's suffix naming raised duplication rows; `''` for
+ * a gate that does not score duplication or when nothing was raised.
+ *
+ * @param {object} ctx
+ * @param {{ scoresDuplication?: boolean, baselineRef?: string }} failed
+ * @param {number} limit
+ * @returns {string}
+ */
+export function raisedDuplicationSuffix(ctx, failed, limit) {
+  if (!failed.scoresDuplication) return '';
+  const raised = raisedDuplicationRows(ctx, {
+    baselineRef: failed.baselineRef,
+    limit,
+  });
+  return raised.length > 0
+    ? `; raised duplication rows: ${raised.join('; ')}`
+    : '';
 }
