@@ -636,7 +636,11 @@ export async function runPlanPersist({
     assumptionNormalizations: validated.normalizations ?? [],
     waveCollisions,
     supersede,
-    rewrite: { ticket: rewrite.ticketId, reason: rewrite.reason },
+    rewrite: {
+      ticket: rewrite.ticketId,
+      reason: rewrite.reason,
+      preservedMarker: Boolean(rewrite.target?.trailingMarker),
+    },
     epic: containerEpic,
   };
 }
