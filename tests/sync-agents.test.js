@@ -146,6 +146,28 @@ describe('agents-projection — injectable module', () => {
   });
 });
 
+describe('agents-projection — tool scope frontmatter survives projection (#5978)', () => {
+  const frontmatter = (body) => body.match(/^---\n([\s\S]*?)\n---\n/)[1];
+  for (const agentModels of [{}, { 'plan-critic': 'opus', auditor: 'haiku' }]) {
+    it(`keeps tools / disallowedTools / hooks with agentModels ${JSON.stringify(agentModels)}`, () => {
+      const expected = expectedClaudeAgents({
+        projectRoot: REPO_ROOT,
+        localSrc: path.join(makeTempDir('no-local-'), 'absent'),
+        agentModels,
+      });
+      const plan = frontmatter(expected.get('plan-critic.md'));
+      assert.match(plan, /^tools: Read, Grep, Glob$/m);
+      const auditor = frontmatter(expected.get('auditor.md'));
+      assert.match(auditor, /^disallowedTools: NotebookEdit$/m);
+      assert.match(auditor, /role-scope-guard\.js" --role auditor'$/m);
+      for (const [role, model] of Object.entries(agentModels)) {
+        const fm = frontmatter(expected.get(`${role}.md`));
+        assert.match(fm, new RegExp(`^model: ${model}$`, 'm'));
+      }
+    });
+  }
+});
+
 describe('agents-projection — AC-1 snapshot over the repository role files', () => {
   it('the expected set equals the pre-module projection rule', () => {
     const expected = expectedClaudeAgents({

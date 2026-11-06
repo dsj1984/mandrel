@@ -622,6 +622,22 @@ deterministic CLIs, not as sub-agents:
   depth 2); where nesting is unavailable the critic is authored inline —
   same gate, schema, and round cap, weaker isolation.
 
+**Reviewer tool scope.** Each role file's frontmatter is the single source;
+both projections derive from it.
+
+| Role | Enforced scope |
+| --- | --- |
+| `plan-critic` | `tools: Read, Grep, Glob`. The only role whose read-only promise the harness enforces. On Codex the projection emits `features.shell_tool = false`. |
+| `acceptance-critic`, `auditor` | `disallowedTools: NotebookEdit` plus a frontmatter `PreToolUse` hook (matcher `Write\|Edit\|MultiEdit\|NotebookEdit\|Bash`) running `role-scope-guard.js --role <role>`. It denies a write outside `<tempRoot>/` (project or `.worktrees/<name>/`) and a Bash segment in a named mutation class: git index/ref/worktree writes, gh write verbs and write-method `gh api`, `sed -i` / `perl -i`, package installs. Bash stays, so this is a deny-list, not a sandbox: the harness does not guarantee these roles are read-only. |
+| `story-worker` | No scope keys. |
+
+Limits: Claude Code skips a project subagent's frontmatter hooks in an
+untrusted folder and in a `-p` session, so the guard does not run there (the
+plan-critic `tools` allowlist still applies); `delivery.routing.roleScopedAgents:
+false` falls back to a generic sub-agent with no scope; and a Codex agent file
+cannot set `sandbox_mode`, so Codex reviewer read-only depends on the parent
+session's sandbox.
+
 **Ceremony routing (fresh vs. inline).** `resolveCeremonyForRisk`
 (`lib/orchestration/ceremony-routing.js`) names the Story's **single** verdict
 owner from the ceremony profile and nothing else: `minimal` / `standard` →
