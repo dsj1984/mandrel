@@ -28,7 +28,7 @@ import {
 import { forEachLine } from './signals-writer.js';
 
 export const OUTCOME_COMMENT_TYPE = 'story-outcome';
-export const OUTCOME_SCHEMA_VERSION = 1;
+const OUTCOME_SCHEMA_VERSION = 1;
 const MAX_ATTEMPTS = 100;
 const STATUSES = Object.freeze(['landed', 'pending', 'blocked', 'failed']);
 /** Results that found the Story already closed or done: nothing happened. */
@@ -40,7 +40,7 @@ const NOOP_REASONS = new Set([
 const JSON_BLOCK = /```json\n([\s\S]*?)\n```/;
 
 /** @param {object|null|undefined} config */
-export function outcomeRecordEnabled(config) {
+function outcomeRecordEnabled(config) {
   return config?.delivery?.feedbackLoop?.outcomeRecord === true;
 }
 
@@ -56,7 +56,7 @@ function readJsonOrNull(file) {
  * @param {string} [root]
  * @returns {string|null}
  */
-export function resolveMandrelVersion(root = PROJECT_ROOT) {
+function resolveMandrelVersion(root = PROJECT_ROOT) {
   const own = readJsonOrNull(path.join(root, 'package.json'));
   const pkg =
     own?.name === 'mandrel'
@@ -68,7 +68,7 @@ export function resolveMandrelVersion(root = PROJECT_ROOT) {
 }
 
 /** @param {Record<string, string>|null|undefined} gates */
-export function failedGateNames(gates) {
+function failedGateNames(gates) {
   return Object.entries(gates ?? {})
     .filter(([, outcome]) => outcome === 'failed')
     .map(([name]) => name)
@@ -105,7 +105,7 @@ function windowedReviewCounts(rows, sinceMs) {
  *   nowMs?: number, mandrelVersion?: string|null }} args
  * @returns {object}
  */
-export function buildAttempt({
+function buildAttempt({
   envelope,
   tool,
   worker = {},
@@ -166,11 +166,7 @@ function normalizeSummary(raw = {}) {
  * @param {{ storyId: number, acceptanceRounds?: number }} ctx
  * @returns {object}
  */
-export function mergeOutcomeRecord(
-  prior,
-  attempt,
-  { storyId, acceptanceRounds = 0 },
-) {
+function mergeOutcomeRecord(prior, attempt, { storyId, acceptanceRounds = 0 }) {
   const base = normalizeSummary(prior?.summary);
   const attempts = base.attempts + 1;
   const landedNow = attempt.status === 'landed' && base.landedAt === null;
@@ -210,7 +206,7 @@ export function mergeOutcomeRecord(
 }
 
 /** @param {object} record */
-export function renderOutcomeBody(record) {
+function renderOutcomeBody(record) {
   const { summary } = record;
   const last = record.attempts.at(-1);
   const gates = last?.failedGates?.length

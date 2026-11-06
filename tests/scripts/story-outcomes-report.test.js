@@ -6,40 +6,60 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  mergeOutcomeRecord,
-  renderOutcomeBody,
-} from '../../.agents/scripts/lib/observability/story-outcome.js';
+import { recordStoryOutcome } from '../../.agents/scripts/lib/observability/story-outcome.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing/reads.js';
 import { runStoryOutcomesReport } from '../../.agents/scripts/story-outcomes-report.js';
 
 const MARKER = structuredCommentMarker('story-outcome');
 
-function outcomeComment(storyId, attempts, updatedAt = '2026-11-05T00:00:00Z') {
-  let rec = null;
+const RECORD_CONFIG = { delivery: { feedbackLoop: { outcomeRecord: true } } };
+
+/** Builds the comment the recorder itself writes, attempt by attempt. */
+async function outcomeComment(
+  storyId,
+  attempts,
+  updatedAt = '2026-11-05T00:00:00Z',
+) {
+  let body = null;
+  const provider = {
+    getTicketComments: async () => (body ? [{ id: 1, body }] : []),
+    deleteComment: async () => {},
+    postComment: async (_id, payload) => {
+      body = payload.body;
+      return { commentId: 1 };
+    },
+  };
   for (const [status, version, gates = []] of attempts) {
-    rec = mergeOutcomeRecord(
-      rec,
-      { status, mandrelVersion: version, failedGates: gates, ts: updatedAt },
-      { storyId },
-    );
+    await recordStoryOutcome({
+      envelope: {
+        storyId,
+        status,
+        phase: 'done',
+        gates: Object.fromEntries(gates.map((g) => [g, 'failed'])),
+      },
+      config: RECORD_CONFIG,
+      provider,
+      tool: 'single-story-close',
+      readFn: async () => {},
+      mandrelVersion: version,
+    });
   }
   return {
     id: storyId * 10,
     issue_url: `https://api.github.com/repos/o/r/issues/${storyId}`,
     updated_at: updatedAt,
-    body: `${MARKER}\n\n${renderOutcomeBody(rec)}`,
+    body,
   };
 }
 
 const COMMENTS = [
-  outcomeComment(1, [['landed', '2.1.0']]),
-  outcomeComment(2, [
+  await outcomeComment(1, [['landed', '2.1.0']]),
+  await outcomeComment(2, [
     ['failed', '2.1.0', ['lint', 'test']],
     ['blocked', '2.1.0', ['lint']],
     ['landed', '2.2.0'],
   ]),
-  outcomeComment(3, [['pending', '2.2.0']]),
+  await outcomeComment(3, [['pending', '2.2.0']]),
   {
     id: 40,
     issue_url: 'https://api.github.com/repos/o/r/issues/4',

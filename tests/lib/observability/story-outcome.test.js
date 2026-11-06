@@ -10,11 +10,8 @@ import test from 'node:test';
 
 import { Logger } from '../../../.agents/scripts/lib/Logger.js';
 import {
-  mergeOutcomeRecord,
   parseOutcomeBody,
   recordStoryOutcome,
-  renderOutcomeBody,
-  resolveMandrelVersion,
 } from '../../../.agents/scripts/lib/observability/story-outcome.js';
 import { emitTerminal } from '../../../.agents/scripts/lib/orchestration/single-story-close/result.js';
 import { structuredCommentMarker } from '../../../.agents/scripts/lib/orchestration/ticketing/reads.js';
@@ -153,15 +150,19 @@ test('blocked then landed leaves one comment with summed counts (AC-2)', async (
 });
 
 test('a prior record from another machine keeps its counts (AC-3)', async (t) => {
-  let prior = null;
+  const other = fakeProvider();
+  const cfg = config(t);
   for (const status of ['blocked', 'blocked', 'pending']) {
-    prior = mergeOutcomeRecord(
-      prior,
-      { status, failedGates: [], mandrelVersion: '2.119.0', ts: 'x' },
-      { storyId: STORY, acceptanceRounds: 3 },
-    );
+    await record({
+      envelope: envelope(status),
+      config: cfg,
+      provider: other,
+      mandrelVersion: '2.119.0',
+      readFn: async (_e, _s, cb) =>
+        cb({ kind: 'acceptance-eval', details: { round: 3 } }),
+    });
   }
-  const provider = fakeProvider([`${MARKER}\n\n${renderOutcomeBody(prior)}`]);
+  const provider = fakeProvider([other.comments[0].body]);
   await record({ envelope: envelope('landed'), config: config(t), provider });
   const rec = onlyRecord(provider);
   assert.equal(rec.summary.attempts, 4);
@@ -278,39 +279,54 @@ test('review halts count only inside this invocation window', async (t) => {
   assert.equal(onlyRecord(provider).summary.acceptanceRounds, 2);
 });
 
-test('attempts are capped at 100 while counters carry forward', () => {
-  let rec = null;
+test('attempts are capped at 100 while counters carry forward', async (t) => {
+  const provider = fakeProvider();
+  const cfg = config(t);
+  const gates = { lint: 'failed' };
   for (let i = 0; i < 105; i++) {
-    rec = mergeOutcomeRecord(
-      rec,
-      { status: 'failed', failedGates: ['lint'], ts: String(i) },
-      { storyId: STORY },
-    );
+    await record({
+      envelope: envelope('failed', { gates }),
+      config: cfg,
+      provider,
+    });
   }
+  const rec = onlyRecord(provider);
   assert.equal(rec.attempts.length, 100);
-  assert.equal(rec.attempts[0].ts, '5');
   assert.equal(rec.summary.attempts, 105);
+  assert.equal(rec.summary.byStatus.failed, 105);
   assert.equal(rec.summary.failedGates.lint, 105);
 });
 
-test('resolveMandrelVersion reads the project root or returns null (AC-7)', (t) => {
+test('each attempt records the mandrel version at the project root, or null (AC-7)', async (t) => {
   const root = makeTempDir('story-outcome-version-');
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  assert.equal(resolveMandrelVersion(root), null);
+  const cfg = config(t);
+  const versionAfter = async () => {
+    const provider = fakeProvider();
+    await record({
+      envelope: envelope('pending'),
+      config: cfg,
+      provider,
+      cwd: root,
+      mandrelVersion: undefined,
+    });
+    return onlyRecord(provider).attempts[0].mandrelVersion;
+  };
+  assert.equal(await versionAfter(), null);
   fs.writeFileSync(
     path.join(root, 'package.json'),
     JSON.stringify({ name: 'consumer', version: '1.0.0' }),
   );
-  assert.equal(resolveMandrelVersion(root), null);
+  assert.equal(await versionAfter(), null);
   fs.mkdirSync(path.join(root, 'node_modules', 'mandrel'), { recursive: true });
   fs.writeFileSync(
     path.join(root, 'node_modules', 'mandrel', 'package.json'),
     JSON.stringify({ name: 'mandrel', version: '2.118.0' }),
   );
-  assert.equal(resolveMandrelVersion(root), '2.118.0');
+  assert.equal(await versionAfter(), '2.118.0');
   fs.writeFileSync(
     path.join(root, 'package.json'),
     JSON.stringify({ name: 'mandrel', version: '2.121.0' }),
   );
-  assert.equal(resolveMandrelVersion(root), '2.121.0');
+  assert.equal(await versionAfter(), '2.121.0');
 });
