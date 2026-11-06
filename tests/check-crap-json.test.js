@@ -8,8 +8,12 @@ import {
   buildCrapReport,
   compareCrap,
   envelopeExtras,
+  printSummaryHeader,
 } from '../.agents/scripts/lib/baselines/kinds/crap.js';
-import { crapFormula } from '../.agents/scripts/lib/crap-engine.js';
+import {
+  calculateCrapForSource,
+  crapFormula,
+} from '../.agents/scripts/lib/crap-engine.js';
 import { KERNEL_VERSION } from '../.agents/scripts/lib/crap-utils.js';
 
 /**
@@ -374,6 +378,178 @@ test('AC-1: an unrelated insertion no longer drift-pairs two anonymous methods',
   assert.strictEqual(result.drifted, 2, 'both moved by one line, and matched');
 });
 
+/**
+ * Score a source at 100% coverage, so each row's CRAP is its cyclomatic and
+ * closures with different branch counts are tellable apart.
+ */
+function scoredRows(source) {
+  return calculateCrapForSource(source, null).map((r) => ({
+    ...r,
+    file: 'lib/a.js',
+    coverage: 1,
+    crap: r.cyclomatic,
+  }));
+}
+
+/** Compare `after` against a baseline taken from `before`; every new method violates. */
+function compareSources(before, after) {
+  return compareCrap({
+    currentRows: scoredRows(after),
+    baselineRows: scoredRows(before).map(
+      ({ file, method, startLine, crap }) => ({
+        file,
+        method,
+        startLine,
+        crap,
+      }),
+    ),
+    newMethodCeiling: 0,
+    tolerance: 0.001,
+  });
+}
+
+const EFFECT_A = '  useEffect(() => (p.a ? 1 : 2));';
+const EFFECT_B =
+  '  useEffect(() => { if (p.b) return 1; if (p.c) return 2; return 3; });';
+const effects = (...lines) => `function host(p) {\n${lines.join('\n')}\n}\n`;
+
+describe('compareCrap — anonymous rows re-pair by stem and order', () => {
+  it('AC-1: an inserted same-anchor or other-anchor closure is one new method, nothing else', () => {
+    for (const inserted of [
+      '  useEffect(() => (p.z ? 1 : 2));',
+      '  other(() => (p.z ? 1 : 2));',
+    ]) {
+      const r = compareSources(
+        effects(EFFECT_A, EFFECT_B),
+        effects(inserted, EFFECT_A, EFFECT_B),
+      );
+      assert.strictEqual(r.newViolations, 1, inserted);
+      assert.strictEqual(r.regressions, 0, inserted);
+      assert.strictEqual(r.removed, 0, inserted);
+    }
+  });
+
+  it('AC-2: removing a sibling is one removed row and no regression', () => {
+    const r = compareSources(
+      effects(EFFECT_B, EFFECT_A, EFFECT_B),
+      effects(EFFECT_A, EFFECT_B),
+    );
+    assert.strictEqual(r.removed, 1);
+    assert.strictEqual(r.regressions, 0);
+    assert.strictEqual(r.newViolations, 0);
+  });
+
+  it('AC-3: reordered JSX handlers are re-keyed, not regressions', () => {
+    const A = '      <button onClick={() => (p.a ? 1 : 2)} />';
+    const B = [
+      '      <button onClick={() => {',
+      '        if (p.b) return 1;',
+      '        if (p.c) return 2;',
+      '        return 3;',
+      '      }} />',
+    ].join('\n');
+    const panel = (...kids) =>
+      `function Panel(p) {\n  return (\n    <div>\n${kids.join('\n')}\n    </div>\n  );\n}\n`;
+    const r = compareSources(panel(A, B), panel(B, A));
+    assert.strictEqual(r.regressions, 0);
+    assert.strictEqual(r.newViolations, 0);
+    assert.strictEqual(r.removed, 0);
+    assert.strictEqual(r.rekeyed, 2);
+  });
+
+  it('AC-6: a real increase regresses against its own row in place, moved, or reordered', () => {
+    const B2 =
+      '  useEffect(() => { if (p.b) return 1; if (p.c) return 2; if (p.d) return 4; return 3; });';
+    const cases = [
+      effects(EFFECT_A, B2),
+      effects('  // moved', '', EFFECT_A, B2),
+      effects(B2, EFFECT_A),
+    ];
+    for (const after of cases) {
+      const r = compareSources(effects(EFFECT_A, EFFECT_B), after);
+      assert.strictEqual(r.regressions, 1, after);
+      assert.strictEqual(r.violations[0].baseline, 3, after);
+      assert.strictEqual(r.violations[0].crap, 4, after);
+      assert.strictEqual(r.newViolations, 0, after);
+      assert.strictEqual(r.removed, 0, after);
+    }
+  });
+
+  it('keeps an anonymous bucket in another coordinate system incomparable', () => {
+    const r = compareCrap({
+      currentRows: [
+        {
+          file: 'lib/a.ts',
+          method: '<anon f()#1>',
+          startLine: 3,
+          cyclomatic: 2,
+          coverage: 1,
+          crap: 2,
+        },
+      ],
+      baselineRows: [
+        {
+          file: 'lib/a.ts',
+          method: '<anon f()#0>',
+          startLine: 9,
+          crap: 2,
+          coordinateSystem: 'transpiled',
+        },
+      ],
+      newMethodCeiling: 0,
+      tolerance: 0.001,
+    });
+    assert.strictEqual(r.incomparable, 1);
+    assert.strictEqual(r.newViolations, 0);
+    assert.strictEqual(r.removed, 0);
+  });
+
+  it('AC-12: re-keyed pairs reach the result and the human summary, never the --json envelope', (t) => {
+    const lines = [];
+    t.mock.method(console, 'log', (m) => lines.push(String(m)));
+    const result = compareCrap({
+      currentRows: [
+        {
+          file: 'lib/a.js',
+          method: '<anon f()#0>',
+          startLine: 1,
+          cyclomatic: 3,
+          coverage: 1,
+          crap: 3,
+        },
+        {
+          file: 'lib/a.js',
+          method: '<anon f()#1>',
+          startLine: 2,
+          cyclomatic: 2,
+          coverage: 1,
+          crap: 2,
+        },
+      ],
+      baselineRows: [
+        { file: 'lib/a.js', method: '<anon f()#0>', startLine: 1, crap: 2 },
+        { file: 'lib/a.js', method: '<anon f()#1>', startLine: 2, crap: 3 },
+      ],
+      newMethodCeiling: 30,
+      tolerance: 0.001,
+    });
+    assert.strictEqual(result.rekeyed, 2);
+    assert.strictEqual(result.regressions, 0);
+    printSummaryHeader(result, {});
+    assert.ok(lines.some((l) => /Re-keyed \(anonymous\):\s+2/.test(l)));
+    const envelope = buildCrapReport({
+      compareResult: result,
+      scanSummary: {},
+      kernelVersion: KERNEL_VERSION,
+      escomplexVersion: '0.0.0',
+      newMethodCeiling: 30,
+      scopeInfo: { scope: 'full' },
+    });
+    assert.ok(!('rekeyed' in envelope.summary));
+    assert.ok(loadValidator()(envelope));
+  });
+});
+
 describe('AC-4: the migration is refused, not drift-paired', () => {
   it('bumps SCORING_SEMANTICS off the value the old rows were scored under', () => {
     assert.notStrictEqual(
@@ -381,6 +557,25 @@ describe('AC-4: the migration is refused, not drift-paired', () => {
       'coverage-join-v2',
       'rows keyed by the ordinal scheme must not claim the current semantics',
     );
+  });
+
+  it('AC-9: stamps method-identity-v4 and refuses a v3 baseline with the re-seed command', () => {
+    assert.strictEqual(envelopeExtras().scoringSemantics, 'method-identity-v4');
+    const message = assertBaselineCompatible({
+      scoringSemantics: 'method-identity-v3',
+      provenanceStamped: true,
+      rows: [
+        {
+          path: 'lib/a.js',
+          method: '<anon host/(x)#0>',
+          anonymous: true,
+          startLine: 1,
+          crap: 1,
+        },
+      ],
+    });
+    assert.match(message, /scoring semantics changed/);
+    assert.match(message, /crap:update -- --full-scope/);
   });
 
   it('refuses a baseline stamped with the previous semantics', () => {
