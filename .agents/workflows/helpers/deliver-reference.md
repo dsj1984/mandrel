@@ -435,9 +435,19 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   JSON spends it, and close re-captures.
 - **Predicted skip.** With `incrementalCoverage.skipWhenUnchanged` on and no
   changed file under `crap.targetDirs`, the capture would run nothing, so
-  the shared predicate (`resolveCreditedDepositor`) picks the `test`
-  depositor for both close and the handoff. A `no changed files … —
-  skipping capture` line is never credit.
+  the shared predicate (`resolveCreditedDepositor`, `skipBranch: true`)
+  picks the `test` depositor for both close and the handoff. A `no changed
+  files … — skipping capture` line is never credit. On this branch the
+  depositor is scoped: with `project.commands.testChanged` set, the handoff
+  runs `evidence-gate.js … --gate test --changed-since <merge-base> --
+  <testChanged>` and close registers the same run as its `test` gate, keyed
+  on `git merge-base origin/<baseBranch> HEAD` (substituted for a literal
+  `$MANDREL_CHANGED_SINCE` and set in the env). A green run credits close's
+  full-suite `test` identity with `scope: delta`, so close at that HEAD skips
+  the gate and the base-moved delta re-credit still applies. Unset
+  `testChanged` or an unreadable merge-base falls back to the full
+  `project.commands.test`, logging which reason applied. An exit 76 from any
+  `test` form settles by `coverage.onOverBudget`, as the capture's does.
 - **Runner shapes.** A bare `npm test` earns the `test` credit **only** where
   the project's test script routes through mandrel's own runner, which prints
   the outcome. On any other runner it deposits nothing and prints nothing, so

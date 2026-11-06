@@ -52,6 +52,15 @@ test('parseWrapperArgs() defaults --no-evidence to false (evidence ON)', () => {
   assert.equal(args.useEvidence, true);
 });
 
+test('parseWrapperArgs() reads --changed-since, null when absent (Story #5961)', () => {
+  const sha = 'a'.repeat(40);
+  assert.equal(
+    parseWrapperArgs(['--gate', 'test', '--changed-since', sha]).changedSince,
+    sha,
+  );
+  assert.equal(parseWrapperArgs(['--gate', 'test']).changedSince, null);
+});
+
 test('parseWrapperArgs() yields scopeId=null on non-positive input', () => {
   assert.equal(parseWrapperArgs(['--scope-id', '0']).scopeId, null);
   assert.equal(parseWrapperArgs(['--scope-id', 'abc']).scopeId, null);

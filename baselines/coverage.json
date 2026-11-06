@@ -172,9 +172,9 @@
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
-      "lines": 96.52,
-      "branches": 90.38,
-      "functions": 84.62
+      "lines": 97.04,
+      "branches": 91.18,
+      "functions": 89.47
     },
     {
       "path": ".agents/scripts/file-ci-gap.js",
@@ -1101,9 +1101,15 @@
       "functions": 93.1
     },
     {
+      "path": ".agents/scripts/lib/close-validation/skip-branch-test.js",
+      "lines": 100,
+      "branches": 95.12,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/test-delta.js",
       "lines": 100,
-      "branches": 92.86,
+      "branches": 94,
       "functions": 100
     },
     {
@@ -2206,8 +2212,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "lines": 97.23,
-      "branches": 91.67,
+      "lines": 97.41,
+      "branches": 93.85,
       "functions": 100
     },
     {
@@ -2992,9 +2998,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 98.64,
-      "branches": 88.38,
-      "functions": 98.48
+      "lines": 98.77,
+      "branches": 89.78,
+      "functions": 98.73
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",

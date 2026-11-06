@@ -25,7 +25,7 @@ rule produces it:
 
 `inline` drops only the `story-worker` boot — not the verdict owner, which
 the profile alone names (§ 3). **`subagent` and `inline` run the same engine**: same gates,
-same PR to `main`, same terminal envelope.
+same PR to `main`, same envelope.
 
 ## 2. Engine invariants
 
@@ -72,7 +72,7 @@ sensitive footprint buys a **deep review**, not a fresh acceptance critic.
 
 **One verdict owner per Story** — named by `verdictOwner`: the inline
 self-eval under `minimal` / `standard` (the default), a fresh maker-blind
-critic under `strict`. Never both, never a warm-up pass. Start from the
+critic under `strict`. Never both. Start from the
 skeleton — it derives § 3's `files` and `verdictOwner` with the same function:
 
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId> --init
@@ -89,8 +89,7 @@ it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 
 The gate reads the Story's `acceptance[]` count itself and rejects, **before**
 scoring and consuming no round, a verdict whose `criteria[]` length differs
-or with an unfilled record (naming its indices). A second call in a round
-wastes it.
+or with an unfilled record (naming its indices).
 
 `proceed` → § 5. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.
@@ -125,8 +124,9 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
      behind the host full-suite lock. Signal: `Wrote content-digest capture
      stamp`. No second `npm test`.
    - **Otherwise** → `node <main-repo>/.agents/scripts/evidence-gate.js
-     --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`.
-     Signal: `✓ test passed` — the `test` evidence close reads.
+     --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`;
+     a predicted capture skip runs `testChanged --changed-since` the
+     merge-base, else says why. Signal: `✓ test passed`.
 4. **Seat.** `--seat-missing` (`seated: N`): MI before step 2, CRAP and
    capture-path coverage here, committed `chore(baselines): baseline-refresh:
    …`; then post-capture checks: close's `quality-preview-crap` and `check-baselines`,
