@@ -104,12 +104,7 @@
       "primeFromPath": null,
       "allowSymlinkOnWindows": false,
       "reapOnSuccess": true,
-      "bootstrapFiles": [
-        ".env",
-        ".mcp.json",
-        ".agentrc.local.json",
-        ".agents/instructions.local.md"
-      ]
+      "bootstrapFiles": [".env", ".mcp.json", ".agents/instructions.local.md"]
     },
     "quality": {
       "gates": {

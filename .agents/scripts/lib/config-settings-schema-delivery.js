@@ -195,7 +195,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
       type: 'array',
       items: { type: 'string', minLength: 1 },
       description:
-        'Gitignored files copied from the main checkout into every new worktree. A worktree checks out tracked files only, so local secrets and overrides would otherwise be missing.',
+        "Gitignored files copied from the main checkout into every new worktree. A worktree checks out tracked files only, so local secrets would otherwise be missing. `.agentrc.local.json` is not copied by default: a worktree reads the main checkout's live overlay.",
       default: [...WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles],
     },
   },

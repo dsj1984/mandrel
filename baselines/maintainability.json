@@ -752,7 +752,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "mi": 98.928
+      "mi": 99.529
     },
     {
       "path": ".agents/scripts/lib/config-schema-shared.js",
@@ -1640,7 +1640,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
-      "mi": 96.376
+      "mi": 97.756
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-history.js",
@@ -1660,7 +1660,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
-      "mi": 103.866
+      "mi": 104.695
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",

@@ -166,7 +166,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `worktreeIsolation.primeFromPath` | No | `string` \| `null` | `null` | Absolute path to an existing `node_modules` tree to prime new worktrees from, instead of the main checkout. `null` uses the main checkout. |
 | `worktreeIsolation.allowSymlinkOnWindows` | No | `boolean` | `false` | Permit the `symlink` strategy on win32, where it needs Developer Mode or elevation. Off by default so a Windows consumer fails over to a strategy that works. |
 | `worktreeIsolation.reapOnSuccess` | No | `boolean` | `true` | Remove the Story's worktree once its PR merges. False keeps it for post-mortem inspection. |
-| `worktreeIsolation.bootstrapFiles` | No | `array<string>` | `[".env",".mcp.json",".agentrc.local.json",".agents/instructions.local.md"]` | Gitignored files copied from the main checkout into every new worktree. A worktree checks out tracked files only, so local secrets and overrides would otherwise be missing. |
+| `worktreeIsolation.bootstrapFiles` | No | `array<string>` | `[".env",".mcp.json",".agents/instructions.local.md"]` | Gitignored files copied from the main checkout into every new worktree. A worktree checks out tracked files only, so local secrets would otherwise be missing. `.agentrc.local.json` is not copied by default: a worktree reads the main checkout's live overlay. |
 | `quality` | No | `object` | — | Quality-gate configuration. Every gate lives under `gates.<tier>` and shares the same `{ enabled, baselinePath, tolerance, floors, components }` base. |
 | `quality.gates` | No | `object` | — | The six quality gates, each sharing the `{ enabled, baselinePath, tolerance, floors, components }` base. |
 | `quality.gates.coverage` | No | `object` | — | Line/branch/function coverage ratchet, read from the Istanbul JSON summary the project test run emits. |
@@ -251,9 +251,10 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `close` | No | `object` | — | Close-time posture (Story #5954). `baseSync` decides whether close and a handoff re-run merge `origin/<baseBranch>` before validating. |
 | `close.baseSync` | No | `"always"` \| `"on-conflict"` | `"always"` | `always` (default) merges `origin/<baseBranch>` on every close, as before. `on-conflict` first runs a conflict-only probe and skips the merge when it is conflict-free (`git merge-tree --write-tree`) and the incoming and Story paths are disjoint (raw paths, `baselines/` and renames included); `check-baselines` then compares against the merge-base and the terminal envelope's `baseSync` says why. Any other probe answer merges as today. A handoff applies the probe only on a re-run. Opt in only behind a merge queue that re-tests the merged tree and with no up-to-date-branch requirement: a semantic conflict the probe cannot see surfaces in CI, and coverage is measured on the pre-merge tree. |
 | `codeReview` | No | `object` | — | Review-provider chain and on-branch remediation threshold for the /mandrel-deliver code-review ceremony. |
-| `codeReview.providers[]` | No | `array<object>` | `[{"name":"native"},{"name":"llm-review","scopes":["story"],"optional":true}]` | Review-provider chain (Story #2871). When unset or empty, falls back to this default: `native` (maintainability scoring of the changed files) then an optional story-scoped `llm-review` — the first available of `code-review` (a low-effort `claude --print` bug review whose every finding is critical and halts close before auto-merge) and `codex` (`codex exec`), so a host with both CLIs runs one LLM review and a host with neither skips it. Pin `code-review` or `codex` to choose the CLI. `security-review` and `ultrareview` are opt-in. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain. Each item has: name, scopes, optional, manualPrompt, when. |
+| `codeReview.providers[]` | No | `array<object>` | `[{"name":"native"},{"name":"llm-review","scopes":["story"],"optional":true}]` | Review-provider chain (Story #2871). When unset or empty, falls back to this default: `native` (maintainability scoring of the changed files) then an optional story-scoped `llm-review` — the first available of `code-review` (a `claude --print` bug review, at the effort `effortByDepth` maps its depth to, whose every finding is critical and halts close before auto-merge) and `codex` (`codex exec`), so a host with both CLIs runs one LLM review and a host with neither skips it. Pin `code-review` or `codex` to choose the CLI. `security-review` and `ultrareview` are opt-in. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain. Each item has: name, scopes, optional, manualPrompt, when. |
 | `codeReview.autoFixSeverity` | No | `"high"` \| `"medium"` | `"medium"` | Severity threshold for on-branch remediation in /mandrel-deliver Phase 5 (code-review). `medium` (default) routes 🔴/🟠/🟡 findings into the host-LLM focused-fix routing (Mediums batched per lens: one commit per lens, a single validation + rescan at the end) while 🟢 suggestions still graduate to follow-up issues; `high` reproduces the pre-4399 Critical/High-only routing. Hard cutover — no back-compat flag. |
 | `codeReview.sensitivePaths` | No | `object<map>` | — | The project's own sensitive-path classes, merged additively over the shipped `audit-rules.json` `sensitivePaths`: a class named like a shipped one appends its patterns to it, a new name adds a class, and no shipped class or pattern can be removed or narrowed. A changed file matching any class derives a `high` change level, which drives both code-review depth (`deep`, never `light`) and plan-time routing. Patterns are picomatch globs matched with `dot: true`. |
+| `codeReview.effortByDepth` | No | `object<map>` | — | The `claude --effort` level the `code-review` provider runs at for each review depth. An entry overrides the shipped default for that depth only: `light: low`, `standard: low`, `deep: high`. |
 | `codeReview.guidanceFile` | No | `string` | — | Project review guidance, a path relative to the project root. Unset, a root `REVIEW.md` is used when present; an absent file is a no-op. Its text is rendered into every LLM review provider's prompt after the framework's severity and anti-gaming rules, and over 8,000 characters is truncated with a degradation. Guidance may add failure classes and paths worth skipping but cannot lower a severity rule, excuse a `shortcut:`, or change the output shape. |
 | `codeReview.skipPaths` | No | `array<string>` | — | Picomatch globs (`dot: true`) whose findings are dropped after grounding and before severity is counted; the report states how many were dropped. A finding is dropped when its file, or every instance file, matches. Only config sets skip paths: guidance prose cannot silence a finding. |
 | `refactorStage` | No | `object` | — | Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only — never changes existing close-validation gate semantics. |
@@ -624,8 +625,11 @@ then skips `npm ci` and junctions/symlinks the donor's `node_modules`.
 #### `delivery.codeReview` — provider chain
 
 `providers[]` is iterated in declaration order (unset/empty → `native` plus
-an optional story-scoped `code-review`, the low-effort `claude --print` bug
-review whose every finding is critical and halts close). Beyond the field list in the generated table: `scopes`
+an optional story-scoped `code-review`, the `claude --print` bug review whose
+every finding is critical and halts close). `code-review` runs at the
+`--effort` that `effortByDepth` maps the review depth to; the shipped mapping
+is `light: low`, `standard: low`, `deep: high`, and an entry overrides only its
+own depth. Beyond the field list in the generated table: `scopes`
 defaults to both `story` and `epic`; `when` is a label predicate (`when.label`
 / `when.labelAny`) that silently skips the entry when false; `manualPrompt`
 entries contribute a one-line suggestion and do **not** affect severity counts
@@ -764,6 +768,14 @@ nested field without restating sibling keys; absent local file is a no-op. Use
 it for machine-specific tuning (e.g. lower
 `delivery.deliverRunner.concurrencyCap` on a laptop) that should never reach
 git.
+
+**One overlay per machine.** The main checkout's `.agentrc.local.json` governs
+every worktree of that checkout: a linked worktree reads the main checkout's
+file live, so an edit there reaches running Story worktrees, and Story init no
+longer copies it in. A worktree's own copy is read only when the main checkout
+has none. When a worktree holds a copy that differs from the main checkout's,
+resolving config there prints one stderr warning naming both paths: the main
+checkout's overlay is in force and the worktree copy can be deleted.
 
 **Per-contributor identity (required).** `github.operatorHandle` is a personal,
 per-contributor value with two jobs: the `@`-handle the framework @mentions on

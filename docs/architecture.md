@@ -857,7 +857,8 @@ changing its shape (full per-field reference:
   more of `native` / `code-review` / `codex` / `security-review` (plus
   optional `ultrareview` manual-prompt entries) with per-entry scopes and
   label conditions; unset/empty defaults to `native` plus an optional
-  story-scoped `code-review` — a low-effort `claude --print` bug review
+  story-scoped `code-review` — a `claude --print` bug review (`--effort`
+  per depth via `codeReview.effortByDepth`: `low`, `high` at `deep`)
   handed the diff (never `acceptance[]`), whose every finding is critical
   and halts close before auto-merge. Hosts without the `claude` CLI skip it.
 - **`delivery.mergeWatch.{mode,maxWaitSeconds,maxBudgetSeconds}`** — posture

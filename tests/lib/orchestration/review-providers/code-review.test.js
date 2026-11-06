@@ -1016,3 +1016,24 @@ test('the prompt and schema ask for a bug class and every instance, which reach 
   assert.equal(finding.file, 'src/a.js');
   assert.equal(finding.instances.length, 2);
 });
+
+test('#5976: input.effort sets --effort on every chunk and in the log line; argv is otherwise unchanged', async () => {
+  const lines = [];
+  const diff = [section('src/a.js', 120_000), section('src/b.js', 120_000)];
+  const { provider, calls } = harness({
+    diff: { status: 0, stdout: diff.join(''), stderr: '' },
+    logger: { info: (m) => lines.push(m) },
+  });
+  await provider.runReview({ ...INPUT, depth: 'deep', effort: 'high' });
+  const invokes = invokeCalls(calls);
+  assert.equal(invokes.length, 2);
+  const low = harness();
+  await low.provider.runReview(INPUT);
+  const lowArgs = invokeCall(low.calls).args;
+  assert.equal(lowArgs[2], 'low');
+  for (const { args } of invokes) {
+    assert.deepEqual(args, lowArgs.with(2, 'high'));
+  }
+  assert.equal(lines.filter((m) => /--effort high \(/.test(m)).length, 2);
+  assert.ok(!lines.some((m) => /--effort low/.test(m)));
+});

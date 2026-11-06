@@ -110,7 +110,7 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.worktreeIsolation.reapOnSuccess':
     'Whether a worktree is removed after a Story closes cleanly.',
   'delivery.worktreeIsolation.bootstrapFiles':
-    'Files copied into each new worktree (e.g. .env, .mcp.json, local overrides).',
+    'Files copied into each new worktree (e.g. .env, .mcp.json); .agentrc.local.json is read live from the main checkout.',
   'delivery.mergeWatch.maxBudgetSeconds':
     'Cumulative wall-clock budget (seconds) across resumes before the merge wait gives up and blocks.',
   'delivery.codeReview.providers':
