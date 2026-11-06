@@ -65,6 +65,7 @@ const EXPECTED_TIERS = {
   'audit-lean': 'cumulative',
   'audit-policies': 'cumulative',
   'audit-sre': 'cumulative',
+  'audit-state-machines': 'cumulative',
   'audit-navigability': 'global',
   'audit-adrs': 'global',
   'audit-red-team': 'global',
@@ -76,11 +77,11 @@ test('LENS_TIERS is the frozen local|cumulative|global tuple', () => {
   assert.ok(Object.isFrozen(LENS_TIERS), 'LENS_TIERS must be frozen');
 });
 
-test('audit-rules.json registers all 23 lenses, each with a scope in the enum', () => {
+test('audit-rules.json registers all 24 lenses, each with a scope in the enum', () => {
   assert.equal(
     LENS_KEYS.length,
-    23,
-    `expected 23 registered lenses, got ${LENS_KEYS.length}: ${LENS_KEYS.join(', ')}`,
+    24,
+    `expected 24 registered lenses, got ${LENS_KEYS.length}: ${LENS_KEYS.join(', ')}`,
   );
   for (const lens of LENS_KEYS) {
     const { scope } = rules.audits[lens];

@@ -288,6 +288,34 @@
       "scope": "cumulative",
       "substitutionKeys": []
     },
+    "audit-state-machines": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "state machine",
+          "state transition",
+          "lifecycle",
+          "impossible state",
+          "illegal state",
+          "discriminated union",
+          "tagged union",
+          "exhaustive",
+          "isLoading"
+        ],
+        "filePatterns": [
+          "**/*.{js,mjs,cjs,jsx,ts,tsx}",
+          "**/*.py",
+          "**/*.go",
+          "**/*.rs",
+          "**/*.java",
+          "**/*.kt",
+          "**/*.swift",
+          "**/*.rb"
+        ]
+      },
+      "scope": "cumulative",
+      "substitutionKeys": []
+    },
     "audit-documentation": {
       "triggers": {
         "gates": ["gate1", "gate3"],
