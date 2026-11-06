@@ -9,8 +9,7 @@ description: >-
 
 > **Bundle, not a procedure.** [`deliver-story.md`](deliver-story.md) is still
 > the steps; this file is the material they reference, bundled so one read
-> covers the happy path. Situational material (lease, recovery, CI
-> remediation) stays on demand in
+> covers the happy path. Situational material stays on demand in
 > [`deliver-story-reference.md`](deliver-story-reference.md) and
 > [`deliver-reference.md`](deliver-reference.md); read those only when routed.
 
@@ -110,12 +109,12 @@ a `commit_refs_rules` push stepping missed or a CRITICAL: fix, commit,
 re-run; labels untouched. `blocked` (exit 1) → only a remote-refused push,
 an unreachable remote, an unconfirmed base branch or an unregistered
 merge driver: it flips `agent::blocked` and posts `friction`. A re-run skips
-every step still valid for HEAD. It never closes, opens a PR or writes a
-label. Outruns the sync Bash ceiling → run it in the **background**.
+every step still valid for HEAD. Past the sync Bash ceiling → **background**.
 
 1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops (or skips
-   if `on-conflict`).
+   if `on-conflict`). Then close's **duplication re-score**, committed
+   **untagged** before any credit, so close's own no-ops.
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
    baselined ratchet; one `fix-required` lists every finding —
@@ -138,7 +137,7 @@ label. Outruns the sync Bash ceiling → run it in the **background**.
 
 A later commit voids any credit; a baseline-JSON seat keeps the stamp. It
 reads the **output**, not the exit code: a run that prints no signal
-deposits nothing. Seat order, runner shapes, redraft rounds:
+deposits nothing. Seat order, re-score, runner shapes:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is a

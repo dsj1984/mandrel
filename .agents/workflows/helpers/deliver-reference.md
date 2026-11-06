@@ -459,13 +459,23 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   over the in-scope files is exactly 100% — a lower rate means the artifact's
   coordinates predate the tree. The refusal names the rate, the unresolved
   files and the fix: re-run the digest § 5 capture, then seat.
+- **Duplication re-score.** After the base merge and before preflight, the
+  handoff runs close's own duplication re-score (`duplication-rescore` in
+  `steps[]`) over the same scope close uses, and commits any moved row with
+  close's **untagged** subject — never `baseline-refresh:`, which would let
+  refresh-ack launder the rise. It precedes every credit, so its commit voids
+  no lint/format credit, `test` credit or capture stamp, and close's re-score
+  over the same tree and base reports `unchanged`. Best-effort: a failed scan
+  or refused commit settles `error` and the run continues; close's re-score
+  stays authoritative. A re-run at the HEAD it settled skips it.
 - **Post-capture checks.** After depositor and seat, the handoff runs close's
   `quality-preview-crap` entry — only when the depositor is
   `coverage-capture`, so a project with no capture keeps its CRAP behaviour —
   and every registered `check-baselines` entry (`single`, or `independent`
   plus `coverage`), each with close's argv and env (`BASELINE_REF`). A
   non-zero exit is `fix-required` naming the gate and its kinds, with the log
-  as evidence; nothing is pushed. They are pure scoring: no lock, no suite,
+  as evidence (a duplication-scoring entry also lists each row raised over
+  `BASELINE_REF`, base → head, with the re-score's clone partners); nothing is pushed. They are pure scoring: no lock, no suite,
   no evidence, so close re-scores them. A re-run at a credited, unchanged
   HEAD skips them.
 - **Seat order vs credit.** Neither capture-stamp digest reads
