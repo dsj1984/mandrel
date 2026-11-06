@@ -103,6 +103,7 @@ const COVERAGE_GATE_KEYS = new Set([
   'ciRatchetCheck',
   'nonInputGlobs',
   'captureHandlesConfigChanges',
+  'ownFixDeltaMaxFiles',
 ]);
 
 const MI_GATE_KEYS = new Set([
@@ -338,6 +339,8 @@ function resolveCoverageGate(raw) {
     captureHandlesConfigChanges:
       userBlock.captureHandlesConfigChanges ??
       defaults.captureHandlesConfigChanges,
+    ownFixDeltaMaxFiles:
+      userBlock.ownFixDeltaMaxFiles ?? defaults.ownFixDeltaMaxFiles,
   };
 }
 

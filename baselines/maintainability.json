@@ -911,6 +911,10 @@
       "mi": 95.817
     },
     {
+      "path": ".agents/scripts/lib/coverage-capture-own-fix.js",
+      "mi": 106.268
+    },
+    {
       "path": ".agents/scripts/lib/coverage-capture-passes.js",
       "mi": 100.808
     },

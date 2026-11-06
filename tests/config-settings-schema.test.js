@@ -439,6 +439,17 @@ describe('delivery.* shape', () => {
     expectErrors(withCoverage({ suiteOfRecord: 'remote' }), /allowed values/);
   });
 
+  it('accepts coverage.ownFixDeltaMaxFiles from 0 to 50 only', () => {
+    const withCoverage = (ownFixDeltaMaxFiles) => ({
+      ...REQ,
+      delivery: { quality: { gates: { coverage: { ownFixDeltaMaxFiles } } } },
+    });
+    for (const n of [0, 10, 50]) assert.equal(validate(withCoverage(n)), true);
+    expectErrors(withCoverage(-1), />= 0/);
+    expectErrors(withCoverage(1.5), /must be integer/);
+    expectErrors(withCoverage(51), /<= 50/);
+  });
+
   it('keeps execution.fullSuiteLock, the operator opt-out', () => {
     assert.equal(
       validate({ ...REQ, delivery: { execution: { fullSuiteLock: false } } }),

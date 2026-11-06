@@ -186,6 +186,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.coverage.ciRatchetCheck` | No | `string` \| `null` | `null` | Name of the consumer's CI check (check-run or status context) that runs `coverage-ratchet.js` on a deferred PR. Required by `suiteOfRecord: ci`; when set, confirm-merge holds `agent::done` on a PR carrying the `Coverage-deferred:` key line until this check is green on the PR head. Default `null`. |
 | `quality.gates.coverage.nonInputGlobs` | No | `array<string>` | `[]` | Repo-relative picomatch globs naming paths no test reads. A matching path is dropped from both sides of the coverage delta-refresh overlap check and from the re-measured set — a delta of only matching, baseline and coverage-directory paths restamps without a run — and from the overlap check of close's `test` delta re-credit (its incoming count and emptiness test are unchanged). It never changes the suite-input filter, the tree digest or stamp freshness. Default `[]`: nothing is built in, so Markdown counts as an input unless declared here. |
 | `quality.gates.coverage.captureHandlesConfigChanges` | No | `boolean` | `false` | Declares that the affected capture script, given `MANDREL_COVERAGE_BASE_REF`, widens its own selection when a coverage-determining config file (`package.json`, a lockfile, `tsconfig*.json`, a test-runner config) changes. When `true`, such a file in the coverage delta no longer refuses the delta refresh. Close's `test` delta re-credit refuses on a config file under either value. Default `false`. |
+| `quality.gates.coverage.ownFixDeltaMaxFiles` | No | `integer` | `0` | Opt-in own-fix delta refresh for `captureScope: affected`. `0` (default) keeps it off. `N >= 1` lets a delta that today's rule refuses for a Story overlap or a config file be re-measured as a delta when it splits, along HEAD's first-parent chain, into base-sync merges that pass today's rule and the Story's own non-merge commits touching at most `N` suite-input files, with no config file, no deleted or renamed suite input and no net line removal in a test file. Rows outside the delta can go stale high; validate against full captures before raising it. `10` is a reasonable start. |
 | `quality.gates.crap` | No | `object` | — | CRAP (Change Risk Anti-Pattern) ratchet — per-method cyclomatic complexity joined against per-method coverage. |
 | `quality.gates.crap.enabled` | No | `boolean` | `true` | When false, the checker exits 0 with a skip line and the gate is reported as `skipped`, never omitted. |
 | `quality.gates.crap.baselinePath` | No | `string` | `"baselines/crap.json"` | Repo-root-relative path to the gate's committed baseline artifact. |
@@ -523,10 +524,54 @@ that the affected capture script, given `MANDREL_COVERAGE_BASE_REF`, widens
 its own selection when a config file changes; it covers only the capture
 script.
 
+**Own-fix delta refresh (`ownFixDeltaMaxFiles`, opt-in).** A small fix to
+the Story's own code after the credited capture (a review fix, a CRAP
+extraction, a pre-push fix) is normally refused above: the delta shares a
+path with the Story and a Story commit landed since the stamp. With
+`ownFixDeltaMaxFiles` at `N >= 1`, a delta that the rules above refuse for a
+Story overlap or a config file is re-judged; a delta they accept takes the
+same path as before, and at `0` (the default) no extra git command runs.
+The re-judge walks `git rev-list --first-parent --parents <commit>..HEAD`,
+whose oldest step must have the stamped commit as its first parent. Each
+merge step's paths (`git diff --name-only <M>^1 <M>`) form the **base part**,
+and each non-merge commit's paths form the **own part**. Both parts are
+counted after the same suite-input and `nonInputGlobs` filter. The delta is
+re-measured, keyed on the stamped commit and merged with the prior rows kept,
+only when **every** guard holds:
+
+- the base part shares no suite-input path with the Story's change set and
+  holds no coverage-determining config (unless `captureHandlesConfigChanges`);
+- the own part holds no coverage-determining config file;
+- the own part touches at most `N` suite-input paths in the delta;
+- no own commit deletes or renames a suite-input path;
+- no own-part test file (`*.test.*` / `*.spec.*`, or under a `tests`, `test`,
+  `__tests__`, `spec` or `e2e` directory) has net line removals across
+  `<commit>..HEAD`;
+- no own commit is reachable from `origin/<baseBranch>` (that would be a
+  fast-forwarded base commit).
+
+An eligible plan logs `needs an own-fix delta refresh — re-measuring <k>
+file(s) changed since <sha> (<n> own file(s), <m> base file(s))` with
+verdict `own-fix-delta-refresh`. A refusal logs the ordinary `delta refresh
+not eligible (…)` line with a reason starting `own-fix:` that names the
+guard and the offending path or count, so the hit rate can be counted from
+logs. Any git error while splitting refuses. The consumer's
+`test:coverage:affected` script still selects the tests; mandrel only names
+the base ref and the rows to replace.
+
+**Risk.** Rows outside the delta are kept, so one can go stale high: a fix
+that weakens a test covering another Story file, or a changed source that
+stops calling another Story file, leaves that file's prior row in place. The
+base-delta refresh already accepts this hazard class; the guards close the
+obvious routes. Before raising the cap (a reasonable start is `10`),
+validate on a sample of Stories by diffing a delta-merged artifact against a
+full capture. A consumer whose CI does not measure coverage on the full
+suite should leave the key at `0`.
+
 Any git error or unresolvable input fails closed to the ordinary capture.
 Every freshness log line names the stamp's scope, the required scope and the
-verdict (`fresh`, `stale`, `scope-mismatch`, `missing`, or `delta-refresh`
-with the delta's file count), so an unexpected full re-run is explainable
+verdict (`fresh`, `stale`, `scope-mismatch`, `missing`, or `delta-refresh` /
+`own-fix-delta-refresh` with the delta's file count), so an unexpected full re-run is explainable
 from the log alone. Every delta-refresh and not-eligible line also names the
 rule that decided (`disjoint`, `overlap`, `own-commits`, `config`, `empty`,
 `restamp`, or `precondition` before any delta was read), the delta's file

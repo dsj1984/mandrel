@@ -1373,7 +1373,7 @@
     {
       "path": ".agents/scripts/lib/coverage-capture-delta.js",
       "lines": 100,
-      "branches": 90.16,
+      "branches": 91.13,
       "functions": 100
     },
     {
@@ -1386,6 +1386,12 @@
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
       "lines": 100,
       "branches": 96,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-own-fix.js",
+      "lines": 100,
+      "branches": 93.9,
       "functions": 100
     },
     {
