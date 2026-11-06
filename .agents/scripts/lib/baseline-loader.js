@@ -1,3 +1,4 @@
+import { decodeEnvelope } from './baselines/codec.js';
 import { createGitInterface } from './git-utils.js';
 
 /**
@@ -30,7 +31,8 @@ export function clearBaselineCache() {
  * @param {object} [opts]
  * @param {string} [opts.cwd]
  * @param {ReturnType<typeof createGitInterface>} [opts.git]
- * @returns {unknown} Parsed JSON; the schema is the caller's contract.
+ * @returns {unknown} Parsed JSON, decoded by the layout codec; the schema is
+ *   the caller's contract.
  * @throws {Error} Naming ref and path, on an unresolvable blob or bad JSON.
  */
 export function readBaselineAtRef(ref, path, opts = {}) {
@@ -57,7 +59,7 @@ export function readBaselineAtRef(ref, path, opts = {}) {
   const raw = res.stdout ?? '';
   let parsed;
   try {
-    parsed = JSON.parse(raw);
+    parsed = decodeEnvelope(JSON.parse(raw));
   } catch (err) {
     throw new Error(
       `[baseline-loader] parse-error reading "${path}" at ref "${ref}": ${err?.message ?? err}`,

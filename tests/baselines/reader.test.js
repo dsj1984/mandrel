@@ -222,9 +222,8 @@ describe('baselines/reader — load (config-driven)', () => {
 // was never about which stamp, it was about the projection being writable in
 // two places with nothing checking they agree.
 const ENVELOPE_STAMPS = [
-  ['scoringSemantics', 'method-identity-v3'],
+  ['scoringSemantics', 'method-identity-v5'],
   ['tsTranspilerVersion', '5.9.3'],
-  ['provenanceStamped', true],
 ];
 
 describe('baselines/reader — envelope stamps survive the narrowing', () => {
@@ -277,15 +276,71 @@ describe('baselines/reader — envelope stamps survive the narrowing', () => {
   });
 
   it('leaves an unstamped envelope undefined rather than inventing a value', () => {
-    // The other half of the contract. `provenance-unstamped` keys on
-    // `!== true`, so a reader that defaulted a missing marker to `true` would
-    // silence the axis on exactly the pre-#4901 baselines it exists to catch —
-    // the opposite failure, and the quieter one.
+    // The other half of the contract: a reader that defaulted a missing stamp
+    // would silence the compat axis that keys on it.
     const file = path.join(tmp, 'crap.json');
     writeJson(file, envelope('crap'));
     const out = loadFile(file);
     for (const [field] of ENVELOPE_STAMPS) {
       assert.equal(out[field], undefined, `${field} was invented`);
     }
+  });
+});
+
+describe('baselines/reader — the grouped CRAP layout (AC-5, AC-8)', () => {
+  let tmp;
+  beforeEach(() => {
+    tmp = makeTempDir('baseline-reader-grouped-');
+  });
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('decodes `files` to path-ordered rows, canonicalising each path', () => {
+    const file = path.join(tmp, 'crap.json');
+    writeJson(file, {
+      $schema: '.agents/schemas/baselines/crap.schema.json',
+      kernelVersion: '1.0.0',
+      files: {
+        '.worktrees/story-1/src/a.js': { a: 2, 'a/inner': 1.5 },
+        'src/b.js': { '<anon b()#0>': 3 },
+      },
+    });
+    assert.deepEqual(loadFile(file).rows, [
+      { path: 'src/a.js', method: 'a', crap: 2 },
+      { path: 'src/a.js', method: 'a/inner', crap: 1.5 },
+      { path: 'src/b.js', method: '<anon b()#0>', crap: 3 },
+    ]);
+  });
+
+  it('parses the previous rows[] layout instead of throwing a schema error', () => {
+    const file = path.join(tmp, 'crap.json');
+    writeJson(
+      file,
+      envelope('crap', {
+        scoringSemantics: 'method-identity-v4',
+        provenanceStamped: true,
+        rows: [
+          { path: 'src/a.js', method: 'run', startLine: 3, crap: 2 },
+          {
+            path: 'src/a.js',
+            method: '<anon run/(x)#0>',
+            startLine: 4,
+            crap: 1,
+            anonymous: true,
+            coordinateSystem: 'transpiled',
+          },
+        ],
+      }),
+    );
+    const loaded = loadFile(file);
+    assert.equal(loaded.scoringSemantics, 'method-identity-v4');
+    assert.equal(loaded.rows.length, 2);
+  });
+
+  it('refuses an envelope carrying both layouts', () => {
+    const file = path.join(tmp, 'crap.json');
+    writeJson(file, envelope('crap', { files: {} }));
+    assert.throws(() => loadFile(file), /schema validation failed/);
   });
 });

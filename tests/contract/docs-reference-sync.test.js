@@ -476,9 +476,7 @@ describe('data-dictionary.md — crap.json row mirrors the live schema (Story #4
 
   it('documents the rollup axes the floors are checked against', () => {
     const axes = Object.keys(
-      rollupOfRows('crap', [
-        { path: 'a.js', method: 'm', startLine: 1, crap: 1 },
-      ]),
+      rollupOfRows('crap', [{ path: 'a.js', method: 'm', crap: 1 }]),
     );
     assert.deepEqual([...axes].sort(), ['max', 'methodsAbove20', 'p50', 'p95']);
     const md = dataDictionary();
@@ -490,27 +488,20 @@ describe('data-dictionary.md — crap.json row mirrors the live schema (Story #4
     }
   });
 
-  it('keys rows on `path` — the artefact has no `file` key', () => {
-    const rowProps = Object.keys(crapSchema().properties.rows.items.properties);
-    // `coordinateSystem` (Story #4866) is optional and written only for a row
-    // that kept transpiled coordinates — the four REQUIRED keys are the
-    // artefact's shape, and `path` is still the key field.
+  it('documents the grouped `files` layout and the path::method identity', () => {
+    // On disk: canonical path → { method key → crap }; no line is persisted.
+    const files = crapSchema().properties.files;
+    assert.equal(files.type, 'object');
+    assert.deepEqual(files.additionalProperties.additionalProperties, {
+      type: 'number',
+      minimum: 0,
+    });
+    // The previous rows[] layout still validates (so it reaches the compat
+    // axis), keyed on `path`, never `file`.
     assert.deepEqual(crapSchema().properties.rows.items.required.sort(), [
       'crap',
       'method',
       'path',
-      'startLine',
-    ]);
-    assert.deepEqual(rowProps.sort(), [
-      // `anonymous` (Story #4969) is optional on the same terms as
-      // `coordinateSystem`: written only for a row whose `method` is a derived
-      // scope-path identity rather than a name the source carries.
-      'anonymous',
-      'coordinateSystem',
-      'crap',
-      'method',
-      'path',
-      'startLine',
     ]);
     assert.equal(
       crapSchema().properties.rows.items.additionalProperties,
@@ -520,12 +511,9 @@ describe('data-dictionary.md — crap.json row mirrors the live schema (Story #4
     const md = dataDictionary();
     const row = md.split('\n').find((l) => l.includes('`baselines/crap.json`'));
     assert.ok(row, 'no `baselines/crap.json` row found');
-    assert.match(row, /`\{ path, method, startLine, crap \}`/);
-    assert.doesNotMatch(
-      row,
-      /\{ file, method, startLine, crap \}/,
-      'crap.json row still keys rows on the non-existent `file` property',
-    );
+    assert.match(row, /`files`/);
+    assert.match(row, /`path::method`/);
+    assert.doesNotMatch(row, /method@startLine/);
   });
 
   it('does not claim an `escomplexVersion` key the envelope forbids', () => {

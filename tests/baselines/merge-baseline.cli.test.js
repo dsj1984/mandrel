@@ -14,6 +14,10 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import {
+  decodeEnvelope,
+  encodeEnvelope,
+} from '../../.agents/scripts/lib/baselines/codec.js';
 import { assertEnvelope } from '../../.agents/scripts/lib/baselines/envelope.js';
 import { getKindModule } from '../../.agents/scripts/lib/baselines/kernel.js';
 import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
@@ -159,29 +163,25 @@ describe('merge-baseline — a genuine double move conflicts, alone (AC-2)', () 
   });
 });
 
-describe('merge-baseline — CRAP sibling rows (AC-3)', () => {
-  it('moves the identified method and leaves its file-sibling byte-identical', () => {
-    const dir = makeTempDir('mandrel-merge-crap-');
-    const mod = getKindModule('crap');
-    const sibling = {
-      path: 'a/b.js',
-      method: 'sibling',
-      startLine: 40,
-      crap: 12,
-    };
-    const target = { path: 'a/b.js', method: 'target', startLine: 7, crap: 3 };
-    const env = (rows) => ({
+describe('merge-baseline — grouped CRAP layout (AC-3, AC-7)', () => {
+  const mod = getKindModule('crap');
+  const sibling = { path: 'a/b.js', method: 'sibling', crap: 12 };
+  const target = { path: 'a/b.js', method: 'target', crap: 3 };
+  const other = { path: 'a/c.js', method: 'target', crap: 5 };
+  const env = (rows) =>
+    encodeEnvelope({
       $schema: '.agents/schemas/baselines/crap.schema.json',
       kernelVersion: '0.1.0',
       rows: mod.sortRows(rows),
     });
 
+  it('moves the identified method and leaves its file-sibling byte-identical', () => {
+    const dir = makeTempDir('mandrel-merge-crap-');
     const paths = stage(dir, {
-      base: env([target, sibling]),
-      ours: env([{ ...target, crap: 9 }, sibling]),
-      theirs: env([target, sibling]),
+      base: env([target, sibling, other]),
+      ours: env([{ ...target, crap: 9 }, sibling, other]),
+      theirs: env([target, sibling, { ...other, crap: 1 }]),
     });
-
     const res = runDriver(
       paths.base,
       paths.ours,
@@ -189,13 +189,69 @@ describe('merge-baseline — CRAP sibling rows (AC-3)', () => {
       'baselines/crap.json',
     );
     assert.equal(res.status, 0, res.stderr);
-
     const merged = readJson(paths.ours);
+    assert.deepEqual(merged.files, {
+      'a/b.js': { sibling: 12, target: 9 },
+      'a/c.js': { target: 1 },
+    });
     const byIdentity = Object.fromEntries(
-      merged.rows.map((r) => [mod.rowIdentity(r), r]),
+      decodeEnvelope(merged).rows.map((r) => [mod.rowIdentity(r), r]),
     );
-    assert.equal(byIdentity['a/b.js::target@7'].crap, 9);
-    assert.deepEqual(byIdentity['a/b.js::sibling@40'], sibling);
+    assert.deepEqual(byIdentity['a/b.js::sibling'], sibling);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('wraps a same-method conflict around that method line only', () => {
+    const dir = makeTempDir('mandrel-merge-crap-conflict-');
+    const paths = stage(dir, {
+      base: env([target, sibling, other]),
+      ours: env([{ ...target, crap: 9 }, sibling, other]),
+      theirs: env([{ ...target, crap: 7 }, sibling, other]),
+    });
+    const res = runDriver(
+      paths.base,
+      paths.ours,
+      paths.theirs,
+      'baselines/crap.json',
+    );
+    assert.equal(res.status, 1);
+    const text = fs.readFileSync(paths.ours, 'utf8');
+    assert.match(
+      text,
+      /\n<<<<<<< ours\n {6}"target": 9\n=======\n {6}"target": 7\n>>>>>>> theirs\n/,
+    );
+    // Every line outside the marker block is the clean grouped layout.
+    const outside = text.replace(/<<<<<<< ours[\s\S]*?>>>>>>> theirs\n/, '');
+    assert.ok(outside.includes('      "sibling": 12,\n'));
+    assert.ok(outside.includes('    "a/c.js": {\n      "target": 5\n'));
+    assert.equal((text.match(/<<<<<<</g) ?? []).length, 1);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('marks every conflicting method of one file, not only the first', () => {
+    const dir = makeTempDir('mandrel-merge-crap-two-conflicts-');
+    const paths = stage(dir, {
+      base: env([target, sibling, other]),
+      ours: env([{ ...target, crap: 9 }, { ...sibling, crap: 13 }, other]),
+      theirs: env([{ ...target, crap: 7 }, { ...sibling, crap: 11 }, other]),
+    });
+    const res = runDriver(
+      paths.base,
+      paths.ours,
+      paths.theirs,
+      'baselines/crap.json',
+    );
+    assert.equal(res.status, 1);
+    const text = fs.readFileSync(paths.ours, 'utf8');
+    assert.equal((text.match(/<<<<<<</g) ?? []).length, 2);
+    assert.match(
+      text,
+      /<<<<<<< ours\n {6}"sibling": 13,\n=======\n {6}"sibling": 11,\n>>>>>>> theirs\n/,
+    );
+    assert.match(
+      text,
+      /<<<<<<< ours\n {6}"target": 9\n=======\n {6}"target": 7\n>>>>>>> theirs\n/,
+    );
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });

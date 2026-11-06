@@ -18,7 +18,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { decodeEnvelope } from './lib/baselines/codec.js';
 import { assertEnvelope } from './lib/baselines/envelope.js';
+import { renderCrapConflicts } from './lib/baselines/kinds/_crap-codec.js';
 import {
   baselineRegenerateRemedy,
   kindFromEnvelope,
@@ -82,13 +84,22 @@ export function renderConflictMarkers(text, conflicts) {
   return out;
 }
 
-/** Read and parse a merge input; a missing or empty side is `null`. */
+/** The grouped CRAP layout keeps one line per method, so it has its own. */
+function renderRowConflicts(kind, text, conflicts) {
+  return kind === 'crap'
+    ? renderCrapConflicts(text, conflicts)
+    : renderConflictMarkers(text, conflicts);
+}
+
+/**
+ * Read, parse and decode a merge input; a missing or empty side is `null`.
+ */
 function readSide(file) {
   if (!file || !fs.existsSync(file)) return null;
   const raw = fs.readFileSync(file, 'utf8');
   if (raw.trim() === '') return null;
   try {
-    return JSON.parse(raw);
+    return decodeEnvelope(JSON.parse(raw));
   } catch {
     return undefined; // present but unparseable — caller falls back to git
   }
@@ -264,7 +275,7 @@ function markConflicts({ kind, merged, oursPath, label }) {
     text = renderStampConflict(text, envelopeConflicts);
   }
   if (rowConflicts.length > 0) {
-    text = renderConflictMarkers(text, rowConflicts);
+    text = renderRowConflicts(kind, text, rowConflicts);
   }
   fs.writeFileSync(oursPath, text);
   return 1;

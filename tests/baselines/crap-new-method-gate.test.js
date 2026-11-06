@@ -156,23 +156,23 @@ describe('crap-baseline-join — the folded module is the one door (#5002)', () 
     }
   });
 
-  it('AC-4: the folded index still keys rows by `method@startLine`, per file', () => {
+  it('AC-4: the folded index keys rows by method key, per file', () => {
     const { baselineByFile, touchedFiles } = resolveIncrementalContext({
       touchedFiles: ['a.js'],
       baselineRows: [
-        { path: 'a.js', method: 'run', startLine: 3, crap: 2 },
-        { file: 'b.js', method: 'other', startLine: 9, crap: 4 },
+        { path: 'a.js', method: 'run', crap: 2 },
+        { file: 'b.js', method: 'other', crap: 4 },
       ],
     });
     assert.ok(touchedFiles.has('a.js'));
-    assert.equal(baselineByFile.get('a.js').get('run@3').crap, 2);
-    assert.equal(baselineByFile.get('b.js').get('other@9').crap, 4);
+    assert.equal(baselineByFile.get('a.js').get('run').crap, 2);
+    assert.equal(baselineByFile.get('b.js').get('other').crap, 4);
   });
 
   it('AC-4: the queue wiring and the file-skip decision still compose', () => {
     const ctx = resolveIncrementalContext({
       touchedFiles: [],
-      baselineRows: [{ file: 'b.js', method: 'other', startLine: 9, crap: 4 }],
+      baselineRows: [{ file: 'b.js', method: 'other', crap: 4 }],
     });
     const item = resolveQueueIncrementalFields(
       { abs: '/abs/b.js', relPath: 'b.js', requireCoverage: true },

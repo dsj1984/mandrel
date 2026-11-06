@@ -43,7 +43,7 @@ function normaliseSkipReason(reason) {
  * `[]` when absent or unreadable.
  *
  * @param {string} baselinePath
- * @returns {Array<{file: string, method: string, startLine: number, crap: number}>}
+ * @returns {Array<{file: string, method: string, crap: number}>}
  */
 function loadCrapBaselineRows(baselinePath) {
   let envelope;
@@ -56,7 +56,6 @@ function loadCrapBaselineRows(baselinePath) {
   return rows.map((row) => ({
     file: row.path,
     method: row.method,
-    startLine: row.startLine,
     crap: row.crap,
   }));
 }

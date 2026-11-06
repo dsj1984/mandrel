@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { deepEqual, isObject } from '../json-utils.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
+import { encodeEnvelope } from './codec.js';
 import { assertEnvelope, buildEnvelope } from './envelope.js';
 import { currentKernelVersion, getKindModule } from './kernel.js';
 import { assertCanonical } from './path-canon.js';
@@ -131,8 +132,8 @@ function isEnvelopeObject(value) {
 }
 
 /**
- * Serialise deterministically (fixed top-level key order, two-space indent,
- * trailing newline) and atomically (tmp + rename).
+ * Serialise through the layout codec deterministically (fixed top-level key
+ * order, two-space indent, trailing newline) and atomically (tmp + rename).
  *
  * @param {string} absPath
  * @param {object} envelope
@@ -150,20 +151,13 @@ export function writeFile(absPath, envelope, opts = {}) {
 
   const fsImpl = opts?.fsImpl ? opts.fsImpl : fs;
 
-  // A kind's envelope stamp reaches disk only if named here — add every new
-  // `envelopeExtras()` key. Unset stamps are undefined and JSON omits them.
-  const canonical = {
-    $schema: envelope.$schema,
-    kernelVersion: envelope.kernelVersion,
-    scoringSemantics: envelope.scoringSemantics,
-    tsTranspilerVersion: envelope.tsTranspilerVersion,
-    provenanceStamped: envelope.provenanceStamped,
-    rows: envelope.rows,
-  };
-
-  writeFileAtomic(absPath, `${JSON.stringify(canonical, null, 2)}\n`, {
-    fsImpl,
-  });
+  writeFileAtomic(
+    absPath,
+    `${JSON.stringify(encodeEnvelope(envelope), null, 2)}\n`,
+    {
+      fsImpl,
+    },
+  );
   return absPath;
 }
 

@@ -4,7 +4,7 @@
   "title": "BaselineEnvelope",
   "description": "Shared envelope contract for every committed Mandrel baseline (lint, coverage, crap, maintainability, mutation, lighthouse, bundle-size). Each per-kind schema extends this envelope via allOf to constrain the row shape. The committed file carries no run timestamp and no rollup: both were rewritten on every refresh, so two branches refreshing disjoint rows always conflicted textually — and GitHub (PR mergeability, update-branch, the merge queue) never runs the custom merge driver. Readers derive the rollup from rows[]; freshness is the file's git history. The envelope itself is intentionally agnostic about row contents so the kernel can evolve without churning the shared contract.",
   "type": "object",
-  "required": ["$schema", "kernelVersion", "rows"],
+  "required": ["$schema", "kernelVersion"],
   "additionalProperties": false,
   "properties": {
     "$schema": {
@@ -26,14 +26,26 @@
     },
     "provenanceStamped": {
       "type": "boolean",
-      "description": "Optional per-kind POSITIVE assertion that the writer which produced these rows recorded each row's coordinate provenance (Story #4901). Only meaningful for kinds whose rows carry a line coordinate that may be transpiled. Absence is the only evidence a baseline written before provenance existed leaves behind — such a baseline claims by omission that every row is an original-source coordinate — so the kind's compat axis fails it closed with re-seed guidance rather than letting the comparator key rows against a coordinate space they are not in."
+      "description": "Legacy per-kind stamp, no longer written: the CRAP writer once used it to assert that each row's coordinate provenance was recorded. It stays accepted so a baseline written before the grouped CRAP layout parses and reaches the kind's scoring-semantics compat axis, which fails it closed with the re-seed command, instead of dying on a raw schema error."
     },
     "rows": {
       "type": "array",
-      "description": "Per-row metrics. Order is kind-specific (e.g. CRAP sorts by file+startLine+method); per-kind schemas tighten the item shape.",
+      "description": "Per-row metrics. Order is kind-specific (e.g. CRAP sorts by path then method key); per-kind schemas tighten the item shape. Exactly one of rows and files is present.",
       "items": {
         "type": "object"
       }
+    },
+    "files": {
+      "type": "object",
+      "description": "Grouped on-disk row layout for kinds whose codec writes one (CRAP): each canonical path once, mapped to its per-row values. Exactly one of rows and files is present; readers decode it back to rows through the kind's layout codec."
     }
-  }
+  },
+  "oneOf": [
+    {
+      "required": ["rows"]
+    },
+    {
+      "required": ["files"]
+    }
+  ]
 }

@@ -10,13 +10,16 @@ import {
   buildCrapReport,
   compareCrap,
   envelopeExtras,
+  printRemovedRows,
   printSummaryHeader,
+  printViolation,
 } from '../.agents/scripts/lib/baselines/kinds/crap.js';
 import {
   calculateCrapForSource,
   crapFormula,
 } from '../.agents/scripts/lib/crap-engine.js';
 import { KERNEL_VERSION } from '../.agents/scripts/lib/crap-utils.js';
+import { Logger } from '../.agents/scripts/lib/Logger.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   AHEAD_STAMP,
@@ -260,9 +263,11 @@ test('buildCrapReport — round-trip: each single-axis fix reduces CRAP to ≤ c
 });
 
 test('buildCrapReport — drifted-regression kind surfaces through the envelope', () => {
-  const baseline = [makeBaselineRow({ startLine: 10, crap: 4 })];
+  const baseline = [makeBaselineRow({ crap: 4 })];
+  // A namesake re-key (`doWork` → `doWork#1`) re-pairs within the stem.
   const current = [
     makeRegressionRow({
+      method: 'doWork#1',
       startLine: 25,
       cyclomatic: 10,
       coverage: 0,
@@ -332,12 +337,11 @@ test('AC-3: a genuine regression on an anonymous method is still reported', () =
   assert.strictEqual(result.violations[0].baseline, 18);
 });
 
-test('AC-1: an unrelated insertion no longer drift-pairs two anonymous methods', () => {
-  // Two same-file anonymous methods whose lines shifted by one because
-  // something was inserted above them. Their identities are unchanged, so each
-  // pairs with its OWN baseline row and neither regresses. Under the ordinal
-  // scheme both labels shifted by one, `pickDriftCandidate` paired each with
-  // the neighbour's row, and the cheap one inherited the expensive one's score.
+test('AC-1: an insertion above two methods leaves both paired by key alone', () => {
+  // Two same-file anonymous methods whose lines shifted because something was
+  // inserted above them. Their identities are unchanged and no line is
+  // persisted, so each pairs with its OWN baseline row by key and neither
+  // regresses, reads as new, or orphans its row.
   const cheap = '<anon host/(a)#0>';
   const costly = '<anon host/(b)#0>';
   const result = compareCrap({
@@ -362,20 +366,8 @@ test('AC-1: an unrelated insertion no longer drift-pairs two anonymous methods',
       },
     ],
     baselineRows: [
-      {
-        file: 'lib/a.js',
-        method: cheap,
-        anonymous: true,
-        startLine: 10,
-        crap: 8,
-      },
-      {
-        file: 'lib/a.js',
-        method: costly,
-        anonymous: true,
-        startLine: 20,
-        crap: 8,
-      },
+      { file: 'lib/a.js', method: cheap, crap: 8 },
+      { file: 'lib/a.js', method: costly, crap: 8 },
     ],
     newMethodCeiling: 30,
     tolerance: 0.001,
@@ -383,7 +375,7 @@ test('AC-1: an unrelated insertion no longer drift-pairs two anonymous methods',
   assert.strictEqual(result.regressions, 0, 'no phantom regression');
   assert.strictEqual(result.newViolations, 0, 'neither method reads as new');
   assert.strictEqual(result.removed, 0, 'neither baseline row is orphaned');
-  assert.strictEqual(result.drifted, 2, 'both moved by one line, and matched');
+  assert.strictEqual(result.drifted, 0, 'both matched by exact key');
 });
 
 /**
@@ -403,14 +395,11 @@ function scoredRows(source) {
 function compareSources(before, after) {
   return compareCrap({
     currentRows: scoredRows(after),
-    baselineRows: scoredRows(before).map(
-      ({ file, method, startLine, crap }) => ({
-        file,
-        method,
-        startLine,
-        crap,
-      }),
-    ),
+    baselineRows: scoredRows(before).map(({ file, method, crap }) => ({
+      file,
+      method,
+      crap,
+    })),
     newMethodCeiling: 0,
     tolerance: 0.001,
   });
@@ -462,7 +451,7 @@ describe('compareCrap — anonymous rows re-pair by stem and order', () => {
     assert.strictEqual(r.regressions, 0);
     assert.strictEqual(r.newViolations, 0);
     assert.strictEqual(r.removed, 0);
-    assert.strictEqual(r.rekeyed, 2);
+    assert.strictEqual(r.drifted, 2);
   });
 
   it('AC-6: a real increase regresses against its own row in place, moved, or reordered', () => {
@@ -492,35 +481,6 @@ describe('compareCrap — anonymous rows re-pair by stem and order', () => {
     assert.strictEqual(r.removed, 1);
   });
 
-  it('keeps an anonymous bucket in another coordinate system incomparable', () => {
-    const r = compareCrap({
-      currentRows: [
-        {
-          file: 'lib/a.ts',
-          method: '<anon f()#1>',
-          startLine: 3,
-          cyclomatic: 2,
-          coverage: 1,
-          crap: 2,
-        },
-      ],
-      baselineRows: [
-        {
-          file: 'lib/a.ts',
-          method: '<anon f()#0>',
-          startLine: 9,
-          crap: 2,
-          coordinateSystem: 'transpiled',
-        },
-      ],
-      newMethodCeiling: 0,
-      tolerance: 0.001,
-    });
-    assert.strictEqual(r.incomparable, 1);
-    assert.strictEqual(r.newViolations, 0);
-    assert.strictEqual(r.removed, 0);
-  });
-
   it('AC-12: re-keyed pairs reach the result and the human summary, never the --json envelope', (t) => {
     const lines = [];
     t.mock.method(console, 'log', (m) => lines.push(String(m)));
@@ -544,16 +504,16 @@ describe('compareCrap — anonymous rows re-pair by stem and order', () => {
         },
       ],
       baselineRows: [
-        { file: 'lib/a.js', method: '<anon f()#0>', startLine: 1, crap: 2 },
-        { file: 'lib/a.js', method: '<anon f()#1>', startLine: 2, crap: 3 },
+        { file: 'lib/a.js', method: '<anon f()#0>', crap: 2 },
+        { file: 'lib/a.js', method: '<anon f()#1>', crap: 3 },
       ],
       newMethodCeiling: 30,
       tolerance: 0.001,
     });
-    assert.strictEqual(result.rekeyed, 2);
+    assert.strictEqual(result.drifted, 2);
     assert.strictEqual(result.regressions, 0);
     printSummaryHeader(result, {});
-    assert.ok(lines.some((l) => /Re-keyed \(anonymous\):\s+2/.test(l)));
+    assert.ok(lines.some((l) => /Re-keyed \(matched\):\s+2/.test(l)));
     const envelope = buildCrapReport({
       compareResult: result,
       scanSummary: {},
@@ -567,6 +527,63 @@ describe('compareCrap — anonymous rows re-pair by stem and order', () => {
   });
 });
 
+describe('compareCrap — named rows re-pair by stem and order', () => {
+  const cb = (body) => `[1].map(function cb(v) { ${body} });`;
+  const SMALL = cb('return v ? 1 : 2;');
+  const BIG = cb('if (v) return 1; if (v > 2) return 2; return 3;');
+
+  it('AC-2: an inserted earlier namesake is one new method; the later one re-pairs', () => {
+    const r = compareSources(`${BIG}\n`, `${SMALL}\n${BIG}\n`);
+    assert.strictEqual(r.newViolations, 1);
+    assert.strictEqual(r.regressions, 0);
+    assert.strictEqual(r.removed, 0);
+    assert.strictEqual(r.drifted, 1);
+  });
+
+  it('AC-4: an increase is not hidden by a later namesake re-keyed onto its row', () => {
+    const r = compareCrap({
+      currentRows: [
+        {
+          file: 'a.js',
+          method: 'run',
+          startLine: 1,
+          cyclomatic: 3,
+          coverage: 0,
+          crap: 12,
+        },
+        {
+          file: 'a.js',
+          method: 'run#1',
+          startLine: 10,
+          cyclomatic: 1,
+          coverage: 1,
+          crap: 1,
+        },
+      ],
+      baselineRows: [{ file: 'a.js', method: 'run', crap: 1 }],
+      newMethodCeiling: 30,
+      tolerance: 0.001,
+    });
+    assert.strictEqual(r.regressions, 1);
+    assert.strictEqual(r.violations[0].method, 'run');
+    assert.strictEqual(r.violations[0].kind, 'regression');
+    assert.strictEqual(r.drifted, 0);
+    assert.strictEqual(r.newViolations + r.removed, 0);
+  });
+
+  it('AC-4: a named increase regresses against its own row after lines above move', () => {
+    const r = compareSources(
+      'function run(p) { return p ? 1 : 2; }\n',
+      '// header\n\nfunction run(p) { if (p) return 1; if (p > 1) return 2; return 3; }\n',
+    );
+    assert.strictEqual(r.regressions, 1);
+    assert.strictEqual(r.violations[0].kind, 'regression');
+    assert.strictEqual(r.violations[0].baseline, 2);
+    assert.strictEqual(r.violations[0].crap, 3);
+    assert.strictEqual(r.newViolations + r.removed, 0);
+  });
+});
+
 describe('AC-4: the migration is refused, not drift-paired', () => {
   it('bumps SCORING_SEMANTICS off the value the old rows were scored under', () => {
     assert.notStrictEqual(
@@ -576,10 +593,11 @@ describe('AC-4: the migration is refused, not drift-paired', () => {
     );
   });
 
-  it('AC-9: stamps method-identity-v4 and refuses a v3 baseline with the re-seed command', () => {
-    assert.strictEqual(envelopeExtras().scoringSemantics, 'method-identity-v4');
+  it('AC-9: stamps method-identity-v5 and refuses a v4 rows[] baseline with the re-seed command', () => {
+    assert.strictEqual(envelopeExtras().scoringSemantics, 'method-identity-v5');
+    assert.ok(!('provenanceStamped' in envelopeExtras()));
     const message = assertBaselineCompatible({
-      scoringSemantics: 'method-identity-v3',
+      scoringSemantics: 'method-identity-v4',
       provenanceStamped: true,
       rows: [
         {
@@ -605,47 +623,13 @@ describe('AC-4: the migration is refused, not drift-paired', () => {
     assert.match(message, /crap:update -- --full-scope/);
   });
 
-  it('refuses a HALF-migrated baseline the semantics stamp cannot see', () => {
-    // A diff-scoped refresh preserves out-of-scope rows verbatim, so a
-    // baseline can carry ordinal-keyed rows under a current stamp. The
-    // semantics axis passes it; `anon-identity-unstamped` is what catches it.
-    const message = assertBaselineCompatible({
-      scoringSemantics: envelopeExtras().scoringSemantics,
-      provenanceStamped: true,
-      rows: [
-        {
-          path: 'lib/new.js',
-          method: '<anon host/(x)#0>',
-          anonymous: true,
-          startLine: 1,
-          crap: 1,
-        },
-        {
-          path: 'lib/stale.js',
-          method: '<anon method-4>',
-          startLine: 9,
-          crap: 1,
-        },
-      ],
-    });
-    assert.match(message, /superseded/);
-    assert.match(message, /lib\/stale\.js/);
-  });
-
   it('passes a fully migrated baseline', () => {
     assert.strictEqual(
       assertBaselineCompatible({
         scoringSemantics: envelopeExtras().scoringSemantics,
-        provenanceStamped: true,
         rows: [
-          {
-            path: 'lib/a.js',
-            method: '<anon host/(x)#0>',
-            anonymous: true,
-            startLine: 1,
-            crap: 1,
-          },
-          { path: 'lib/a.js', method: 'named', startLine: 5, crap: 1 },
+          { path: 'lib/a.js', method: '<anon host/(x)#0>', crap: 1 },
+          { path: 'lib/a.js', method: 'named', crap: 1 },
         ],
       }),
       null,
@@ -653,11 +637,12 @@ describe('AC-4: the migration is refused, not drift-paired', () => {
   });
 });
 
-describe('AC-5: the shipped baseline validates, re-keyed', () => {
-  const baseline = () =>
-    JSON.parse(fs.readFileSync(path.resolve('baselines/crap.json'), 'utf-8'));
+describe('AC-5: the shipped baseline is the grouped, startLine-free layout', () => {
+  const raw = () =>
+    fs.readFileSync(path.resolve('baselines/crap.json'), 'utf-8');
+  const baseline = () => JSON.parse(raw());
 
-  it('validates against crap.schema.json with the new field admitted', () => {
+  it('validates against crap.schema.json', () => {
     const ajv = new Ajv({ allErrors: true, strict: false });
     ajv.addSchema(
       JSON.parse(fs.readFileSync(ENVELOPE_SCHEMA_PATH, 'utf-8')),
@@ -666,56 +651,38 @@ describe('AC-5: the shipped baseline validates, re-keyed', () => {
     const validate = ajv.compile(
       JSON.parse(fs.readFileSync(BASELINE_SCHEMA_PATH, 'utf-8')),
     );
-    const b = baseline();
     assert.ok(
-      validate(b),
+      validate(baseline()),
       `baselines/crap.json failed its schema: ${JSON.stringify(validate.errors?.slice(0, 4), null, 2)}`,
     );
   });
 
-  it('carries no ordinal-keyed row, and marks every derived identity', () => {
-    const rows = baseline().rows;
-    const ordinal = rows.filter((r) => /^<anon method-\d+>$/.test(r.method));
+  it('states each path once and each method as one number, sorted', () => {
+    const b = baseline();
+    assert.ok(!('rows' in b) && !('provenanceStamped' in b));
+    const paths = Object.keys(b.files);
     assert.deepStrictEqual(
-      ordinal.map((r) => `${r.path}::${r.method}`),
-      [],
-      'every anonymous row must be re-keyed onto a scope path',
+      paths,
+      [...paths].sort((x, y) => x.localeCompare(y)),
     );
-    const unmarked = rows.filter(
-      (r) => r.method.startsWith('<anon ') && r.anonymous !== true,
-    );
-    assert.deepStrictEqual(
-      unmarked.map((r) => r.path),
-      [],
-    );
-    assert.ok(
-      rows.some((r) => r.anonymous === true),
-      'the fixture would be vacuous if no row were anonymous',
-    );
+    for (const p of paths) {
+      const keys = Object.keys(b.files[p]);
+      assert.deepStrictEqual(
+        keys,
+        [...keys].sort((x, y) => x.localeCompare(y)),
+      );
+      for (const k of keys) assert.strictEqual(typeof b.files[p][k], 'number');
+    }
+    assert.ok(!/"(startLine|coordinateSystem|anonymous)"/.test(raw()));
   });
 
-  it('keys every row uniquely — the re-keying collapsed nothing', () => {
-    const rows = baseline().rows;
-    const keys = rows.map((r) => `${r.path}::${r.method}@${r.startLine}`);
-    assert.strictEqual(new Set(keys).size, keys.length);
-    // Stronger: `path::method` alone must be unique too, or two methods would
-    // share a drift-candidate pool and be paired by line distance again.
-    const pairs = rows.map((r) => `${r.path}::${r.method}`);
-    assert.strictEqual(
-      new Set(pairs).size,
-      pairs.length,
-      'two methods sharing one identity would reintroduce nearest-line pairing',
+  it('carries no ordinal-keyed row', () => {
+    const ordinal = Object.entries(baseline().files).flatMap(([p, methods]) =>
+      Object.keys(methods)
+        .filter((m) => /^<anon method-\d+>$/.test(m))
+        .map((m) => `${p}::${m}`),
     );
-  });
-
-  it('leaves named rows at the four-key shape', () => {
-    const named = baseline().rows.find((r) => !r.method.startsWith('<anon '));
-    assert.deepStrictEqual(Object.keys(named).sort(), [
-      'crap',
-      'method',
-      'path',
-      'startLine',
-    ]);
+    assert.deepStrictEqual(ordinal, []);
   });
 });
 
@@ -802,5 +769,51 @@ describe('crap:check against a baseline stamped ahead (#5991 AC-4/AC-5)', () => 
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe('violation and removed-row lines name the baseline key, not a line', () => {
+  const base = { file: 'lib/a.js', method: 'run', startLine: 7, cyclomatic: 2 };
+
+  it('prints regression, drifted-regression and new-method lines', (t) => {
+    const lines = [];
+    t.mock.method(Logger, 'error', (m) => lines.push(String(m)));
+    printViolation({
+      ...base,
+      kind: 'regression',
+      crap: 4,
+      baseline: 3,
+      coverage: 0.5,
+    });
+    printViolation({
+      ...base,
+      kind: 'drifted-regression',
+      baselineMethod: 'run#1',
+      crap: 4,
+      baseline: 3,
+      coverage: 0.5,
+    });
+    printViolation({
+      ...base,
+      kind: 'new',
+      crap: 40,
+      ceiling: 30,
+      coverage: 0,
+    });
+    assert.match(lines[0], /REGRESSION: lib\/a\.js::run \(line 7\)/);
+    assert.match(lines[2], /baseline key run#1/);
+    assert.match(lines[4], /NEW-METHOD over ceiling: lib\/a\.js::run/);
+  });
+
+  it('lists removed rows by path::method and is silent when none', (t) => {
+    const lines = [];
+    t.mock.method(Logger, 'info', (m) => lines.push(String(m)));
+    printRemovedRows({ removed: 0, removedRows: [] });
+    assert.equal(lines.length, 0);
+    printRemovedRows({
+      removed: 1,
+      removedRows: [{ file: 'lib/a.js', method: 'run' }],
+    });
+    assert.match(lines[1], /- lib\/a\.js::run$/);
   });
 });

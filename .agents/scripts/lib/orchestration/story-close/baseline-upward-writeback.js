@@ -7,8 +7,9 @@
  * Invariants:
  *  1. Only classifier `improvements` are written — a regression never enters
  *     the written set, so it still fails the gate.
- *  2. Maintainability only: CRAP rows re-key on `method@startLine` when code
- *     above moves, so write-back there is churn.
+ *  2. Maintainability only: CRAP is coverage-derived and flaps under
+ *     non-deterministic V8 instrumentation, so writing its improvements
+ *     back would ratchet the baseline on noise.
  *  3. Changed files only — a full-scope write would absorb other branches'
  *     drift into whichever PR lands next.
  *  4. Idempotent: no empty commit.

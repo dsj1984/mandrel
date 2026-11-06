@@ -7,9 +7,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { decodeEnvelope } from '../baselines/codec.js';
 import { toPosix } from '../util/paths.js';
 
 /**
+ * A baseline envelope comes back decoded by the layout codec.
+ *
  * @param {string} absolutePath
  * @returns {{ exists: boolean, parsed: object | null, parseError: string | null }}
  */
@@ -21,7 +24,11 @@ export function readJsonFile(absolutePath) {
     return { exists: false, parsed: null, parseError: null };
   }
   try {
-    return { exists: true, parsed: JSON.parse(raw), parseError: null };
+    return {
+      exists: true,
+      parsed: decodeEnvelope(JSON.parse(raw)),
+      parseError: null,
+    };
   } catch (err) {
     return {
       exists: true,

@@ -136,10 +136,17 @@ describe('escomplex-kernel — report parity with the displaced kernel', () => {
         fixture.metrics,
         `${fixture.name}: maintainability / cyclomatic / line coordinates`,
       );
-      // Anonymous labels follow the running identity rule, not the corpus's
-      // capture-time one; every other field stays pinned.
+      // Labels follow the running identity rule, not the corpus's capture-time
+      // one: a named method keeps its own name as its last scope segment, an
+      // anonymous one is not pinned; every other field stays pinned.
       const withoutAnonLabel = (rows) =>
-        rows?.map((r) => (r.anonymous === true ? { ...r, method: null } : r));
+        rows?.map((r) => ({
+          ...r,
+          method:
+            r.anonymous === true
+              ? null
+              : r.method.split('/').at(-1).replace(/#\d+$/, ''),
+        }));
       assert.deepEqual(
         withoutAnonLabel(actual.crapRows),
         withoutAnonLabel(fixture.crapRows),

@@ -19,8 +19,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
 import { runCheckBaselines } from '../.agents/scripts/check-baselines.js';
+import { encodeEnvelope } from '../.agents/scripts/lib/baselines/codec.js';
 import {
   __resetForTests,
   __setSpawnRunner,
@@ -801,7 +801,7 @@ describe('check-baselines — ack direction follows the kind, not a guess (#5179
 //
 // A kind's `keyField` names the row property the kind is ABOUT, which is not
 // always the key `compare()` diffs on. CRAP declares `keyField: 'path'` but
-// keys rows as `path::method@startLine`, because one file holds many methods.
+// keys rows as `path::method`, because one file holds many methods.
 // A first cut of this acknowledgment read `row[keyField]` to decide row
 // membership, which for CRAP produced a key matching no regression: the gate
 // then silently acknowledged NOTHING on the one kind whose stale rows are the
@@ -813,19 +813,19 @@ describe('check-baselines — ack direction follows the kind, not a guess (#5179
 
 const CRAP_BASELINE_REL = 'baselines/crap.json';
 
-function crapRow(method, startLine, crap) {
-  return { path: 'src/a.js', method, startLine, crap };
+function crapRow(method, _startLine, crap) {
+  return { path: 'src/a.js', method, crap };
 }
 
+/** The on-disk grouped layout, as the writer would leave it. */
 function crapEnvelope(rows) {
-  return {
+  return encodeEnvelope({
     $schema: 'crap.schema.json',
     kernelVersion: currentKernelVersion('crap'),
     scoringSemantics: envelopeExtras().scoringSemantics,
     tsTranspilerVersion: '6.0.3',
-    provenanceStamped: true,
     rows,
-  };
+  });
 }
 
 function setupCrapRepo() {
@@ -920,7 +920,7 @@ describe('check-baselines — ack keys come from compare(), not keyField (#5179)
     assert.equal(res.exitCode, 0);
     const gate = res.report.gates.find((g) => g.kind === 'crap');
     assert.equal(gate.acknowledged, true, 'composite-keyed row acknowledged');
-    assert.deepEqual(gate.acknowledgedKeys, ['src/a.js::alpha@10']);
+    assert.deepEqual(gate.acknowledgedKeys, ['src/a.js::alpha']);
   });
 
   // The other half: two methods in the SAME file, only one of them refreshed.
@@ -945,10 +945,10 @@ describe('check-baselines — ack keys come from compare(), not keyField (#5179)
     const res = await runCheckBaselines({ argv: ['--no-friction'], cwd: root });
     assert.equal(res.exitCode, 4, 'the unrefreshed sibling method still fails');
     const gate = res.report.gates.find((g) => g.kind === 'crap');
-    assert.deepEqual(gate.acknowledgedKeys, ['src/a.js::alpha@10']);
+    assert.deepEqual(gate.acknowledgedKeys, ['src/a.js::alpha']);
     assert.deepEqual(
       gate.regressions.map((r) => r.key),
-      ['src/a.js::beta@20'],
+      ['src/a.js::beta'],
     );
   });
 });

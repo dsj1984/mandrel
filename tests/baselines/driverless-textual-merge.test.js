@@ -14,6 +14,7 @@ import path from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { decodeEnvelope } from '../../.agents/scripts/lib/baselines/codec.js';
 import { assertEnvelope } from '../../.agents/scripts/lib/baselines/envelope.js';
 import { getKindModule } from '../../.agents/scripts/lib/baselines/kernel.js';
 import { loadFile } from '../../.agents/scripts/lib/baselines/reader.js';
@@ -112,6 +113,20 @@ function kernelEmitter(kind) {
   };
 }
 
+/** A minimal `.agentrc.json` enabling one gate. */
+function gateConfig(kind, gate) {
+  return {
+    project: {
+      baseBranch: 'main',
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+      docsContextFiles: [],
+      commands: { test: 'echo', typecheck: 'echo' },
+    },
+    github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
+    delivery: { quality: { gates: { [kind]: { enabled: true, ...gate } } } },
+  };
+}
+
 const PATHS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(
   (n) => `src/${n}.js`,
 );
@@ -154,7 +169,7 @@ const KERNEL_CASES = [
   },
   {
     kind: 'crap',
-    rowFor: (p) => ({ path: p, method: 'run', startLine: 10, crap: 4 }),
+    rowFor: (p) => ({ path: p, method: 'run', crap: 4 }),
     bump: (r) => ({ ...r, crap: 3 }),
   },
 ];
@@ -168,7 +183,7 @@ describe('driverless textual merge of row-set baselines (Story #5400)', () => {
         ...edits,
       });
       assert.equal(status, 0, `git merge conflicted:\n${text}`);
-      const merged = JSON.parse(text);
+      const merged = decodeEnvelope(JSON.parse(text));
       assert.equal(Object.hasOwn(merged, 'generatedAt'), false);
       assert.equal(Object.hasOwn(merged, 'rollup'), false);
       assertEnvelope(merged);
@@ -247,33 +262,58 @@ describe('driverless textual merge of row-set baselines (Story #5400)', () => {
     );
   });
 
+  it('crap: non-adjacent methods of ONE file merge clean and pass check-baselines (AC-6)', () => {
+    const methods = ['m0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6'];
+    const rows = (bumped) =>
+      methods.map((m) => ({
+        path: 'src/one.js',
+        method: m,
+        crap: bumped.has(m) ? 2 : 4,
+      }));
+    const { emit, file } = kernelEmitter('crap');
+    const { root, status, text } = mergeCase({
+      file,
+      emit,
+      base: rows(new Set()),
+      ours: rows(new Set(['m1'])),
+      theirs: rows(new Set(['m5'])),
+    });
+    assert.equal(status, 0, `git merge conflicted:\n${text}`);
+    const merged = decodeEnvelope(JSON.parse(text));
+    assertEnvelope(merged);
+    assert.deepEqual(
+      merged.rows,
+      write({ kind: 'crap', rows: rows(new Set(['m1', 'm5'])) }).rows,
+    );
+    writeFileSync(
+      path.join(root, '.agentrc.json'),
+      JSON.stringify(gateConfig('crap', { baselinePath: file })),
+    );
+    const res = spawnSync(process.execPath, [dispatcherBin, '--gate', 'crap'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: CLEAN_ENV,
+    });
+    assert.equal(
+      res.status,
+      0,
+      `check-baselines failed:\n${res.stdout}\n${res.stderr}`,
+    );
+    const report = JSON.parse(res.stdout.slice(res.stdout.indexOf('{')));
+    assert.deepEqual(report.schemaErrors, []);
+  });
+
   it('the merged coverage baseline passes check-baselines', () => {
     const edits = disjointEdits(
       (p) => ({ path: p, lines: 95, branches: 90, functions: 95 }),
       (r) => ({ ...r, lines: 97.5 }),
     );
     const root = initRepo();
-    const agentrc = {
-      project: {
-        baseBranch: 'main',
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        docsContextFiles: [],
-        commands: { test: 'echo', typecheck: 'echo' },
-      },
-      github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
-      delivery: {
-        quality: {
-          gates: {
-            coverage: {
-              enabled: true,
-              baselinePath: 'baselines/coverage.json',
-              tolerance: { kind: 'absolute', value: 0 },
-              floors: { '*': { lines: 90, branches: 85, functions: 90 } },
-            },
-          },
-        },
-      },
-    };
+    const agentrc = gateConfig('coverage', {
+      baselinePath: 'baselines/coverage.json',
+      tolerance: { kind: 'absolute', value: 0 },
+      floors: { '*': { lines: 90, branches: 85, functions: 90 } },
+    });
     writeFileSync(
       path.join(root, '.agentrc.json'),
       JSON.stringify(agentrc, null, 2),

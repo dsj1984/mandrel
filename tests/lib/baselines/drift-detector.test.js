@@ -86,7 +86,7 @@ describe('detectBaselineDrift — tolerance resolution', () => {
 
     const crap = await detectOne({
       kind: 'crap',
-      baseline: [{ path: 'src/a.js', method: 'go', startLine: 1, crap: 5 }],
+      baseline: [{ path: 'src/a.js', method: 'go', crap: 5 }],
       rows: [{ file: 'src/a.js', method: 'go', startLine: 1, crap: 5 }],
     });
     assert.equal(crap.tolerance, 0.001);
@@ -99,7 +99,7 @@ describe('detectBaselineDrift — row projection', () => {
     // not reconciled every row would look added AND removed at once.
     const result = await detectOne({
       kind: 'crap',
-      baseline: [{ path: 'src/a.js', method: 'go', startLine: 3, crap: 9 }],
+      baseline: [{ path: 'src/a.js', method: 'go', crap: 9 }],
       rows: [{ file: 'src/a.js', method: 'go', startLine: 3, crap: 9 }],
     });
     assert.equal(result.ok, true);
@@ -183,8 +183,8 @@ describe('detectBaselineDrift — classification (AC-6)', () => {
     const result = await detectOne({
       kind: 'crap',
       baseline: [
-        { path: 'src/a.js', method: 'one', startLine: 1, crap: 5 },
-        { path: 'src/a.js', method: 'two', startLine: 9, crap: 5 },
+        { path: 'src/a.js', method: 'one', crap: 5 },
+        { path: 'src/a.js', method: 'two', crap: 5 },
       ],
       rows: [
         { file: 'src/a.js', method: 'one', startLine: 1, crap: 5 },
@@ -192,7 +192,7 @@ describe('detectBaselineDrift — classification (AC-6)', () => {
       ],
     });
     assert.equal(result.drifted.length, 1);
-    assert.equal(result.drifted[0].key, 'src/a.js::two@9');
+    assert.equal(result.drifted[0].key, 'src/a.js::two');
   });
 
   it('is clean when every re-scored row matches its baseline', async () => {
@@ -445,16 +445,14 @@ describe('check-baseline-drift CLI (AC-7)', () => {
         await detectBaselineDrift({
           ...opts,
           quality: {},
-          loadBaselineRows: () => [
-            { path: 'src/a.js', method: 'go', startLine: 1, crap: 5 },
-          ],
+          loadBaselineRows: () => [{ path: 'src/a.js', method: 'go', crap: 5 }],
           scoreFullScope: async () => [
             { file: 'src/a.js', method: 'go', startLine: 1, crap: 40 },
           ],
         }),
     });
     assert.equal(red.exitCode, 1);
-    assert.match(red.output, /src\/a\.js::go \(line 1\)/);
+    assert.match(red.output, /src\/a\.js::go /);
     assert.match(red.output, /\+35\.00/);
     assert.match(red.output, /npm run crap:update -- --full-scope/);
 
