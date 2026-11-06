@@ -131,6 +131,7 @@ describe('runPostLandTail — lock scope (Story #4622)', () => {
     });
 
     assert.deepEqual(tail, {
+      reviewRecord: true,
       followUps: true,
       statusResync: true,
       worktreeReap: true,
@@ -141,6 +142,7 @@ describe('runPostLandTail — lock scope (Story #4622)', () => {
       leaseRelease: true,
       epicRollup: true,
       details: {
+        reviewRecord: 'no-pr',
         followUps: null,
         statusResync: null,
         worktreeReap: null,

@@ -1,6 +1,21 @@
 import { runPostLandTail as defaultRunPostLandTail } from '../orchestration/single-story-close/phases/post-land.js';
 import { confirmStoryMerged } from './confirm-merge.js';
 
+/** The confirm arguments the land tail also takes. */
+function landTailArgs({ storyId, prNumber, prUrl, injectedGh, ...rest }) {
+  const { cwd, provider, config, progress } = rest;
+  return {
+    storyId,
+    prNumber,
+    prUrl,
+    gh: injectedGh,
+    cwd,
+    provider,
+    config,
+    progress,
+  };
+}
+
 /**
  * Confirm, then the land tail when merged — shared by every merged-Story
  * path, since a flip alone strands the lease and worktree.
@@ -19,15 +34,10 @@ export async function confirmAndLand({
 }) {
   const confirmation = await confirmStoryMerged(confirmArgs);
   if (confirmation.merged !== true) return { confirmation, tail: null };
-  const { storyId, cwd, provider, config, progress } = confirmArgs;
   const tail = await runPostLandTailFn({
-    storyId,
+    ...landTailArgs(confirmArgs),
     storyBranch,
-    baseBranch: baseBranch ?? config?.project?.baseBranch ?? 'main',
-    cwd,
-    provider,
-    config,
-    progress,
+    baseBranch: baseBranch ?? confirmArgs.config?.project?.baseBranch ?? 'main',
   });
   return { confirmation, tail };
 }

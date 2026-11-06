@@ -29,6 +29,7 @@ import { reapPlanRunLabelsForStory as defaultReapPlanRunLabelsForStory } from '.
 import { reassertStatusColumn as defaultReassertStatusColumn } from '../../reassert-status-column.js';
 import { releaseStoryLease as defaultReleaseStoryLease } from '../../single-story-lease-guard.js';
 import { captureStoryFollowUps as defaultCaptureStoryFollowUps } from '../../story-follow-ups.js';
+import { recordLandReview as defaultRecordLandReview } from './land-review-record.js';
 import { reapWorktreePhase as defaultReapWorktreePhase } from './worktree-reap.js';
 import { existingWorktreePath } from './worktree-restore.js';
 
@@ -394,16 +395,28 @@ async function runLockedLocalSteps({
   }
 }
 
+/** Step outcomes → the per-step booleans plus their `details`. */
+function toTailReport(outcomes) {
+  const entries = Object.entries(outcomes);
+  return {
+    ...Object.fromEntries(entries.map(([k, o]) => [k, o.ok])),
+    details: Object.fromEntries(entries.map(([k, o]) => [k, o.detail])),
+  };
+}
+
 /**
- * Run the post-land tail: friction markers, then the GitHub steps and the
- * locked local steps concurrently, then review dispositions, temp purge and
- * lease release.
+ * Run the post-land tail: friction markers, the PR's review record, then the
+ * GitHub steps and the locked local steps concurrently, then review
+ * dispositions, temp purge and lease release.
  *
  * @param {object} args
  * @param {number} args.storyId
  * @param {string} args.storyBranch
  * @param {string} args.baseBranch
  * @param {string} args.cwd            The MAIN checkout (never the worktree).
+ * @param {number|null} [args.prNumber] Absent skips the review record.
+ * @param {string|null} [args.prUrl]
+ * @param {object} [args.gh] The caller's gh, for the review record's PR read.
  * @param {object} args.provider
  * @param {object} [args.config]
  * @param {(tag: string, msg: string) => void} [args.progress]
@@ -421,13 +434,17 @@ async function runLockedLocalSteps({
  * @param {Function} [args.rollUpEpicForStoryFn]
  * @param {Function} [args.reapWorktreePhaseFn]
  * @param {Function} [args.recordStoryDispositionsFn]
- * @returns {Promise<{ followUps: boolean, statusResync: boolean, worktreeReap: boolean, refCleanup: boolean, baseFastForward: boolean, reviewDispositions: boolean, tempPurge: boolean, leaseRelease: boolean, epicRollup: boolean, details: Record<string, string|null> }>}
+ * @param {Function} [args.recordLandReviewFn]
+ * @returns {Promise<{ reviewRecord: boolean, followUps: boolean, statusResync: boolean, worktreeReap: boolean, refCleanup: boolean, baseFastForward: boolean, reviewDispositions: boolean, tempPurge: boolean, leaseRelease: boolean, epicRollup: boolean, details: Record<string, string|null> }>}
  */
 export async function runPostLandTail({
   storyId,
   storyBranch,
   baseBranch,
   cwd,
+  prNumber = null,
+  prUrl = null,
+  gh,
   provider,
   config,
   progress,
@@ -445,6 +462,7 @@ export async function runPostLandTail({
   rollUpEpicForStoryFn = defaultRollUpEpicForStory,
   reapWorktreePhaseFn = defaultReapWorktreePhase,
   recordStoryDispositionsFn = defaultRecordStoryDispositions,
+  recordLandReviewFn = defaultRecordLandReview,
 }) {
   progress?.('POST-LAND', `🧾 Running land tail for Story #${storyId}...`);
 
@@ -462,6 +480,23 @@ export async function runPostLandTail({
     category: RUNTIME_FRICTION_CATEGORIES.MERGE_WAIT_EXHAUSTED,
     config,
   });
+
+  // Before the purge, which deletes the deposit it posts.
+  const reviewRecord = await step(
+    () =>
+      recordLandReviewFn({
+        storyId,
+        prNumber,
+        prUrl,
+        gh,
+        baseBranch,
+        cwd,
+        provider,
+        config,
+        progress,
+      }),
+    { name: 'review record', progress },
+  );
 
   // The GitHub steps are independent of each other and of the local
   // lock-held mutations, so all of them run concurrently.
@@ -550,28 +585,18 @@ export async function runPostLandTail({
     { name: 'lease release', progress },
   );
 
-  const tail = {
-    followUps: followUps.ok,
-    statusResync: statusResync.ok,
-    worktreeReap: worktreeReap.ok,
-    refCleanup: refCleanup.ok,
-    baseFastForward: baseFastForward.ok,
-    reviewDispositions: reviewDispositions.ok,
-    tempPurge: tempPurge.ok,
-    leaseRelease: leaseRelease.ok,
-    epicRollup: epicRollup.ok,
-    details: {
-      followUps: followUps.detail,
-      statusResync: statusResync.detail,
-      worktreeReap: worktreeReap.detail,
-      refCleanup: refCleanup.detail,
-      baseFastForward: baseFastForward.detail,
-      reviewDispositions: reviewDispositions.detail,
-      tempPurge: tempPurge.detail,
-      leaseRelease: leaseRelease.detail,
-      epicRollup: epicRollup.detail,
-    },
-  };
+  const tail = toTailReport({
+    reviewRecord,
+    followUps,
+    statusResync,
+    worktreeReap,
+    refCleanup,
+    baseFastForward,
+    reviewDispositions,
+    tempPurge,
+    leaseRelease,
+    epicRollup,
+  });
   const degraded = Object.entries(tail)
     .filter(([k, v]) => k !== 'details' && v === false)
     .map(([k]) => k);

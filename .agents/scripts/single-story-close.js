@@ -30,7 +30,7 @@
  * at (`telemetry.workerEffort`), rendered beside it when the Story resumed
  * after a prior block.
  * `--override-review-block <reason>` is the audited escape past a code-review
- * CRITICAL blocker (instead of a hand-merge with no record).
+ * CRITICAL blocker (instead of a hand-merge that records no override).
  * `--merge-watch-mode async` is passed per close by the orchestrator, the only
  * party that knows the run has N Stories and a foreground wait is dead time.
  *
@@ -140,7 +140,7 @@ runAsCli(import.meta.url, main, {
         '--override-review-block <reason>',
         // Must not spell the merge CLI invocation: `check-lifecycle-lint.js`
         // forbids that literal outside `phases/auto-merge.js`.
-        'Land despite a Story-scope code-review CRITICAL blocker you have reviewed and judged wrong. The reason is mandatory (≥12 chars) and is recorded on the Story, on the PR, and as a `review-block-overridden` friction signal; the terminal envelope reports `gates.codeReview: "overridden"`. Use this instead of merging the PR by hand with the GitHub CLI — a hand-merge bypasses the gate with no record at all.',
+        'Land despite a Story-scope code-review CRITICAL blocker you have reviewed and judged wrong. The reason is mandatory (≥12 chars) and is recorded on the Story, on the PR, and as a `review-block-overridden` friction signal; the terminal envelope reports `gates.codeReview: "overridden"`. Use this instead of merging the PR by hand with the GitHub CLI — a hand-merge bypasses the gate with no override record, and the land then records it as unreviewed or as a merged CRITICAL.',
       ],
       [
         '--worker-tokens <n>',

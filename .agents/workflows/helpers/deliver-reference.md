@@ -521,6 +521,11 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   result is never deposited, and a failed write is one `REVIEW` warning. The
   CRITICAL halt and `--override-review-block` apply to an adopted result
   unchanged.
+- **A deposit close never adopts is posted at land.** A Story landed without
+  close (push plus confirm-merge, or the boot sweep) gets the deposit matching
+  its merged head posted by the land tail before the temp purge, else an
+  `Unreviewed` marker naming `no-deposit` or `stale-deposit`, and a
+  `review-recorded-at-land` friction signal.
 
 ## Gate output {#gate-output}
 
