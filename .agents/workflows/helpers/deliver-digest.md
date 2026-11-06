@@ -114,8 +114,8 @@ close, opens a PR or writes another label. Outruns the sync Bash ceiling → run
 it in the **background**.
 
 1. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
-   **first**, ahead of every check: close's base-sync then no-ops or skips
-   (`on-conflict`).
+   **first**, ahead of every check: close's base-sync then no-ops (or skips
+   if `on-conflict`).
 2. **Preflight — blocking.** `lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
    baselined ratchet — [`deliver-reference.md`](deliver-reference.md) § Preflight.
