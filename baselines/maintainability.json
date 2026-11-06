@@ -2199,6 +2199,10 @@
       "mi": 96.264
     },
     {
+      "path": ".agents/scripts/lib/standalone-ratchets.js",
+      "mi": 99.02
+    },
+    {
       "path": ".agents/scripts/lib/stdio-flush.js",
       "mi": 119.03
     },
