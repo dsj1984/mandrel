@@ -128,7 +128,7 @@
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
-      "mi": 91.367
+      "mi": 92.736
     },
     {
       "path": ".agents/scripts/file-ci-gap.js",
@@ -732,7 +732,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "mi": 86.824
+      "mi": 87.776
     },
     {
       "path": ".agents/scripts/lib/close-validation/test-delta.js",
