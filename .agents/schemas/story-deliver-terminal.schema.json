@@ -266,6 +266,18 @@
       "description": "Story #5417 — wall-clock seconds per close phase that ran (wrong-tree-guard, base-sync, close-validation, push, pull-request, code-review, auto-merge, confirm-merge, post-land). Optional and additive; absent or null when no phase was timed.",
       "additionalProperties": { "type": "number", "minimum": 0 }
     },
+    "baseSync": {
+      "type": ["object", "null"],
+      "description": "Story #5954 — close's base-sync decision under delivery.close.baseSync: mode (always | on-conflict), outcome (merged | already-current | skipped), reason (the mode itself, conflict-free on a skip, or the probe answer that forced a merge: conflict, intersects, unsupported, fetch-failed, already-current) and incoming (paths the base brought in). Optional and additive; null when no sync ran (--skip-sync, or a PR that had already landed).",
+      "required": ["mode", "outcome", "reason", "incoming"],
+      "properties": {
+        "mode": { "enum": ["always", "on-conflict"] },
+        "outcome": { "enum": ["merged", "already-current", "skipped"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "incoming": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
     "timestamp": { "type": "string", "format": "date-time" }
   },
   "allOf": [

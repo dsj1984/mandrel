@@ -2115,3 +2115,89 @@ describe('story-handoff — an over-budget capture (exit 76, Story #5949)', () =
     assert.match(envelope.steps.at(-1).detail, /timed out/);
   });
 });
+
+// Story #5954 — under delivery.close.baseSync "on-conflict" a handoff re-run
+// probes before merging; the first invocation always merges.
+describe('story-handoff — on-conflict base-merge re-runs (Story #5954)', () => {
+  const MERGE_BASE = 'f'.repeat(40);
+  const onConflict = () =>
+    configFor({ delivery: { close: { baseSync: 'on-conflict' } } });
+
+  function probing(h, probe) {
+    const probes = [];
+    let syncs = 0;
+    const { syncFromBase } = h.deps;
+    h.deps.probeBaseSync = async (args) => {
+      probes.push(args);
+      return probe;
+    };
+    h.deps.syncFromBase = async (...args) => {
+      syncs += 1;
+      return syncFromBase(...args);
+    };
+    return { probes, syncs: () => syncs };
+  }
+
+  const baselinesEnv = (h) =>
+    h.runCommand.calls.find((c) => c.key === 'check-baselines.js')?.opts.env
+      ?.BASELINE_REF;
+
+  test('AC-12: the first invocation always merges and records the settled step', async () => {
+    const h = harness({ config: onConflict() });
+    const p = probing(h, { skip: true, incoming: 2, mergeBase: MERGE_BASE });
+    const { envelope } = await h.run();
+    assert.equal(p.probes.length, 0, 'no record yet: no probe');
+    assert.equal(p.syncs(), 1);
+    assert.equal('baseMerge' in envelope, false);
+    const { state } = JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    );
+    assert.equal(state.baseMergeSettled, true);
+  });
+
+  test('AC-12: a conflict-free, disjoint re-run skips the merge and says so', async () => {
+    const h = harness({ config: onConflict() });
+    await h.run();
+    const p = probing(h, { skip: true, incoming: 2, mergeBase: MERGE_BASE });
+    // A new Story commit since: every credit is re-earned on the new head.
+    h.world.head = 'e'.repeat(40);
+    h.runCommand.calls.length = 0;
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(p.probes.length, 1);
+    assert.equal(p.syncs(), 0, 'no merge ran');
+    const merge = envelope.steps.find((s) => s.name === 'base-merge');
+    assert.equal(merge.outcome, 'skipped');
+    assert.match(merge.detail, /conflict-free and disjoint: 2 incoming path/);
+    assert.deepEqual(envelope.baseMerge, {
+      skipped: 'conflict-free',
+      incoming: 2,
+    });
+    assert.equal(
+      baselinesEnv(h),
+      MERGE_BASE,
+      'check-baselines compares to the merge-base',
+    );
+  });
+
+  test('a re-run whose probe does not skip merges as before', async () => {
+    const h = harness({ config: onConflict() });
+    await h.run();
+    const p = probing(h, { skip: false, reason: 'intersects', path: 'a.js' });
+    const { envelope } = await h.run();
+    assert.equal(p.syncs(), 1);
+    assert.equal('baseMerge' in envelope, false);
+  });
+
+  test('AC-8: unset, a re-run never probes', async () => {
+    const h = harness();
+    await h.run();
+    const p = probing(h, { skip: true, incoming: 2, mergeBase: MERGE_BASE });
+    await h.run();
+    assert.equal(p.probes.length, 0);
+    assert.equal(p.syncs(), 1);
+  });
+});

@@ -1095,6 +1095,10 @@
       "mi": 112.562
     },
     {
+      "path": ".agents/scripts/lib/git/base-sync-probe.js",
+      "mi": 98.585
+    },
+    {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
       "mi": 113.686
     },
@@ -1632,7 +1636,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
-      "mi": 100.094
+      "mi": 101.378
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",

@@ -106,6 +106,7 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   const lockHooks = lockEventHooks(claimLockEventSink(env));
   const args = parseArgs(argv);
   const config = resolveConfigImpl({ cwd: args.cwd });
+  args.baseBranchRef = `origin/${config?.project?.baseBranch ?? 'main'}`;
   const { crap, coverage } = captureGates(getQualityImpl(config));
   const scripts = readPackageScriptsImpl(args.cwd);
   const refused = captureRefusal({

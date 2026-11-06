@@ -140,6 +140,17 @@ function reviewDouble({ severity = CLEAN, onCall = () => {} } = {}) {
   return fn;
 }
 
+/** A `writeDepositFn` that records instead of writing; `.deposits` holds them. */
+function depositRecorder() {
+  const deposits = [];
+  const fn = (deposit) => {
+    deposits.push(deposit);
+    return 'recorded';
+  };
+  fn.deposits = deposits;
+  return fn;
+}
+
 function overlapArgs(overrides = {}) {
   return {
     cwd: '/repo',
@@ -149,6 +160,7 @@ function overlapArgs(overrides = {}) {
     provider: recordingProvider().provider,
     progress: () => {},
     readDepositFn: () => null,
+    writeDepositFn: depositRecorder(),
     ...overrides,
   };
 }
@@ -363,14 +375,15 @@ describe('reviewAfterPrOpen (direct)', () => {
     args.progress = (_tag, msg) => lines.push(msg);
     const outcome = await reviewAfterPrOpen(args);
 
-    assert.equal(postCalls.length, 0, 'the stale report never posts');
     assert.equal(runCodeReviewFn.calls.length, 2, 'the review re-ran');
     const serial = runCodeReviewFn.calls[1];
-    assert.equal(serial.headRef, 'story-5473', 'against the pushed branch');
-    assert.equal(serial.commentTargetId, 123);
-    assert.notEqual(serial.deferPost, true);
-    assert.equal(outcome.postedCommentId, 4242);
-    assert.deepEqual(phases, ['code-review'], 'timed, never paused');
+    assert.equal(serial.headRef, MOVED_SHA, 'against the pushed SHA');
+    assert.equal(serial.deferPost, true, 'deposited before it posts');
+    assert.equal(postCalls.length, 1, 'only the serial report posts');
+    assert.equal(postCalls[0].report, `report for ${MOVED_SHA}`);
+    assert.equal(postCalls[0].commentTargetId, 123);
+    assert.equal(outcome.postedCommentId, 9100);
+    assert.deepEqual(phases, ['code-review', 'pause']);
     assert.ok(lines.some((m) => /discarded/.test(m)));
   });
 
@@ -509,10 +522,13 @@ describe('worker deposit adoption (Story #5480)', () => {
     assert.equal(held.adopted, true);
     const { args, postCalls } = afterPr({ held, gitSpawnFn, runCodeReviewFn });
     await reviewAfterPrOpen(args);
-    assert.equal(postCalls.length, 0, 'the deposit never posts');
     assert.equal(runCodeReviewFn.calls.length, 1, 'serial review ran');
-    assert.equal(runCodeReviewFn.calls[0].headRef, 'story-5473');
-    assert.equal(runCodeReviewFn.calls[0].commentTargetId, 123);
+    assert.equal(runCodeReviewFn.calls[0].headRef, MOVED_SHA);
+    assert.deepEqual(
+      postCalls.map((p) => p.report),
+      [`report for ${MOVED_SHA}`],
+      'the deposit never posts',
+    );
   });
 
   // Story #5905 AC-4: the digest drops linguist-generated sections, so a
@@ -561,8 +577,8 @@ describe('worker deposit adoption (Story #5480)', () => {
     assert.equal(seated.postCalls.length, 1, 'the deposit posts');
     assert.equal(seated.runCodeReviewFn.calls.length, 0);
     const edited = await closeWith(`${SRC}${SEAT}${SRC2}`);
-    assert.equal(edited.postCalls.length, 0, 'the deposit is void');
-    assert.equal(edited.runCodeReviewFn.calls.length, 1);
+    assert.equal(edited.runCodeReviewFn.calls.length, 1, 'the deposit is void');
+    assert.equal(edited.postCalls[0].report, `report for ${MOVED_SHA}`);
   });
 
   it('a CRITICAL in an adopted deposit still halts', async () => {
@@ -581,6 +597,187 @@ describe('worker deposit adoption (Story #5480)', () => {
     assert.equal(outcome.halted, true);
     assert.equal(outcome.severity.critical, 1);
     assert.deepEqual(outcome.criticalByProvider, { 'code-review': 1 });
+  });
+});
+
+describe('close deposits the reviews it computes (Story #5973)', () => {
+  const DIGEST = sha256(SAME_DIFF());
+  /** Post-PR args; `order` logs deposit writes and posts in sequence. */
+  function afterPr({ held, gitSpawnFn, runCodeReviewFn, writeDepositFn }) {
+    const order = [];
+    const lines = [];
+    const args = overlapArgs({
+      held,
+      prUrl: PR_URL,
+      prNumber: 123,
+      provider: recordingProvider().provider,
+      runCodeReviewFn,
+      gitSpawnFn,
+      writeDepositFn,
+      progress: (tag, msg) => lines.push(`${tag} ${msg}`),
+      setPhase: () => {},
+      pauseTimer: () => {},
+      recordDuration: () => {},
+      postReportFn: async (post) => {
+        order.push(`post ${post.report}`);
+        return { posted: true, postedCommentId: 9300 };
+      },
+    });
+    return { args, order, lines };
+  }
+  /** Fails every `origin/<base>` lookup: the review base is unresolvable. */
+  const noBase =
+    (stub) =>
+    (cwd, ...args) =>
+      args[0] === 'rev-parse' && `${args.at(-1)}`.startsWith('origin/')
+        ? { status: 1, stdout: '', stderr: '' }
+        : stub(cwd, ...args);
+
+  it('deposits a computed held review, and a second start on the same diff adopts it', async () => {
+    const writeDepositFn = depositRecorder();
+    const gitSpawnFn = gitSpawnStub();
+    const runCodeReviewFn = reviewDouble();
+    const held = startHeldReview(
+      overlapArgs({ runCodeReviewFn, gitSpawnFn, writeDepositFn }),
+    );
+    await held.settled;
+    const [deposit] = writeDepositFn.deposits;
+    assert.equal(writeDepositFn.deposits.length, 1);
+    assert.equal(deposit.diffDigest, DIGEST);
+    assert.equal(deposit.headSha, PINNED_SHA);
+    assert.equal(deposit.baseRef, 'origin/main');
+    assert.equal(deposit.storyId, 5473);
+
+    const retryWrites = depositRecorder();
+    const retry = startHeldReview(
+      overlapArgs({
+        runCodeReviewFn,
+        gitSpawnFn,
+        readDepositFn: () => deposit,
+        writeDepositFn: retryWrites,
+      }),
+    );
+    assert.equal(retry.adopted, true);
+    await retry.settled;
+    assert.equal(runCodeReviewFn.calls.length, 1, 'the retry computed nothing');
+    assert.deepEqual(
+      retryWrites.deposits,
+      [],
+      'an adopted review is not rewritten',
+    );
+  });
+
+  it('a held review that settles after close discarded it is still deposited', async () => {
+    const writeDepositFn = depositRecorder();
+    const release = deferred();
+    const runCodeReviewFn = reviewDouble({ onCall: () => release.promise });
+    const held = startHeldReview(
+      overlapArgs({
+        runCodeReviewFn,
+        gitSpawnFn: gitSpawnStub(),
+        writeDepositFn,
+      }),
+    );
+    discardHeldReview(held, 'validation failed', () => {});
+    assert.equal(writeDepositFn.deposits.length, 0);
+    release.resolve();
+    await held.settled;
+    assert.equal(writeDepositFn.deposits.length, 1);
+    assert.equal(writeDepositFn.deposits[0].diffDigest, DIGEST);
+  });
+
+  it('the serial post-PR review reviews one SHA and deposits it before posting', async () => {
+    const gitSpawnFn = gitSpawnStub({
+      branchShas: [PINNED_SHA, MOVED_SHA],
+      diffFor: DIFF_PER_HEAD,
+    });
+    const runCodeReviewFn = reviewDouble();
+    const held = startHeldReview(overlapArgs({ runCodeReviewFn, gitSpawnFn }));
+    await held.settled;
+    const { args, order } = afterPr({ held, gitSpawnFn, runCodeReviewFn });
+    args.writeDepositFn = (deposit) => order.push(deposit);
+    await reviewAfterPrOpen(args);
+    const [deposit, post] = order;
+    assert.equal(order.length, 2);
+    assert.equal(deposit.headSha, MOVED_SHA);
+    assert.equal(deposit.diffDigest, sha256(DIFF_PER_HEAD(`x...${MOVED_SHA}`)));
+    assert.equal(runCodeReviewFn.calls[1].headRef, MOVED_SHA);
+    assert.equal(post, `post report for ${MOVED_SHA}`);
+  });
+
+  it('a halted (CRITICAL) review is deposited', async () => {
+    const writeDepositFn = depositRecorder();
+    const held = startHeldReview(
+      overlapArgs({
+        runCodeReviewFn: reviewDouble({ severity: { ...CLEAN, critical: 1 } }),
+        gitSpawnFn: gitSpawnStub(),
+        writeDepositFn,
+      }),
+    );
+    await held.settled;
+    assert.equal(writeDepositFn.deposits[0].halted, true);
+    assert.equal(writeDepositFn.deposits[0].severity.critical, 1);
+  });
+
+  it('deposits nothing for a degraded result, an unreadable diff or an unresolvable base', async () => {
+    const degraded = async (opts) => ({
+      ...(await reviewDouble()(opts)),
+      degraded: true,
+      degradations: [{ tool: 'code-review', gate: 'quota' }],
+    });
+    const cases = [
+      { runCodeReviewFn: degraded, gitSpawnFn: gitSpawnStub() },
+      {
+        runCodeReviewFn: reviewDouble(),
+        gitSpawnFn: gitSpawnStub({ diffFor: () => null }),
+      },
+      { runCodeReviewFn: reviewDouble(), gitSpawnFn: noBase(gitSpawnStub()) },
+    ];
+    for (const c of cases) {
+      const writeDepositFn = depositRecorder();
+      const held = startHeldReview(overlapArgs({ ...c, writeDepositFn }));
+      await held.settled;
+      const { args } = afterPr({ held: null, ...c, writeDepositFn });
+      await reviewAfterPrOpen(args);
+      assert.deepEqual(writeDepositFn.deposits, []);
+    }
+  });
+
+  it('deposits nothing when the PR number is unparseable', async () => {
+    const writeDepositFn = depositRecorder();
+    const runCodeReviewFn = reviewDouble();
+    const { args } = afterPr({
+      held: null,
+      gitSpawnFn: gitSpawnStub(),
+      runCodeReviewFn,
+      writeDepositFn,
+    });
+    args.prNumber = null;
+    const outcome = await reviewAfterPrOpen(args);
+    assert.equal(outcome.skipped, true);
+    assert.equal(runCodeReviewFn.calls.length, 0);
+    assert.deepEqual(writeDepositFn.deposits, []);
+  });
+
+  it('a deposit write that throws is one REVIEW warning and leaves the outcome unchanged', async () => {
+    const gitSpawnFn = gitSpawnStub();
+    const runCodeReviewFn = reviewDouble();
+    const writeDepositFn = () => {
+      throw new Error('disk full');
+    };
+    const { args, lines } = afterPr({
+      held: null,
+      gitSpawnFn,
+      runCodeReviewFn,
+      writeDepositFn,
+    });
+    const outcome = await reviewAfterPrOpen(args);
+    assert.equal(outcome.posted, true);
+    assert.equal(outcome.halted, false);
+    const warnings = lines.filter((l) => /Could not deposit/.test(l));
+    assert.deepEqual(warnings, [
+      'REVIEW ⚠️ Could not deposit the Story-scope review: disk full',
+    ]);
   });
 });
 
@@ -902,12 +1099,12 @@ describe('runSingleStoryClose — review overlaps close-validation', () => {
     );
     assert.equal(success, true);
     assert.equal(runCodeReview.calls.length, 2);
-    assert.equal(runCodeReview.calls[1].headRef, 'story-5473');
-    assert.equal(runCodeReview.calls[1].commentTargetId, 123);
-    // The double reports its own post for the serial run; the held report
-    // (rendered for PINNED_SHA) never reaches the PR.
+    assert.equal(runCodeReview.calls[1].headRef, MOVED_SHA);
+    // Only the serial report (rendered for MOVED_SHA) reaches the PR.
+    const bodies = prComments(recorder).map((c) => c.payload.body);
+    assert.ok(bodies.some((b) => b.includes(MOVED_SHA)));
     assert.equal(
-      prComments(recorder).some((c) => c.payload.body.includes(PINNED_SHA)),
+      bodies.some((b) => b.includes(PINNED_SHA)),
       false,
     );
   });
@@ -987,7 +1184,7 @@ describe('runSingleStoryClose — review overlaps close-validation', () => {
       closeArgs({ recorder, events, runCodeReview, skipValidation: true }),
     );
     assert.equal(runCodeReview.calls.length, 1);
-    assert.equal(runCodeReview.calls[0].headRef, 'story-5473');
-    assert.equal(runCodeReview.calls[0].commentTargetId, 123);
+    assert.equal(runCodeReview.calls[0].headRef, PINNED_SHA);
+    assert.equal(prComments(recorder).length, 1, 'posted to the PR');
   });
 });
