@@ -2094,6 +2094,17 @@ describe('story-handoff — an over-budget capture (exit 76, Story #5949)', () =
     assert.equal(h.blocks.length, 1);
   });
 
+  test('a later real capture at the same HEAD re-opens the CRAP seat the deferral skipped', async () => {
+    const outputs = { ...overBudget };
+    const h = harness({ config: overBudgetConfig('defer-to-ci'), outputs });
+    await h.run();
+    delete outputs['coverage-capture.js'];
+    h.runCommand.calls.length = 0;
+    const { envelope } = await h.run();
+    assert.equal(envelope.coverage, undefined);
+    assert.ok(spawned(h.runCommand).includes('update-crap-baseline.js'));
+  });
+
   test('a timeout still hands back fix-required under defer-to-ci', async () => {
     const h = harness({
       config: overBudgetConfig('defer-to-ci'),
