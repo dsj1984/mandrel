@@ -142,7 +142,14 @@ function writeArtifact(dir, run) {
 
 async function capture(
   dir,
-  { code = 0, captureScope = 'affected', hasScript = true } = {},
+  {
+    code = 0,
+    captureScope = 'affected',
+    hasScript = true,
+    coverage = {},
+    baseBranchRef = 'main',
+    rows = (_opts, run) => writeArtifact(dir, run),
+  } = {},
 ) {
   const calls = [];
   const log = [];
@@ -153,8 +160,8 @@ async function capture(
   };
   const result = await tryScopedCapture({
     crap: CRAP,
-    coverage: { captureScope, timeoutMs: 1000 },
-    args: { ref: 'main', cwd: dir },
+    coverage: { captureScope, timeoutMs: 1000, ...coverage },
+    args: { ref: 'main', baseBranchRef, cwd: dir },
     readPackageScriptsImpl: () => ({}),
     hasNpmScriptImpl: (_s, name) =>
       hasScript && name === 'test:coverage:affected',
@@ -163,7 +170,7 @@ async function capture(
     isCoverageFreshImpl: isCoverageFresh,
     runCaptureImpl: async (opts) => {
       calls.push(opts);
-      writeArtifact(dir, calls.length);
+      rows(opts, calls.length);
       return code;
     },
     computeContentDigestImpl: computeContentDigest,
@@ -260,7 +267,10 @@ describe('delta refresh sees what the freshness probe sees (Story #5903)', () =>
     const second = await capture(repo.dir);
     assert.equal(second.result, 0);
     assert.equal(second.calls.length, 0);
-    assert.match(second.log, /1 non-suite-input path\(s\) dropped/);
+    assert.match(
+      second.log,
+      /rule: restamp; delta: 0 file\(s\); dropped: 1 baseline\/coverage-dir, 0 nonInputGlobs/,
+    );
     assert.equal(freshAffected(repo.dir), true);
     assert.equal(repo.readStamp().commit, repo.git('rev-parse', 'HEAD'));
   });
@@ -272,7 +282,7 @@ describe('delta refresh sees what the freshness probe sees (Story #5903)', () =>
     assert.equal(second.calls.length, 1);
     assert.match(
       second.log,
-      /re-measuring 1 file\(s\) changed since \w{12}, 1 non-suite-input path\(s\) dropped\..*delta: 1 file\(s\)\)/,
+      /re-measuring 1 file\(s\) changed since \w{12} \(rule: disjoint; delta: 1 file\(s\); dropped: 1 baseline\/coverage-dir, 0 nonInputGlobs\)\..*delta: 1 file\(s\)\)/,
     );
   });
 });
@@ -287,13 +297,25 @@ describe('delta refresh eligibility falls back to today’s capture (AC-3)', () 
     assert.match(second.log, reason);
   }
 
-  it('the delta shares a path with the Story change set', async () => {
+  it('AC-5: an overlap carrying a Story commit since the stamp names those commits', async () => {
     const repo = fixtureRepo({ captured: true });
     repo.baseSync('shared');
+    repo.write('src/a.js', 'export const a = 3;\n');
+    const own = repo.commit('story fix');
     await assertFallback(
       repo,
-      /shares src\/shared\.js with the Story's change set; delta: 1 file\(s\), 1 non-suite-input path\(s\) dropped\)/,
+      new RegExp(
+        `shares src/a\\.js with the Story's change set and the Story's own commit\\(s\\) since the stamp: ${own.slice(0, 12)}; rule: own-commits; delta: 2 file\\(s\\); dropped: 1 baseline/coverage-dir, 0 nonInputGlobs; 2 Story file\\(s\\) overlapped\\)`,
+      ),
     );
+  });
+
+  it('AC-5: an overlap with no resolvable base ref is refused', async () => {
+    const repo = fixtureRepo({ captured: true });
+    repo.baseSync('shared');
+    const second = await capture(repo.dir, { baseBranchRef: 'origin/gone' });
+    assert.equal(second.calls[0].env[BASE_REF_ENV], 'main');
+    assert.match(second.log, /base ref is unresolvable.*rule: own-commits/);
   });
 
   for (const config of CONFIGS) {
@@ -457,10 +479,13 @@ describe('deltaIneligibility — the rules shared with close (Story #5880)', () 
     // Close's entry point and the capture planner both call the shared rule.
     assert.match(
       capture,
-      /export function closeDeltaIneligibility[\s\S]*?return deltaIneligibility\(\{ delta, storyFiles, coveragePath \}\)\.reason;/,
+      /export function closeDeltaIneligibility[\s\S]*?return deltaIneligibility\(\{[\s\S]*?\}\)\.reason;/,
     );
     assert.match(capture, /const rule = deltaIneligibility\(\{/);
-    assert.match(capture, /filterSuiteInputPaths\(delta, coveragePath\)/);
+    assert.match(
+      capture,
+      /const suite = filterSuiteInputPaths\(delta, coveragePath\)/,
+    );
   });
 
   it('closeDeltaIneligibility keys the rule on the configured coverage path', () => {
@@ -477,5 +502,134 @@ describe('deltaIneligibility — the rules shared with close (Story #5880)', () 
       }),
       'delta has no suite-input path',
     );
+  });
+});
+
+// Story #5954 — consumer-declared non-input globs, the config-change
+// declaration, and a base-only overlap re-measured as a delta.
+describe('narrower delta rule (Story #5954)', () => {
+  const DOCS = { nonInputGlobs: ['docs/**'] };
+
+  /** A Story commit since the stamp that touches only a Markdown file. */
+  function storyDocCommit(repo) {
+    repo.write('docs/notes.md', '# notes\n');
+    return repo.commit('story docs');
+  }
+
+  it('AC-1: unset, a shared Markdown path still refuses the refresh', async () => {
+    const repo = fixtureRepo({ captured: true });
+    repo.baseSync('unrelated');
+    storyDocCommit(repo);
+    const second = await capture(repo.dir);
+    assert.equal(second.calls[0].env[BASE_REF_ENV], 'main');
+    assert.match(second.log, /shares docs\/notes\.md .*rule: own-commits/);
+  });
+
+  it('AC-1: a matching shared path is dropped and the rest is re-measured', async () => {
+    const repo = fixtureRepo({ captured: true });
+    const stamped = repo.readStamp().commit;
+    repo.baseSync('unrelated');
+    storyDocCommit(repo);
+    const second = await capture(repo.dir, { coverage: DOCS });
+    assert.equal(second.calls.length, 1);
+    assert.equal(second.calls[0].env[BASE_REF_ENV], stamped);
+    assert.match(
+      second.log,
+      /re-measuring 1 file\(s\) .*rule: disjoint; delta: 1 file\(s\); dropped: 0 baseline\/coverage-dir, 1 nonInputGlobs\)/,
+    );
+  });
+
+  it('AC-1: a delta of only matching paths restamps without a run', async () => {
+    const repo = fixtureRepo({ captured: true });
+    storyDocCommit(repo);
+    const second = await capture(repo.dir, { coverage: DOCS });
+    assert.equal(second.calls.length, 0);
+    assert.match(second.log, /rule: restamp; .*1 nonInputGlobs/);
+    assert.equal(freshAffected(repo.dir), true);
+  });
+
+  it('AC-3: captureHandlesConfigChanges lets a config delta refresh', async () => {
+    const repo = fixtureRepo({ captured: true });
+    const stamped = repo.readStamp().commit;
+    repo.baseSync('package.json');
+    const second = await capture(repo.dir, {
+      coverage: { captureHandlesConfigChanges: true },
+    });
+    assert.equal(second.calls[0].env[BASE_REF_ENV], stamped);
+    assert.doesNotMatch(second.log, /coverage-determining config/);
+  });
+
+  it("AC-4: a base-only overlap refresh's Story rows equal a Story-scope capture", async () => {
+    /** Each Story file's row is a pure function of its current content. */
+    const contentRows = (dir) => (opts) => {
+      const base = opts.env[BASE_REF_ENV];
+      const names = runGit(dir, 'diff', '--name-only', base, 'HEAD')
+        .split('\n')
+        .filter((f) => f.startsWith('src/'));
+      const rows = Object.fromEntries(
+        names.map((f) => [
+          path.join(dir, f),
+          { s: { 0: fs.readFileSync(path.join(dir, f), 'utf8').length } },
+        ]),
+      );
+      const artifact = path.join(dir, CRAP.coveragePath);
+      fs.mkdirSync(path.dirname(artifact), { recursive: true });
+      fs.writeFileSync(artifact, JSON.stringify(rows));
+    };
+    const relRows = (dir) => {
+      const raw = JSON.parse(
+        fs.readFileSync(path.join(dir, CRAP.coveragePath), 'utf8'),
+      );
+      return Object.fromEntries(
+        Object.entries(raw).map(([abs, row]) => [
+          path.relative(dir, abs).replace(/\\/g, '/'),
+          row,
+        ]),
+      );
+    };
+    const repo = fixtureRepo();
+    await capture(repo.dir, { rows: contentRows(repo.dir) });
+    const stamped = repo.readStamp().commit;
+    repo.baseSync('shared');
+    const refresh = await capture(repo.dir, { rows: contentRows(repo.dir) });
+    assert.equal(refresh.calls[0].env[BASE_REF_ENV], stamped);
+    assert.match(refresh.log, /rule: overlap; .*1 Story file\(s\) overlapped/);
+
+    const scoped = repoAt(copyGitRepo(repo.dir));
+    fs.rmSync(captureStampPath(scoped.dir, CRAP.coveragePath));
+    const story = await capture(scoped.dir, { rows: contentRows(scoped.dir) });
+    assert.equal(story.calls[0].env[BASE_REF_ENV], 'main');
+    const refreshed = relRows(repo.dir);
+    const expected = relRows(scoped.dir);
+    for (const file of ['src/a.js', 'src/shared.js']) {
+      assert.ok(expected[file], file);
+      assert.deepEqual(refreshed[file], expected[file], file);
+    }
+  });
+
+  describe("close's test re-credit (AC-2, AC-3)", () => {
+    const config = (coverage) => ({
+      delivery: { quality: { gates: { coverage } } },
+    });
+    const rule = (delta, storyFiles, coverage = {}) =>
+      closeDeltaIneligibility({ delta, storyFiles, config: config(coverage) });
+
+    it('ignores a matching path only in the overlap comparison', () => {
+      assert.match(rule(['docs/a.md'], ['docs/a.md']), /shares docs\/a\.md/);
+      assert.equal(rule(['docs/a.md'], ['docs/a.md'], DOCS), null);
+    });
+
+    it('an all-matching incoming delta is not empty, so testChanged still runs', () => {
+      assert.equal(rule(['docs/b.md'], ['src/a.js'], DOCS), null);
+    });
+
+    it('refuses on a config file under either captureHandlesConfigChanges value', () => {
+      for (const captureHandlesConfigChanges of [false, true]) {
+        assert.match(
+          rule(['package.json'], [], { captureHandlesConfigChanges }),
+          /coverage-determining config package\.json/,
+        );
+      }
+    });
   });
 });

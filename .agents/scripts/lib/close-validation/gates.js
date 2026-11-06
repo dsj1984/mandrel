@@ -55,13 +55,16 @@ function buildChangedFileScope(baseRef) {
 /**
  * Pin the `check-baselines` compare base to `origin/<baseBranch>` via
  * `BASELINE_REF`, so drift outside the Story's diff is not a phantom
- * regression; matches the attribution and auto-refresh bases. `null` keeps
- * the gate's default ref.
+ * regression; matches the attribution and auto-refresh bases. A skipped
+ * base sync passes the merge-base as `baselineRef`: the branch lacks main's
+ * later baseline moves. `null` keeps the gate's default ref.
  *
  * @param {string|undefined|null} baseBranch
+ * @param {string} [baselineRef]
  * @returns {{ BASELINE_REF: string } | null}
  */
-function buildBaselinesGateEnv(baseBranch) {
+function buildBaselinesGateEnv(baseBranch, baselineRef) {
+  if (baselineRef) return { BASELINE_REF: baselineRef };
   if (typeof baseBranch !== 'string' || baseBranch.length === 0) return null;
   return { BASELINE_REF: `origin/${baseBranch}` };
 }
@@ -498,7 +501,7 @@ export const GATE_TIMEOUT_HINT = `The gate outran the suite timeout (\`delivery.
  * enabled AND its capture script (`gates.coverage.captureScript`) exists; it then carries test-failure signalling and
  * the plain `test` gate is dropped, so there is always exactly one test gate.
  *
- * @param {{ config?: object, baseBranch?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void, getChangedFilesImpl?: typeof getChangedFiles }} [opts]
+ * @param {{ config?: object, baseBranch?: string, baselineRef?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void, getChangedFilesImpl?: typeof getChangedFiles }} [opts]
  *   `cwd` is where the `package.json` and baseline-presence probes read;
  *   `packageScripts` / `presentBaselines` inject those probes (tests).
  * @returns {Gate[]}
@@ -506,6 +509,7 @@ export const GATE_TIMEOUT_HINT = `The gate outran the suite timeout (\`delivery.
 export function buildDefaultGates({
   config,
   baseBranch,
+  baselineRef,
   cwd,
   packageScripts,
   presentBaselines,
@@ -553,7 +557,7 @@ export function buildDefaultGates({
   const formatChangedFileScope = isDefaultFormatCheck(format.raw)
     ? buildChangedFileScope(baseBranch)
     : null;
-  const baselinesGateEnv = buildBaselinesGateEnv(baseBranch);
+  const baselinesGateEnv = buildBaselinesGateEnv(baseBranch, baselineRef);
   const baselineKinds = enabledBaselineKinds(config);
   const baselinesDecision = probeBaselinesGate({
     config,

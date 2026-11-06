@@ -31,6 +31,9 @@ export const COVERAGE_GATE_DEFAULTS = Object.freeze({
   timeoutMs: 600_000,
   // What a capture script's over-budget exit (76) means to handoff and close.
   onOverBudget: 'block',
+  // Consumer-declared paths that feed no test; no built-in entries.
+  nonInputGlobs: Object.freeze([]),
+  captureHandlesConfigChanges: false,
 });
 
 /** Schema bounds on `coverage.timeoutMs`: one minute to two hours. */
@@ -86,6 +89,19 @@ export const COVERAGE_GATE = {
       description:
         "What handoff and close do when the capture script exits 76 — the consumer-declared signal that the selected slice is over this host's budget and no test ran. `block` (default) stops the handoff (`blocked`) and fails close, naming this key. `defer-to-ci` settles the coverage gate as deferred to CI: no artifact is written or stamped and no credit is recorded, the coverage-reading gates (CRAP preview, coverage and CRAP baselines) are skipped, and handoff and close proceed — the terminal envelope and the PR body say coverage was deferred. Set it only when the consumer's CI runs the deferred suite with a coverage floor. A timeout (124) is never deferred, under either value.",
       default: COVERAGE_GATE_DEFAULTS.onOverBudget,
+    },
+    nonInputGlobs: {
+      type: 'array',
+      items: { ...SAFE_STRING, minLength: 1 },
+      description:
+        "Repo-relative picomatch globs naming paths no test reads. A matching path is dropped from both sides of the coverage delta-refresh overlap check and from the re-measured set — a delta of only matching, baseline and coverage-directory paths restamps without a run — and from the overlap check of close's `test` delta re-credit (its incoming count and emptiness test are unchanged). It never changes the suite-input filter, the tree digest or stamp freshness. Default `[]`: nothing is built in, so Markdown counts as an input unless declared here.",
+      default: [],
+    },
+    captureHandlesConfigChanges: {
+      type: 'boolean',
+      description:
+        "Declares that the affected capture script, given `MANDREL_COVERAGE_BASE_REF`, widens its own selection when a coverage-determining config file (`package.json`, a lockfile, `tsconfig*.json`, a test-runner config) changes. When `true`, such a file in the coverage delta no longer refuses the delta refresh. Close's `test` delta re-credit refuses on a config file under either value. Default `false`.",
+      default: COVERAGE_GATE_DEFAULTS.captureHandlesConfigChanges,
     },
   },
   additionalProperties: false,

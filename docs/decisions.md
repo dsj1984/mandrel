@@ -837,6 +837,20 @@ already runs it with a coverage floor, are facts only the consumer knows: its
 capture script signals the first with exit 76, and this key records the second.
 It defaults to `block`, so nothing changes unless a consumer opts in.
 
+**Raised to 149 (2026-11-06, Story #5954)** for
+`delivery.quality.gates.coverage.nonInputGlobs`,
+`delivery.quality.gates.coverage.captureHandlesConfigChanges` and
+`delivery.close.baseSync`. On a busy base, a merge of unrelated landings made a
+Story re-run a whole-slice coverage capture and re-merge before every close.
+Which paths no test reads is a fact about the consumer's tests (a test may read
+a doc by path), so nothing is built in and no tool config holds it. Whether the
+affected capture script widens its own selection on a lockfile or tsconfig
+change is a fact about that script, which mandrel cannot inspect. Whether a
+merge queue re-tests the merged tree, so a conflict-free disjoint base move
+need not be merged locally, is a fact about the consumer's GitHub ruleset and
+CI that no manifest or existing key records. All three default to today's
+behaviour.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,
