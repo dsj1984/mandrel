@@ -117,12 +117,15 @@ describe('every overlay reader agrees with the resolver (AC-3)', () => {
     });
     assert.equal(effective.delivery.deliverRunner.concurrencyCap, 2);
     assert.equal(
-      fs.realpathSync(localPath),
-      fs.realpathSync(path.join(main, LOCAL)),
+      fs.realpathSync.native(localPath),
+      fs.realpathSync.native(path.join(main, LOCAL)),
     );
     writeJson(worktree, '.agentrc.json', {});
     const sync = syncAgentrc({ projectRoot: worktree });
-    assert.equal(fs.realpathSync(sync.localPath), fs.realpathSync(localPath));
+    assert.equal(
+      fs.realpathSync.native(sync.localPath),
+      fs.realpathSync.native(localPath),
+    );
   });
 
   it('the gh env uses the main overlay cliConfigDir', () => {
@@ -189,8 +192,8 @@ describe('the divergence warning (AC-4)', () => {
     const { worktreePath, mainPath } = overlayDivergence(worktree);
     assert.equal(worktreePath, path.join(worktree, LOCAL));
     assert.equal(
-      fs.realpathSync(mainPath),
-      fs.realpathSync(path.join(main, LOCAL)),
+      fs.realpathSync.native(mainPath),
+      fs.realpathSync.native(path.join(main, LOCAL)),
     );
     assert.ok(lines[0].includes(worktreePath) && lines[0].includes(mainPath));
     assert.match(lines[0], /main checkout's overlay is in force/);
