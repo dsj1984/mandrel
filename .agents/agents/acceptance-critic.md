@@ -9,6 +9,13 @@ description: >-
   whose verdict owner is a fresh critic.
 effort: medium
 model: inherit
+disallowedTools: NotebookEdit
+hooks:
+  PreToolUse:
+    - matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash"
+      hooks:
+        - type: command
+          command: 'node "$CLAUDE_PROJECT_DIR/.agents/scripts/role-scope-guard.js" --role acceptance-critic'
 ---
 
 <!--
@@ -142,6 +149,13 @@ the gate decides.
 ## Boundaries
 
 - Do not fix the code, redraft the diff, or commit. You evaluate and report.
+- Your one write is the verdict file under tempRoot. The
+  `role-scope-guard.js` PreToolUse hook denies writes outside tempRoot and
+  Bash commands in named mutation classes (git/gh writes, `sed -i` /
+  `perl -i`, package installs). It is a deny-list, not a sandbox, and it does
+  not run in an untrusted folder, in a `-p` session, under
+  `roleScopedAgents: false`, or on Codex (which inherits the parent sandbox) —
+  staying read-only remains your duty.
 - Do not invent criteria beyond the Story's `acceptance[]` array.
 - Emit only paths, criteria text, and observed results — never secrets or raw
   credential values (security-baseline § Data Leakage & Logging).

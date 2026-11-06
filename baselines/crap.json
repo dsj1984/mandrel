@@ -14752,38 +14752,45 @@
       "path": ".agents/scripts/lib/codex/agents-projection.js",
       "method": "renderCodexAgent",
       "startLine": 157,
-      "crap": 3
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "<anon renderCodexAgent/tools.some(t)#0>",
+      "startLine": 172,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
       "method": "expectedCodexAgents",
-      "startLine": 181,
+      "startLine": 187,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
       "method": "listGeneratedCodexAgents",
-      "startLine": 210,
+      "startLine": 216,
       "crap": 1.001
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
       "method": "<anon listGeneratedCodexAgents/names.filter(f)#0>",
-      "startLine": 218,
+      "startLine": 224,
       "crap": 2.004,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
       "method": "<anon listGeneratedCodexAgents/filter(f)#0>",
-      "startLine": 219,
+      "startLine": 225,
       "crap": 1.001,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
       "method": "syncCodexAgents",
-      "startLine": 243,
+      "startLine": 249,
       "crap": 5.026972808037897
     },
     {
@@ -44319,6 +44326,93 @@
       "path": ".agents/scripts/review-dispositions-report.js",
       "method": "main",
       "startLine": 119,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "deny",
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "isInside",
+      "startLine": 53,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "checkWriteTarget",
+      "startLine": 62,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "tokens",
+      "startLine": 81,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "<anon tokens/map(w)#0>",
+      "startLine": 86,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "gitRule",
+      "startLine": 94,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "<anon gitRule/some(a)#0>",
+      "startLine": 103,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "ghApiRule",
+      "startLine": 109,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "ghRule",
+      "startLine": 122,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "segmentRule",
+      "startLine": 132,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "<anon segmentRule/args.some(a)#0>",
+      "startLine": 138,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "checkBash",
+      "startLine": 149,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "evaluate",
+      "startLine": 158,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "method": "main",
+      "startLine": 176,
       "crap": 2
     },
     {

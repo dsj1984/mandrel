@@ -9,6 +9,13 @@ description: >-
   audit-<lens> workflow's first-class execution path.
 effort: medium
 model: sonnet
+disallowedTools: NotebookEdit
+hooks:
+  PreToolUse:
+    - matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash"
+      hooks:
+        - type: command
+          command: 'node "$CLAUDE_PROJECT_DIR/.agents/scripts/role-scope-guard.js" --role auditor'
 ---
 
 <!--
@@ -79,6 +86,13 @@ file is its standalone-agent form.
   the environment variable named by `urlEnv`, read-only, with
   `default_transaction_read_only=on` on any session you open. Never run a
   migration or any statement that writes.
+- **Enforcement is partial.** The
+  `role-scope-guard.js` PreToolUse hook denies writes outside tempRoot and
+  Bash commands in named mutation classes (git/gh writes, `sed -i` /
+  `perl -i`, package installs). It is a deny-list, not a sandbox, and it does
+  not run in an untrusted folder, in a `-p` session, under
+  `roleScopedAgents: false`, or on Codex (which inherits the parent sandbox) —
+  staying read-only remains your duty.
 
 ## Scope
 
