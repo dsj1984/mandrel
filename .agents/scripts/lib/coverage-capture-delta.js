@@ -16,6 +16,7 @@ import {
   filterSuiteInputPaths,
   stampIsStale,
 } from './coverage-capture.js';
+import { judgeOwnFix } from './coverage-capture-own-fix.js';
 import { gitSpawn } from './git-utils.js';
 
 /** Basenames whose change moves coverage beyond the files it names. */
@@ -255,6 +256,12 @@ function storyOwnCommits({ cwd, commit, baseRef, spawn }) {
   return res?.status === 0 ? parseNames(res.stdout) : null;
 }
 
+/** Today's refusal unless the opt-in own-fix split accepts the delta. */
+function refusedUnlessOwnFix(opts) {
+  const isConfig = isCoverageConfigFile;
+  return judgeOwnFix({ ...opts, isConfig, formatFreshnessDetail });
+}
+
 /** Main's committed delta since the stamp, judged by the shared rule. */
 function classifyCommittedDelta({
   cwd,
@@ -279,7 +286,8 @@ function classifyCommittedDelta({
     ownCommits: () => storyOwnCommits({ cwd, commit, baseRef, spawn }),
   });
   const restamp = rule.delta.length === 0 && delta.length > 0;
-  if (rule.reason && !restamp) return no(rule.reason, rule);
+  const opts = { cwd, crap, coverage, storyFiles, stamp, rule, baseRef, spawn };
+  if (rule.reason && !restamp) return refusedUnlessOwnFix(opts);
   return { eligible: true, restamp, commit, rule, stamp };
 }
 
@@ -372,7 +380,7 @@ export function planDeltaRefresh({
     prior,
     baseRef: args.baseBranchRef,
   });
-  if (plan.eligible) return reportPlan(plan, crap, logger);
+  if (plan.eligible) return (plan.report ?? reportPlan)(plan, crap, logger);
   logger.info(
     `[coverage-capture] Affected mode: delta refresh not eligible (${plan.reason}${deltaCounts(plan.rule)}) — capturing the Story's affected scope.`,
   );
