@@ -30387,6 +30387,12 @@
       "crap": 13
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-depth.js",
+      "method": "resolveReviewEffort",
+      "startLine": 121,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-history.js",
       "method": "historyPath",
       "startLine": 37,
@@ -30990,6 +30996,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon claudeArgs(effort)#0>",
+      "startLine": 47,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "<anon sliceNote(index,total)#0>",
       "startLine": 102,
       "crap": 1,
@@ -31134,6 +31147,13 @@
       "method": "assertCliPresent",
       "startLine": 312,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon effortOf(input)#0>",
+      "startLine": 314,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",

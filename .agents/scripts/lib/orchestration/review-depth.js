@@ -8,6 +8,7 @@
  */
 
 import { selectSensitivePathClasses } from '../audit-suite/selector.js';
+import { normalizeDepth } from './review-providers/review-depth.js';
 
 /** Classify review diff width only — not planning sizing ceilings. */
 export const DEFAULT_DIFF_WIDTH = Object.freeze({
@@ -101,4 +102,24 @@ export function resolveDepth(input = {}) {
   if (derivedLevel === 'high' || isWide) return 'deep';
   if (derivedLevel === 'low' && isSmall) return 'light';
   return 'standard';
+}
+
+/** Shipped depth → `claude --effort`; `delivery.codeReview.effortByDepth` overrides per depth. */
+const DEFAULT_EFFORT_BY_DEPTH = Object.freeze({
+  light: 'low',
+  standard: 'low',
+  deep: 'high',
+});
+
+/**
+ * Anything but `light`/`deep` (including no depth) resolves as `standard`.
+ *
+ * @param {ReviewDepth|undefined} depth
+ * @param {Partial<Record<ReviewDepth, string>>|null|undefined} effortByDepth
+ * @returns {string}
+ */
+export function resolveReviewEffort(depth, effortByDepth) {
+  return { ...DEFAULT_EFFORT_BY_DEPTH, ...effortByDepth }[
+    normalizeDepth(depth)
+  ];
 }

@@ -553,7 +553,7 @@ the maker's reasoning context:
   audited escape).
 
 The provider chain (default: `native` maintainability scoring, then an optional
-low-effort `claude --print` bug review) is owned by
+`claude --print` bug review whose effort follows review depth) is owned by
 [`README.md` § Code review providers](../.agents/README.md#code-review-providers-pluggable-chain);
 the walk-through is in [`helpers/code-review.md`](../.agents/workflows/helpers/code-review.md).
 

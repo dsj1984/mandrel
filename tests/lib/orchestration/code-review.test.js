@@ -131,6 +131,7 @@ test('runCodeReview: passes scope/ticketId/baseRef/headRef to the adapter', asyn
     headRef: 'story-42',
     labels: [],
     depth: 'standard',
+    effort: 'low',
     guidance: null,
   });
 });
@@ -737,4 +738,23 @@ test('#5974 AC-9: without a history seam an earlier CRITICAL is not carried', as
   const out = await review(fakeAdapter([]), noHistory);
   assert.equal(out.halted, false);
   assert.doesNotMatch(out.report, /Earlier CRITICALs/);
+});
+
+test('#5976: the effort resolves from depth once; effortByDepth overrides only its own depth', async () => {
+  const efforts = async (codeReview, changedFileCount) => {
+    const adapter = fakeAdapter([]);
+    await review(adapter, {
+      changedFileCount,
+      resolveConfigFn: configWith(codeReview),
+    });
+    const { depth, effort } = adapter.calls[0];
+    return [depth, effort];
+  };
+  assert.deepEqual(await efforts({}, 31), ['deep', 'high']);
+  assert.deepEqual(await efforts({}, 20), ['standard', 'low']);
+  const config = { effortByDepth: { standard: 'medium' } };
+  assert.deepEqual(await efforts(config, 20), ['standard', 'medium']);
+  assert.deepEqual(await efforts(config, 31), ['deep', 'high']);
+  const deepMax = { effortByDepth: { deep: 'max' } };
+  assert.deepEqual(await efforts(deepMax, 31), ['deep', 'max']);
 });
