@@ -751,6 +751,10 @@
       "mi": 87.776
     },
     {
+      "path": ".agents/scripts/lib/close-validation/skip-branch-test.js",
+      "mi": 101.051
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/test-delta.js",
       "mi": 103.383
     },
