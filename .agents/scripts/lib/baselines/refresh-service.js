@@ -288,6 +288,32 @@ function defaultExtrasContext(kind, cwd) {
 }
 
 /**
+ * A full scope is the operator's explicit re-seed: it overwrites even an
+ * ahead baseline. Any narrower scope hands off before scoring.
+ */
+function aheadHandOff({ prior, fullScope, kind, writePath, scopeFiles }) {
+  if (!prior.ahead || fullScope) return null;
+  return {
+    kind,
+    writePath,
+    scope: { mode: scopeFiles ? 'explicit' : 'diff', files: [] },
+    envelope: null,
+    wrote: false,
+    ahead: prior.ahead,
+  };
+}
+
+function requireScorer(kind, scorer, cwd) {
+  const resolved = scorer ?? resolveDefaultScorer(kind, { cwd });
+  if (typeof resolved !== 'function') {
+    throw new Error(
+      `refreshBaseline: no scorer registered for kind "${kind}" (inject one via opts.scorer)`,
+    );
+  }
+  return resolved;
+}
+
+/**
  * Refresh the on-disk baseline for `kind`. `scopeFiles: null` without
  * `fullScope` derives scope from `git diff baseRef..headRef`; `fullScope`
  * requires `scopeFiles: null`. `requireRowsForScopeFiles` fails loud when a
@@ -339,26 +365,17 @@ export async function refreshBaseline(opts = {}) {
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
 
-  // A full scope is the operator's explicit re-seed: it overwrites even an
-  // ahead baseline. Any narrower scope hands off before scoring.
   const prior = readPriorState(writePath, fs, kind);
-  if (prior.ahead && !fullScope) {
-    return {
-      kind,
-      writePath,
-      scope: { mode: scopeFiles ? 'explicit' : 'diff', files: [] },
-      envelope: null,
-      wrote: false,
-      ahead: prior.ahead,
-    };
-  }
+  const handedOff = aheadHandOff({
+    prior,
+    fullScope,
+    kind,
+    writePath,
+    scopeFiles,
+  });
+  if (handedOff) return handedOff;
 
-  const resolvedScorer = scorer ?? resolveDefaultScorer(kind, { cwd });
-  if (typeof resolvedScorer !== 'function') {
-    throw new Error(
-      `refreshBaseline: no scorer registered for kind "${kind}" (inject one via opts.scorer)`,
-    );
-  }
+  const resolvedScorer = requireScorer(kind, scorer, cwd);
 
   const scope = await resolveScope({
     kind,

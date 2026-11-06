@@ -81,7 +81,10 @@ function loadHeadBaseline(kind, cwd, configPath) {
   // Before the schema-validated load: a newer layout must not read as a
   // schema error.
   const skipped = aheadSkipOf(kind, cwd, configPath);
-  if (skipped) return { skipped };
+  return skipped ? { skipped } : loadValidated(kind, cwd, configPath);
+}
+
+function loadValidated(kind, cwd, configPath) {
   try {
     return { baseline: reader.load(kind, { cwd, configPath }) };
   } catch (err) {

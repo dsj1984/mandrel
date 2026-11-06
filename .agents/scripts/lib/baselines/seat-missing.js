@@ -150,6 +150,30 @@ export async function seatMissingBaseline({
 }) {
   const prior = readPriorState(writePath, fs, kind);
   if (prior.ahead) return handOff(prior.ahead);
+  return seatScoped({
+    kind,
+    writePath,
+    score,
+    baseRef,
+    headRef,
+    cwd,
+    gitDiff,
+    fs,
+    prior,
+  });
+}
+
+async function seatScoped({
+  kind,
+  writePath,
+  score,
+  baseRef,
+  headRef,
+  cwd,
+  gitDiff,
+  fs,
+  prior,
+}) {
   const files = await deriveScopeFromDiff({
     baseRef,
     headRef,

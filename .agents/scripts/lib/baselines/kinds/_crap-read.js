@@ -136,7 +136,11 @@ export function loadCrapBaseline({
     return null;
   }
   // A newer layout is the caller's to skip, not a shape failure.
-  if (aheadStampOf(parsed)) return parsed;
+  return aheadStampOf(parsed) ? parsed : shapeCheckedAtRef(parsed);
+}
+
+/** The ref read's shape-check and `tsTranspilerVersion` back-fill. */
+function shapeCheckedAtRef(parsed) {
   if (typeof parsed.kernelVersion !== 'string') return null;
   if (typeof parsed.escomplexVersion !== 'string') return null;
   if (!Array.isArray(parsed.rows)) return null;
