@@ -53,10 +53,17 @@ import { writeFileAtomic } from '../util/atomic-write.js';
 import { defaultSleep } from '../util/sleep.js';
 import { runStreamed } from './evidence-stream.js';
 import {
+  carryCoverageDeferral,
   carryLintCredit,
+  clearCoverageDeferral,
+  coverageEnvelope,
   creditedPreflight,
+  isOverBudgetCapture,
   lintCredit,
+  postCaptureSettled,
   scorePostCapture,
+  seatableKinds,
+  settleOverBudget,
 } from './handoff-gates.js';
 import { handoffStatePath } from './handoff-state.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
@@ -138,7 +145,7 @@ const SEAT_SCRIPTS = Object.freeze({
 /**
  * A settled step. `stop` carries the envelope status that ends the run.
  *
- * @typedef {{ name: string, outcome: 'ran'|'skipped'|'failed'|'error'|'aborted',
+ * @typedef {{ name: string, outcome: 'ran'|'skipped'|'deferred'|'failed'|'error'|'aborted',
  *   detail: string, evidencePath?: string|null, conflictFiles?: string[],
  *   stop?: 'fix-required'|'blocked', reason?: string }} StepResult
  */
@@ -519,9 +526,7 @@ async function creditedRun(ctx, signal) {
       ...extra,
     };
   }
-  if (run.status !== 0) {
-    return fixRequired(name, describeSuiteFailure(run.status), extra);
-  }
+  if (run.status !== 0) return settleSuiteExit(ctx, name, run.status, extra);
   const [ranSignal, freshSignal] = capture
     ? [SIGNALS.captureRan, SIGNALS.captureFresh]
     : [SIGNALS.testRan, SIGNALS.testFresh];
@@ -541,10 +546,18 @@ async function creditedRun(ctx, signal) {
   );
 }
 
+/** A non-zero depositor exit: an over-budget capture by policy, else a fix. */
+function settleSuiteExit(ctx, name, status, extra) {
+  return isOverBudgetCapture(ctx, status)
+    ? settleOverBudget(ctx, name, extra)
+    : fixRequired(name, describeSuiteFailure(status), extra);
+}
+
 /** Credit and its run's figures move together, keyed by the credited head. */
 function recordCredit(ctx, creditTimings) {
   ctx.state.creditHead = creditTimings.head;
   ctx.state.creditTimings = creditTimings;
+  clearCoverageDeferral(ctx.state);
 }
 
 /**
@@ -589,6 +602,7 @@ async function commitSeatedRows(ctx, total, evidencePath) {
   const priorHead = ctx.head;
   const creditedPrior = ctx.state.creditHead === priorHead;
   ctx.head = headSha(ctx) ?? ctx.head;
+  carryCoverageDeferral(ctx.state, priorHead, ctx.head);
   ctx.state.seatHead = ctx.head;
   // Both capture-stamp digests leave `baselines/` out, so a baseline-JSON-only
   // commit keeps the credit it already holds.
@@ -624,7 +638,7 @@ async function stepSeat(ctx) {
   if (ctx.state.seatHead === ctx.head) {
     return skipped(name, `nothing to seat at ${ctx.head.slice(0, 12)}`);
   }
-  const kinds = seatKinds(ctx.config);
+  const kinds = seatableKinds(ctx, seatKinds(ctx.config));
   let total = 0;
   let evidencePath = null;
   for (const kind of kinds) {
@@ -861,8 +875,8 @@ function stepReview(ctx) {
  */
 async function stepPostCapture(ctx) {
   const name = 'post-capture';
-  const { postCaptureHead, creditHead } = ctx.state;
-  if (postCaptureHead === ctx.head && creditHead === ctx.head) {
+  const { postCaptureHead } = ctx.state;
+  if (postCaptureHead === ctx.head && postCaptureSettled(ctx)) {
     return skipped(name, `already clean at ${ctx.head.slice(0, 12)}`);
   }
   const { gates, failed } = await scorePostCapture(ctx, (...a) =>
@@ -1161,6 +1175,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     lockWait: credited?.lockWait ?? null,
     suiteTimings: credited?.suiteTimings ?? null,
     reviewMs: ctx.reviewMs,
+    ...coverageEnvelope(ctx),
     ...(stop
       ? {
           failedStep: stop.name,

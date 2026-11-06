@@ -2030,3 +2030,77 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     assert.ok(keys.includes('check-baselines.js crap'));
   });
 });
+
+describe('story-handoff — an over-budget capture (exit 76, Story #5949)', () => {
+  const overBudgetConfig = (onOverBudget) =>
+    configFor({
+      delivery: {
+        quality: {
+          gates: {
+            maintainability: { enabled: true },
+            crap: { enabled: true },
+            ...(onOverBudget ? { coverage: { onOverBudget } } : {}),
+          },
+        },
+      },
+    });
+  const overBudget = { 'coverage-capture.js': { status: 76, stdout: '' } };
+
+  test('defer-to-ci settles ready, deposits no credit and skips only the coverage-reading gates', async () => {
+    const h = harness({
+      config: overBudgetConfig('defer-to-ci'),
+      outputs: overBudget,
+    });
+    h.deps.presentBaselines = ['maintainability', 'crap'];
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.status, 'ready');
+    assert.deepEqual(envelope.coverage, {
+      status: 'deferred',
+      reason: 'over-budget',
+      policy: 'defer-to-ci',
+    });
+    const credited = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.equal(credited.outcome, 'deferred');
+    assert.match(credited.detail, /deferred to CI/);
+    const keys = spawned(h.runCommand);
+    assert.ok(keys.includes('check-baselines.js maintainability'));
+    assert.ok(keys.includes('update-maintainability-baseline.js'));
+    for (const reader of [
+      'quality-preview.js --only crap',
+      'check-baselines.js crap',
+      'update-crap-baseline.js',
+    ]) {
+      assert.ok(!keys.includes(reader), `${reader} must not run`);
+    }
+    const state = JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+    assert.equal(state.creditHead, undefined);
+    assert.equal(state.coverageDeferredHead, HEAD);
+  });
+
+  test('the default block policy blocks naming onOverBudget', async () => {
+    const h = harness({ config: overBudgetConfig(null), outputs: overBudget });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.status, 'blocked');
+    assert.equal(envelope.failedStep, 'credited-run');
+    assert.match(envelope.reason, /onOverBudget/);
+    assert.equal(envelope.coverage, undefined);
+    assert.equal(h.blocks.length, 1);
+  });
+
+  test('a timeout still hands back fix-required under defer-to-ci', async () => {
+    const h = harness({
+      config: overBudgetConfig('defer-to-ci'),
+      outputs: { 'coverage-capture.js': { status: 124 } },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.match(envelope.steps.at(-1).detail, /timed out/);
+  });
+});

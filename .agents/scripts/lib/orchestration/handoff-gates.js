@@ -9,8 +9,11 @@ import { fileURLToPath } from 'node:url';
 import {
   BASELINES_GATE_NAMES,
   buildDefaultGates,
+  OVER_BUDGET_BLOCK_HINT,
+  overBudgetPolicy,
   QUALITY_PREVIEW_GATE_NAMES,
 } from '../close-validation/gates.js';
+import { COVERAGE_OVER_BUDGET_EXIT_CODE } from '../coverage-capture.js';
 import {
   hashCommandConfig,
   recordPass,
@@ -112,13 +115,113 @@ export function carryLintCredit(ctx, priorHead) {
   }
 }
 
-/** `quality-preview-crap` (capture depositor only) and every baselines entry. */
+/**
+ * Did the credited run defer coverage to CI at this HEAD?
+ *
+ * @param {{ head: string, state: { coverageDeferredHead?: string } }} ctx
+ * @returns {boolean}
+ */
+export function isCoverageDeferred(ctx) {
+  return Boolean(ctx.head) && ctx.state.coverageDeferredHead === ctx.head;
+}
+
+/**
+ * Did the capture depositor declare its slice over this host's budget?
+ *
+ * @param {{ depositor: string }} ctx @param {number} status
+ * @returns {boolean}
+ */
+export function isOverBudgetCapture(ctx, status) {
+  return (
+    ctx.depositor === 'coverage-capture' &&
+    status === COVERAGE_OVER_BUDGET_EXIT_CODE
+  );
+}
+
+/**
+ * An over-budget capture's step result: deferred to CI (no credit, the
+ * coverage-reading gates skipped) or `blocked`, by `coverage.onOverBudget`.
+ *
+ * @param {object} ctx @param {string} name @param {object} extra
+ * @returns {object}
+ */
+export function settleOverBudget(ctx, name, extra) {
+  const exit = `exit ${COVERAGE_OVER_BUDGET_EXIT_CODE}`;
+  if (overBudgetPolicy(ctx.config) === 'defer-to-ci') {
+    ctx.state.coverageDeferredHead = ctx.head;
+    return {
+      name,
+      outcome: 'deferred',
+      detail: `coverage deferred to CI (${exit}, onOverBudget: defer-to-ci) — no suite ran and no credit was deposited`,
+      ...extra,
+    };
+  }
+  return {
+    name,
+    outcome: 'failed',
+    detail: `capture over budget (${exit}) under onOverBudget: block`,
+    reason: OVER_BUDGET_BLOCK_HINT,
+    stop: 'blocked',
+    ...extra,
+  };
+}
+
+/** The envelope's `coverage` field, present only after a deferral. */
+export function coverageEnvelope(ctx) {
+  if (!isCoverageDeferred(ctx)) return {};
+  return {
+    coverage: {
+      status: 'deferred',
+      reason: 'over-budget',
+      policy: 'defer-to-ci',
+    },
+  };
+}
+
+/**
+ * A real credit ends a deferral; the seat it skipped CRAP on is re-opened,
+ * so the captured HEAD still seats its CRAP rows.
+ *
+ * @param {{ coverageDeferredHead?: string, seatHead?: string }} state
+ */
+export function clearCoverageDeferral(state) {
+  if (state.coverageDeferredHead === undefined) return;
+  delete state.coverageDeferredHead;
+  delete state.seatHead;
+}
+
+/** A seat commit keeps a deferral its parent HEAD held. */
+export function carryCoverageDeferral(state, priorHead, head) {
+  if (state.coverageDeferredHead === priorHead) {
+    state.coverageDeferredHead = head;
+  }
+}
+
+/** Post-capture re-scores until the run is credited or deferred at HEAD. */
+export function postCaptureSettled(ctx) {
+  return ctx.state.creditHead === ctx.head || isCoverageDeferred(ctx);
+}
+
+/** CRAP seating needs a fresh artifact, which a deferral never writes. */
+export function seatableKinds(ctx, kinds) {
+  const deferred = isCoverageDeferred(ctx);
+  return kinds.filter((kind) => kind !== 'crap' || !deferred);
+}
+
+/**
+ * `quality-preview-crap` (capture depositor only) and every baselines entry;
+ * after a deferral, none that reads the coverage artifact.
+ */
 function postCaptureGates(ctx) {
   const names = new Set(Object.values(BASELINES_GATE_NAMES));
   if (ctx.depositor === 'coverage-capture') {
     names.add(QUALITY_PREVIEW_GATE_NAMES.crap);
   }
-  return closeGates(ctx).filter((g) => names.has(g.name) && !g.skip);
+  const deferred = isCoverageDeferred(ctx);
+  return closeGates(ctx).filter(
+    (g) =>
+      names.has(g.name) && !g.skip && !(deferred && g.readsCoverageArtifact),
+  );
 }
 
 /** The gate name, plus the kinds a baselines entry scores. */
