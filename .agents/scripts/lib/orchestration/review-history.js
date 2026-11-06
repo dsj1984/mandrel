@@ -144,9 +144,14 @@ export function appendReviewRun(
   { headSha, findings, earlierCriticals },
   deps,
 ) {
+  const run = toHistoryRun(headSha, findings, earlierCriticals);
+  updateReviewHistory(storyId, (h) => ({ ...h, runs: [...h.runs, run] }), deps);
+}
+
+function toHistoryRun(headSha, findings, earlierCriticals) {
   const run = { headSha, findings: findings.map(toHistoryFinding) };
   if (Array.isArray(earlierCriticals)) run.earlierCriticals = earlierCriticals;
-  updateReviewHistory(storyId, (h) => ({ ...h, runs: [...h.runs, run] }), deps);
+  return run;
 }
 
 const list = (v) => (Array.isArray(v) ? v : []);

@@ -144,12 +144,28 @@ function renderEarlierSection(earlier) {
 }
 
 /**
+ * The findings, or the no-findings block unless an earlier CRITICAL is
+ * still open.
+ */
+function renderBody(findings, totalKnown, degraded, earlier = []) {
+  if (totalKnown > 0) return renderFindingSections(findings);
+  return earlier.some((e) => e.status === 'still-open')
+    ? []
+    : renderNoFindingsBlock(degraded);
+}
+
+/** Rendered in full under its tier. */
+const isFresh = (f) => f && !f.repeat && !f.carried;
+/** Rendered collapsed under Previously raised. */
+const isRepeat = (f) => f?.repeat && !f.carried;
+
+/**
  * Fresh findings render in full per tier; repeats render collapsed; carried
  * ones render only under Earlier CRITICALs.
  */
 function renderFindingSections(findings) {
   const lines = [];
-  const fresh = findings.filter((f) => f && !f.repeat && !f.carried);
+  const fresh = findings.filter(isFresh);
   for (const sev of SEVERITY_ORDER) {
     const tierFindings = fresh.filter((f) => f.severity === sev);
     if (tierFindings.length === 0) continue;
@@ -157,8 +173,7 @@ function renderFindingSections(findings) {
     lines.push(`### ${meta.emoji} ${meta.label} (${tierFindings.length})`, '');
     for (const finding of tierFindings) lines.push(renderFinding(finding), '');
   }
-  const repeats = findings.filter((f) => f?.repeat && !f.carried);
-  return [...lines, ...renderRepeatsSection(repeats)];
+  return [...lines, ...renderRepeatsSection(findings.filter(isRepeat))];
 }
 
 /**
@@ -230,15 +245,10 @@ export function renderFindings(input) {
     ...renderDegradedGatesSection(degraded),
   ];
 
-  const earlier = input.earlierCriticals ?? [];
-  lines.push(...renderEarlierSection(earlier));
-  if (totalKnown === 0) {
-    if (!earlier.some((e) => e.status === 'still-open')) {
-      lines.push(...renderNoFindingsBlock(degraded));
-    }
-  } else {
-    lines.push(...renderFindingSections(findings));
-  }
+  lines.push(
+    ...renderEarlierSection(input.earlierCriticals),
+    ...renderBody(findings, totalKnown, degraded, input.earlierCriticals),
+  );
 
   const promptLines = renderManualPromptsSection(promptMessages ?? []);
   if (promptLines.length > 0) {

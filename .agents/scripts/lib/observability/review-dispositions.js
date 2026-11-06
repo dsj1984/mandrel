@@ -39,11 +39,15 @@ const RESOLVED = { fixed: 'fixed-on-branch', refuted: 'refuted-by-verifier' };
  */
 function dispositionOf(id, final, overridden, resolved) {
   if (overridden.has(id)) return 'overridden';
-  if (final?.ungrounded) return 'downgraded-ungrounded';
-  if (final?.unverified) return 'refuted-by-verifier';
-  if (resolved.has(id)) return RESOLVED[resolved.get(id)];
-  return final ? 'open-at-merge' : 'fixed-on-branch';
+  if (!final) return resolvedOr(id, resolved, 'fixed-on-branch');
+  if (final.ungrounded) return 'downgraded-ungrounded';
+  if (final.unverified) return 'refuted-by-verifier';
+  return resolvedOr(id, resolved, 'open-at-merge');
 }
+
+/** How an earlier CRITICAL was last resolved, else `fallback`. */
+const resolvedOr = (id, resolved, fallback) =>
+  RESOLVED[resolved.get(id)] ?? fallback;
 
 /** @param {object} run @returns {object[]} */
 const runFindings = (run) => (Array.isArray(run?.findings) ? run.findings : []);
