@@ -365,6 +365,24 @@ describe('runCoverageCapture', () => {
     assert.match(h.log.error[0], /the test:coverage capture script exited 2/);
   });
 
+  it('Story #5959 AC-1: exits 77 on lost workers — no stamp, no later pass, no failing-tests line', async () => {
+    const h = harness({
+      crap: {
+        ...CRAP,
+        ownCoverageSource: true,
+        coveragePath: 'coverage-crap/coverage-final.json',
+        captureScript: 'crap:coverage',
+      },
+      fresh: { fresh: false, reason: 'missing' },
+      captureCode: 77,
+    });
+    assert.equal(await runCoverageCapture(argv(), h.deps), 77);
+    assert.equal(h.calls.capture.length, 1);
+    assert.equal(h.calls.stamp.length, 0);
+    assert.match(h.log.error[0], /lost test workers to host memory/);
+    assert.doesNotMatch(h.log.error.join('\n'), /Fix failing tests/);
+  });
+
   it('treats an unavailable digest as a best-effort skip, not a failure', async () => {
     const h = harness({
       fresh: { fresh: false, reason: 'missing' },

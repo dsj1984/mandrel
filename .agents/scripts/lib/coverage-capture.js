@@ -695,6 +695,12 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
 export const COVERAGE_OVER_BUDGET_EXIT_CODE = 76;
 
 /**
+ * A consumer script's declaration that the run lost workers to host memory
+ * and no assertion failed — no code verdict; handoff and close block on it.
+ */
+export const COVERAGE_HOST_RESOURCES_EXIT_CODE = 77;
+
+/**
  * Spawn `<pm> run <script>` (the detected package manager, see
  * `packageScriptArgv`) asynchronously as its own process group, so
  * the lock heartbeat keeps running and a timeout or signal kills every
@@ -761,6 +767,14 @@ function overBudgetMessage(code, script) {
  * @param {number} code
  * @param {string} script
  */
+function hostResourcesMessage(code, script) {
+  return `[coverage-capture] ⛔ the ${script} capture script lost test workers to host memory (exit ${code}) — no test failed and nothing was stamped. Do not re-run unchanged on this host: use fewer workers or a larger host.`;
+}
+
+/**
+ * @param {number} code
+ * @param {string} script
+ */
 function failingSuiteMessage(code, script) {
   return `[coverage-capture] ✖ the ${script} capture script exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`;
 }
@@ -775,6 +789,7 @@ const NON_FAILURE_CAPTURE_EXITS = Object.freeze({
   [LOCK_WAIT_EXPIRED_EXIT_CODE]: ['info', lockWaitExpiredMessage],
   [COVERAGE_TIMEOUT_EXIT_CODE]: ['error', timeoutMessage],
   [COVERAGE_OVER_BUDGET_EXIT_CODE]: ['info', overBudgetMessage],
+  [COVERAGE_HOST_RESOURCES_EXIT_CODE]: ['error', hostResourcesMessage],
 });
 
 const FAILING_SUITE_REPORT = Object.freeze(['error', failingSuiteMessage]);

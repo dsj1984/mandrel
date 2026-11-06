@@ -11,8 +11,8 @@
  * - `fix-required` (exit 2) — the worker can fix it by editing the branch;
  *   labels untouched.
  * - `blocked` (exit 1) — the worker cannot: a rejected push, an unreachable
- *   remote, an unconfirmed base branch or an unregistered baseline merge
- *   driver. Flips `agent::blocked` and posts a `friction` comment.
+ *   remote, an unconfirmed base branch, an unregistered baseline merge
+ *   driver or a suite that lost workers to host memory (exit 77). Flips `agent::blocked` and posts a `friction` comment.
  *
  * Idempotent: a re-run skips every step whose result is still valid for the
  * current HEAD, judged by the step's output signal, never its exit code alone.
@@ -39,6 +39,7 @@ import {
   orchestrationLogDir,
   storyReviewDepositPath,
 } from '../config/temp-paths.js';
+import { COVERAGE_HOST_RESOURCES_EXIT_CODE } from '../coverage-capture.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -47,6 +48,10 @@ import { handoffRerunSkip } from '../git/base-sync-probe.js';
 import { syncBranchFromBase } from '../git/sync-from-base.js';
 import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
+import {
+  emitRuntimeFriction,
+  RUNTIME_FRICTION_CATEGORIES,
+} from '../observability/runtime-friction.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
 import { PROJECT_ROOT } from '../project-root.js';
 import { describeBlocking } from '../suite-admission.js';
@@ -320,12 +325,15 @@ async function withLockProgress(ctx, run) {
  * @param {number} status
  * @returns {string}
  */
-function describeSuiteFailure(status) {
+function describeSuiteFailure(status, repeatedTimeout = false) {
   if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
     return `suite deferred (exit ${status}): another full suite holds the host lock — re-run the handoff once it frees`;
   }
   if (status === ADMISSION_REFUSED_EXIT_CODE) {
     return `suite refused (exit ${status}): its declared delivery.execution.workloads weight exceeds capacity — fix the declaration, then re-run`;
+  }
+  if (status === TIMEOUT_EXIT_CODE && repeatedTimeout) {
+    return `suite timed out again at this HEAD (exit ${status}) — a plain re-run will not help: raise delivery.quality.gates.coverage.timeoutMs, have the capture script declare the slice over budget (exit 76, onOverBudget), or run on a quieter host`;
   }
   if (status === TIMEOUT_EXIT_CODE) {
     return `suite timed out (exit ${status}) — usually host contention; re-run the handoff`;
@@ -552,7 +560,7 @@ async function creditedRun(ctx, signal) {
       ...extra,
     };
   }
-  if (run.status !== 0) return settleSuiteExit(ctx, name, run.status, extra);
+  if (run.status !== 0) return settleSuiteExit(ctx, name, run, extra);
   const [ranSignal, freshSignal] = capture
     ? [SIGNALS.captureRan, SIGNALS.captureFresh]
     : [SIGNALS.testRan, SIGNALS.testFresh];
@@ -572,11 +580,110 @@ async function creditedRun(ctx, signal) {
   );
 }
 
-/** A non-zero depositor exit: an over-budget capture by policy, else a fix. */
-function settleSuiteExit(ctx, name, status, extra) {
-  return isOverBudgetCapture(ctx, status)
-    ? settleOverBudget(ctx, name, extra)
-    : fixRequired(name, describeSuiteFailure(status), extra);
+const HOST_COUNT_KEYS = Object.freeze([
+  'testsPassed',
+  'testsFailed',
+  'workersLost',
+  'peakWorkerRssMb',
+]);
+
+const isPlainObject = (v) =>
+  v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** One output line's `hostResources` object, else `null`; never throws. */
+function hostResourcesFromLine(line) {
+  try {
+    const parsed = JSON.parse(line);
+    return isPlainObject(parsed) && isPlainObject(parsed.hostResources)
+      ? parsed.hostResources
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The consumer's optional counts: the last output line that parses as a JSON
+ * object with an object-valued `hostResources` key.
+ *
+ * @param {string} output
+ * @returns {object|null}
+ */
+function parseHostResources(output) {
+  const lines = String(output ?? '').split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i].trim();
+    if (!line.startsWith('{')) continue;
+    const found = hostResourcesFromLine(line);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** @param {object|null} counts */
+function countsSuffix(counts) {
+  const parts = HOST_COUNT_KEYS.filter((k) => Number.isFinite(counts?.[k])).map(
+    (k) => `${k}: ${counts[k]}`,
+  );
+  return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+}
+
+/**
+ * A credited run that lost workers to host memory (exit 77): `blocked`, no
+ * credit, one `host-resources` friction record. `ctx.hostResources` carries
+ * the consumer's counts to the envelope.
+ *
+ * @param {object} ctx @param {string} name @param {string} output @param {object} extra
+ * @returns {Promise<object>}
+ */
+async function settleHostResources(ctx, name, output, extra) {
+  const counts = parseHostResources(output);
+  if (counts) ctx.hostResources = counts;
+  try {
+    await ctx.emitFriction({
+      storyId: ctx.storyId,
+      category: RUNTIME_FRICTION_CATEGORIES.HOST_RESOURCES,
+      tool: 'story-handoff',
+      details: {
+        exitCode: COVERAGE_HOST_RESOURCES_EXIT_CODE,
+        depositor: ctx.depositor,
+        head: ctx.head?.slice(0, 12) ?? null,
+        ...(counts ? { hostResources: counts } : {}),
+      },
+      config: ctx.config,
+    });
+  } catch {
+    // Telemetry never changes the envelope.
+  }
+  return {
+    name,
+    outcome: 'failed',
+    detail: `suite lost workers to host memory (exit ${COVERAGE_HOST_RESOURCES_EXIT_CODE})${countsSuffix(counts)} — no test failed, so do not re-run it unchanged on this host: use fewer workers, a larger host, or, when CI runs the suite with a coverage floor, have the capture script declare the slice over budget (exit 76) under delivery.quality.gates.coverage.onOverBudget: "defer-to-ci"`,
+    reason: 'host-resources',
+    stop: 'blocked',
+    ...extra,
+  };
+}
+
+/** The envelope's `hostResources` field, present only when the consumer reported counts. */
+function hostResourcesEnvelope(ctx) {
+  return ctx.hostResources ? { hostResources: ctx.hostResources } : {};
+}
+
+/**
+ * A non-zero depositor exit: lost workers block, an over-budget capture
+ * settles by policy, else a fix. A 124 records its HEAD so a repeat says so.
+ */
+function settleSuiteExit(ctx, name, { status, output }, extra) {
+  if (status === COVERAGE_HOST_RESOURCES_EXIT_CODE) {
+    return settleHostResources(ctx, name, output, extra);
+  }
+  if (isOverBudgetCapture(ctx, status))
+    return settleOverBudget(ctx, name, extra);
+  const repeated =
+    status === TIMEOUT_EXIT_CODE && ctx.state.timeoutHead === ctx.head;
+  if (status === TIMEOUT_EXIT_CODE) ctx.state.timeoutHead = ctx.head;
+  return fixRequired(name, describeSuiteFailure(status, repeated), extra);
 }
 
 /** Credit and its run's figures move together, keyed by the credited head. */
@@ -1201,6 +1308,7 @@ async function defaultBlock({
  *   scopeGate?: typeof applyChangedFileScope,
  *   presentBaselines?: string[],
  *   runDuplicationRescore?: typeof runDuplicationCloseRescore,
+ *   emitFriction?: typeof emitRuntimeFriction,
  * }} deps `evidenceCwd` anchors close's evidence store (the main checkout);
  *   `runCommand` receives `onChunk`, `signal` and (when set)
  *   `timeoutMs` beside `cwd`/`env`; a runner that never calls `onChunk`
@@ -1233,6 +1341,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     scopeGate = applyChangedFileScope,
     presentBaselines,
     runDuplicationRescore = runDuplicationCloseRescore,
+    emitFriction = emitRuntimeFriction,
   } = deps;
   const block =
     deps.block ??
@@ -1275,6 +1384,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     presentBaselines,
     getChangedFilesFn,
     runDuplicationRescore,
+    emitFriction,
     state: readState(statePath, progress),
     review: null,
     reviewPending: null,
@@ -1329,6 +1439,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     suiteTimings: credited?.suiteTimings ?? null,
     reviewMs: ctx.reviewMs,
     ...coverageEnvelope(ctx),
+    ...hostResourcesEnvelope(ctx),
     ...ctx.baseMergeEnvelope,
     ...(stop
       ? {
