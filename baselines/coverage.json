@@ -130,9 +130,9 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "lines": 98.59,
-      "branches": 97.44,
-      "functions": 91.67
+      "lines": 98.41,
+      "branches": 97.06,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/deliver-light.js",
@@ -238,7 +238,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/read.js",
-      "lines": 92.86,
+      "lines": 92.21,
       "branches": 95,
       "functions": 100
     },
@@ -585,12 +585,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/baselines/codec.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
       "lines": 100,
       "branches": 100,
@@ -623,7 +617,7 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
       "lines": 100,
-      "branches": 84.21,
+      "branches": 85,
       "functions": 100
     },
     {
@@ -670,14 +664,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kernel.js",
-      "lines": 99.29,
-      "branches": 94.44,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/_crap-codec.js",
-      "lines": 100,
-      "branches": 66.67,
+      "lines": 99.24,
+      "branches": 92.86,
       "functions": 100
     },
     {
@@ -688,8 +676,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
-      "lines": 98.56,
-      "branches": 84.09,
+      "lines": 97.98,
+      "branches": 73.33,
       "functions": 100
     },
     {
@@ -712,9 +700,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 95.45,
-      "branches": 87.66,
-      "functions": 94.74
+      "lines": 96.57,
+      "branches": 86.45,
+      "functions": 95.74
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -760,20 +748,20 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/preview-gates.js",
-      "lines": 97.31,
-      "branches": 74.36,
+      "lines": 97.1,
+      "branches": 69.7,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
-      "lines": 92.98,
-      "branches": 76.81,
+      "lines": 92.25,
+      "branches": 75.76,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "lines": 98.16,
-      "branches": 80.28,
+      "lines": 98.41,
+      "branches": 80.65,
       "functions": 100
     },
     {
@@ -784,13 +772,13 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/seat-missing.js",
-      "lines": 97,
-      "branches": 90.48,
-      "functions": 92.86
+      "lines": 96.49,
+      "branches": 89.47,
+      "functions": 90.91
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "lines": 95.63,
+      "lines": 95.77,
       "branches": 92.75,
       "functions": 100
     },
@@ -935,7 +923,7 @@
     {
       "path": ".agents/scripts/lib/changed-files.js",
       "lines": 100,
-      "branches": 92.31,
+      "branches": 88.46,
       "functions": 100
     },
     {
@@ -1042,8 +1030,8 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "lines": 98.67,
-      "branches": 95.86,
+      "lines": 98.95,
+      "branches": 95.27,
       "functions": 100
     },
     {
@@ -1060,7 +1048,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/crap.js",
-      "lines": 89.11,
+      "lines": 88.72,
       "branches": 84.31,
       "functions": 88.89
     },
@@ -1114,8 +1102,8 @@
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "lines": 97.14,
-      "branches": 96.92,
+      "lines": 96.92,
+      "branches": 96.77,
       "functions": 100
     },
     {
@@ -1253,7 +1241,7 @@
     {
       "path": ".agents/scripts/lib/config/git-roots.js",
       "lines": 100,
-      "branches": 97.3,
+      "branches": 96.83,
       "functions": 100
     },
     {
@@ -1421,13 +1409,13 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "lines": 100,
-      "branches": 85,
+      "branches": 84.62,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/crap-method-identity.js",
       "lines": 100,
-      "branches": 97.3,
+      "branches": 97.06,
       "functions": 100
     },
     {
@@ -1906,8 +1894,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
-      "lines": 97.35,
-      "branches": 84.21,
+      "lines": 97.02,
+      "branches": 80.65,
       "functions": 100
     },
     {
@@ -1931,7 +1919,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/pipeline.js",
       "lines": 100,
-      "branches": 93.33,
+      "branches": 92.86,
       "functions": 100
     },
     {
@@ -1972,8 +1960,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 97.25,
-      "branches": 86.25,
+      "lines": 96.39,
+      "branches": 89.47,
       "functions": 100
     },
     {
@@ -2170,9 +2158,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
-      "lines": 97.63,
-      "branches": 82.76,
-      "functions": 90
+      "lines": 97.32,
+      "branches": 81.13,
+      "functions": 88.89
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-state.js",
@@ -2501,7 +2489,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "lines": 100,
-      "branches": 86.11,
+      "branches": 85.71,
       "functions": 100
     },
     {
@@ -2531,7 +2519,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "lines": 100,
-      "branches": 93.14,
+      "branches": 92.86,
       "functions": 100
     },
     {
@@ -2944,8 +2932,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 98.52,
-      "branches": 87.54,
+      "lines": 98.53,
+      "branches": 87.71,
       "functions": 98.28
     },
     {
@@ -3293,7 +3281,7 @@
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "lines": 99.56,
-      "branches": 95.06,
+      "branches": 95.68,
       "functions": 100
     },
     {
@@ -3604,9 +3592,9 @@
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
-      "lines": 91.52,
-      "branches": 77.19,
-      "functions": 92.31
+      "lines": 91.17,
+      "branches": 75.93,
+      "functions": 91.67
     },
     {
       "path": ".agents/scripts/nav-registry-diff.js",
@@ -3910,9 +3898,9 @@
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "lines": 94.55,
+      "lines": 97.06,
       "branches": 50,
-      "functions": 75
+      "functions": 66.67
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
@@ -4006,8 +3994,8 @@
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
-      "lines": 98.51,
-      "branches": 87.5,
+      "lines": 98.46,
+      "branches": 88.46,
       "functions": 100
     },
     {

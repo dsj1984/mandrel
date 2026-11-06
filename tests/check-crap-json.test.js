@@ -10,13 +10,16 @@ import {
   buildCrapReport,
   compareCrap,
   envelopeExtras,
+  printRemovedRows,
   printSummaryHeader,
+  printViolation,
 } from '../.agents/scripts/lib/baselines/kinds/crap.js';
 import {
   calculateCrapForSource,
   crapFormula,
 } from '../.agents/scripts/lib/crap-engine.js';
 import { KERNEL_VERSION } from '../.agents/scripts/lib/crap-utils.js';
+import { Logger } from '../.agents/scripts/lib/Logger.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   AHEAD_STAMP,
@@ -735,5 +738,51 @@ describe('crap:check against a baseline stamped ahead (#5991 AC-4/AC-5)', () => 
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe('violation and removed-row lines name the baseline key, not a line', () => {
+  const base = { file: 'lib/a.js', method: 'run', startLine: 7, cyclomatic: 2 };
+
+  it('prints regression, drifted-regression and new-method lines', (t) => {
+    const lines = [];
+    t.mock.method(Logger, 'error', (m) => lines.push(String(m)));
+    printViolation({
+      ...base,
+      kind: 'regression',
+      crap: 4,
+      baseline: 3,
+      coverage: 0.5,
+    });
+    printViolation({
+      ...base,
+      kind: 'drifted-regression',
+      baselineMethod: 'run#1',
+      crap: 4,
+      baseline: 3,
+      coverage: 0.5,
+    });
+    printViolation({
+      ...base,
+      kind: 'new',
+      crap: 40,
+      ceiling: 30,
+      coverage: 0,
+    });
+    assert.match(lines[0], /REGRESSION: lib\/a\.js::run \(line 7\)/);
+    assert.match(lines[2], /baseline key run#1/);
+    assert.match(lines[4], /NEW-METHOD over ceiling: lib\/a\.js::run/);
+  });
+
+  it('lists removed rows by path::method and is silent when none', (t) => {
+    const lines = [];
+    t.mock.method(Logger, 'info', (m) => lines.push(String(m)));
+    printRemovedRows({ removed: 0, removedRows: [] });
+    assert.equal(lines.length, 0);
+    printRemovedRows({
+      removed: 1,
+      removedRows: [{ file: 'lib/a.js', method: 'run' }],
+    });
+    assert.match(lines[1], /- lib\/a\.js::run$/);
   });
 });
