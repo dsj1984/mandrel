@@ -1,12 +1,13 @@
 /**
  * One contending process for tests/lib/suite-admission-multiprocess.test.js.
  * argv[2] is a JSON spec: { name, lockPath, log, config, command, waitMs,
- * holdUntil?, holdMs?, viaHelper?, env? }. `viaHelper` admits through the
+ * holdUntil?, holdMs?, viaHelper?, env?, backfillWindowMs? }. `viaHelper` admits through the
  * consumer entry point under `env`. The "suite" appends start/end lines (start
  * carries the marker it was handed) to `log` and
  * holds until the `holdUntil` file appears (or for `holdMs`). The first time
  * admission reports a capacity or resource wait, it appends one `blocked`
- * line — the positive signal a test waits on instead of a fixed sleep.
+ * line — the positive signal a test waits on instead of a fixed sleep. Its
+ * first wait appends one `waiting` line, stamped as it joins the queue.
  */
 import fs from 'node:fs';
 
@@ -34,6 +35,7 @@ const WAIT_REASONS = new Set(['capacity', 'resource']);
 let reportedBlocked = false;
 
 function onLockProgress(progress) {
+  if (progress?.phase === 'waiting') note('waiting');
   if (reportedBlocked || !WAIT_REASONS.has(progress?.blocking?.reason)) return;
   reportedBlocked = true;
   note('blocked');
@@ -55,6 +57,7 @@ const lockOptions = {
   waitMs: spec.waitMs,
   pollMs: 25,
   reportMs: 50,
+  backfillWindowMs: spec.backfillWindowMs,
   onLockProgress,
 };
 

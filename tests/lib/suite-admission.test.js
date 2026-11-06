@@ -7,6 +7,8 @@ import {
   FULL_SUITE_LOCK_ENV,
   fullSuiteLockPolicy,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
+  lockedCapture,
+  SUITE_RESERVATION_ENV,
   withFullSuiteLockAsync,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
@@ -694,5 +696,276 @@ describe('suite admission — exclusive vs mid-admission declared (Story #5684)'
     } finally {
       exclusive.release();
     }
+  });
+});
+
+/**
+ * Story #5963 — a tiered workload books its slice's tier weight, and a
+ * `backfill` workload may pass earlier declared waiters it provably fits
+ * beside while the oldest has waited under the window.
+ */
+describe('size-aware admission and backfill (Story #5963)', () => {
+  const TIERED = 'pnpm run test:coverage:affected';
+  const tiered = (extra = {}) => ({
+    command: TIERED,
+    weight: 8,
+    tiers: [
+      { maxFiles: 20, weight: 2 },
+      { maxFiles: 80, weight: 4 },
+    ],
+    sizeCommand: 'node scripts/count-slice.js',
+    ...extra,
+  });
+  let dir;
+  let lockPath;
+
+  beforeEach(() => {
+    dir = makeTempDir('mandrel-admit-size-');
+    lockPath = path.join(dir, 'full-suite.lock');
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  function policy(config, command, extra = {}) {
+    const resolved = fullSuiteLockPolicy(config, {}, command.split(' '));
+    return { ...resolved, cwd: dir, lockPath, ...extra };
+  }
+
+  function sizer(result) {
+    const calls = [];
+    const runSizeFn = async (o) => {
+      calls.push(o);
+      return result;
+    };
+    return { calls, runSizeFn };
+  }
+
+  /** The reservation names and child env seen from inside the spawn. */
+  async function admitOnce(config, command, extra) {
+    let seen = null;
+    const code = await withFullSuiteLockAsync(
+      policy(config, command, extra),
+      async ({ env }) => {
+        seen = { env, names: fs.readdirSync(`${lockPath}.reservations`) };
+        return 0;
+      },
+    );
+    return { code, ...seen };
+  }
+
+  describe('sizing', () => {
+    it('AC-1/AC-4: books the covering tier weight and names it in the child env', async () => {
+      const { calls, runSizeFn } = sizer({ count: 33 });
+      const lines = [];
+      const run = await admitOnce(workloads(tiered()), TIERED, {
+        runSizeFn,
+        env: { BASE: 'x' },
+        spawnEnv: { MANDREL_COVERAGE_BASE_REF: 'origin/main' },
+        log: (m) => lines.push(m),
+      });
+      assert.equal(run.code, 0);
+      assert.match(run.names[0], /^w4~/);
+      assert.equal(run.env.MANDREL_SUITE_WEIGHT, '4');
+      assert.ok(run.env[SUITE_RESERVATION_ENV]);
+      assert.deepEqual(calls[0].env, {
+        BASE: 'x',
+        MANDREL_COVERAGE_BASE_REF: 'origin/main',
+      });
+      assert.equal(calls[0].cwd, dir);
+      assert.match(lines[0], /33 files → weight 4 of 8/);
+    });
+
+    it('AC-1: a failed sizing books the full declared weight', async () => {
+      const { runSizeFn } = sizer({ reason: 'exited 1' });
+      const run = await admitOnce(workloads(tiered()), TIERED, { runSizeFn });
+      assert.match(run.names[0], /^w8~/);
+      assert.equal(run.env.MANDREL_SUITE_WEIGHT, '8');
+    });
+
+    it('AC-2: never sizes a refused, lock-disabled or inherited spawn', async () => {
+      const { calls, runSizeFn } = sizer({ count: 1 });
+      const refused = await withFullSuiteLockAsync(
+        policy(workloads(tiered({ weight: 64 })), TIERED, { runSizeFn }),
+        async () => 0,
+      );
+      assert.equal(refused, ADMISSION_REFUSED_EXIT_CODE);
+      const off = workloads(tiered());
+      off.delivery.execution.fullSuiteLock = false;
+      assert.equal(
+        await withFullSuiteLockAsync(
+          policy(off, TIERED, { runSizeFn }),
+          async () => 0,
+        ),
+        0,
+      );
+      const parent = heldSpawn();
+      let marker = null;
+      const parentRun = withFullSuiteLockAsync(
+        policy(workloads({ command: FOCUSED, weight: 3 }), FOCUSED),
+        async (lock) => {
+          marker = lock.env[SUITE_RESERVATION_ENV];
+          return parent.spawn();
+        },
+      );
+      await Promise.resolve();
+      let childEnv = null;
+      await withFullSuiteLockAsync(
+        policy(workloads(tiered()), TIERED, {
+          runSizeFn,
+          env: { [SUITE_RESERVATION_ENV]: marker },
+        }),
+        async ({ env }) => {
+          childEnv = env;
+          return 0;
+        },
+      );
+      parent.finish(0);
+      await parentRun;
+      assert.deepEqual(calls, [], 'sizing never ran');
+      assert.equal(childEnv[SUITE_RESERVATION_ENV], marker);
+      assert.equal(childEnv.MANDREL_SUITE_WEIGHT, '3', "the parent's weight");
+    });
+
+    it('AC-9: a capture runs the same argv whether sized to a tier or to full weight', async () => {
+      const config = {
+        delivery: {
+          quality: { gates: { coverage: { captureScript: 'cov' } } },
+          execution: {
+            capacity: 10,
+            workloads: [tiered({ command: 'npm run cov' })],
+          },
+        },
+      };
+      const runs = [];
+      const log = () => {};
+      for (const result of [{ count: 2 }, { reason: 'exited 1' }]) {
+        const { calls, runSizeFn } = sizer(result);
+        const wrapped = lockedCapture(
+          async ({ env, ...rest }) => {
+            runs.push({ rest, weight: env.MANDREL_SUITE_WEIGHT, calls });
+            return 0;
+          },
+          config,
+          {},
+          { lockPath, runSizeFn },
+        );
+        await wrapped({
+          cwd: dir,
+          log,
+          env: { MANDREL_COVERAGE_BASE_REF: 'abc' },
+        });
+      }
+      assert.deepEqual(runs[0].rest, runs[1].rest);
+      assert.deepEqual(
+        [runs[0].weight, runs[1].weight],
+        ['2', '8'],
+        'only the booked weight differs',
+      );
+      assert.equal(runs[0].calls[0].env.MANDREL_COVERAGE_BASE_REF, 'abc');
+      const [cmd, ...args] = 'npm run cov'.split(' ');
+      assert.equal(
+        hashCommandConfig({ cmd, args, cwd: dir }),
+        hashCommandConfig({ cmd, args, cwd: dir }),
+      );
+    });
+  });
+
+  describe('backfill', () => {
+    const SMALL = 'npm run test:small';
+    const config = (backfill = true, resources = []) =>
+      workloads({ command: SMALL, weight: 2, resources, backfill });
+
+    function ticketAhead(arrival, body) {
+      const queueDir = `${lockPath}.queue`;
+      fs.mkdirSync(queueDir, { recursive: true });
+      const name = `${String(arrival).padStart(15, '0')}-000001-${process.pid}-ab`;
+      const file = path.join(queueDir, name);
+      fs.writeFileSync(file, body);
+      return file;
+    }
+
+    const declared = (weight, resources = []) =>
+      JSON.stringify({ kind: 'declared', weight, resources });
+
+    /** Run SMALL behind `ticket`, which leaves the queue at 1_020_000. */
+    async function runBehind(ticket, cfg, extra = {}) {
+      let ranAt = null;
+      const outcomes = [];
+      const lines = [];
+      const clock = fakeClock((now) => {
+        if (now >= 1_020_000) fs.rmSync(ticket, { force: true });
+        else if (fs.existsSync(ticket))
+          fs.utimesSync(ticket, new Date(), new Date());
+      });
+      const code = await withFullSuiteLockAsync(
+        policy(cfg, SMALL, {
+          ...clock,
+          onLockOutcome: (o) => outcomes.push(o),
+          log: (m) => lines.push(m),
+          ...extra,
+        }),
+        async () => {
+          ranAt = clock.nowFn();
+          return 0;
+        },
+      );
+      assert.equal(code, 0);
+      return { ranAt, outcome: outcomes[0], lines };
+    }
+
+    it('AC-5: passes an earlier declared waiter it fits beside', async () => {
+      const ticket = ticketAhead(1_000_000, declared(6));
+      const { ranAt, outcome, lines } = await runBehind(ticket, config());
+      assert.ok(ranAt < 1_020_000, 'started while the earlier waiter queued');
+      assert.deepEqual(outcome.admission, {
+        weight: 2,
+        declaredWeight: 2,
+        sliceFiles: null,
+        backfilled: true,
+      });
+      assert.ok(
+        lines.some((l) =>
+          /weight 2 of declared 2, unsized, .*backfilled past 1 earlier/.test(
+            l,
+          ),
+        ),
+      );
+    });
+
+    it('AC-6: never passes an exclusive, empty or unreadable ticket', async () => {
+      for (const body of [JSON.stringify({ kind: 'exclusive' }), '', '{nope']) {
+        const ticket = ticketAhead(1_000_000, body);
+        const { ranAt } = await runBehind(ticket, config());
+        assert.ok(ranAt >= 1_020_000, `waited behind ${JSON.stringify(body)}`);
+      }
+    });
+
+    it('never passes a waiter it does not fit beside or shares a resource with', async () => {
+      const tooBig = ticketAhead(1_000_000, declared(9));
+      assert.ok((await runBehind(tooBig, config())).ranAt >= 1_020_000);
+      const sharing = ticketAhead(1_000_000, declared(1, ['db']));
+      assert.ok(
+        (await runBehind(sharing, config(true, ['db']))).ranAt >= 1_020_000,
+      );
+    });
+
+    it('AC-6: passes no waiter that has waited the backfill window', async () => {
+      const ticket = ticketAhead(1_000_000 - 300_000, declared(1));
+      assert.ok((await runBehind(ticket, config())).ranAt >= 1_020_000);
+      const shortWindow = ticketAhead(1_000_000, declared(1));
+      const { ranAt } = await runBehind(shortWindow, config(), {
+        backfillWindowMs: 1_000,
+      });
+      assert.ok(ranAt >= 1_020_000, 'the window is a lock option');
+    });
+
+    it('AC-7: an unmarked workload never passes even a fitting declared waiter', async () => {
+      const ticket = ticketAhead(1_000_000, declared(1));
+      const { ranAt, outcome } = await runBehind(ticket, config(false));
+      assert.ok(ranAt >= 1_020_000);
+      assert.equal(outcome.admission.backfilled, false);
+    });
   });
 });

@@ -144,8 +144,8 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | --- | --- | --- | --- | --- |
 | `execution` | No | `object` | — | Serialization and capacity admission of the suite spawns delivery drives. |
 | `execution.fullSuiteLock` | No | `boolean` | `true` | Serialize full-suite spawns (`npm test` / the coverage gate's `captureScript`) behind a repository-level advisory lock shared by every worktree, so two concurrent deliveries do not run two suites against the same cores (see `capacity` / `workloads` for declared runs that may overlap). The lock queues, it never overlaps: a wait that expires with a live holder spawns nothing and exits 75 (resumable), naming the holder. A dead or non-heartbeating holder is taken over, and a broken lockfile proceeds unserialized, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable. |
-| `execution.capacity` | No | `integer` | — | Story #5668. The admission budget, in weight units (CPU workers), shared by every suite spawn across this repository's worktrees and sessions — runs in other repositories on the host are not counted. Unset → the host's `os.availableParallelism()`. A declared workload is admitted while the live weights plus its own fit, strictly first-in-first-out: nothing overtakes an earlier live waiter, so a queued full suite is never starved. |
-| `execution.workloads[]` | No | `array<object>` | `[]` | Story #5668. Suite commands declared safe to run alongside others. A spawn whose argv (whitespace-normalized) EXACTLY equals `command` takes that `weight` and `resources`; anything else — and every spawn when this list is empty, the default — runs exclusively (full capacity, today's serialization). Isolation is never inferred from a flag, prefix or diff size. `weight` must count the run's nested worker pool (`--workers 4` → 4), and a full suite needs its own entry before anything can overlap it. Two runs naming a common `resources` entry (a database fixture, a shared coverage file) never overlap; worktree-local outputs need none. A weight above `capacity` refuses the run with exit 78 — nothing spawns, no credit is recorded. An expired wait still exits 75, resumably. Scheduling never changes a run's credit identity. `MANDREL_FULL_SUITE_LOCK=0` (one invocation) or `fullSuiteLock: false` turns admission off entirely; reach for the env hatch only when you have checked the runs share nothing. Each item has: command, weight, resources. |
+| `execution.capacity` | No | `integer` | — | Story #5668. The admission budget, in weight units (CPU workers), shared by every suite spawn across this repository's worktrees and sessions — runs in other repositories on the host are not counted. Unset → the host's `os.availableParallelism()`. A declared workload is admitted while the live weights plus its own fit, first-in-first-out: nothing overtakes an earlier live waiter, so a queued full suite is never starved — except a `workloads[].backfill` run, which may pass earlier declared waiters it fits beside, only while the oldest has waited under 300 s. |
+| `execution.workloads[]` | No | `array<object>` | `[]` | Story #5668. Suite commands declared safe to run alongside others. A spawn whose argv (whitespace-normalized) EXACTLY equals `command` takes that `weight` and `resources`; anything else — and every spawn when this list is empty, the default — runs exclusively (full capacity, today's serialization). Isolation is never inferred from a flag or prefix; a weight comes from the entry, or from its `tiers` as sized by its own `sizeCommand`. `weight` must count the run's nested worker pool (`--workers 4` → 4), and a full suite needs its own entry before anything can overlap it. Two runs naming a common `resources` entry (a database fixture, a shared coverage file) never overlap; worktree-local outputs need none. A weight above `capacity` refuses the run with exit 78 — nothing spawns, no credit is recorded. An expired wait still exits 75, resumably. Scheduling never changes a run's credit identity. `MANDREL_FULL_SUITE_LOCK=0` (one invocation) or `fullSuiteLock: false` turns admission off entirely; reach for the env hatch only when you have checked the runs share nothing. Each item has: command, weight, resources, tiers, sizeCommand, backfill. |
 | `docsFreshness` | No | `object` | — | Documentation-freshness scope: the files a change of consequence is expected to touch. Read by the audit-documentation lens to seed its target set; no delivery gate enforces it. |
 | `docsFreshness.paths` | No | `array<string>` | `["README.md"]` | Repo-relative documentation paths the audit-documentation lens adds to its target set. |
 | `tempRetention` | No | `object` | — | Story #4794. Auto-purge of spent temp artifacts once their Story lands. Classification is an allowlist: only the declared classes below are ever deleted, so unrecognized files under tempRoot are reported with their size and left alone (`/clean-temp` is the operator path for them). signals.ndjson is never purged by any path. |
@@ -437,6 +437,30 @@ A config still carrying the retired key is a hard validation failure; the
   the callback's result, `75` when the wait expires, or `78` when the
   declared weight exceeds `capacity`. With `MANDREL_FULL_SUITE_LOCK=0` or
   `fullSuiteLock: false` it calls the callback directly with an empty `env`.
+- **Sized workloads and backfill.** A `workloads[]` entry may declare
+  `tiers` (`[{ maxFiles, weight }]`) together with `sizeCommand`, an argv run
+  without a shell, in the spawn's cwd and environment (a coverage capture's
+  includes `MANDREL_COVERAGE_BASE_REF`), just before Mandrel reserves. Its
+  last stdout line must be the slice's test-file count. The run books the
+  weight of the first tier, by ascending `maxFiles`, that covers the count.
+  A count above every tier, a non-zero exit, a spawn error, the fixed 60 s
+  timeout or an unparseable line books the entry's full `weight` and logs
+  why, and so does a tier whose weight exceeds the entry's `weight`. Sizing
+  never runs for a refused, inherited or lock-disabled spawn, and a weight
+  above `capacity` is still refused with exit 78 first. Every declared
+  reservation's child also gets `MANDREL_SUITE_WEIGHT`, the weight it
+  booked (inherited runs read it from the parent's reservation). **Capping
+  the runner's worker pool at it (`--maxWorkers`, `--workers`) is the
+  consumer's obligation**: a booked weight below the real pool moves
+  contention from the queue onto the CPU. An entry marked `backfill: true`
+  may be admitted ahead of earlier waiters only when every one of them is
+  declared (an exclusive, empty or unreadable queue ticket is never
+  overtaken), fits beside it within `capacity`, shares no resource with it,
+  and the oldest has waited under 300 s. After that window nothing passes
+  the head waiter, so its remaining wait is bounded by the runs already
+  live, each bounded by its own kill bound. With no entry marked, admission
+  stays strictly first-in-first-out. Neither sizing nor backfill changes a
+  run's credit identity or capture stamp.
 - **Duplication needs jscpd.** The duplication gate scans with `jscpd` 4, an
   **optional peer dependency** of `mandrel`: a project that enables
   `quality.gates.duplication` installs it itself — `npm i -D jscpd@^4`.
