@@ -9,10 +9,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  ratchetVerdict,
-  ratchetWaitOutcome,
-} from '../.agents/scripts/lib/single-story/ci-ratchet-gate.js';
+import { ratchetWaitOutcome } from '../.agents/scripts/lib/single-story/ci-ratchet-gate.js';
 import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
 
 const CHECK = 'coverage-ratchet';
@@ -112,23 +109,22 @@ describe('confirm-merge — the CI ratchet hold (AC-10)', () => {
   });
 });
 
-describe('ratchetVerdict', () => {
-  it('a green re-run outranks an earlier red; a status context counts', () => {
-    assert.equal(
-      ratchetVerdict(
-        [
-          run({ status: 'COMPLETED', conclusion: 'FAILURE' }),
-          run({ status: 'COMPLETED', conclusion: 'SUCCESS' }),
-        ],
-        CHECK,
-      ),
-      'green',
-    );
-    assert.equal(
-      ratchetVerdict([{ context: CHECK, state: 'PENDING' }], CHECK),
-      'in-flight',
-    );
-    assert.equal(ratchetVerdict(null, CHECK), 'absent');
+describe('the ratchet verdict', () => {
+  it('a green re-run outranks an earlier red', async () => {
+    const { result } = await confirm({
+      rollup: [
+        run({ status: 'COMPLETED', conclusion: 'FAILURE' }),
+        run({ status: 'COMPLETED', conclusion: 'SUCCESS' }),
+      ],
+    });
+    assert.equal(result.action, 'done');
+  });
+
+  it('reads a status context by its context name', async () => {
+    const { result } = await confirm({
+      rollup: [{ context: CHECK, state: 'PENDING' }],
+    });
+    assert.equal(result.reason, 'ci-ratchet-pending');
   });
 });
 

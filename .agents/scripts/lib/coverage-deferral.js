@@ -5,7 +5,7 @@
  */
 
 /** The PR-body key line's key — a stable contract. */
-export const COVERAGE_DEFERRED_KEY = 'Coverage-deferred';
+const COVERAGE_DEFERRED_KEY = 'Coverage-deferred';
 
 /** The deferral reasons the key line carries — a stable contract. */
 export const COVERAGE_DEFERRED_REASONS = Object.freeze({

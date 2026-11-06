@@ -11,10 +11,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import test from 'node:test';
-import {
-  COVERAGE_DEFERRED_KEY,
-  COVERAGE_DEFERRED_REASONS,
-} from '../../../../coverage-deferral.js';
+import { COVERAGE_DEFERRED_REASONS } from '../../../../coverage-deferral.js';
 import { makeTempDir } from '../../../../test-temp.js';
 import { buildPullRequestFields } from '../normalize-pr-title.js';
 import { liftTrailers } from '../pr-body-trailers.js';
@@ -227,9 +224,8 @@ test('a coverage deferral puts its prose line, then its key line, beneath Closes
     const lines = body.split('\n');
     assert.equal(lines[0], 'Closes #5955');
     assert.match(lines[2], /^Coverage deferred to CI: /);
-    assert.equal(lines[3], `${COVERAGE_DEFERRED_KEY}: ${reason}`);
+    assert.equal(lines[3], `Coverage-deferred: ${reason}`);
   }
-  assert.equal(COVERAGE_DEFERRED_KEY, 'Coverage-deferred');
   assert.doesNotMatch(
     build({ storyTitle: 'Plain', coverageDeferred: null }).body,
     /Coverage-deferred/,

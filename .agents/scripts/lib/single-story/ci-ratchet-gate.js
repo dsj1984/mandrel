@@ -33,7 +33,7 @@ function isGreen(run) {
  * @param {Array<object>|null|undefined} rollup @param {string} checkName
  * @returns {'green'|'in-flight'|'red'|'absent'}
  */
-export function ratchetVerdict(rollup, checkName) {
+function ratchetVerdict(rollup, checkName) {
   const runs = (Array.isArray(rollup) ? rollup : []).filter(
     (run) => readRunName(run) === checkName,
   );
