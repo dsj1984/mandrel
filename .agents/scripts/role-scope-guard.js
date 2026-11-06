@@ -105,6 +105,19 @@ function gitRule(args) {
   return null;
 }
 
+/** @param {string[]} args gh argv after `gh api` */
+function ghApiRule(args) {
+  for (let i = 0; i < args.length; i += 1) {
+    const method = /^(?:-X|--method)=?(.*)$/.exec(args[i]);
+    const value = method && (method[1] || args[i + 1] || '');
+    if (method && value.toUpperCase() !== 'GET') return 'gh api write method';
+    if (/^(?:-[fF]|--field|--raw-field|--input)(?:=|$)/.test(args[i])) {
+      return 'gh api with request fields';
+    }
+  }
+  return null;
+}
+
 /** @param {string[]} args gh argv after `gh` */
 function ghRule(args) {
   const [group, verb] = args;
@@ -112,19 +125,7 @@ function ghRule(args) {
     return `gh ${group} ${verb}`;
   }
   if (group === 'label' && GH_LABEL_VERBS.has(verb)) return `gh label ${verb}`;
-  if (group !== 'api') return null;
-  for (let i = 1; i < args.length; i += 1) {
-    const a = args[i];
-    const method = /^(?:-X|--method)=?(.*)$/.exec(a);
-    if (method) {
-      const value = method[1] || args[i + 1] || '';
-      if (value.toUpperCase() !== 'GET') return 'gh api write method';
-    }
-    if (/^(?:-[fF]|--field|--raw-field|--input)(?:=|$)/.test(a)) {
-      return 'gh api with request fields';
-    }
-  }
-  return null;
+  return group === 'api' ? ghApiRule(args.slice(1)) : null;
 }
 
 /** @param {string[]} words */
