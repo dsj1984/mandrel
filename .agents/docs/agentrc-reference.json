@@ -130,7 +130,8 @@
           "suiteOfRecord": "local",
           "ciRatchetCheck": null,
           "nonInputGlobs": [],
-          "captureHandlesConfigChanges": false
+          "captureHandlesConfigChanges": false,
+          "ownFixDeltaMaxFiles": 0
         },
         "crap": {
           "enabled": true,

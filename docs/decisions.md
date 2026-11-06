@@ -877,6 +877,15 @@ belongs in `.agentrc.local.json`), and the name of the CI check that runs the
 ratchet is a per-repo fact; no tool config or existing key records either. They
 default to `local` and `null`, so nothing changes unless a consumer opts in.
 
+**Raised to 154 (2026-11-06, Story #5958)** for
+`delivery.quality.gates.coverage.ownFixDeltaMaxFiles`. It opts a consumer into
+re-measuring a Story's own small post-credit fix as a delta (keep-prior merge)
+and caps that fix's suite-input files. It cannot be derived: no tool config or
+existing key states how many of its own files a consumer trusts the keep-prior
+merge for, because a row outside the delta can go stale high. That risk posture
+belongs to the consumer. One integer instead of a boolean plus a cap costs one
+leaf key. It defaults to `0`, which runs no extra git command.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

@@ -38,6 +38,8 @@ export const COVERAGE_GATE_DEFAULTS = Object.freeze({
   // Consumer-declared paths that feed no test; no built-in entries.
   nonInputGlobs: Object.freeze([]),
   captureHandlesConfigChanges: false,
+  // 0 keeps the own-fix delta refresh off; N caps its own part.
+  ownFixDeltaMaxFiles: 0,
 });
 
 /** Schema bounds on `coverage.timeoutMs`: one minute to two hours. */
@@ -120,6 +122,14 @@ export const COVERAGE_GATE = {
       description:
         "Declares that the affected capture script, given `MANDREL_COVERAGE_BASE_REF`, widens its own selection when a coverage-determining config file (`package.json`, a lockfile, `tsconfig*.json`, a test-runner config) changes. When `true`, such a file in the coverage delta no longer refuses the delta refresh. Close's `test` delta re-credit refuses on a config file under either value. Default `false`.",
       default: COVERAGE_GATE_DEFAULTS.captureHandlesConfigChanges,
+    },
+    ownFixDeltaMaxFiles: {
+      type: 'integer',
+      minimum: 0,
+      maximum: 50,
+      description:
+        "Opt-in own-fix delta refresh for `captureScope: affected`. `0` (default) keeps it off. `N >= 1` lets a delta that today's rule refuses for a Story overlap or a config file be re-measured as a delta when it splits, along HEAD's first-parent chain, into base-sync merges that pass today's rule and the Story's own non-merge commits touching at most `N` suite-input files, with no config file, no deleted or renamed suite input and no net line removal in a test file. Rows outside the delta can go stale high; validate against full captures before raising it. `10` is a reasonable start.",
+      default: COVERAGE_GATE_DEFAULTS.ownFixDeltaMaxFiles,
     },
   },
   additionalProperties: false,
