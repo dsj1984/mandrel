@@ -430,6 +430,7 @@ describe('judgeOwnFix', () => {
       baseRef: 'main',
       spawn,
       isConfig: () => false,
+      no: (reason, rule) => ({ eligible: false, reason, rule }),
       ...extra,
     });
 

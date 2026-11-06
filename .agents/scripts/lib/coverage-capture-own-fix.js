@@ -219,7 +219,7 @@ function reportOwnFix(plan, crap, logger, formatFreshnessDetail) {
  */
 export function judgeOwnFix(opts) {
   const { coverage, rule, stamp } = opts;
-  const no = (reason) => ({ eligible: false, reason, stamp, rule });
+  const no = (reason) => opts.no(reason, rule);
   if (!(coverage?.ownFixDeltaMaxFiles >= 1) || !REJUDGED.has(rule.rule)) {
     return no(rule.reason);
   }

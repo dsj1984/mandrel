@@ -286,7 +286,17 @@ function classifyCommittedDelta({
     ownCommits: () => storyOwnCommits({ cwd, commit, baseRef, spawn }),
   });
   const restamp = rule.delta.length === 0 && delta.length > 0;
-  const opts = { cwd, crap, coverage, storyFiles, stamp, rule, baseRef, spawn };
+  const opts = {
+    cwd,
+    crap,
+    coverage,
+    storyFiles,
+    stamp,
+    rule,
+    baseRef,
+    spawn,
+    no,
+  };
   if (rule.reason && !restamp) return refusedUnlessOwnFix(opts);
   return { eligible: true, restamp, commit, rule, stamp };
 }
