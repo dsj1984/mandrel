@@ -11,7 +11,10 @@ import {
   COORDINATE_TRANSPILED,
   deriveFixGuidance,
 } from '../../crap-engine.js';
-import { isAnonymousMethodLabel } from '../../crap-method-identity.js';
+import {
+  anonymousStem,
+  isAnonymousMethodLabel,
+} from '../../crap-method-identity.js';
 import { resolveEscomplexVersion } from '../../crap-utils.js';
 import { Logger } from '../../Logger.js';
 import { resolveTsTranspilerVersion } from '../../transpile.js';
@@ -63,7 +66,7 @@ export function kernelVersion() {
  * coordinate system, the unresolved-method policy, or the method identity
  * rule changes. Module-local: read it via `envelopeExtras().scoringSemantics`.
  */
-const SCORING_SEMANTICS = 'method-identity-v3';
+const SCORING_SEMANTICS = 'method-identity-v4';
 
 /**
  * Envelope stamps this kind adds, consumed by `writer.write`. A transpiler
@@ -241,9 +244,11 @@ export function checkCrapRegression(row, baseline, tolerance, kind) {
 
 /**
  * Compare scanned rows to baseline rows. Match arms: **exact** (same file,
- * method, startLine), **drifted** (same method, nearest startLine),
- * **incomparable** (every candidate is in a different coordinate system),
- * **new** (gated against the ceiling), **removed** (surfaced only).
+ * method, startLine), **drifted** (named: same method, nearest startLine;
+ * anonymous: same stem, see {@link alignAnonymousBucket}), **incomparable**
+ * (every candidate is in a different coordinate system), **new** (gated
+ * against the ceiling), **removed** (surfaced only). `rekeyed` counts drifted
+ * anonymous pairs whose labels differ.
  *
  * Across coordinate systems the drift heuristic would pair rows arbitrarily
  * and report regressions no edit can satisfy, so such rows are counted, not
@@ -259,106 +264,232 @@ export function compareCrap({
   newMethodCeiling,
   tolerance,
 }) {
-  const uncoveredFiles = deriveUncoveredFiles(currentRows);
+  const rows = currentRows ?? [];
+  const state = {
+    uncoveredFiles: deriveUncoveredFiles(currentRows),
+    newMethodCeiling,
+    tolerance,
+    methodIndex: new Map(),
+    claimed: new Set(),
+    verdicts: new Array(rows.length).fill(null),
+    incomparableRows: [],
+    regressions: 0,
+    newViolations: 0,
+    drifted: 0,
+    rekeyed: 0,
+  };
   const exactIndex = new Map();
-  const methodIndex = new Map();
   for (const b of baselineRows ?? []) {
-    exactIndex.set(`${b.file}::${b.method}@${b.startLine}`, b);
+    exactIndex.set(rowKey(b), b);
     const mk = `${b.file}::${b.method}`;
-    if (!methodIndex.has(mk)) methodIndex.set(mk, []);
-    methodIndex.get(mk).push(b);
+    if (!state.methodIndex.has(mk)) state.methodIndex.set(mk, []);
+    state.methodIndex.get(mk).push(b);
   }
-  const seenBaselineKeys = new Set();
 
-  const violations = [];
-  const incomparableRows = [];
   const unscorableRows = [];
-  let regressions = 0;
-  let newViolations = 0;
-  let drifted = 0;
+  const named = [];
+  const anonymous = [];
   let provenanceMismatched = 0;
-
-  for (const row of currentRows ?? []) {
+  for (const [idx, row] of rows.entries()) {
     if (isUnscorableRow(row)) {
       unscorableRows.push({ ...row, kind: 'unscorable' });
       continue;
     }
-    const exactKey = `${row.file}::${row.method}@${row.startLine}`;
-    const methodKey = `${row.file}::${row.method}`;
-    const rowCoords = coordinateSystemOf(row);
-    const candidates = methodIndex.get(methodKey) ?? [];
-    if (candidates.some((c) => coordinateSystemOf(c) !== rowCoords)) {
-      provenanceMismatched += 1;
-    }
-
-    const exact = exactIndex.get(exactKey);
-    if (exact && coordinateSystemOf(exact) === rowCoords) {
-      seenBaselineKeys.add(exactKey);
-      const v = checkCrapRegression(row, exact, tolerance, 'regression');
-      if (v) {
-        regressions += 1;
-        violations.push(v);
-      }
+    const candidates =
+      state.methodIndex.get(`${row.file}::${row.method}`) ?? [];
+    if (candidates.some((c) => !sameCoords(c, row))) provenanceMismatched += 1;
+    if (isAnonymousMethodLabel(row.method)) {
+      anonymous.push({ idx, row });
       continue;
     }
-
-    if (candidates.length > 0) {
-      const comparable = candidates.filter(
-        (c) => coordinateSystemOf(c) === rowCoords,
-      );
-      if (comparable.length === 0) {
-        incomparableRows.push({
-          ...row,
-          kind: 'incomparable',
-          coordinateSystem: rowCoords,
-          baselineCoordinateSystem: coordinateSystemOf(candidates[0]),
-        });
-        for (const c of candidates) {
-          seenBaselineKeys.add(`${c.file}::${c.method}@${c.startLine}`);
-        }
-        continue;
-      }
-      const pick = pickDriftCandidate(comparable, row, seenBaselineKeys);
-      seenBaselineKeys.add(`${pick.file}::${pick.method}@${pick.startLine}`);
-      drifted += 1;
-      const v = checkCrapRegression(row, pick, tolerance, 'drifted-regression');
-      if (v) {
-        regressions += 1;
-        violations.push(v);
-      }
-      continue;
-    }
-
-    const gateScore = newMethodGateScore(row, uncoveredFiles);
-    if (gateScore > newMethodCeiling + tolerance) {
-      newViolations += 1;
-      violations.push(buildNewViolation(row, newMethodCeiling, gateScore));
+    const exact = exactIndex.get(rowKey(row));
+    if (exact && sameCoords(exact, row)) {
+      state.claimed.add(exact);
+      scorePair(state, idx, row, exact, 'regression');
+    } else {
+      named.push({ idx, row, candidates });
     }
   }
+  for (const entry of named) pairNamedRow(state, entry);
+  pairAnonymousRows(state, anonymous, baselineRows ?? []);
 
-  const removedRows = [];
-  for (const b of baselineRows ?? []) {
-    const k = `${b.file}::${b.method}@${b.startLine}`;
-    if (!seenBaselineKeys.has(k)) removedRows.push(b);
-  }
-
-  const total = currentRows?.length ?? 0;
+  const removedRows = (baselineRows ?? []).filter((b) => !state.claimed.has(b));
+  const total = rows.length;
   return {
     total,
     // Denominator of every ratio derived from this result.
     comparable: total - unscorableRows.length,
-    regressions,
-    newViolations,
-    drifted,
+    regressions: state.regressions,
+    newViolations: state.newViolations,
+    drifted: state.drifted,
+    rekeyed: state.rekeyed,
     provenanceMismatched,
-    incomparable: incomparableRows.length,
+    incomparable: state.incomparableRows.length,
     unscorable: unscorableRows.length,
     removed: removedRows.length,
-    violations,
-    incomparableRows,
+    violations: state.verdicts.filter((v) => v !== null),
+    incomparableRows: state.incomparableRows,
     unscorableRows,
     removedRows,
   };
+}
+
+/** @param {{file: string, method: string, startLine: number}} row */
+function rowKey(row) {
+  return `${row.file}::${row.method}@${row.startLine}`;
+}
+
+function sameCoords(a, b) {
+  return coordinateSystemOf(a) === coordinateSystemOf(b);
+}
+
+/** Score one (current, baseline) pair into the verdict slot `idx`. */
+function scorePair(state, idx, row, baseline, kind) {
+  const v = checkCrapRegression(row, baseline, state.tolerance, kind);
+  if (v) {
+    state.regressions += 1;
+    state.verdicts[idx] = v;
+  }
+}
+
+/** A current row with no baseline row: the new-method ceiling. */
+function scoreNewMethod(state, idx, row) {
+  const gateScore = newMethodGateScore(row, state.uncoveredFiles);
+  if (gateScore > state.newMethodCeiling + state.tolerance) {
+    state.newViolations += 1;
+    state.verdicts[idx] = buildNewViolation(
+      row,
+      state.newMethodCeiling,
+      gateScore,
+    );
+  }
+}
+
+/** Count candidates with another coordinate system as incomparable. */
+function markIncomparable(state, row, others) {
+  state.incomparableRows.push({
+    ...row,
+    kind: 'incomparable',
+    coordinateSystem: coordinateSystemOf(row),
+    baselineCoordinateSystem: coordinateSystemOf(others[0]),
+  });
+  for (const c of others) state.claimed.add(c);
+}
+
+/** A named key miss: same name, nearest `startLine`. */
+function pairNamedRow(state, { idx, row, candidates }) {
+  if (candidates.length === 0) {
+    scoreNewMethod(state, idx, row);
+    return;
+  }
+  const comparable = candidates.filter((c) => sameCoords(c, row));
+  if (comparable.length === 0) {
+    markIncomparable(state, row, candidates);
+    return;
+  }
+  const pick = pickDriftCandidate(comparable, row, state.claimed);
+  state.claimed.add(pick);
+  state.drifted += 1;
+  scorePair(state, idx, row, pick, 'drifted-regression');
+}
+
+/**
+ * Anonymous rows bucket by (file, stem): an insert, remove or reorder moves
+ * ordinals and lines but never the stem. A coordinate system with no
+ * baseline rows of its own, while another has some, stays incomparable.
+ */
+function pairAnonymousRows(state, entries, baselineRows) {
+  const bucketOf = (r) => `${r.file}\u0000${anonymousStem(r.method)}`;
+  const baseBuckets = new Map();
+  for (const b of baselineRows) {
+    if (!isAnonymousMethodLabel(b.method)) continue;
+    const k = bucketOf(b);
+    if (!baseBuckets.has(k)) baseBuckets.set(k, []);
+    baseBuckets.get(k).push(b);
+  }
+  const curBuckets = new Map();
+  for (const e of entries) {
+    const k = `${bucketOf(e.row)}\u0000${coordinateSystemOf(e.row)}`;
+    if (!curBuckets.has(k)) curBuckets.set(k, []);
+    curBuckets.get(k).push(e);
+  }
+  for (const cur of curBuckets.values()) {
+    const all = baseBuckets.get(bucketOf(cur[0].row)) ?? [];
+    const base = all.filter((b) => sameCoords(b, cur[0].row));
+    if (base.length === 0 && all.length > 0) {
+      for (const e of cur) markIncomparable(state, e.row, all);
+      continue;
+    }
+    alignAnonymousBucket(state, cur, base);
+  }
+}
+
+/**
+ * Order-aware pairing inside one stem bucket, both sides by `startLine`:
+ * same label within `tolerance` (exact key first); then the earliest
+ * unclaimed row within `tolerance` (a re-keyed pair — never a regression);
+ * then leftovers by key, label, then order, scored as regressions; surplus
+ * current rows are new methods, surplus baseline rows stay removed.
+ */
+function alignAnonymousBucket(state, cur, base) {
+  const byLine = (a, b) => a.startLine - b.startLine;
+  const curSorted = [...cur].sort((a, b) => byLine(a.row, b.row));
+  const free = [...base].sort(byLine);
+  const tol = Number.isFinite(state.tolerance) ? state.tolerance : 0;
+  const near = (row) => (b) => Math.abs(row.crap - b.crap) <= tol;
+  const sameKey = (row) => (b) => rowKey(b) === rowKey(row);
+  const sameLabel = (row) => (b) => b.method === row.method;
+  const both = (f, g) => (row) => (b) => f(row)(b) && g(row)(b);
+
+  const passes = [
+    both(sameKey, near),
+    both(sameLabel, near),
+    near,
+    sameKey,
+    sameLabel,
+    () => () => true,
+  ];
+  const pairs = new Map();
+  for (const matches of passes) {
+    for (const e of curSorted) {
+      if (pairs.has(e)) continue;
+      const at = free.findIndex(matches(e.row));
+      if (at >= 0) pairs.set(e, free.splice(at, 1)[0]);
+    }
+  }
+  reclaimOwnRows(pairs, free, tol);
+  for (const e of curSorted) {
+    const b = pairs.get(e);
+    if (!b) {
+      scoreNewMethod(state, e.idx, e.row);
+      continue;
+    }
+    state.claimed.add(b);
+    if (rowKey(b) === rowKey(e.row)) {
+      scorePair(state, e.idx, e.row, b, 'regression');
+      continue;
+    }
+    state.drifted += 1;
+    if (b.method !== e.row.method) state.rekeyed += 1;
+    scorePair(state, e.idx, e.row, b, 'drifted-regression');
+  }
+}
+
+/**
+ * A re-keyed pair must not hide an increase: when a row's own exact-key
+ * baseline row went unpaired and scored lower, pair it with that row instead
+ * (a sibling removed alongside an increase would otherwise mask it).
+ */
+function reclaimOwnRows(pairs, free, tol) {
+  for (const [e, b] of pairs) {
+    if (b.method === e.row.method) continue;
+    const at = free.findIndex(
+      (f) => rowKey(f) === rowKey(e.row) && e.row.crap > f.crap + tol,
+    );
+    if (at < 0) continue;
+    pairs.set(e, free.splice(at, 1)[0]);
+    free.push(b);
+  }
 }
 
 /**
@@ -378,17 +509,16 @@ function isUnscorableRow(row) {
  * Closest unclaimed candidate by `startLine`; the first when all are claimed
  * (duplicate method names in one file).
  *
- * @param {Array<{file: string, method: string, startLine: number}>} comparable
+ * @param {Array<{startLine: number}>} comparable
  * @param {{startLine: number}} row
- * @param {Set<string>} seenBaselineKeys
+ * @param {Set<object>} claimed
  * @returns {object}
  */
-function pickDriftCandidate(comparable, row, seenBaselineKeys) {
+function pickDriftCandidate(comparable, row, claimed) {
   let pick = null;
   let bestDist = Number.POSITIVE_INFINITY;
   for (const c of comparable) {
-    const k = `${c.file}::${c.method}@${c.startLine}`;
-    if (seenBaselineKeys.has(k)) continue;
+    if (claimed.has(c)) continue;
     const d = Math.abs(c.startLine - row.startLine);
     if (d < bestDist) {
       bestDist = d;
@@ -720,6 +850,7 @@ export function printSummaryHeader(result, scanSummary) {
   Logger.info(`Regressions:           ${result.regressions}`);
   Logger.info(`New-method violations: ${result.newViolations}`);
   Logger.info(`Drifted (matched):     ${result.drifted}`);
+  Logger.info(`Re-keyed (anonymous):  ${result.rekeyed ?? 0}`);
   Logger.info(`Provenance mismatched: ${result.provenanceMismatched ?? 0}`);
   Logger.info(`Unscorable (no cov):   ${result.unscorable ?? 0}`);
   Logger.info(`Removed from baseline: ${result.removed}`);

@@ -26,6 +26,7 @@ import {
   __setSpawnRunner,
 } from '../.agents/scripts/lib/baselines/git-base.js';
 import { currentKernelVersion } from '../.agents/scripts/lib/baselines/kernel.js';
+import { envelopeExtras } from '../.agents/scripts/lib/baselines/kinds/crap.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 const COV_BASELINE_REL = 'baselines/coverage.json';
@@ -820,7 +821,7 @@ function crapEnvelope(rows) {
   return {
     $schema: 'crap.schema.json',
     kernelVersion: currentKernelVersion('crap'),
-    scoringSemantics: 'method-identity-v3',
+    scoringSemantics: envelopeExtras().scoringSemantics,
     tsTranspilerVersion: '6.0.3',
     provenanceStamped: true,
     rows,

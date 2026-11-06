@@ -7,7 +7,7 @@ import {
 } from './crap-coordinates.js';
 import { deriveMethodIdentities } from './crap-method-identity.js';
 import { install as installAstCompat } from './escomplex-ast-compat.js';
-import { analyzeModule } from './escomplex-kernel.js';
+import { analyzeModule, methodSiteOf } from './escomplex-kernel.js';
 
 export { COORDINATE_ORIGINAL, COORDINATE_TRANSPILED, crapFormula };
 
@@ -76,7 +76,7 @@ export function methodRowsFromReport(report, coverageForFile, mapLine = null) {
   const methods = report?.methods ?? [];
   // Derive identities over the whole list before skipping, so a skipped
   // method cannot shift its siblings' ordinals.
-  const identities = deriveMethodIdentities(methods);
+  const identities = deriveMethodIdentities(methods, methods.map(methodSiteOf));
   const rows = [];
   for (const [i, m] of methods.entries()) {
     const rawStartLine = m?.lineStart;
