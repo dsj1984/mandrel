@@ -4,7 +4,7 @@
  * count from the last stdout line, and pick the first tier that covers it.
  * Every failure books the entry's full declared weight.
  */
-import { spawn } from 'node:child_process';
+import { execFileCaptureAsync } from './child-exec.js';
 
 const SIZE_TIMEOUT_MS = 60_000;
 
@@ -14,55 +14,40 @@ const COUNT_RE = /^\d+$/;
 
 /**
  * @param {{ command: string, cwd?: string, env?: Record<string, string|undefined>,
- *   timeoutMs?: number, spawnFn?: typeof spawn }} opts
+ *   timeoutMs?: number }} opts
  * @returns {Promise<{ count: number }|{ reason: string }>}
  */
-export function runSizeCommand({
+export async function runSizeCommand({
   command,
   cwd,
   env,
   timeoutMs = SIZE_TIMEOUT_MS,
-  spawnFn = spawn,
 }) {
   const [cmd, ...args] = String(command ?? '')
     .split(/\s+/)
     .filter(Boolean);
-  return new Promise((resolve) => {
-    let child;
-    try {
-      child = spawnFn(cmd, args, {
-        cwd,
-        env,
-        stdio: ['ignore', 'pipe', 'ignore'],
-      });
-    } catch (err) {
-      resolve({ reason: `spawn failed: ${err.message}` });
-      return;
-    }
-    let stdout = '';
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGKILL');
-    }, timeoutMs);
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk;
+  try {
+    const { stdout } = await execFileCaptureAsync(cmd, args, {
+      cwd,
+      env,
+      timeout: timeoutMs,
+      killSignal: 'SIGKILL',
     });
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      resolve({ reason: `spawn failed: ${err.message}` });
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      resolve(sizeVerdict({ code, stdout, timedOut, timeoutMs }));
-    });
-  });
+    return parseCount(stdout);
+  } catch (err) {
+    return { reason: failureReason(err, timeoutMs) };
+  }
 }
 
-function sizeVerdict({ code, stdout, timedOut, timeoutMs }) {
-  if (timedOut) return { reason: `timed out after ${timeoutMs}ms` };
-  if (code !== 0) return { reason: `exited ${code}` };
-  const last = stdout
+function failureReason(err, timeoutMs) {
+  if (err.killed) return `timed out after ${timeoutMs}ms`;
+  return Number.isInteger(err.code)
+    ? `exited ${err.code}`
+    : `spawn failed: ${err.message}`;
+}
+
+function parseCount(stdout) {
+  const last = String(stdout)
     .split(/\r?\n/)
     .filter((l) => l.trim())
     .at(-1)
