@@ -68,7 +68,9 @@ function markCrapConflict(lines, conflict) {
   if (header < 0) return;
   const needle = crapLine(placed);
   let i = header + 1;
-  while (i < lines.length && lines[i].startsWith('      ')) {
+  // Scan to the block's closing brace: an earlier conflict's markers sit
+  // unindented inside the block and must not end the search.
+  while (i < lines.length && !lines[i].startsWith('    }')) {
     if (lines[i] === needle || lines[i] === `${needle},`) break;
     i += 1;
   }

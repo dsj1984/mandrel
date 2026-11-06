@@ -227,6 +227,33 @@ describe('merge-baseline — grouped CRAP layout (AC-3, AC-7)', () => {
     assert.equal((text.match(/<<<<<<</g) ?? []).length, 1);
     fs.rmSync(dir, { recursive: true, force: true });
   });
+
+  it('marks every conflicting method of one file, not only the first', () => {
+    const dir = makeTempDir('mandrel-merge-crap-two-conflicts-');
+    const paths = stage(dir, {
+      base: env([target, sibling, other]),
+      ours: env([{ ...target, crap: 9 }, { ...sibling, crap: 13 }, other]),
+      theirs: env([{ ...target, crap: 7 }, { ...sibling, crap: 11 }, other]),
+    });
+    const res = runDriver(
+      paths.base,
+      paths.ours,
+      paths.theirs,
+      'baselines/crap.json',
+    );
+    assert.equal(res.status, 1);
+    const text = fs.readFileSync(paths.ours, 'utf8');
+    assert.equal((text.match(/<<<<<<</g) ?? []).length, 2);
+    assert.match(
+      text,
+      /<<<<<<< ours\n {6}"sibling": 13,\n=======\n {6}"sibling": 11,\n>>>>>>> theirs\n/,
+    );
+    assert.match(
+      text,
+      /<<<<<<< ours\n {6}"target": 9\n=======\n {6}"target": 7\n>>>>>>> theirs\n/,
+    );
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
 });
 
 describe('merge-baseline — the swarm-os reproduction (AC-4)', () => {
