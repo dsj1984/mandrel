@@ -309,6 +309,18 @@
       "percentage": 13.06
     },
     {
+      "path": "lib/cli/doctor-checks/coverage-ratchet.js",
+      "duplicatedLines": 10,
+      "totalLines": 73,
+      "percentage": 13.7
+    },
+    {
+      "path": "lib/cli/doctor-checks/llm-review.js",
+      "duplicatedLines": 10,
+      "totalLines": 109,
+      "percentage": 9.17
+    },
+    {
       "path": "lib/cli/doctor-checks/toolchain.js",
       "duplicatedLines": 12,
       "totalLines": 137,
