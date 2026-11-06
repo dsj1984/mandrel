@@ -76,6 +76,7 @@ import {
   rescoreDuplication,
 } from './handoff-rescore.js';
 import { handoffStatePath } from './handoff-state.js';
+import { settleSuiteOfRecord } from './handoff-suite-of-record.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
 import { runDuplicationCloseRescore } from './story-close/duplication-close-rescore.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
@@ -523,6 +524,8 @@ async function creditedRun(ctx, signal) {
       { depositor: ctx.depositor },
     );
   }
+  const ciOwned = settleSuiteOfRecord(ctx, name);
+  if (ciOwned) return ciOwned;
   const capture = ctx.depositor === 'coverage-capture';
   const args = capture
     ? [path.join(SCRIPTS_DIR, 'coverage-capture.js'), '--cwd', ctx.cwd]

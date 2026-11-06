@@ -197,12 +197,96 @@ describe('close envelope and PR body', () => {
         gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
         coverageDeferred,
       }).body;
-    const deferred = fields(true).split('\n');
+    const deferred = fields('over-budget').split('\n');
     assert.equal(deferred[0], 'Closes #5949');
     assert.match(
       deferred[2],
       /^Coverage deferred to CI: .*onOverBudget: defer-to-ci/,
     );
-    assert.doesNotMatch(fields(false), /Coverage deferred to CI/);
+    assert.equal(deferred[3], 'Coverage-deferred: over-budget');
+    assert.doesNotMatch(fields(null), /Coverage deferred to CI/);
+  });
+});
+
+describe('suiteOfRecord: "ci" (Story #5955)', () => {
+  const postureGates = (coverage) =>
+    buildDefaultGates({
+      config: {
+        delivery: {
+          quality: {
+            gates: {
+              crap: { enabled: true },
+              maintainability: { enabled: true },
+              coverage: { enabled: true, ...coverage },
+            },
+          },
+        },
+      },
+      packageScripts: CAPTURE_SCRIPTS,
+      presentBaselines: ['coverage', 'crap', 'maintainability'],
+    });
+
+  it('flags the capture only under the ci posture and keeps test dropped', () => {
+    const ci = postureGates({ suiteOfRecord: 'ci', ciRatchetCheck: 'ratchet' });
+    assert.deepEqual(byName(ci, 'coverage-capture').suiteOfRecordCi, {
+      ciRatchetCheck: 'ratchet',
+    });
+    assert.equal(byName(ci, 'test'), undefined);
+    const local = postureGates({ suiteOfRecord: 'local' });
+    assert.equal(byName(local, 'coverage-capture').suiteOfRecordCi, undefined);
+  });
+
+  async function runPosture(ciRatchetCheck) {
+    const spawned = [];
+    const validation = await runCloseValidation({
+      cwd: '/repo',
+      gates: [
+        { ...CAPTURE, suiteOfRecordCi: { ciRatchetCheck } },
+        CRAP_PREVIEW,
+        COVERAGE_BASELINES,
+      ],
+      runner: (_cmd, args) => {
+        spawned.push(args[0]);
+        return { status: 0 };
+      },
+      runProjections: async () => ({}),
+    });
+    return { validation, spawned };
+  }
+
+  it('defers the capture without spawning it and skips the coverage readers', async () => {
+    const { validation, spawned } = await runPosture('ratchet');
+    assert.equal(validation.ok, true);
+    assert.deepEqual(
+      validation.deferred.map((d) => [d.gate.name, d.reason]),
+      [['coverage-capture', 'suite-of-record-ci']],
+    );
+    assert.deepEqual(
+      validation.skipped.map((s) => s.reason),
+      [COVERAGE_DEFERRED_SKIP_REASON, COVERAGE_DEFERRED_SKIP_REASON],
+    );
+    assert.deepEqual(spawned, []);
+  });
+
+  it('fails naming both keys, spawning nothing, when no ratchet check is declared', async () => {
+    const { validation, spawned } = await runPosture(null);
+    assert.equal(validation.ok, false);
+    const [failure] = validation.failed;
+    assert.equal(failure.gate.name, 'coverage-capture');
+    assert.match(failure.gate.hint, /coverage\.suiteOfRecord/);
+    assert.match(failure.gate.hint, /coverage\.ciRatchetCheck/);
+    assert.deepEqual(spawned, []);
+  });
+
+  it('puts the suite-of-record key line in the PR body', () => {
+    const { body } = buildPullRequestFields({
+      storyTitle: 'Posture',
+      storyId: 5955,
+      storyBranch: 'story-5955',
+      baseBranch: 'main',
+      gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
+      coverageDeferred: 'suite-of-record-ci',
+    });
+    assert.match(body, /\nCoverage-deferred: suite-of-record-ci\n/);
   });
 });

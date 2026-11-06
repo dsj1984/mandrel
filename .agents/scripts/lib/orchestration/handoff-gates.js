@@ -15,6 +15,11 @@ import {
 } from '../close-validation/gates.js';
 import { COVERAGE_OVER_BUDGET_EXIT_CODE } from '../coverage-capture.js';
 import {
+  COVERAGE_DEFERRED_REASONS,
+  deferCoverage,
+  deferralEnvelope,
+} from '../coverage-deferral.js';
+import {
   hashCommandConfig,
   recordPass,
   treeFingerprint,
@@ -164,7 +169,7 @@ export function isOverBudgetCapture(ctx, status) {
 export function settleOverBudget(ctx, name, extra) {
   const exit = `exit ${COVERAGE_OVER_BUDGET_EXIT_CODE}`;
   if (overBudgetPolicy(ctx.config) === 'defer-to-ci') {
-    ctx.state.coverageDeferredHead = ctx.head;
+    deferCoverage(ctx.state, ctx.head, COVERAGE_DEFERRED_REASONS.overBudget);
     return {
       name,
       outcome: 'deferred',
@@ -185,13 +190,7 @@ export function settleOverBudget(ctx, name, extra) {
 /** The envelope's `coverage` field, present only after a deferral. */
 export function coverageEnvelope(ctx) {
   if (!isCoverageDeferred(ctx)) return {};
-  return {
-    coverage: {
-      status: 'deferred',
-      reason: 'over-budget',
-      policy: 'defer-to-ci',
-    },
-  };
+  return { coverage: deferralEnvelope(ctx.state.coverageDeferredReason) };
 }
 
 /**
@@ -203,6 +202,7 @@ export function coverageEnvelope(ctx) {
 export function clearCoverageDeferral(state) {
   if (state.coverageDeferredHead === undefined) return;
   delete state.coverageDeferredHead;
+  delete state.coverageDeferredReason;
   delete state.seatHead;
 }
 

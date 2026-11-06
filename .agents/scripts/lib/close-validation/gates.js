@@ -40,6 +40,7 @@ import {
  * @property {Record<string, string>} [env] - Overlay merged over `process.env` for this gate's child only.
  * @property {boolean} [lockEventChannel] - The child reports on close's lock-event channel.
  * @property {boolean} [deferOnOverBudget] - An exit 76 defers to CI instead of failing.
+ * @property {{ ciRatchetCheck: string|null }} [suiteOfRecordCi] - Deferred to CI without spawning; fails when no check is declared.
  * @property {boolean} [readsCoverageArtifact] - Skipped once the capture deferred.
  * @property {{ cmd: string, args: string[] }} [evidenceIdentity] - Evidence argv, if not the spawned one.
  * @property {{ scope: 'delta', since: string }} [evidenceNote]
@@ -114,6 +115,29 @@ function overBudgetFlag(config) {
     ? { deferOnOverBudget: true }
     : {};
 }
+
+/**
+ * Is CI the suite of record here? Under it the capture is deferred before
+ * anything spawns, and `ciRatchetCheck` names the CI check that ratchets.
+ *
+ * @param {object|undefined|null} config - Canonical resolved config.
+ * @returns {{ ci: boolean, ciRatchetCheck: string|null }}
+ */
+export function suiteOfRecord(config) {
+  const { suiteOfRecord: posture, ciRatchetCheck } =
+    captureQuality(config).coverage;
+  return { ci: posture === 'ci', ciRatchetCheck };
+}
+
+/** @param {object|undefined|null} config @returns {{ suiteOfRecordCi?: { ciRatchetCheck: string|null } }} */
+function suiteOfRecordFlag(config) {
+  const { ci, ciRatchetCheck } = suiteOfRecord(config);
+  return ci ? { suiteOfRecordCi: { ciRatchetCheck } } : {};
+}
+
+/** Shown when `suiteOfRecord: "ci"` has no ratchet check to hand the ratchet to. */
+export const CI_RATCHET_UNDECLARED_HINT =
+  '`delivery.quality.gates.coverage.suiteOfRecord: "ci"` defers the coverage capture to CI, but `delivery.quality.gates.coverage.ciRatchetCheck` is unset, so nothing would ratchet coverage or CRAP. Name the CI check that runs `coverage-ratchet.js`, or set `suiteOfRecord` back to `"local"`.';
 
 /** Skip reason for a gate that would read the artifact a deferral never wrote. */
 export const COVERAGE_DEFERRED_SKIP_REASON = 'coverage-deferred-ci';
@@ -629,7 +653,7 @@ export function buildDefaultGates({
             ...overBudgetFlag(config),
             ...(captureSkipPredicted
               ? { skip: { reason: 'incremental-no-crap-changes' } }
-              : {}),
+              : suiteOfRecordFlag(config)),
           },
         ]
       : []),

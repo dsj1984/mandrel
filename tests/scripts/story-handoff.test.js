@@ -2435,6 +2435,90 @@ describe('story-handoff — an over-budget capture (exit 76, Story #5949)', () =
   });
 });
 
+describe('story-handoff — CI is the suite of record (Story #5955)', () => {
+  const postureConfig = (coverage) =>
+    configFor({
+      delivery: {
+        quality: {
+          gates: {
+            maintainability: { enabled: true },
+            crap: { enabled: true },
+            coverage,
+          },
+        },
+      },
+    });
+  const withChannelSpy = (h) => {
+    let opened = 0;
+    h.deps.createLockChannel = () => {
+      opened += 1;
+      throw new Error('no lock channel may open under suiteOfRecord: ci');
+    };
+    return () => opened;
+  };
+
+  test('settles ready without a lock or a capture, skipping the coverage readers', async () => {
+    const h = harness({
+      config: postureConfig({
+        suiteOfRecord: 'ci',
+        ciRatchetCheck: 'coverage-ratchet',
+      }),
+    });
+    h.deps.presentBaselines = ['maintainability', 'crap'];
+    const channels = withChannelSpy(h);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.status, 'ready');
+    assert.deepEqual(envelope.coverage, {
+      status: 'deferred',
+      reason: 'suite-of-record-ci',
+      policy: 'suite-of-record',
+    });
+    const credited = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.equal(credited.outcome, 'deferred');
+    assert.equal(channels(), 0, 'no full-suite lock channel opened');
+    const keys = spawned(h.runCommand);
+    assert.ok(!keys.includes('coverage-capture.js'));
+    assert.ok(keys.includes('check-baselines.js maintainability'));
+    for (const reader of [
+      'quality-preview.js --only crap',
+      'check-baselines.js crap',
+      'update-crap-baseline.js',
+    ]) {
+      assert.ok(!keys.includes(reader), `${reader} must not run`);
+    }
+  });
+
+  test('blocks naming both keys when no ratchet check is declared', async () => {
+    const h = harness({ config: postureConfig({ suiteOfRecord: 'ci' }) });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.status, 'blocked');
+    assert.equal(envelope.failedStep, 'credited-run');
+    assert.equal(envelope.reason, 'ci-ratchet-undeclared');
+    assert.match(h.blocks[0].detail, /coverage\.suiteOfRecord/);
+    assert.match(h.blocks[0].detail, /coverage\.ciRatchetCheck/);
+    assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
+  });
+
+  test('the local posture and the test depositor change nothing', async () => {
+    const local = harness({
+      config: postureConfig({ suiteOfRecord: 'local' }),
+    });
+    const { envelope } = await local.run();
+    assert.equal(envelope.coverage, undefined);
+    assert.ok(spawned(local.runCommand).includes('coverage-capture.js'));
+    const testDepositor = harness({
+      config: postureConfig({ suiteOfRecord: 'ci' }),
+      scripts: {},
+    });
+    const result = await testDepositor.run();
+    assert.equal(result.envelope.depositor, 'test');
+    assert.equal(result.envelope.status, 'ready');
+    assert.equal(result.envelope.coverage, undefined);
+  });
+});
+
 describe('story-handoff — a suite that lost workers to host memory (exit 77, Story #5959)', () => {
   const counts = {
     testsPassed: 812,

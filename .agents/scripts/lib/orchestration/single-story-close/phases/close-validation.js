@@ -138,7 +138,7 @@ export async function runCloseValidationPhase({
     lockWait,
     suiteTimings: sourcedTimings(timings, 'close'),
     pending: false,
-    coverageDeferred: (validation.deferred ?? []).length > 0,
+    coverageDeferred: validation.deferred?.[0]?.reason ?? null,
   };
 }
 
