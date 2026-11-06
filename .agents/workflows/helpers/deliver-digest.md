@@ -9,8 +9,8 @@ description: >-
 
 > **Bundle, not a procedure.** [`deliver-story.md`](deliver-story.md) is still
 > the steps; this file is the material they reference, bundled so one read
-> covers the happy path. Situational material (lease preflight, recovery
-> routers, merge-wait budgets, CI remediation) stays on demand in
+> covers the happy path. Situational material (lease, recovery, merge waits,
+> CI remediation) stays on demand in
 > [`deliver-story-reference.md`](deliver-story-reference.md) and
 > [`deliver-reference.md`](deliver-reference.md); read those only when routed.
 
@@ -45,7 +45,7 @@ the only sanctioned landing.
 ## 3. Change set — computed once, handed to everyone
 
 One enumeration per Story: a critic that re-runs its own `git diff` can
-score a different set than the one that routed it. **One script** derives
+score a different set than the routed one. **One script** derives
 the change set, the level and the ceremony (close and critic hand-offs call
 it; the worker gets it from § 4's `--init`):
 
@@ -53,8 +53,8 @@ it; the worker gets it from § 4's `--init`):
 node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
 ```
 
-It prints one JSON object: `files` — the one change set the verdict owner is
-handed (`null` when the diff could not be enumerated) — plus `level` and
+It prints one JSON object: `files` — the one change set handed to the verdict
+owner (`null` when the diff is unenumerable) — plus `level` and
 `classes` from `review-depth.js`, and `mode`, `reason` and `verdictOwner`
 from `ceremony-routing.js`. Level rules: a sensitive path registered in
 `audit-rules.json` → `high`, none → `low`, an unenumerable diff → `null`.
@@ -113,12 +113,13 @@ or an unregistered merge driver: it flips `agent::blocked` and posts
 close, opens a PR or writes another label. Outruns the sync Bash ceiling → run
 it in the **background**.
 
-1. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
+1. **Base merge.** It merges `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops (or skips
    if `on-conflict`).
-2. **Preflight — blocking.** `lint`/`format` (close's credit),
+2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
-   baselined ratchet — [`deliver-reference.md`](deliver-reference.md) § Preflight.
+   baselined ratchet; one `fix-required` lists every finding —
+   [`deliver-reference.md`](deliver-reference.md) § Preflight.
 3. **One depositor**, by the one predicate close registers `coverage-capture`
    on — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →
@@ -140,9 +141,8 @@ reads the **output**, not the exit code: a run that prints no signal
 deposits nothing. Seat order, runner shapes, redraft rounds:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
-`verify[]` is scoped entries **plus** this one run: an entry that is a
-full-suite command is reported credited against the same record, never
-respawned.
+`verify[]` is scoped entries **plus** this one run: a full-suite entry
+is reported credited against the same record, never respawned.
 
 ## 6. Terminal envelope — the return contract
 
