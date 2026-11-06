@@ -136,7 +136,7 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    one envelope with any finding — [`deliver-reference.md`](deliver-reference.md) § Held review.
 
 A later commit voids any credit; a baseline-JSON seat keeps the stamp. It
-reads the **output**, not the exit code: no signal, no deposit. Seat order, re-score, runner shapes:
+reads the **output**, not the exit code: no signal deposits nothing. Seat order, re-score, runner shapes:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is a
