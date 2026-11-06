@@ -437,6 +437,18 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   the project's test script routes through mandrel's own runner, which prints
   the outcome. On any other runner it deposits nothing and prints nothing, so
   silence is never evidence of credit.
+- **Own-fix delta refresh.** A small fix to your own code after the credited
+  capture spends the stamp; by default the next capture re-runs the Story's
+  whole affected scope. With `coverage.ownFixDeltaMaxFiles` at `N >= 1` and
+  `captureScope: affected`, it re-measures only the delta when HEAD's
+  first-parent chain splits into base-sync merges sharing no suite input or
+  config with the Story and own commits touching at most `N` suite-input
+  files, with no config, no deleted or renamed suite input, no net line
+  removal in a test file and none reachable from the base. Any other shape
+  logs `delta refresh not eligible (own-fix: …)` and captures as before.
+  Rows outside the delta are kept and can go stale high, so validate against
+  full captures before raising the cap
+  ([configuration](../../docs/configuration.md)).
 - **Background dispatch.** If the handoff outruns the host's sync Bash ceiling,
   dispatch it in the **background** — its completion re-invokes you; never
   spawn a task to poll or `sleep`-loop against it

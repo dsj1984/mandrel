@@ -524,10 +524,54 @@ that the affected capture script, given `MANDREL_COVERAGE_BASE_REF`, widens
 its own selection when a config file changes; it covers only the capture
 script.
 
+**Own-fix delta refresh (`ownFixDeltaMaxFiles`, opt-in).** A small fix to
+the Story's own code after the credited capture (a review fix, a CRAP
+extraction, a pre-push fix) is normally refused above: the delta shares a
+path with the Story and a Story commit landed since the stamp. With
+`ownFixDeltaMaxFiles` at `N >= 1`, a delta that the rules above refuse for a
+Story overlap or a config file is re-judged; a delta they accept takes the
+same path as before, and at `0` (the default) no extra git command runs.
+The re-judge walks `git rev-list --first-parent --parents <commit>..HEAD`,
+whose oldest step must have the stamped commit as its first parent. Each
+merge step's paths (`git diff --name-only <M>^1 <M>`) form the **base part**,
+and each non-merge commit's paths form the **own part**. Both parts are
+counted after the same suite-input and `nonInputGlobs` filter. The delta is
+re-measured, keyed on the stamped commit and merged with the prior rows kept,
+only when **every** guard holds:
+
+- the base part shares no suite-input path with the Story's change set and
+  holds no coverage-determining config (unless `captureHandlesConfigChanges`);
+- the own part holds no coverage-determining config file;
+- the own part touches at most `N` suite-input paths in the delta;
+- no own commit deletes or renames a suite-input path;
+- no own-part test file (`*.test.*` / `*.spec.*`, or under a `tests`, `test`,
+  `__tests__`, `spec` or `e2e` directory) has net line removals across
+  `<commit>..HEAD`;
+- no own commit is reachable from `origin/<baseBranch>` (that would be a
+  fast-forwarded base commit).
+
+An eligible plan logs `needs an own-fix delta refresh — re-measuring <k>
+file(s) changed since <sha> (<n> own file(s), <m> base file(s))` with
+verdict `own-fix-delta-refresh`. A refusal logs the ordinary `delta refresh
+not eligible (…)` line with a reason starting `own-fix:` that names the
+guard and the offending path or count, so the hit rate can be counted from
+logs. Any git error while splitting refuses. The consumer's
+`test:coverage:affected` script still selects the tests; mandrel only names
+the base ref and the rows to replace.
+
+**Risk.** Rows outside the delta are kept, so one can go stale high: a fix
+that weakens a test covering another Story file, or a changed source that
+stops calling another Story file, leaves that file's prior row in place. The
+base-delta refresh already accepts this hazard class; the guards close the
+obvious routes. Before raising the cap (a reasonable start is `10`),
+validate on a sample of Stories by diffing a delta-merged artifact against a
+full capture. A consumer whose CI does not measure coverage on the full
+suite should leave the key at `0`.
+
 Any git error or unresolvable input fails closed to the ordinary capture.
 Every freshness log line names the stamp's scope, the required scope and the
-verdict (`fresh`, `stale`, `scope-mismatch`, `missing`, or `delta-refresh`
-with the delta's file count), so an unexpected full re-run is explainable
+verdict (`fresh`, `stale`, `scope-mismatch`, `missing`, or `delta-refresh` /
+`own-fix-delta-refresh` with the delta's file count), so an unexpected full re-run is explainable
 from the log alone. Every delta-refresh and not-eligible line also names the
 rule that decided (`disjoint`, `overlap`, `own-commits`, `config`, `empty`,
 `restamp`, or `precondition` before any delta was read), the delta's file
