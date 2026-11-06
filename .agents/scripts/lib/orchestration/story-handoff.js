@@ -709,23 +709,31 @@ function remoteBranchSha(ctx) {
 
 const PORCELAIN_STATUS = /^\s*[ MADRCUT?!]{1,2}\s/;
 
+// GitHub's ruleset engine failing mid-evaluation; it prints a `[remote
+// rejected]` line too, so it must match first.
+const RULESET_EVAL_FAILED = /fatal error in commit_refs_rules/i;
 const REMOTE_REJECTED =
   /\[remote rejected\]|permission to \S+ denied|returned error: 403/i;
 const REF_BEHIND = /\[rejected\].*\((non-fast-forward|fetch first)\)/;
 const REMOTE_UNREACHABLE =
   /could not resolve host|unable to access|could not read from remote|connection (refused|timed out|reset)|network is unreachable/i;
 const PUSH_FAILURES = [
+  [RULESET_EVAL_FAILED, 'ruleset-eval-failed'],
   [REMOTE_REJECTED, 'push-rejected'],
   [REMOTE_UNREACHABLE, 'remote-unreachable'],
   [REF_BEHIND, 'ref-behind'],
 ];
+// shortcut: a fixed stride (every 3-4 first-parent commits passed in the
+// field); make it configurable only if a consumer needs a different one.
+const PUSH_STRIDE = 3;
 
 /**
  * A push the remote refused or could not be reached is blocked; a branch
- * behind its remote or a failing `pre-push` hook is the worker's to fix.
+ * behind its remote, a ruleset-evaluation failure or a failing `pre-push`
+ * hook is the worker's to fix.
  *
  * @param {string} output
- * @returns {'push-rejected'|'remote-unreachable'|'ref-behind'|null}
+ * @returns {'ruleset-eval-failed'|'push-rejected'|'remote-unreachable'|'ref-behind'|null}
  */
 function classifyPushFailure(output) {
   for (const [pattern, reason] of PUSH_FAILURES) {
@@ -734,20 +742,59 @@ function classifyPushFailure(output) {
   return null;
 }
 
+/** @param {object} ctx @param {object} evidence @returns {StepResult} */
+function refBehind(ctx, evidence) {
+  return fixRequired(
+    'push',
+    `origin/${ctx.branch} has commits HEAD lacks — git fetch origin ${ctx.branch}, git merge origin/${ctx.branch}, re-run`,
+    evidence,
+  );
+}
+
+/** @param {object} ctx @param {string} sha */
+const refPush = (ctx, sha) => [
+  'push',
+  'origin',
+  `${sha}:refs/heads/${ctx.branch}`,
+];
+
+/** @param {object} ctx @param {string[]} range @param {object} evidence */
+function rulesetFailure(ctx, range, evidence) {
+  const shas = range.length > 0 ? range : ['<sha>'];
+  const recipe = shas.map((sha) => `git ${refPush(ctx, sha).join(' ')}`);
+  return fixRequired(
+    'push',
+    `GitHub ruleset evaluation failed (commit_refs_rules) even when stepped — push each first-parent commit oldest first: ${recipe.join('; ')}; then re-run`,
+    { ...evidence, reason: 'ruleset-eval-failed' },
+  );
+}
+
+/**
+ * Every PUSH_STRIDE-th commit of the range before HEAD (each one in a short
+ * range).
+ *
+ * @param {string[]} range
+ * @returns {string[]}
+ */
+function stepTargets(range) {
+  const last = range.length - 1;
+  return range.filter(
+    (_, i) => i < last && (last < PUSH_STRIDE || (i + 1) % PUSH_STRIDE === 0),
+  );
+}
+
 /**
  * @param {object} ctx
  * @param {{ output: string, evidencePath: string|null }} push
+ * @param {string[]} [range] first-parent commits, oldest first.
  * @returns {StepResult}
  */
-function pushFailure(ctx, push) {
+function pushFailure(ctx, push, range = []) {
   const reason = classifyPushFailure(push.output);
   const evidence = { evidencePath: push.evidencePath };
-  if (reason === 'ref-behind') {
-    return fixRequired(
-      'push',
-      `origin/${ctx.branch} has commits HEAD lacks — git fetch origin ${ctx.branch}, git merge origin/${ctx.branch}, re-run`,
-      evidence,
-    );
+  if (reason === 'ref-behind') return refBehind(ctx, evidence);
+  if (reason === 'ruleset-eval-failed') {
+    return rulesetFailure(ctx, range, evidence);
   }
   return reason
     ? blocked('push', reason, `git push failed (${reason})`, evidence)
@@ -756,6 +803,57 @@ function pushFailure(ctx, push) {
         'git push failed locally (a pre-push hook?) — fix the cause with a NEW commit, re-run',
         evidence,
       );
+}
+
+/**
+ * HEAD's first-parent commits, oldest first, on neither the base nor the
+ * remote Story branch tip.
+ *
+ * @param {object} ctx
+ * @param {string|null} tip
+ * @returns {string[]}
+ */
+function firstParentRange(ctx, tip) {
+  const res = ctx.git(
+    ctx.cwd,
+    'rev-list',
+    '--first-parent',
+    '--reverse',
+    'HEAD',
+    `^origin/${ctx.baseBranch}`,
+    ...(tip ? [`^${tip}`] : []),
+  );
+  if (res?.status !== 0) return [];
+  return `${res.stdout ?? ''}`.split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Retry a ruleset-evaluation failure as a stepped push: the step targets,
+ * then the branch itself.
+ *
+ * @param {object} ctx
+ * @param {string|null} tip the remote Story branch sha before the push.
+ * @param {{ evidencePath: string|null }} first the failed first push.
+ * @returns {Promise<{ failure: StepResult }|{ steps: number, evidencePath: string }>}
+ */
+async function steppedPush(ctx, tip, first) {
+  if (
+    tip &&
+    ctx.git(ctx.cwd, 'merge-base', '--is-ancestor', tip, 'HEAD')?.status !== 0
+  ) {
+    return { failure: refBehind(ctx, { evidencePath: first.evidencePath }) };
+  }
+  const range = firstParentRange(ctx, tip);
+  const pushes = [
+    ...stepTargets(range).map((sha) => refPush(ctx, sha)),
+    ['push', '-u', 'origin', ctx.branch],
+  ];
+  let push;
+  for (const [i, args] of pushes.entries()) {
+    push = await runLogged(ctx, `push-step-${i + 1}`, 'git', args);
+    if (push.status !== 0) return { failure: pushFailure(ctx, push, range) };
+  }
+  return { steps: pushes.length, evidencePath: push.evidencePath };
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */
@@ -768,13 +866,21 @@ async function stepPush(ctx) {
   if (before.sha === ctx.head) {
     return skipped(name, `origin/${ctx.branch} already at HEAD`);
   }
-  const push = await runLogged(ctx, 'push', 'git', [
+  let push = await runLogged(ctx, 'push', 'git', [
     'push',
     '-u',
     'origin',
     ctx.branch,
   ]);
-  if (push.status !== 0) return pushFailure(ctx, push);
+  let stepped = null;
+  if (push.status !== 0) {
+    if (classifyPushFailure(push.output) !== 'ruleset-eval-failed') {
+      return pushFailure(ctx, push);
+    }
+    stepped = await steppedPush(ctx, before.sha, push);
+    if (stepped.failure) return stepped.failure;
+    push = stepped;
+  }
   const after = remoteBranchSha(ctx);
   if (after.sha !== ctx.head) {
     return blocked(
@@ -784,7 +890,10 @@ async function stepPush(ctx) {
       { evidencePath: push.evidencePath },
     );
   }
-  return ran(name, `pushed ${ctx.branch} → ${ctx.head.slice(0, 12)}`, {
+  const how = stepped
+    ? ` in a stepped push of ${stepped.steps} step(s) after a ruleset-evaluation failure`
+    : '';
+  return ran(name, `pushed ${ctx.branch} → ${ctx.head.slice(0, 12)}${how}`, {
     evidencePath: push.evidencePath,
   });
 }

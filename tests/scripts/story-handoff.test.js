@@ -75,6 +75,8 @@ function gitWorld({
   remote = null,
   lsRemoteFails = false,
   branch = `story-${STORY}`,
+  firstParent = [],
+  ancestor = true,
 } = {}) {
   const world = { head, remote, dirty: [], calls: [] };
   const ok = (stdout = '') => ({ status: 0, stdout, stderr: '' });
@@ -99,6 +101,8 @@ function gitWorld({
       return ok(world.remote ? `${world.remote}\trefs/heads/${branch}\n` : '');
     }
     if (verb === 'add') return ok();
+    if (verb === 'rev-list') return ok(firstParent.join('\n'));
+    if (verb === 'merge-base') return { status: ancestor ? 0 : 1 };
     if (verb === 'commit') {
       world.head = SEATED_HEAD;
       world.dirty = [];
@@ -111,7 +115,8 @@ function gitWorld({
 
 /**
  * A child-process double keyed on the script (or binary) each step spawns.
- * `outputs[key]` is `{ status, stdout }`; the default is a clean pass.
+ * `outputs[key]` is `{ status, stdout }`, or an array answered per call;
+ * the default is a clean pass.
  */
 function commandKey(cmd, args) {
   if (cmd !== 'node') return cmd;
@@ -150,9 +155,14 @@ function commandDouble(world, outputs = {}) {
   };
   const run = async (cmd, args, opts) => {
     const key = commandKey(cmd, args);
+    const nth = calls.filter((c) => c.key === key).length;
     calls.push({ key, cmd, args, opts });
-    const out = outputs[key] ?? defaults[key] ?? { status: 0, stdout: '' };
-    if (key === 'git' && out.status === 0) world.remote = world.head;
+    const given = outputs[key];
+    const out = (Array.isArray(given) ? given[nth] : given) ??
+      defaults[key] ?? { status: 0, stdout: '' };
+    if (key === 'git' && out.status === 0 && !out.keepRemote) {
+      world.remote = world.head;
+    }
     if (/seated: [1-9]/.test(out.stdout ?? '')) {
       world.dirty = ['baselines/crap.json'];
     }
@@ -981,6 +991,164 @@ describe('story-handoff — blocked only on what the worker cannot change (AC-5)
       assert.equal(h.blocks.length, 1);
       assert.equal(h.blocks[0].storyId, STORY);
       assert.equal(h.blocks[0].reason, reason);
+    });
+  }
+});
+
+describe('story-handoff — a ruleset-evaluation push failure is retried stepped (Story #5965)', () => {
+  const RULESET = {
+    status: 1,
+    stdout:
+      'remote: fatal error in commit_refs_rules\n ! [remote rejected] story-5518 -> story-5518 (failure)',
+  };
+  const shas = (n) =>
+    Array.from({ length: n }, (_, i) => `${i + 1}`.repeat(40));
+  const range = (n) => [...shas(n - 1), HEAD];
+  const pushes = (h) =>
+    h.runCommand.calls.filter((c) => c.key === 'git').map((c) => c.args);
+  const steppedRun = (n, git, worldOpts = {}) =>
+    harness({
+      world: gitWorld({ firstParent: range(n), ...worldOpts }),
+      outputs: { git },
+    });
+
+  test('AC-1/AC-2: steps every 3rd first-parent commit, then the branch, and settles ready', async () => {
+    const h = steppedRun(8, [RULESET]);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.status, 'ready');
+    const push = envelope.steps.find((s) => s.name === 'push');
+    assert.equal(push.outcome, 'ran');
+    assert.match(push.detail, /stepped push of 3 step\(s\)/);
+    const s = shas(7);
+    assert.deepEqual(pushes(h), [
+      ['push', '-u', 'origin', `story-${STORY}`],
+      ['push', 'origin', `${s[2]}:refs/heads/story-${STORY}`],
+      ['push', 'origin', `${s[5]}:refs/heads/story-${STORY}`],
+      ['push', '-u', 'origin', `story-${STORY}`],
+    ]);
+    assert.equal(h.blocks.length, 0, 'no label or friction');
+  });
+
+  test('AC-2: a range of 3 or fewer pushes each commit before HEAD', async () => {
+    const h = steppedRun(3, [RULESET]);
+    const { exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.deepEqual(
+      pushes(h)
+        .slice(1, -1)
+        .map((a) => a[2]),
+      shas(2).map((sha) => `${sha}:refs/heads/story-${STORY}`),
+    );
+  });
+
+  test('AC-2: the range excludes the base and the existing remote tip', async () => {
+    const tip = 'c'.repeat(40);
+    const h = steppedRun(2, [RULESET], { remote: tip });
+    await h.run();
+    const revList = h.world.calls.find((a) => a[0] === 'rev-list');
+    assert.deepEqual(revList, [
+      'rev-list',
+      '--first-parent',
+      '--reverse',
+      'HEAD',
+      '^origin/main',
+      `^${tip}`,
+    ]);
+  });
+
+  test('AC-2/AC-3: every push has its own evidence log and none skips hooks', async () => {
+    const h = steppedRun(5, [RULESET]);
+    await h.run();
+    const dir = path.join(tempRoot, 'orchestration');
+    for (const log of ['push', 'push-step-1', 'push-step-2']) {
+      assert.ok(
+        existsSync(path.join(dir, `story-handoff-${STORY}-${log}.log`)),
+        log,
+      );
+    }
+    for (const args of pushes(h)) {
+      assert.ok(!args.some((a) => /no-verify|^-n$/.test(a)), args.join(' '));
+    }
+  });
+
+  test('AC-3: a stepped push the remote does not confirm is blocked push-unconfirmed', async () => {
+    const kept = { status: 0, keepRemote: true };
+    const h = steppedRun(2, [RULESET, kept, kept]);
+    h.world.remote = null;
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.reason, 'push-unconfirmed');
+  });
+
+  test('AC-4: a step failing again with the ruleset error is fix-required with the recipe', async () => {
+    const h = steppedRun(5, [RULESET, { status: 0 }, RULESET]);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    assert.equal(envelope.reason, 'ruleset-eval-failed');
+    assert.match(envelope.evidencePath, /push-step-2\.log$/);
+    const detail = envelope.steps.at(-1).detail;
+    for (const sha of range(5)) {
+      assert.ok(
+        detail.includes(`git push origin ${sha}:refs/heads/story-${STORY}`),
+      );
+    }
+    assert.equal(h.blocks.length, 0, 'no label or friction');
+  });
+
+  const otherFailures = [
+    [
+      'a hook decline',
+      ' ! [remote rejected] story-5518 -> story-5518 (pre-receive hook declined)',
+      1,
+      'blocked',
+    ],
+    [
+      'a non-fast-forward',
+      ' ! [rejected]        story-5518 -> story-5518 (non-fast-forward)',
+      2,
+      'fix-required',
+    ],
+  ];
+  for (const [label, stdout, code, status] of otherFailures) {
+    test(`AC-5: a step failing with ${label} routes as a first attempt would`, async () => {
+      const h = steppedRun(2, [RULESET, { status: 1, stdout }]);
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, code);
+      assert.equal(envelope.status, status);
+      if (status === 'blocked') assert.equal(envelope.reason, 'push-rejected');
+    });
+  }
+
+  test('AC-6: a remote tip that is not an ancestor of HEAD attempts no stepped push', async () => {
+    const h = steppedRun(4, [RULESET], {
+      remote: 'c'.repeat(40),
+      ancestor: false,
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.match(
+      envelope.steps.at(-1).detail,
+      /git fetch origin story-\d+, git merge origin\/story-\d+/,
+    );
+    assert.equal(pushes(h).length, 1);
+  });
+
+  const unchanged = [
+    [' ! [remote rejected] story-5518 -> story-5518 (declined)', 1],
+    ['fatal: unable to access: The requested URL returned error: 403', 1],
+    ['fatal: Could not read from remote repository.', 1],
+    [' ! [rejected]        story-5518 -> story-5518 (fetch first)', 2],
+    ['husky - pre-push script failed', 2],
+  ];
+  for (const [stdout, code] of unchanged) {
+    test(`AC-7: without the ruleset text no retry spawns (${stdout.trim().slice(0, 30)})`, async () => {
+      const h = steppedRun(4, [{ status: 1, stdout }]);
+      const { exitCode } = await h.run();
+      assert.equal(exitCode, code);
+      assert.equal(pushes(h).length, 1);
+      assert.ok(!h.world.calls.some((a) => a[0] === 'rev-list'));
     });
   }
 });
