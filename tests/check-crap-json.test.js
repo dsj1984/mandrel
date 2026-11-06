@@ -540,6 +540,37 @@ describe('compareCrap — named rows re-pair by stem and order', () => {
     assert.strictEqual(r.drifted, 1);
   });
 
+  it('AC-4: an increase is not hidden by a later namesake re-keyed onto its row', () => {
+    const r = compareCrap({
+      currentRows: [
+        {
+          file: 'a.js',
+          method: 'run',
+          startLine: 1,
+          cyclomatic: 3,
+          coverage: 0,
+          crap: 12,
+        },
+        {
+          file: 'a.js',
+          method: 'run#1',
+          startLine: 10,
+          cyclomatic: 1,
+          coverage: 1,
+          crap: 1,
+        },
+      ],
+      baselineRows: [{ file: 'a.js', method: 'run', crap: 1 }],
+      newMethodCeiling: 30,
+      tolerance: 0.001,
+    });
+    assert.strictEqual(r.regressions, 1);
+    assert.strictEqual(r.violations[0].method, 'run');
+    assert.strictEqual(r.violations[0].kind, 'regression');
+    assert.strictEqual(r.drifted, 0);
+    assert.strictEqual(r.newViolations + r.removed, 0);
+  });
+
   it('AC-4: a named increase regresses against its own row after lines above move', () => {
     const r = compareSources(
       'function run(p) { return p ? 1 : 2; }\n',

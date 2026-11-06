@@ -332,7 +332,7 @@ function alignBucket(state, cur, base) {
       if (at >= 0) pairs.set(e, free.splice(at, 1)[0]);
     }
   }
-  reclaimOwnRows(pairs, free, tol);
+  reclaimOwnRows(pairs, free, tol, curSorted);
   for (const e of curSorted) {
     const b = pairs.get(e);
     if (!b) {
@@ -350,19 +350,33 @@ function alignBucket(state, cur, base) {
 }
 
 /**
- * A re-keyed pair must not hide an increase: when a row's own exact-key
- * baseline row went unpaired and scored lower, pair it with that row instead
- * (a sibling removed alongside an increase would otherwise mask it).
+ * A re-keyed pair must not hide an increase: a row that scored higher than
+ * its own exact-key baseline row takes it back when that row went unpaired
+ * (a sibling removed alongside an increase), or when the row itself went
+ * unpaired because a namesake re-keyed onto it (a later namesake added
+ * alongside an increase; that namesake becomes the new method). Fails safe:
+ * an earlier namesake inserted more complex than the existing one reads as
+ * the existing method's regression.
  */
-function reclaimOwnRows(pairs, free, tol) {
-  for (const [e, b] of pairs) {
-    if (b.method === e.row.method) continue;
-    const at = free.findIndex(
-      (f) => f.method === e.row.method && e.row.crap > f.crap + tol,
-    );
-    if (at < 0) continue;
-    pairs.set(e, free.splice(at, 1)[0]);
-    free.push(b);
+function reclaimOwnRows(pairs, free, tol, curSorted) {
+  for (const e of curSorted) {
+    const mine = pairs.get(e);
+    if (mine?.method === e.row.method) continue;
+    const isOwnIncrease = (b) =>
+      b.method === e.row.method && e.row.crap > b.crap + tol;
+    const at = free.findIndex(isOwnIncrease);
+    if (at >= 0) {
+      pairs.set(e, free.splice(at, 1)[0]);
+      if (mine) free.push(mine);
+      continue;
+    }
+    const holder = mine
+      ? undefined
+      : [...pairs.keys()].find((o) => isOwnIncrease(pairs.get(o)));
+    if (holder) {
+      pairs.set(e, pairs.get(holder));
+      pairs.delete(holder);
+    }
   }
 }
 

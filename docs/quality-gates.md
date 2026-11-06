@@ -631,8 +631,10 @@ merge identity and sort order are `path::method`; `startLine` lives on scan
 rows only, for messages and the `--json` report. `compareCrap` buckets every
 row — named or anonymous — by `(file, stem)` and aligns in order, so inserting
 an earlier namesake re-pairs the later ones instead of reporting them new and
-removed; a rename stays one new method plus one removed row. With no line in
-the key, per-row `coordinateSystem` / `anonymous` markers, the
+removed — unless the inserted one scored higher than the existing method's
+row, which fails safe as that method's regression, so a later namesake added
+alongside a real increase cannot hide it. A rename stays one new method plus
+one removed row. With no line in the key, per-row `coordinateSystem` / `anonymous` markers, the
 `provenanceStamped` stamp, the nearest-line drift arm and the coordinate
 compat axes are gone; `tsTranspilerVersion` stays, because a transpiler change
 can rename or re-nest emitted methods. The file is grouped by path (see
