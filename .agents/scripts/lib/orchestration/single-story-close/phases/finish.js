@@ -131,6 +131,7 @@ export async function finishWithMergeWait(prCtx, deps) {
     gates: prCtx.gates,
     lockWait: prCtx.lockWait,
     suiteTimings: prCtx.suiteTimings,
+    baseSync: prCtx.baseSync,
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });
   const result = closeResult({
@@ -205,6 +206,7 @@ export async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     gates: prCtx.gates,
     lockWait: prCtx.lockWait,
     suiteTimings: prCtx.suiteTimings,
+    baseSync: prCtx.baseSync,
     nextCommand: NEXT_COMMANDS.confirmMerge(prCtx.storyId),
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });

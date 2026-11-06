@@ -118,6 +118,8 @@ function compact(obj) {
  *   Full-suite lock wait; `waitBudget` is merge-wait only.
  * @param {{ lockWaitMs: number, hostWaitMs: number|null, testRunMs: number, source: 'close'|'credited-run', spawns: object[] }|null} [args.suiteTimings]
  * @param {Record<string, number>|null} [args.phaseDurations] Seconds per phase.
+ * @param {{ mode: string, outcome: string, reason: string, incoming: number }|null} [args.baseSync]
+ *   Close's base-sync decision; `null` when no sync ran, absent when not passed.
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]
  *   Test seam.
@@ -141,6 +143,7 @@ export function buildTerminalEnvelope({
   lockWait,
   suiteTimings,
   phaseDurations,
+  baseSync,
   timestamp = new Date().toISOString(),
   schemaSource,
 }) {
@@ -164,6 +167,7 @@ export function buildTerminalEnvelope({
     lockWait: lockWait ?? null,
     suiteTimings: suiteTimings ?? null,
     phaseDurations,
+    baseSync,
     timestamp,
   });
 

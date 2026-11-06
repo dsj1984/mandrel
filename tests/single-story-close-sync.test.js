@@ -21,6 +21,7 @@ import {
   prSurfaceUsesRest,
   setGraphqlAvailability,
 } from '../.agents/scripts/lib/gh-exec.js';
+import { syncFromBaseByMode } from '../.agents/scripts/lib/git/base-sync-probe.js';
 import { pinRunScopedConfig } from '../.agents/scripts/lib/orchestration/run-scoped-config.js';
 import { failedTerminalFor } from '../.agents/scripts/lib/orchestration/single-story-close/failed-terminal.js';
 import { runBaseSyncPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js';
@@ -204,6 +205,8 @@ function worktreeManagerMock() {
     },
   };
 }
+
+const ON_CONFLICT = { delivery: { close: { baseSync: 'on-conflict' } } };
 
 function fakeConfig() {
   return {
@@ -1109,7 +1112,10 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
     });
     mockCloseValidation(t, {
       namedExports: {
-        buildDefaultGates: () => [],
+        buildDefaultGates: (opts) => {
+          observed.gateOpts = opts;
+          return [];
+        },
         runCloseValidation: async () => {
           order.push('close-validation');
           observed.validatedSha = head;
@@ -1131,7 +1137,7 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
         injectedRunCodeReview: reviewOk,
         ...extra,
       });
-    return { order, observed, run };
+    return { order, observed, run, injectedSync };
   }
 
   let tag = 0;
@@ -1209,6 +1215,80 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
       h.observed.validatedSha,
       'the push must send the tree the gates validated',
     );
+  });
+
+  // Story #5954 AC-9 — a conflict-free, disjoint base move under on-conflict
+  // creates no merge commit: close validates and pushes the tree it has.
+  it('on-conflict skips a conflict-free disjoint sync and reports it', async (t) => {
+    const h = orderHarness(t, {
+      syncResult: { synced: true, kind: 'merge-commit' },
+      gh: happyGh(),
+    });
+    const out = await h.run({
+      injectedSync: (args) =>
+        syncFromBaseByMode({
+          ...args,
+          resolveConfigImpl: () => ON_CONFLICT,
+          probeImpl: async () => ({
+            skip: true,
+            incoming: 4,
+            mergeBase: 'm'.repeat(40),
+          }),
+          syncImpl: async () => {
+            throw new Error('a skipped sync must not merge');
+          },
+        }),
+    });
+    assert.equal(out.success, true);
+    assert.deepEqual(h.order, ['close-validation', 'push']);
+    assert.equal(h.observed.pushedSha, 'a'.repeat(40));
+    assert.equal(h.observed.gateOpts.baselineRef, 'm'.repeat(40));
+    assert.deepEqual(out.terminal.baseSync, {
+      mode: 'on-conflict',
+      outcome: 'skipped',
+      reason: 'conflict-free',
+      incoming: 4,
+    });
+  });
+
+  // Story #5954 AC-8 — unset, close merges as before and pins no merge-base.
+  it('always merges by default and records the merge', async (t) => {
+    const h = orderHarness(t, {
+      syncResult: {
+        synced: true,
+        kind: 'merge-commit',
+        changedPaths: ['src/x.js'],
+      },
+      gh: happyGh(),
+    });
+    const out = await h.run({
+      injectedSync: (args) =>
+        syncFromBaseByMode({
+          ...args,
+          resolveConfigImpl: () => ({}),
+          probeImpl: async () => {
+            throw new Error('the probe must not run under always');
+          },
+          syncImpl: h.injectedSync,
+        }),
+    });
+    assert.deepEqual(h.order, ['base-sync', 'close-validation', 'push']);
+    assert.equal(h.observed.gateOpts.baselineRef, undefined);
+    assert.deepEqual(out.terminal.baseSync, {
+      mode: 'always',
+      outcome: 'merged',
+      reason: 'always',
+      incoming: 1,
+    });
+  });
+
+  it('--skip-sync leaves the envelope baseSync null', async (t) => {
+    const h = orderHarness(t, {
+      syncResult: { synced: true, kind: 'fast-forward' },
+      gh: happyGh(),
+    });
+    const out = await h.run({ skipSync: true });
+    assert.equal(out.terminal.baseSync, null);
   });
 
   // AC-9 — the two skip flags keep their meanings and stay independent.
@@ -1653,6 +1733,8 @@ describe('runBaseSyncPhase — the result the gate chain reads (Story #5880)', (
     assert.deepEqual(out, {
       changedPaths: ['lib/a.js'],
       creditedCommit: 'c'.repeat(40),
+      baselineRef: undefined,
+      decision: null,
     });
   });
 
@@ -1662,6 +1744,84 @@ describe('runBaseSyncPhase — the result the gate chain reads (Story #5880)', (
       kind: 'noop-already-current',
       changedPaths: [],
     });
-    assert.deepEqual(out, { changedPaths: [], creditedCommit: null });
+    assert.deepEqual(out, {
+      changedPaths: [],
+      creditedCommit: null,
+      baselineRef: undefined,
+      decision: null,
+    });
+  });
+});
+
+// Story #5954 AC-10 — under on-conflict every probe answer but a skip merges
+// exactly as today, and the decision names why.
+describe('runBaseSyncPhase — on-conflict probe answers (Story #5954)', () => {
+  const run = (probe) => {
+    const lines = [];
+    let synced = 0;
+    const out = runBaseSyncPhase({
+      cwd: '/repo',
+      worktreePath: '/repo/.worktrees/story-5954',
+      baseBranch: 'main',
+      storyBranch: 'story-5954',
+      storyId: 5954,
+      provider: {},
+      injectedSync: (args) =>
+        syncFromBaseByMode({
+          ...args,
+          resolveConfigImpl: () => ON_CONFLICT,
+          probeImpl: async () => probe,
+          syncImpl: async () => {
+            synced += 1;
+            return {
+              synced: true,
+              kind: 'merge-commit',
+              changedPaths: ['src/x.js', 'src/y.js'],
+              preSyncHead: 'c'.repeat(40),
+            };
+          },
+        }),
+      resolveConfigImpl: () => ({}),
+      progress: (_tag, msg) => lines.push(msg),
+    });
+    return out.then((result) => ({ result, lines, synced }));
+  };
+
+  for (const probe of [
+    { skip: false, reason: 'conflict' },
+    { skip: false, reason: 'intersects', path: 'baselines/coverage.json' },
+    { skip: false, reason: 'unsupported' },
+    { skip: false, reason: 'fetch-failed' },
+  ]) {
+    it(`merges when the probe answers ${probe.reason}`, async () => {
+      const { result, lines, synced } = await run(probe);
+      assert.equal(synced, 1);
+      assert.equal(result.baselineRef, undefined);
+      assert.deepEqual(result.changedPaths, ['src/x.js', 'src/y.js']);
+      assert.deepEqual(result.decision, {
+        mode: 'on-conflict',
+        outcome: 'merged',
+        reason: probe.reason,
+        incoming: 2,
+      });
+      assert.ok(
+        lines.some((l) => l.includes(`probe answered ${probe.reason}`)),
+      );
+    });
+  }
+
+  it('a skip runs no sync and carries the merge-base', async () => {
+    const { result, lines, synced } = await run({
+      skip: true,
+      incoming: 3,
+      mergeBase: 'm'.repeat(40),
+    });
+    assert.equal(synced, 0);
+    assert.deepEqual(result.changedPaths, []);
+    assert.equal(result.creditedCommit, null);
+    assert.equal(result.baselineRef, 'm'.repeat(40));
+    assert.equal(result.decision.outcome, 'skipped');
+    assert.ok(lines.some((l) => /skipped .*3 incoming path/.test(l)));
+    assert.ok(!lines.some((l) => l.startsWith('⚠️')), 'no BASE MOVED warning');
   });
 });

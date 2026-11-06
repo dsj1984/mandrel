@@ -33,7 +33,7 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   baseBranch: string,
  *   storyBranch?: string,
  *   storyId: number,
- *   baseSync?: { changedPaths: string[], creditedCommit: string|null }|null,
+ *   baseSync?: { changedPaths: string[], creditedCommit: string|null, baselineRef?: string }|null,
  *   progress: (tag: string, msg: string) => void,
  *   runCloseValidation?: typeof defaultRunCloseValidation,
  *   buildDefaultGates?: typeof defaultBuildDefaultGates,
@@ -100,6 +100,7 @@ export async function runCloseValidationPhase({
     log: gateLog.log,
     storyId,
     evidenceCwd: cwd,
+    baselineRef: baseSync?.baselineRef,
   };
   const gateList = applyTestDelta(buildDefaultGates(gateOpts), {
     ...gateOpts,

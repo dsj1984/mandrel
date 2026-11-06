@@ -1,11 +1,13 @@
 /**
  * Delta refresh for `captureScope: "affected"`: after a base-sync merges main
- * commits that share no file with the Story, re-measure only those commits'
- * tests instead of re-running the Story's whole affected scope. Every
+ * commits, re-measure only those commits' tests instead of re-running the
+ * Story's whole affected scope. A delta sharing a file with the Story
+ * qualifies only when no Story commit landed since the stamp. Every
  * uncertainty fails closed to an ordinary capture.
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import picomatch from 'picomatch';
 import { getQuality } from './config/quality.js';
 import {
   captureStampPath,
@@ -121,12 +123,25 @@ function treeIneligibility({ cwd, commit, spawn }) {
   return null;
 }
 
-function overlapReason(suite, storyFiles, coveragePath) {
-  const story = new Set(filterSuiteInputPaths(storyFiles, coveragePath));
-  const shared = suite.find((f) => story.has(f));
-  if (shared) return `delta shares ${shared} with the Story's change set`;
-  const config = suite.find(isCoverageConfigFile);
-  return config ? `delta touches coverage-determining config ${config}` : null;
+/** `nonInputGlobs` as a predicate; an unset list matches nothing. */
+function nonInputMatcher(globs) {
+  return Array.isArray(globs) && globs.length > 0
+    ? picomatch(globs, { dot: true })
+    : () => false;
+}
+
+/** Suite inputs with the consumer's non-input globs dropped. */
+function ruleInputs({ delta, storyFiles, coveragePath, nonInputGlobs }) {
+  const isNonInput = nonInputMatcher(nonInputGlobs);
+  const keep = (files) =>
+    filterSuiteInputPaths(files, coveragePath).filter((f) => !isNonInput(f));
+  const suite = filterSuiteInputPaths(delta, coveragePath);
+  const inputs = suite.filter((f) => !isNonInput(f));
+  const dropped = {
+    baseline: delta.length - suite.length,
+    globs: suite.length - inputs.length,
+  };
+  return { suite, inputs, story: new Set(keep(storyFiles)), dropped };
 }
 
 function emptinessReason(delta, suite) {
@@ -134,28 +149,85 @@ function emptinessReason(delta, suite) {
   return suite.length === 0 ? 'delta has no suite-input path' : null;
 }
 
+function ownCommitsWhy(commits) {
+  if (!commits) {
+    return "the base ref is unresolvable, so the Story's own commits since the stamp cannot be ruled out";
+  }
+  const shas = commits.map((c) => c.slice(0, 12)).join(', ');
+  return `the Story's own commit(s) since the stamp: ${shas}`;
+}
+
+/** Without an `ownCommits` probe (close) any overlap refuses. */
+function overlapRule(shared, ownCommits) {
+  const reason = `delta shares ${shared} with the Story's change set`;
+  if (!ownCommits) return { rule: 'overlap', reason };
+  const commits = ownCommits();
+  if (commits?.length === 0) return null;
+  return {
+    rule: 'own-commits',
+    reason: `${reason} and ${ownCommitsWhy(commits)}`,
+  };
+}
+
+function configRule(suite, configHandled) {
+  const config = configHandled ? null : suite.find(isCoverageConfigFile);
+  if (!config) return null;
+  return {
+    rule: 'config',
+    reason: `delta touches coverage-determining config ${config}`,
+  };
+}
+
 /**
  * Shared with close's `test` delta re-credit. Only suite inputs count, so
- * baseline and coverage-directory paths never overlap.
+ * baseline and coverage-directory paths never overlap; `nonInputGlobs`
+ * paths never overlap either.
  *
- * @returns {{ reason: string | null, delta: string[], dropped: number }}
+ * @returns {{ rule: string, reason: string | null, delta: string[], dropped: { baseline: number, globs: number }, overlap: number }}
  */
-function deltaIneligibility({ delta, storyFiles, coveragePath }) {
-  const suite = filterSuiteInputPaths(delta, coveragePath);
-  const reason =
-    emptinessReason(delta, suite) ??
-    overlapReason(suite, storyFiles, coveragePath);
-  return { reason, delta: suite, dropped: delta.length - suite.length };
+function deltaIneligibility({
+  delta,
+  storyFiles,
+  coveragePath,
+  nonInputGlobs,
+  configHandled = false,
+  ownCommits,
+}) {
+  const f = ruleInputs({ delta, storyFiles, coveragePath, nonInputGlobs });
+  const shared = f.inputs.filter((p) => f.story.has(p));
+  const empty = emptinessReason(delta, f.suite);
+  const decided =
+    (empty && { rule: 'empty', reason: empty }) ||
+    (shared.length > 0 && overlapRule(shared[0], ownCommits)) ||
+    configRule(f.suite, configHandled);
+  const pass = {
+    rule: shared.length > 0 ? 'overlap' : 'disjoint',
+    reason: null,
+  };
+  return {
+    delta: f.inputs,
+    dropped: f.dropped,
+    overlap: shared.length,
+    ...(decided || pass),
+  };
 }
 
-/** The rule's reason for close, on the configured coverage path. */
+/** The rule's reason for close, on the configured coverage path; config always refuses. */
 export function closeDeltaIneligibility({ delta, storyFiles, config }) {
-  const coveragePath = getQuality(config)?.crap?.coveragePath;
-  return deltaIneligibility({ delta, storyFiles, coveragePath }).reason;
+  const quality = getQuality(config);
+  return deltaIneligibility({
+    delta,
+    storyFiles,
+    coveragePath: quality?.crap?.coveragePath,
+    nonInputGlobs: quality?.coverage?.nonInputGlobs,
+  }).reason;
 }
 
-function droppedSuffix(dropped) {
-  return dropped > 0 ? `, ${dropped} non-suite-input path(s) dropped` : '';
+/** Which rule decided, the delta size and what each filter dropped. */
+function ruleCounts(rule, name = rule.rule) {
+  const overlap =
+    rule.overlap > 0 ? `; ${rule.overlap} Story file(s) overlapped` : '';
+  return `rule: ${name}; delta: ${rule.delta.length} file(s); dropped: ${rule.dropped.baseline} baseline/coverage-dir, ${rule.dropped.globs} nonInputGlobs${overlap}`;
 }
 
 function parseNames(stdout) {
@@ -172,18 +244,41 @@ function stampStale({ stamp, cwd, crap, computeContentDigestImpl }) {
   return stampIsStale({ stamp, current, cwd, coveragePath: crap.coveragePath });
 }
 
+/** Non-merge commits since the stamp that the base lacks; `null` when unknown. */
+function storyOwnCommits({ cwd, commit, baseRef, spawn }) {
+  if (typeof baseRef !== 'string' || baseRef.length === 0) return null;
+  const res = git(
+    cwd,
+    ['rev-list', '--no-merges', `${commit}..HEAD`, `^${baseRef}`],
+    spawn,
+  );
+  return res?.status === 0 ? parseNames(res.stdout) : null;
+}
+
 /** Main's committed delta since the stamp, judged by the shared rule. */
-function classifyCommittedDelta({ cwd, crap, storyFiles, stamp, spawn }) {
+function classifyCommittedDelta({
+  cwd,
+  crap,
+  coverage,
+  storyFiles,
+  stamp,
+  baseRef,
+  spawn,
+}) {
   const { commit } = stamp;
   const no = (reason, rule) => ({ eligible: false, reason, stamp, rule });
   const diff = git(cwd, ['diff', '--name-only', commit, 'HEAD'], spawn);
   if (diff?.status !== 0) return no('git diff failed');
+  const delta = parseNames(diff.stdout);
   const rule = deltaIneligibility({
-    delta: parseNames(diff.stdout),
+    delta,
     storyFiles,
     coveragePath: crap.coveragePath,
+    nonInputGlobs: coverage?.nonInputGlobs,
+    configHandled: coverage?.captureHandlesConfigChanges === true,
+    ownCommits: () => storyOwnCommits({ cwd, commit, baseRef, spawn }),
   });
-  const restamp = rule.delta.length === 0 && rule.dropped > 0;
+  const restamp = rule.delta.length === 0 && delta.length > 0;
   if (rule.reason && !restamp) return no(rule.reason, rule);
   return { eligible: true, restamp, commit, rule, stamp };
 }
@@ -192,8 +287,10 @@ function classifyCommittedDelta({ cwd, crap, storyFiles, stamp, spawn }) {
 function classifyDeltaRefresh({
   cwd,
   crap,
+  coverage,
   storyFiles,
   prior,
+  baseRef,
   gitSpawnImpl: spawn = gitSpawn,
   readFileSync = fs.readFileSync,
   computeContentDigestImpl = computeContentDigest,
@@ -207,12 +304,20 @@ function classifyDeltaRefresh({
   if (!prior) return no('no prior artifact to merge over');
   const treeReason = treeIneligibility({ cwd, commit: stamp.commit, spawn });
   if (treeReason) return no(treeReason);
-  return classifyCommittedDelta({ cwd, crap, storyFiles, stamp, spawn });
+  return classifyCommittedDelta({
+    cwd,
+    crap,
+    coverage,
+    storyFiles,
+    stamp,
+    baseRef,
+    spawn,
+  });
 }
 
+/** A refusal before any delta was read names the `precondition` rule. */
 function deltaCounts(rule) {
-  if (!rule) return '';
-  return `; delta: ${rule.delta.length} file(s)${droppedSuffix(rule.dropped)}`;
+  return `; ${rule ? ruleCounts(rule) : 'rule: precondition'}`;
 }
 
 const skipRun = async () => 0;
@@ -220,10 +325,10 @@ const skipRun = async () => 0;
 function reportPlan(plan, crap, logger) {
   const at = `[coverage-capture] Coverage at ${crap.coveragePath}`;
   const since = plan.commit.slice(0, 12);
-  const dropped = droppedSuffix(plan.rule.dropped);
+  const counts = ruleCounts(plan.rule, plan.restamp ? 'restamp' : undefined);
   if (plan.restamp) {
     logger.info(
-      `${at} needs only a restamp — every path changed since ${since} is a non-suite input (delta: 0 file(s)${dropped}).`,
+      `${at} needs only a restamp — every path changed since ${since} is a non-suite input (${counts}).`,
     );
     // A no-op run over the prior artifact only rewrites the stamp.
     return { baseRef: plan.commit, dropFiles: [], runCaptureImpl: skipRun };
@@ -236,7 +341,7 @@ function reportPlan(plan, crap, logger) {
     deltaFiles: files.length,
   });
   logger.info(
-    `${at} needs a delta refresh — re-measuring ${files.length} file(s) changed since ${since}${dropped}. ${detail}`,
+    `${at} needs a delta refresh — re-measuring ${files.length} file(s) changed since ${since} (${counts}). ${detail}`,
   );
   return { baseRef: plan.commit, dropFiles: files };
 }
@@ -251,6 +356,7 @@ function reportPlan(plan, crap, logger) {
 export function planDeltaRefresh({
   freshness,
   crap,
+  coverage,
   args,
   changed,
   prior,
@@ -261,8 +367,10 @@ export function planDeltaRefresh({
   const plan = classifyDeltaRefreshImpl({
     cwd: args.cwd,
     crap,
+    coverage,
     storyFiles: changed,
     prior,
+    baseRef: args.baseBranchRef,
   });
   if (plan.eligible) return reportPlan(plan, crap, logger);
   logger.info(

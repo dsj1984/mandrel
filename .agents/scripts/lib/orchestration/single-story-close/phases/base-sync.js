@@ -10,7 +10,7 @@
 import { getQuality } from '../../../config/quality.js';
 import { resolveConfig } from '../../../config-resolver.js';
 import { filterSuiteInputPaths } from '../../../coverage-capture.js';
-import { syncBranchFromBase } from '../../../git/sync-from-base.js';
+import { syncFromBaseByMode } from '../../../git/base-sync-probe.js';
 import { Logger } from '../../../Logger.js';
 import { AGENT_LABELS } from '../../../label-constants.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
@@ -31,11 +31,12 @@ import {
  *   storyBranch: string,
  *   storyId: number,
  *   provider: object,
- *   injectedSync?: typeof syncBranchFromBase,
+ *   injectedSync?: typeof syncFromBaseByMode,
  *   resolveConfigImpl?: typeof resolveConfig,
  *   progress: (tag: string, msg: string) => void,
  * }} args
- * @returns {Promise<{ changedPaths: string[], creditedCommit: string|null }>} The pre-sync head is the credited commit.
+ * @returns {Promise<{ changedPaths: string[], creditedCommit: string|null, baselineRef?: string, decision: object|null }>}
+ *   The pre-sync head is the credited commit; a skipped sync pins `baselineRef`.
  */
 export async function runBaseSyncPhase({
   cwd,
@@ -54,7 +55,7 @@ export async function runBaseSyncPhase({
     'SYNC',
     `Syncing ${storyBranch} from origin/${baseBranch} in ${syncCwd}...`,
   );
-  const syncFn = injectedSync ?? syncBranchFromBase;
+  const syncFn = injectedSync ?? syncFromBaseByMode;
   const syncResult = await syncFn({
     cwd: syncCwd,
     baseBranch,
@@ -95,6 +96,8 @@ export async function runBaseSyncPhase({
       ? syncResult.changedPaths
       : [],
     creditedCommit: syncResult.preSyncHead ?? null,
+    baselineRef: syncResult.baselineRef,
+    decision: syncResult.decision ?? null,
   };
 }
 
