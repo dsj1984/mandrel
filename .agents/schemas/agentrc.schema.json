@@ -1450,7 +1450,7 @@
                 },
                 "additionalProperties": false
               },
-              "description": "Review-provider chain (Story #2871). When unset or empty, falls back to this default: `native` (maintainability scoring of the changed files) then an optional story-scoped `llm-review` — the first available of `code-review` (a low-effort `claude --print` bug review whose every finding is critical and halts close before auto-merge) and `codex` (`codex exec`), so a host with both CLIs runs one LLM review and a host with neither skips it. Pin `code-review` or `codex` to choose the CLI. `security-review` and `ultrareview` are opt-in. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain.",
+              "description": "Review-provider chain (Story #2871). When unset or empty, falls back to this default: `native` (maintainability scoring of the changed files) then an optional story-scoped `llm-review` — the first available of `code-review` (a `claude --print` bug review, at the effort `effortByDepth` maps its depth to, whose every finding is critical and halts close before auto-merge) and `codex` (`codex exec`), so a host with both CLIs runs one LLM review and a host with neither skips it. Pin `code-review` or `codex` to choose the CLI. `security-review` and `ultrareview` are opt-in. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain.",
               "default": [
                 {
                   "name": "native"
@@ -1491,6 +1491,17 @@
                   }
                 },
                 "additionalProperties": false
+              }
+            },
+            "effortByDepth": {
+              "type": "object",
+              "description": "The `claude --effort` level the `code-review` provider runs at for each review depth. An entry overrides the shipped default for that depth only: `light: low`, `standard: low`, `deep: high`.",
+              "propertyNames": {
+                "enum": ["light", "standard", "deep"]
+              },
+              "additionalProperties": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "xhigh", "max"]
               }
             },
             "guidanceFile": {

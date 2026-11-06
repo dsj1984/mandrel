@@ -16,11 +16,15 @@
 // read is driven through its injected seam.
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import test, { describe } from 'node:test';
+import { getAgentrcValidator } from '../.agents/scripts/lib/config-settings-schema.js';
 import {
   DEFAULT_DIFF_WIDTH,
   deriveChangeLevel,
   resolveDepth,
+  resolveReviewEffort,
 } from '../.agents/scripts/lib/orchestration/review-depth.js';
 
 const { softFiles, hardFiles } = DEFAULT_DIFF_WIDTH;
@@ -285,5 +289,51 @@ describe('resolveDepth — custom diffWidth override', () => {
       }),
       'deep',
     );
+  });
+});
+
+describe('resolveReviewEffort — depth → claude --effort (#5976)', () => {
+  test('the shipped default: light and standard low, deep high, no depth low', () => {
+    assert.equal(resolveReviewEffort('light'), 'low');
+    assert.equal(resolveReviewEffort('standard'), 'low');
+    assert.equal(resolveReviewEffort('deep'), 'high');
+    assert.equal(resolveReviewEffort(undefined, null), 'low');
+  });
+
+  test('a configured depth overrides only itself', () => {
+    const map = { light: 'medium' };
+    assert.equal(resolveReviewEffort('light', map), 'medium');
+    assert.equal(resolveReviewEffort('standard', map), 'low');
+    assert.equal(resolveReviewEffort('deep', map), 'high');
+  });
+});
+
+describe('.agentrc.json validation of delivery.codeReview.effortByDepth', () => {
+  const validate = getAgentrcValidator();
+  const base = JSON.parse(
+    readFileSync(path.join(import.meta.dirname, '..', '.agentrc.json'), 'utf8'),
+  );
+  const agentrc = (effortByDepth) => ({
+    ...base,
+    delivery: {
+      ...base.delivery,
+      codeReview: { ...base.delivery?.codeReview, effortByDepth },
+    },
+  });
+
+  test('accepts every depth at every claude effort level', () => {
+    for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
+      const map = { light: effort, standard: effort, deep: effort };
+      assert.equal(
+        validate(agentrc(map)),
+        true,
+        JSON.stringify(validate.errors),
+      );
+    }
+  });
+
+  test('rejects an unknown depth key or an unknown effort value', () => {
+    assert.equal(validate(agentrc({ heavy: 'high' })), false);
+    assert.equal(validate(agentrc({ deep: 'extreme' })), false);
   });
 });

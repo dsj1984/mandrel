@@ -12,7 +12,11 @@ import { gitSpawn } from '../git-utils.js';
 import { PROJECT_ROOT } from '../project-root.js';
 import { computeChangeSet } from './change-set.js';
 import { remoteBaseRef } from './review-base-ref.js';
-import { deriveChangeLevel, resolveDepth } from './review-depth.js';
+import {
+  deriveChangeLevel,
+  resolveDepth,
+  resolveReviewEffort,
+} from './review-depth.js';
 import {
   appendReviewRun,
   earlierCriticals,
@@ -505,8 +509,19 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     codeReviewConfig,
     root: opts.cwd ?? PROJECT_ROOT,
   });
+  const baseInput = buildReviewInput({
+    opts,
+    scope,
+    ticketId,
+    baseRef,
+    headRef,
+  });
   const reviewInput = {
-    ...buildReviewInput({ opts, scope, ticketId, baseRef, headRef }),
+    ...baseInput,
+    effort: resolveReviewEffort(
+      baseInput.depth,
+      codeReviewConfig?.effortByDepth,
+    ),
     guidance: guidance.guidance,
   };
 

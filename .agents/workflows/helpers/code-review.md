@@ -83,6 +83,10 @@ How each tier changes the review protocol:
   to check every caller in that block against the new signature or shape —
   the one bug class a diff alone cannot show.
 
+The `code-review` provider also maps depth to `claude --effort`: `low` at
+`light` and `standard`, `high` at `deep`. `delivery.codeReview.effortByDepth`
+overrides that per depth (`low`/`medium`/`high`/`xhigh`/`max`).
+
 The LLM-backed review providers (code-review, codex, security-review,
 ultrareview) render the resolved `depth` into the prompt/instructions they emit so the underlying
 model actually changes thoroughness. The native provider deliberately ignores
