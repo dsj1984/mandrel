@@ -19,6 +19,8 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { runCoverageCapture } from '../../../.agents/scripts/coverage-capture.js';
+import { resolveCrapPreviewIncremental } from '../../../.agents/scripts/lib/baselines/crap-preview-incremental.js';
+import { resolveCaptureBaseRef } from '../../../.agents/scripts/lib/changed-files.js';
 import {
   buildDefaultGates,
   partitionGates,
@@ -196,17 +198,65 @@ describe('buildDefaultGates — the test gate never vanishes (Story #5278)', () 
   };
   const SCRIPTS = { 'test:coverage': 'c8 node --test' };
 
-  const build = (changed, config = CRAP_ON) =>
+  // The probe of origin/<base> is stubbed: '/repo' is not a real clone.
+  const remoteResolves = (o) =>
+    resolveCaptureBaseRef({ ...o, gitSpawnFn: () => ({ status: 0 }) });
+  const build = (changed, config = CRAP_ON, seen = []) =>
     buildDefaultGates({
       config,
       packageScripts: SCRIPTS,
       cwd: '/repo',
       baseBranch: 'main',
-      getChangedFilesImpl: () => {
+      resolveBaseRefImpl: remoteResolves,
+      getChangedFilesImpl: ({ ref }) => {
+        seen.push(ref);
         if (changed === 'throw') throw new Error('bad ref');
         return changed;
       },
     });
+
+  // Story #5962 — the skip prediction, the capture and the CRAP preview's
+  // incremental join resolve one ref in a close run.
+  it('AC-6: the skip prediction, the capture and the CRAP preview join resolve the same origin/<baseBranch>', async () => {
+    const predicted = [];
+    build(['tests/a.test.js'], CRAP_ON, predicted);
+    assert.deepEqual(predicted, ['origin/main']);
+
+    const captured = [];
+    await runCoverageCapture(
+      ['node', 'coverage-capture.js', '--cwd', '/repo'],
+      {
+        resolveConfigImpl: () => ({
+          ...CRAP_ON,
+          project: { baseBranch: 'main' },
+        }),
+        resolveBaseRefImpl: remoteResolves,
+        readPackageScriptsImpl: () => SCRIPTS,
+        runCaptureImpl: () => {
+          throw new Error('a tests-only diff must take the incremental skip');
+        },
+        getChangedFilesImpl: ({ ref }) => {
+          captured.push(ref);
+          return ['tests/a.test.js'];
+        },
+        logger: { info() {}, warn() {}, error() {} },
+      },
+    );
+    assert.deepEqual(captured, ['origin/main']);
+
+    const joined = [];
+    resolveCrapPreviewIncremental({
+      crap: { incrementalCoverage: { baselineJoin: true } },
+      diffRef: null,
+      baseBranch: 'main',
+      cwd: '/repo',
+      getChangedFilesImpl: ({ ref }) => {
+        joined.push(ref);
+        return [];
+      },
+    });
+    assert.deepEqual(joined, ['origin/main']);
+  });
 
   // AC-2 — the defect. A tests-only branch takes coverage-capture's own
   // incremental skip, and because CRAP mode had already dropped the plain
