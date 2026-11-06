@@ -29826,6 +29826,26 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "identityOf",
+      "startLine": 51,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "<anon identityOf/filter(line)#0>",
+      "startLine": 55,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "<anon identityOf/map(line)#0>",
+      "startLine": 56,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
       "method": "<anon reviewedText/sections.filter(s)#0>",
       "startLine": 57,
       "crap": 1,
@@ -34005,6 +34025,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
+      "method": "depositReview",
+      "startLine": 43,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
       "method": "<anon computeHeldReview/then(value)#0>",
       "startLine": 45,
       "crap": 1,
@@ -34022,6 +34048,12 @@
       "method": "startHeldReview",
       "startLine": 57,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
+      "method": "holdReview",
+      "startLine": 81,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
@@ -34047,6 +34079,12 @@
       "method": "reviewAfterPrOpen",
       "startLine": 124,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
+      "method": "reviewSerially",
+      "startLine": 155,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
