@@ -115,10 +115,57 @@ function renderRepeatsSection(repeats) {
   ];
 }
 
-/** Fresh findings render in full per tier; repeats render collapsed. */
+const EARLIER_STATUS = Object.freeze({
+  'still-open': 'still open',
+  fixed: 'fixed',
+  refuted: 'refuted',
+  overridden: 'overridden',
+});
+
+/** @param {{ id: string, title: string|null, instances: object[], headSha: string, status: string, reason?: string }} e */
+function renderEarlier(e) {
+  const where = e.instances.map((i) => `\`${formatLocation(i)}\``).join(', ');
+  const status = EARLIER_STATUS[e.status] ?? e.status;
+  return (
+    `- ${e.title ?? '(untitled)'} — \`${e.id}\`${where ? ` — ${where}` : ''}` +
+    ` — raised at \`${e.headSha}\` — **${status}**${e.reason ? `: ${e.reason}` : ''}`
+  );
+}
+
+/** Every earlier surviving CRITICAL, in history order, with its status. */
+function renderEarlierSection(earlier) {
+  if (!Array.isArray(earlier) || earlier.length === 0) return [];
+  return [
+    `### 🔁 Earlier CRITICALs (${earlier.length})`,
+    '',
+    ...earlier.map(renderEarlier),
+    '',
+  ];
+}
+
+/**
+ * The findings, or the no-findings block unless an earlier CRITICAL is
+ * still open.
+ */
+function renderBody(findings, totalKnown, degraded, earlier = []) {
+  if (totalKnown > 0) return renderFindingSections(findings);
+  return earlier.some((e) => e.status === 'still-open')
+    ? []
+    : renderNoFindingsBlock(degraded);
+}
+
+/** Rendered in full under its tier. */
+const isFresh = (f) => f && !f.repeat && !f.carried;
+/** Rendered collapsed under Previously raised. */
+const isRepeat = (f) => f?.repeat && !f.carried;
+
+/**
+ * Fresh findings render in full per tier; repeats render collapsed; carried
+ * ones render only under Earlier CRITICALs.
+ */
 function renderFindingSections(findings) {
   const lines = [];
-  const fresh = findings.filter((f) => f && !f.repeat);
+  const fresh = findings.filter(isFresh);
   for (const sev of SEVERITY_ORDER) {
     const tierFindings = fresh.filter((f) => f.severity === sev);
     if (tierFindings.length === 0) continue;
@@ -126,7 +173,7 @@ function renderFindingSections(findings) {
     lines.push(`### ${meta.emoji} ${meta.label} (${tierFindings.length})`, '');
     for (const finding of tierFindings) lines.push(renderFinding(finding), '');
   }
-  return [...lines, ...renderRepeatsSection(findings.filter((f) => f?.repeat))];
+  return [...lines, ...renderRepeatsSection(findings.filter(isRepeat))];
 }
 
 /**
@@ -160,6 +207,7 @@ function renderManualPromptsSection(messages) {
  *   degradations?: ReadonlyArray<object>,
  *   verification?: Record<string, number>,
  *   skipped?: number,
+ *   earlierCriticals?: ReadonlyArray<object>,
  * }} input
  * @returns {string}
  */
@@ -197,11 +245,10 @@ export function renderFindings(input) {
     ...renderDegradedGatesSection(degraded),
   ];
 
-  if (totalKnown === 0) {
-    lines.push(...renderNoFindingsBlock(degraded));
-  } else {
-    lines.push(...renderFindingSections(findings));
-  }
+  lines.push(
+    ...renderEarlierSection(input.earlierCriticals),
+    ...renderBody(findings, totalKnown, degraded, input.earlierCriticals),
+  );
 
   const promptLines = renderManualPromptsSection(promptMessages ?? []);
   if (promptLines.length > 0) {
