@@ -18,6 +18,7 @@ import { storyReviewDepositPath } from '../../.agents/scripts/lib/config/temp-pa
 import { gitSpawn } from '../../.agents/scripts/lib/git-utils.js';
 import { runCodeReview } from '../../.agents/scripts/lib/orchestration/code-review.js';
 import { computeReviewDiffDigest } from '../../.agents/scripts/lib/orchestration/review-deposit.js';
+import { readDiff } from '../../.agents/scripts/lib/orchestration/review-providers/generated-diff.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   computeStoryReviewDeposit,
@@ -291,38 +292,101 @@ describe('CLI surface (AC-7)', () => {
 });
 
 /** Story #5905 AC-4 — the digest is keyed on the diff minus generated files. */
+/** A throwaway repo on `main`, plus helpers to commit and to digest. */
+function digestRepo() {
+  const repo = path.join(tempRoot, 'repo');
+  mkdirSync(path.join(repo, 'baselines'), { recursive: true });
+  const git = (...args) => {
+    const res = gitSpawn(repo, ...args);
+    assert.equal(res.status, 0, `git ${args.join(' ')}: ${res.stderr}`);
+    return res.stdout;
+  };
+  const commit = (file, text) => {
+    writeFileSync(path.join(repo, file), text);
+    git('add', '--', file);
+    git('commit', '-q', '-m', file);
+  };
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'T');
+  git('config', 'commit.gpgsign', 'false');
+  const digest = () =>
+    computeReviewDiffDigest({
+      cwd: repo,
+      baseRef: 'main',
+      headRef: 'story',
+      gitSpawnFn: gitSpawn,
+    });
+  return { repo, git, commit, digest };
+}
+
 describe('computeReviewDiffDigest — generated sections are not identity', () => {
   test('a generated-only commit keeps the digest; a reviewed-path commit changes it', () => {
-    const repo = path.join(tempRoot, 'repo');
-    mkdirSync(path.join(repo, 'baselines'), { recursive: true });
-    const git = (...args) => {
-      const res = gitSpawn(repo, ...args);
-      assert.equal(res.status, 0, `git ${args.join(' ')}: ${res.stderr}`);
-    };
-    const commit = (file, text) => {
-      writeFileSync(path.join(repo, file), text);
-      git('add', '--', file);
-      git('commit', '-q', '-m', file);
-    };
-    git('init', '-q', '-b', 'main');
-    git('config', 'user.email', 't@example.com');
-    git('config', 'user.name', 'T');
-    git('config', 'commit.gpgsign', 'false');
+    const { git, commit, digest } = digestRepo();
     commit('.gitattributes', 'baselines/*.json linguist-generated=true\n');
     git('checkout', '-q', '-b', 'story');
     commit('a.js', 'export const a = 1;\n');
-    const digest = () =>
-      computeReviewDiffDigest({
-        cwd: repo,
-        baseRef: 'main',
-        headRef: 'story',
-        gitSpawnFn: gitSpawn,
-      });
     const reviewed = digest();
     assert.match(reviewed, /^[0-9a-f]{64}$/);
     commit('baselines/crap.json', '{"rows":[]}\n');
     assert.equal(digest(), reviewed, 'a new generated file is not identity');
     commit('b.js', 'export const b = 2;\n');
     assert.notEqual(digest(), reviewed, 'a reviewed path voids the deposit');
+  });
+});
+
+describe('computeReviewDiffDigest — offsets and index lines are not identity', () => {
+  const lines = (n) =>
+    Array.from({ length: n }, (_, i) => `const l${i + 1} = ${i + 1};`);
+  const file = (rows) => `${rows.join('\n')}\n`;
+  /** `main` holds a 20-line a.js; `story` rewrites line 10 of it. */
+  function storyOnSharedFile() {
+    const ctx = digestRepo();
+    const base = lines(20);
+    ctx.commit('a.js', file(base));
+    ctx.git('checkout', '-q', '-b', 'story');
+    const story = [...base];
+    story[9] = 'const l10 = "story";';
+    ctx.commit('a.js', file(story));
+    return { ...ctx, base, story };
+  }
+  /** Commit `rows` on main, then merge main into story. */
+  function mergeMainChange(ctx, rows) {
+    ctx.git('checkout', '-q', 'main');
+    ctx.commit('a.js', file(rows));
+    ctx.git('checkout', '-q', 'story');
+    ctx.git('merge', '-q', '--no-edit', 'main');
+  }
+
+  test('a base merge that only shifts the hunk keeps the digest; the reviewer still sees the raw diff', () => {
+    const ctx = storyOnSharedFile();
+    const reviewed = ctx.digest();
+    const rawBefore = ctx.git('diff', '--no-color', 'main...story');
+    mergeMainChange(ctx, [...lines(5).map((l) => `${l} // top`), ...ctx.base]);
+    const rawAfter = ctx.git('diff', '--no-color', 'main...story');
+    assert.notEqual(rawAfter, rawBefore, 'offsets and index lines moved');
+    assert.match(rawAfter, /^index /m);
+    assert.match(rawAfter, /^@@ -\d+,\d+ \+\d+,\d+ @@/m);
+    const seen = readDiff(
+      gitSpawn,
+      { baseRef: 'main', headRef: 'story' },
+      ctx.repo,
+    );
+    assert.equal(seen.text, rawAfter, 'the review provider gets the raw diff');
+    assert.equal(ctx.digest(), reviewed);
+  });
+
+  test('a changed context line or added line moves the digest', () => {
+    const ctx = storyOnSharedFile();
+    const reviewed = ctx.digest();
+    const context = [...ctx.base];
+    context[11] = 'const l12 = "main";';
+    mergeMainChange(ctx, context);
+    const afterContext = ctx.digest();
+    assert.notEqual(afterContext, reviewed, 'a context line is identity');
+    const edited = [...context];
+    edited[9] = 'const l10 = "story, edited";';
+    ctx.commit('a.js', file(edited));
+    assert.notEqual(ctx.digest(), afterContext, 'an added line is identity');
   });
 });

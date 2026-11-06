@@ -2,11 +2,12 @@
  * review-deposit.js — the held Story-scope review a worker computes at push
  * time, and its identity.
  *
- * The identity is the **diff digest**: a sha256 of the exact
- * `git diff --no-color <base>...<head>` text, less generated files. A clean
- * base-sync merge moves HEAD without changing that text, while any commit
- * that changes the diff changes it — so close adopts a deposit, and posts a
- * held result, on digest equality, never on SHA equality.
+ * The identity is the **diff digest**: a sha256 of the
+ * `git diff --no-color <base>...<head>` text, less generated files, `index`
+ * lines and hunk-header offsets (`git patch-id --stable`'s sameness). A
+ * base-sync merge that only moves merge-base blobs or line positions keeps
+ * it; any changed `+`, `-` or context line moves it — so close adopts a
+ * deposit, and posts a held result, on digest equality, never on SHA equality.
  *
  * The file lives beside the terminal envelope; nothing deletes it but the
  * Story temp purge. A mismatched deposit is simply not adopted.
@@ -46,7 +47,17 @@ export function resolveRefSha({ cwd, ref, gitSpawnFn }) {
   }
 }
 
-/** Generated sections dropped; end-trimmed as the runner trims stdout. */
+/** A section less its `index` lines, each hunk header reduced to `@@`. */
+function identityOf(section) {
+  return section
+    .trimEnd()
+    .split('\n')
+    .filter((line) => !line.startsWith('index '))
+    .map((line) => (/^@@ -\d/.test(line) ? '@@' : line))
+    .join('\n');
+}
+
+/** Generated sections dropped, the rest reduced to their identity. */
 function reviewedText(diff, deps) {
   const sections = diffSections(diff);
   const generated = generatedPaths(
@@ -55,13 +66,13 @@ function reviewedText(diff, deps) {
   );
   return sections
     .filter((s) => !generated.has(sectionPath(s)))
-    .map((s) => s.trimEnd())
+    .map(identityOf)
     .join('\n');
 }
 
 /**
- * sha256 of the three-dot diff text, spawned exactly as the review provider
- * spawns it. `null` when the diff cannot be read — an unknown identity that
+ * sha256 of the three-dot diff's identity, spawned exactly as the review
+ * provider spawns it (the provider still receives the raw diff). `null` when the diff cannot be read — an unknown identity that
  * never matches anything.
  *
  * @param {{ cwd: string, baseRef: string|null, headRef: string|null,
