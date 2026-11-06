@@ -28,7 +28,7 @@ import { settleStoryScopeReview as defaultSettleStoryScopeReview } from './code-
 const REVIEW_TYPE = 'verification-results';
 
 /** The merged PR's head SHA and URL, through the merge wait's time-boxed gh. */
-export async function readPrHead({
+async function readPrHead({
   prNumber,
   gh = createGh(undefined, { timeoutMs: MERGE_WAIT_GH_TIMEOUT_MS }),
 }) {
@@ -63,7 +63,7 @@ function matchDeposit(ctx, headSha) {
  * @param {{ storyId: number|string, reason: string, headSha: string }} args
  * @returns {string}
  */
-export function buildUnreviewedMarker({ storyId, reason, headSha }) {
+function buildUnreviewedMarker({ storyId, reason, headSha }) {
   return [
     `## 🔬 Code Review — Story #${storyId}`,
     '',

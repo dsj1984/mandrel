@@ -4,11 +4,7 @@ import { describe, it } from 'node:test';
 import { setLevel } from '../../../.agents/scripts/lib/Logger.js';
 import { RUNTIME_FRICTION_CATEGORIES } from '../../../.agents/scripts/lib/observability/runtime-friction.js';
 import { buildReviewDeposit } from '../../../.agents/scripts/lib/orchestration/review-deposit.js';
-import {
-  buildUnreviewedMarker,
-  readPrHead,
-  recordLandReview,
-} from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/land-review-record.js';
+import { recordLandReview } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/land-review-record.js';
 import { runPostLandTail } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/post-land.js';
 import {
   buildTerminalEnvelope,
@@ -211,7 +207,7 @@ describe('recordLandReview — the land review record (Story #5975)', () => {
     assert.deepEqual(out, { ok: false, detail: 'post-failed' });
   });
 
-  it('readPrHead reads headRefOid and url, and throws on a missing head', async () => {
+  it('reads the merged head through the caller gh; a missing head throws for step() to degrade', async () => {
     const asked = [];
     const gh = {
       pr: {
@@ -221,25 +217,23 @@ describe('recordLandReview — the land review record (Story #5975)', () => {
         },
       },
     };
-    assert.deepEqual(await readPrHead({ prNumber: PR, gh }), {
-      headSha: HEAD,
-      url: PR_URL,
-    });
+    const provider = fakeProvider();
+    const base = seams({ provider });
+    delete base.readPrHeadFn;
+    const out = await recordLandReview({ ...base, gh });
+    assert.equal(out.detail, 'unreviewed-no-deposit');
     assert.deepEqual(asked, [[PR, ['headRefOid', 'url']]]);
-    await assert.rejects(
-      readPrHead({ prNumber: PR, gh: { pr: { view: async () => ({}) } } }),
-      /no headRefOid/,
-    );
-  });
-
-  it('buildUnreviewedMarker mirrors the review report heading', () => {
     assert.match(
-      buildUnreviewedMarker({
-        storyId: 1,
-        reason: 'no-deposit',
-        headSha: HEAD,
+      reviewComments(provider)[0],
+      /^.*\n\n## 🔬 Code Review — Story #5975\n/s,
+    );
+    await assert.rejects(
+      recordLandReview({
+        ...base,
+        provider: fakeProvider(),
+        gh: { pr: { view: async () => ({}) } },
       }),
-      /^## 🔬 Code Review — Story #1\n/,
+      /no headRefOid/,
     );
   });
 });
