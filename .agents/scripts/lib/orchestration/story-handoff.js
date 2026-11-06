@@ -55,13 +55,13 @@ import { defaultSleep } from '../util/sleep.js';
 import { runStreamed } from './evidence-stream.js';
 import {
   carryCoverageDeferral,
-  carryLintCredit,
+  carryPreflightCredits,
   clearCoverageDeferral,
   coverageEnvelope,
   creditedPreflight,
   isOverBudgetCapture,
-  lintCredit,
   postCaptureSettled,
+  recordPreflightCredit,
   scorePostCapture,
   seatableKinds,
   settleOverBudget,
@@ -329,7 +329,7 @@ function describeSuiteFailure(status) {
 }
 
 /**
- * Lint and format (deposited), quality-preview, then each ratchet whose
+ * Typecheck, lint and format (deposited), quality-preview, then each ratchet whose
  * baseline is committed.
  *
  * @param {object} ctx
@@ -383,7 +383,12 @@ function preflightFinding(check, run) {
   return `${check.key}${check.gated ? ' ratchet' : ''} finding${rows} — fix and commit, then re-run`;
 }
 
-/** @param {object} ctx @returns {Promise<StepResult>} */
+/**
+ * Runs every check, serially, then settles one `fix-required` listing each
+ * finding; a passed carryable check keeps its credit either way.
+ *
+ * @param {object} ctx @returns {Promise<StepResult>}
+ */
 async function stepPreflight(ctx) {
   const name = 'preflight';
   if (ctx.state.preflightHead === ctx.head) {
@@ -392,16 +397,17 @@ async function stepPreflight(ctx) {
       `preflight already passed at ${ctx.head.slice(0, 12)}`,
     );
   }
-  ctx.state.lintCredit = null;
+  ctx.state.preflightCredits = {};
   let checks;
   try {
     checks = preflightChecks(ctx);
   } catch (err) {
     return fixRequired(
       name,
-      `could not resolve close's lint/format gates: ${err?.message ?? err}`,
+      `could not resolve close's typecheck/lint/format gates: ${err?.message ?? err}`,
     );
   }
+  const findings = [];
   for (const check of checks) {
     const run = await runLogged(
       ctx,
@@ -409,11 +415,22 @@ async function stepPreflight(ctx) {
       check.cmd,
       check.args,
     );
-    const finding = preflightFinding(check, run);
-    if (finding) {
-      return fixRequired(name, finding, { evidencePath: run.evidencePath });
+    const detail = preflightFinding(check, run);
+    if (detail) {
+      findings.push({
+        check: check.key,
+        detail,
+        evidencePath: run.evidencePath,
+      });
+    } else {
+      recordPreflightCredit(ctx, check);
     }
-    if (check.key === 'lint') ctx.state.lintCredit = lintCredit(ctx, check);
+  }
+  if (findings.length > 0) {
+    return fixRequired(name, findings.map((f) => f.detail).join('\n'), {
+      evidencePath: findings[0].evidencePath,
+      findings,
+    });
   }
   ctx.state.preflightHead = ctx.head;
   return ran(name, `${checks.map((c) => c.key).join(', ')} clean`);
@@ -614,7 +631,7 @@ async function commitSeatedRows(ctx, total, evidencePath) {
     recordCredit(ctx, { ...ctx.state.creditTimings, head: ctx.head });
   }
   if (paths.every((p) => p.startsWith('baselines/'))) {
-    carryLintCredit(ctx, priorHead);
+    carryPreflightCredits(ctx, priorHead);
   }
   return ran(name, `seated ${total} row(s) and committed them`, {
     evidencePath,
@@ -975,7 +992,7 @@ function precheck(ctx) {
  *
  * @param {string} statePath
  * @param {(tag: string, msg: string) => void} progress
- * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, lintCredit?: { head: string, configHash: string }|null, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string }}
+ * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, preflightCredits?: Record<string, { head: string, configHash: string }>, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string }}
  */
 function readState(statePath, progress) {
   let raw;

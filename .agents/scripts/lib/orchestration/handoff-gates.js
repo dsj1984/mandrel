@@ -44,13 +44,19 @@ function closeGates(ctx) {
 }
 
 /**
- * Close's `lint` and `format` entries wrapped in `evidence-gate.js` with the
- * argv close executes; a disabled or scoped-out gate deposits nothing.
+ * Gates whose argv ignores the changed-file set, so a baselines-only seat
+ * keeps their credit. Not `format`: its scoped argv names the changed files.
+ */
+const CARRYABLE_GATES = new Set(['lint', 'typecheck']);
+
+/**
+ * Close's preflight entries wrapped in `evidence-gate.js` with the argv close
+ * executes; a disabled or scoped-out gate deposits nothing.
  */
 export function creditedPreflight(ctx) {
   const checks = [];
   for (const gate of closeGates(ctx).filter((g) =>
-    ['lint', 'format'].includes(g.name),
+    ['typecheck', 'lint', 'format'].includes(g.name),
   )) {
     const run = ctx.scopeGate({
       gate,
@@ -83,36 +89,45 @@ export function creditedPreflight(ctx) {
   return checks;
 }
 
-/** The `lint` credit a clean preflight deposited, hashed as close hashes it. */
-export function lintCredit(ctx, check) {
-  return {
+/** Record a passed carryable check's credit, hashed as close hashes it. */
+export function recordPreflightCredit(ctx, check) {
+  if (!CARRYABLE_GATES.has(check.key)) return;
+  ctx.state.preflightCredits[check.key] = {
     head: ctx.head,
     configHash: hashCommandConfig({ ...check.deposit, cwd: ctx.cwd }),
   };
 }
 
-/**
- * Re-key the `lint` pass deposited at `priorHead` onto the seated HEAD. Not
- * `format`: its scoped argv names the changed files, which the seat changes.
- * Best-effort: a failed write only costs close a lint run.
- */
-export function carryLintCredit(ctx, priorHead) {
-  const credit = ctx.state.lintCredit;
-  if (credit?.head !== priorHead) return;
+/** Re-key one credit onto the seated HEAD; best-effort, like close's rerun. */
+function carryCredit(ctx, gateName, credit) {
   try {
     recordPass(
       {
         storyId: ctx.storyId,
-        gateName: 'lint',
+        gateName,
         sha: ctx.head,
         configHash: credit.configHash,
         inputFingerprint: treeFingerprint(ctx.cwd, ctx.git),
       },
       { cwd: ctx.evidenceCwd, standalone: true },
     );
-    ctx.state.lintCredit = { ...credit, head: ctx.head };
+    return { ...credit, head: ctx.head };
   } catch (err) {
-    ctx.progress('seat', `⚠️ lint credit not carried: ${err?.message ?? err}`);
+    ctx.progress(
+      'seat',
+      `⚠️ ${gateName} credit not carried: ${err?.message ?? err}`,
+    );
+    return credit;
+  }
+}
+
+/** Re-key each credit deposited at `priorHead` onto the seated HEAD. */
+export function carryPreflightCredits(ctx, priorHead) {
+  const credits = ctx.state.preflightCredits ?? {};
+  for (const [gateName, credit] of Object.entries(credits)) {
+    if (credit?.head === priorHead) {
+      credits[gateName] = carryCredit(ctx, gateName, credit);
+    }
   }
 }
 
