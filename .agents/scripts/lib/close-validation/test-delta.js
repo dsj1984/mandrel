@@ -85,6 +85,16 @@ function readStoryFiles({ cwd, baseBranch, getChangedFilesImpl }) {
   }
 }
 
+/** The run an ineligible delta leaves in place, for its log line. */
+function keptRun(gate) {
+  return gate?.evidenceNote ? 'the skip-branch scoped run' : 'the full suite';
+}
+
+/** The replaced gate's over-budget flag, carried onto the delta. */
+function overBudgetOf({ deferOnOverBudget }) {
+  return deferOnOverBudget ? { deferOnOverBudget } : {};
+}
+
 /**
  * Swap the plain `test` gate for the delta re-credit when every rule holds;
  * otherwise return `gates` unchanged, logging the failed rule (no base move
@@ -129,11 +139,8 @@ export function applyTestDelta(
     config,
   });
   if (reason) {
-    const kept = gates[index]?.evidenceNote
-      ? 'the skip-branch scoped run'
-      : 'the full suite';
     log?.(
-      `[close-validation] test delta re-credit not eligible (${reason}) — running ${kept}`,
+      `[close-validation] test delta re-credit not eligible (${reason}) — running ${keptRun(gates[index])}`,
     );
     return gates;
   }
@@ -143,10 +150,6 @@ export function applyTestDelta(
     since,
     incoming: incoming.length,
   });
-  const { deferOnOverBudget } = gates[index];
-  return gates.map((g, i) =>
-    i === index
-      ? { ...delta, ...(deferOnOverBudget ? { deferOnOverBudget } : {}) }
-      : g,
-  );
+  const swapped = { ...delta, ...overBudgetOf(gates[index]) };
+  return gates.map((g, i) => (i === index ? swapped : g));
 }

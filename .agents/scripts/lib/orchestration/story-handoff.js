@@ -559,6 +559,28 @@ function testDeposit(ctx) {
   return deposit;
 }
 
+/** The depositor's node argv and its step label. */
+function depositorArgv(ctx) {
+  if (ctx.depositor === 'coverage-capture') {
+    const script = path.join(SCRIPTS_DIR, 'coverage-capture.js');
+    return { args: [script, '--cwd', ctx.cwd], label: ctx.depositor };
+  }
+  const deposit = testDeposit(ctx);
+  const args = [
+    path.join(SCRIPTS_DIR, 'evidence-gate.js'),
+    '--standalone',
+    '--scope-id',
+    String(ctx.storyId),
+    '--gate',
+    'test',
+    '--worktree',
+    ctx.cwd,
+    // Credited under close's `test` identity, whichever argv runs.
+    ...deposit.argv,
+  ];
+  return { args, label: deposit.label };
+}
+
 /** @param {object} ctx @param {AbortSignal} signal @returns {Promise<StepResult>} */
 async function creditedRun(ctx, signal) {
   const name = 'credited-run';
@@ -572,23 +594,7 @@ async function creditedRun(ctx, signal) {
   const ciOwned = settleSuiteOfRecord(ctx, name);
   if (ciOwned) return ciOwned;
   const capture = ctx.depositor === 'coverage-capture';
-  const deposit = capture
-    ? { argv: [], label: ctx.depositor }
-    : testDeposit(ctx);
-  const args = capture
-    ? [path.join(SCRIPTS_DIR, 'coverage-capture.js'), '--cwd', ctx.cwd]
-    : [
-        path.join(SCRIPTS_DIR, 'evidence-gate.js'),
-        '--standalone',
-        '--scope-id',
-        String(ctx.storyId),
-        '--gate',
-        'test',
-        '--worktree',
-        ctx.cwd,
-        // Credited under close's `test` identity, whichever argv runs.
-        ...deposit.argv,
-      ];
+  const { args, label } = depositorArgv(ctx);
   const { result: run, timings } = await withLockProgress(ctx, (env) =>
     runLogged(ctx, 'credited-run', 'node', args, env, signal),
   );
@@ -614,11 +620,11 @@ async function creditedRun(ctx, signal) {
   const credit = { head: ctx.head, lockWait, suiteTimings, spawns };
   if (ranSignal.test(run.output)) {
     recordCredit(ctx, credit);
-    return ran(name, `${deposit.label} deposited credit`, extra);
+    return ran(name, `${label} deposited credit`, extra);
   }
   if (freshSignal.test(run.output)) {
     recordCredit(ctx, credit);
-    return skipped(name, `${deposit.label} credit already fresh`, extra);
+    return skipped(name, `${label} credit already fresh`, extra);
   }
   return fixRequired(
     name,

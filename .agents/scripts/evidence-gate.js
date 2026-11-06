@@ -312,7 +312,7 @@ async function runGateCommand({
       args: cmdArgs,
       cwd: spawnCwd,
       log,
-      ...(env ? { childEnv: env } : {}),
+      childEnv: env,
     });
   }
   const result = spawnFn(cmd, cmdArgs, {
