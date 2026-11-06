@@ -10,11 +10,11 @@ import path from 'node:path';
 import { NOOP_LOGGER } from './Logger.js';
 
 // Keep in sync with `WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles`. Often-absent
-// overrides are safe: missing sources are skipped, never fatal.
+// overrides are safe: missing sources are skipped, never fatal. No
+// `.agentrc.local.json`: a worktree reads the main checkout's live overlay.
 export const DEFAULT_WORKSPACE_FILES = [
   '.env',
   '.mcp.json',
-  '.agentrc.local.json',
   '.agents/instructions.local.md',
 ];
 

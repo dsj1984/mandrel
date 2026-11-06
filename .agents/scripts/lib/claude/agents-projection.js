@@ -10,6 +10,7 @@ import path from 'node:path';
 
 import { applyHeader } from '../command-header.js';
 import { applyAgentModel, getAgentModels } from '../config/agent-models.js';
+import { overlayRoot } from '../config/git-roots.js';
 import { readJsonOrNull } from '../json-utils.js';
 import { dirExists } from '../util/paths.js';
 
@@ -41,12 +42,11 @@ function agentFilesIn(dir) {
  * @returns {Record<string, string>}
  */
 function readAgentModels(projectRoot) {
-  const modelsIn = (file) =>
-    readJsonOrNull(path.join(projectRoot, file))?.delivery?.routing
-      ?.agentModels;
+  const modelsIn = (dir, file) =>
+    readJsonOrNull(path.join(dir, file))?.delivery?.routing?.agentModels;
   const merged = {
-    ...(modelsIn('.agentrc.json') ?? {}),
-    ...(modelsIn('.agentrc.local.json') ?? {}),
+    ...(modelsIn(projectRoot, '.agentrc.json') ?? {}),
+    ...(modelsIn(overlayRoot(projectRoot), '.agentrc.local.json') ?? {}),
   };
   return getAgentModels({ delivery: { routing: { agentModels: merged } } });
 }

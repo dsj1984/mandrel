@@ -166,7 +166,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `worktreeIsolation.primeFromPath` | No | `string` \| `null` | `null` | Absolute path to an existing `node_modules` tree to prime new worktrees from, instead of the main checkout. `null` uses the main checkout. |
 | `worktreeIsolation.allowSymlinkOnWindows` | No | `boolean` | `false` | Permit the `symlink` strategy on win32, where it needs Developer Mode or elevation. Off by default so a Windows consumer fails over to a strategy that works. |
 | `worktreeIsolation.reapOnSuccess` | No | `boolean` | `true` | Remove the Story's worktree once its PR merges. False keeps it for post-mortem inspection. |
-| `worktreeIsolation.bootstrapFiles` | No | `array<string>` | `[".env",".mcp.json",".agentrc.local.json",".agents/instructions.local.md"]` | Gitignored files copied from the main checkout into every new worktree. A worktree checks out tracked files only, so local secrets and overrides would otherwise be missing. |
+| `worktreeIsolation.bootstrapFiles` | No | `array<string>` | `[".env",".mcp.json",".agents/instructions.local.md"]` | Gitignored files copied from the main checkout into every new worktree. A worktree checks out tracked files only, so local secrets would otherwise be missing. `.agentrc.local.json` is not copied by default: a worktree reads the main checkout's live overlay. |
 | `quality` | No | `object` | — | Quality-gate configuration. Every gate lives under `gates.<tier>` and shares the same `{ enabled, baselinePath, tolerance, floors, components }` base. |
 | `quality.gates` | No | `object` | — | The six quality gates, each sharing the `{ enabled, baselinePath, tolerance, floors, components }` base. |
 | `quality.gates.coverage` | No | `object` | — | Line/branch/function coverage ratchet, read from the Istanbul JSON summary the project test run emits. |
@@ -764,6 +764,14 @@ nested field without restating sibling keys; absent local file is a no-op. Use
 it for machine-specific tuning (e.g. lower
 `delivery.deliverRunner.concurrencyCap` on a laptop) that should never reach
 git.
+
+**One overlay per machine.** The main checkout's `.agentrc.local.json` governs
+every worktree of that checkout: a linked worktree reads the main checkout's
+file live, so an edit there reaches running Story worktrees, and Story init no
+longer copies it in. A worktree's own copy is read only when the main checkout
+has none. When a worktree holds a copy that differs from the main checkout's,
+resolving config there prints one stderr warning naming both paths: the main
+checkout's overlay is in force and the worktree copy can be deleted.
 
 **Per-contributor identity (required).** `github.operatorHandle` is a personal,
 per-contributor value with two jobs: the `@`-handle the framework @mentions on

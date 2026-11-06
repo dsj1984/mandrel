@@ -2,8 +2,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { execFileCapture } from '../child-exec.js';
+import { readJsonOrNull } from '../json-utils.js';
 import { PROJECT_ROOT } from '../project-root.js';
 
 const GIT_QUIET = { stdio: ['ignore', 'pipe', 'ignore'] };
@@ -108,10 +110,42 @@ export function storeRoot(root, exec, platform = process.platform) {
   return checkoutOf(root, exec, platform) ?? root;
 }
 
-/** Where `root`'s `.agentrc.local.json` is read: its own, else `storeRoot`'s. */
-export function overlayRoot(root, exec) {
-  if (fs.existsSync(path.join(root, '.agentrc.local.json'))) return root;
-  return storeRoot(root, exec);
+const LOCAL_AGENTRC = '.agentrc.local.json';
+const hasOverlay = (dir, fsImpl = fs) =>
+  fsImpl.existsSync(path.join(dir, LOCAL_AGENTRC));
+
+/**
+ * Where `root`'s `.agentrc.local.json` is read: one overlay per machine, so a
+ * linked worktree reads the main checkout's when it holds one, else its own.
+ */
+export function overlayRoot(root, exec, fsImpl = fs) {
+  const main = storeRoot(root, exec);
+  return main !== root && hasOverlay(main, fsImpl) ? main : root;
+}
+
+const sameDir = (a, b) =>
+  canonical(a, process.platform) === canonical(b, process.platform);
+
+/** Equal as parsed JSON; an unparseable `own` never matches. */
+function sameOverlay(own, live) {
+  const parsed = readJsonOrNull(own);
+  return parsed !== null && isDeepStrictEqual(parsed, readJsonOrNull(live));
+}
+
+/**
+ * A linked worktree's own overlay that differs from the main checkout's one
+ * in force, else `null`.
+ *
+ * @returns {{ worktreePath: string, mainPath: string }|null}
+ */
+export function overlayDivergence(root, exec) {
+  const main = overlayRoot(root, exec);
+  if (sameDir(main, root) || !hasOverlay(root)) return null;
+  const worktreePath = path.join(root, LOCAL_AGENTRC);
+  const mainPath = path.join(main, LOCAL_AGENTRC);
+  return sameOverlay(worktreePath, mainPath)
+    ? null
+    : { worktreePath, mainPath };
 }
 
 /** Test-only. */
