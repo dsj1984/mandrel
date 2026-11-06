@@ -21,6 +21,11 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
+import {
+  appendReviewRun,
+  recordOverriddenIds,
+} from '../../../.agents/scripts/lib/orchestration/review-history.js';
+import { findingId } from '../../../.agents/scripts/lib/orchestration/review-providers/finding-identity.js';
 import { handleOverriddenReviewBlock } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/review-override.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
@@ -569,4 +574,167 @@ test('AC-7: a repeat of an overridden CRITICAL does not halt; one never overridd
   assert.equal(afterOverride.halted, false);
   assert.equal(afterOverride.findings[0].severity, 'suggestion');
   assert.equal(afterOverride.findings[0].ungrounded, 'overridden earlier');
+});
+
+// --- Earlier CRITICALs carried forward (Story #5974) -----------------------
+
+const CONFIRMED_AT_HEAD = verdictEnvelope({
+  verdict: 'confirmed',
+  evidence: { file: 'src/a.js', line: 1 },
+  reason: 'still there',
+});
+const verdictOf = (verdict, reason = 'r') =>
+  verdictEnvelope({ verdict, evidence: null, reason });
+
+/**
+ * History plus verifier seams; `answers[i]` answers the i-th verifier call
+ * (the last repeats). `diffOut` is what `git diff --name-only` prints.
+ */
+function carryOpts(t, answers, { diffOut = '' } = {}) {
+  const prompts = [];
+  const opts = {
+    ...historyOpts(t),
+    verifier: {
+      probeFn: () => true,
+      spawnFn: async (_f, _a, options) => {
+        prompts.push(options.input);
+        return answers[Math.min(prompts.length - 1, answers.length - 1)];
+      },
+      gitSpawnFn: () => ({ status: 0, stdout: 'a\nb\n', stderr: '' }),
+    },
+    gitSpawnFn: (_cwd, verb) => ({
+      status: 0,
+      stdout: verb === 'diff' ? diffOut : '',
+      stderr: '',
+    }),
+  };
+  return { opts, prompts };
+}
+
+const unproven = verdictEnvelope({
+  verdict: 'confirmed',
+  evidence: { file: 'src/a.js', line: 99 },
+  reason: 'r',
+});
+
+for (const [name, answer] of [
+  ['confirmed', CONFIRMED_AT_HEAD],
+  ['uncertain', verdictOf('uncertain')],
+  ['an unproven confirmation', unproven],
+  ['an error', { status: 1, stdout: '', stderr: 'boom' }],
+]) {
+  test(`#5974 AC-1: an earlier CRITICAL absent from the next run halts when the re-check returns ${name}`, async (t) => {
+    const { opts, prompts } = carryOpts(t, [CONFIRMED_AT_HEAD, answer]);
+    const first = await review(fakeAdapter([retryAt(10)]), opts);
+    assert.equal(first.halted, true);
+    const second = await review(fakeAdapter([]), opts);
+    assert.equal(prompts.length, 2);
+    assert.equal(second.halted, true);
+    assert.equal(second.severity.critical, 1);
+    assert.equal(typeof second.findings[0].carried, 'string');
+    assert.match(second.report, /Earlier CRITICALs \(1\)/);
+    assert.match(second.report, /\*\*still open\*\*/);
+    assert.doesNotMatch(second.report, /FULL-BODY/);
+    if (name === 'an error' || name === 'an unproven confirmation') {
+      assert.match(second.report, /critical-verification/);
+    }
+  });
+}
+
+test('#5974 AC-2: a refuting re-check does not halt, and a later run does not re-check it', async (t) => {
+  const { opts, prompts } = carryOpts(t, [
+    CONFIRMED_AT_HEAD,
+    verdictOf('refuted', 'guarded now'),
+  ]);
+  await review(fakeAdapter([retryAt(10)]), opts);
+  const second = await review(fakeAdapter([]), opts);
+  assert.equal(second.halted, false);
+  assert.match(second.report, /\*\*refuted\*\*: guarded now/);
+  assert.match(second.report, /No findings/);
+  const third = await review(fakeAdapter([]), opts);
+  assert.equal(third.halted, false);
+  assert.equal(prompts.length, 2);
+  assert.match(third.report, /\*\*refuted\*\*/);
+});
+
+test('#5974: a refuted earlier CRITICAL whose instance files changed is reported fixed', async (t) => {
+  const { opts } = carryOpts(t, [CONFIRMED_AT_HEAD, verdictOf('refuted')], {
+    diffOut: 'src/a.js\n',
+  });
+  await review(fakeAdapter([retryAt(10)]), opts);
+  const second = await review(fakeAdapter([]), opts);
+  assert.equal(second.halted, false);
+  assert.match(second.report, /\*\*fixed\*\*/);
+});
+
+test('#5974 AC-3: a CRITICAL refuted when raised, ungrounded, or overridden is never re-checked', async (t) => {
+  const refutedOpts = carryOpts(t, [verdictOf('refuted')]);
+  const first = await review(fakeAdapter([retryAt(10)]), refutedOpts.opts);
+  assert.equal(first.halted, false);
+  const after = await review(fakeAdapter([]), refutedOpts.opts);
+  assert.equal(after.halted, false);
+  assert.equal(refutedOpts.prompts.length, 1);
+
+  const ungrounded = carryOpts(t, [CONFIRMED_AT_HEAD]);
+  appendReviewRun(
+    42,
+    { headSha: 'x', findings: [{ ...retryAt(10), ungrounded: 'gone' }] },
+    ungrounded.opts.historyDeps,
+  );
+  const clean = await review(fakeAdapter([]), ungrounded.opts);
+  assert.equal(clean.halted, false);
+  assert.equal(ungrounded.prompts.length, 0);
+
+  const overridden = carryOpts(t, [CONFIRMED_AT_HEAD]);
+  const halted = await review(fakeAdapter([retryAt(10)]), overridden.opts);
+  recordOverriddenIds(42, [findingId(halted.findings[0])], {
+    config: overridden.opts.historyDeps.config,
+  });
+  const cleared = await review(fakeAdapter([]), overridden.opts);
+  assert.equal(cleared.halted, false);
+  assert.equal(overridden.prompts.length, 1);
+  assert.match(cleared.report, /\*\*overridden\*\*/);
+});
+
+test('#5974 AC-4: a carried CRITICAL stays open on the next run until an override clears it', async (t) => {
+  const { opts, prompts } = carryOpts(t, [CONFIRMED_AT_HEAD]);
+  await review(fakeAdapter([retryAt(10)]), opts);
+  await review(fakeAdapter([]), opts);
+  const third = await review(fakeAdapter([]), opts);
+  assert.equal(third.halted, true);
+  assert.equal(prompts.length, 3);
+  await handleOverriddenReviewBlock({
+    provider: {},
+    storyId: 42,
+    prUrl: 'https://example.test/pr/1',
+    prNumber: null,
+    criticalCount: 1,
+    reason: 'false positive',
+    findings: third.findings,
+    config: opts.historyDeps.config,
+    emitFrictionFn: async () => {},
+  });
+  const fourth = await review(fakeAdapter([]), opts);
+  assert.equal(fourth.halted, false);
+  assert.equal(prompts.length, 3);
+});
+
+test('#5974 AC-7: a CRITICAL raised again at an overlapping location is not re-checked', async (t) => {
+  const { opts, prompts } = carryOpts(t, [CONFIRMED_AT_HEAD]);
+  await review(fakeAdapter([retryAt(10)]), opts);
+  const second = await review(fakeAdapter([retryAt(14)]), opts);
+  assert.equal(second.halted, true);
+  assert.equal(second.findings.length, 1);
+  assert.equal(second.findings[0].repeat, true);
+  assert.equal(prompts.length, 2, 'one vetting call per run, no re-check');
+  assert.match(second.report, /\*\*still open\*\*/);
+});
+
+test('#5974 AC-9: without a history seam an earlier CRITICAL is not carried', async (t) => {
+  const { opts } = carryOpts(t, [CONFIRMED_AT_HEAD]);
+  await review(fakeAdapter([retryAt(10)]), opts);
+  const { historyDeps: _ignored, ...noHistory } = opts;
+  const out = await review(fakeAdapter([]), noHistory);
+  assert.equal(out.halted, false);
+  assert.doesNotMatch(out.report, /Earlier CRITICALs/);
 });

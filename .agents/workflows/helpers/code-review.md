@@ -122,6 +122,30 @@ collapsed under **Previously raised**. A repeat still halts unless an operator
 overrode that CRITICAL with `--override-review-block` earlier, in which case
 it is downgraded to a suggestion.
 
+### Earlier CRITICALs stay blocking
+
+A CRITICAL that survived grounding and verification stays open across later
+runs. Each run settles every open one: raised again at an overlapping
+location and still critical, it halts as a repeat; raised there but refuted
+or ungrounded by this run, it is resolved. Otherwise (absent, or raised below
+critical) the critical-verifier re-checks the stored finding at the current
+head: one call each at any depth, at most 10 per run, 3 in flight. Only a
+`refuted` verdict resolves it; confirmed, uncertain, an unproven
+confirmation, an error, a missing CLI or the cap carries it into the run's
+findings as a blocking CRITICAL (errors and the cap also record a
+`critical-verification` degraded gate). A later delta touching its location
+never clears it: only a verifier refutation at the current head or an
+operator override does, and `--override-review-block` covers a carried
+CRITICAL like any other. A resolved one is labelled `fixed` when its instance
+files changed since the head that raised it, else `refuted` (reporting only).
+The history keeps each CRITICAL's title, body (4,000 characters), location
+and claim for the re-check, plus each run's outcomes; an older history reads
+as before. When the history holds any earlier surviving CRITICAL, the comment
+renders an **Earlier CRITICALs** section (id, title, last location, raising
+head, status `still open` / `fixed` / `refuted` / `overridden`), on a
+zero-finding run too; a carried finding renders only there, and the
+unqualified no-findings claim is suppressed while one is still open.
+
 ### Review dispositions
 
 When a Story lands, the post-land tail (before the temp purge reaps the
@@ -130,9 +154,11 @@ local, never-committed `<tempRoot>/review-dispositions.ndjson` (rotated at
 1 MB, one `.1` generation kept). Precedence, with the last run as the final
 review: `overridden` (an operator overrode it; the record carries the
 redacted reason, clipped to 500 characters), `downgraded-ungrounded` and
-`refuted-by-verifier` (flagged in the final run), `open-at-merge` (in the
-final run otherwise), `fixed-on-branch` (raised earlier, absent from the
-final run). A record holds ids, provider, severity, class and run count only,
+`refuted-by-verifier` (flagged in the final run), then an earlier
+CRITICAL's last re-check resolution (`fixed` → `fixed-on-branch`, `refuted` →
+`refuted-by-verifier`), `open-at-merge` (in the final run otherwise,
+including a carried CRITICAL), `fixed-on-branch` (raised earlier, absent from
+the final run). A record holds ids, provider, severity, class and run count only,
 never a title, body, path or excerpt; a Story already recorded appends
 nothing. Summarize with
 `node .agents/scripts/review-dispositions-report.js [--since <YYYY-MM-DD>] [--json]`:

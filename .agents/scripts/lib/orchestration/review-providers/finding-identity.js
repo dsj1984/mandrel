@@ -34,12 +34,16 @@ function normalizeTitle(title) {
 
 /**
  * First 12 hex chars of sha256 over class (else category), first instance
- * file and, for a class-less finding, its normalized title.
+ * file and, for a class-less finding, its normalized title. A finding carried
+ * forward from the review history keeps the id it was recorded under.
  *
  * @param {Finding} finding
  * @returns {string}
  */
-export function findingId(finding) {
+export const findingId = (finding) => finding?.carriedId ?? contentId(finding);
+
+/** @param {Finding} finding */
+function contentId(finding) {
   const cls = finding?.class;
   const parts = [
     cls || finding?.category || 'bug',
