@@ -815,6 +815,14 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
     const outputs = { 'quality-preview.js': { status: 1 } };
     const h = harness({ outputs });
     await h.run();
+    const statePath = path.join(
+      tempRoot,
+      'orchestration',
+      `story-handoff-${STORY}.json`,
+    );
+    const { state } = JSON.parse(readFileSync(statePath, 'utf8'));
+    assert.equal(state.preflightCredits.lint.head, HEAD, 'lint still credited');
+    assert.equal(state.preflightHead, undefined);
     const firstSpawns = h.runCommand.calls.length;
     delete outputs['quality-preview.js'];
     const second = await h.run();
