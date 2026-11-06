@@ -1,0 +1,18 @@
+{
+  "$schema": ".agents/schemas/baselines/crap.schema.json",
+  "kernelVersion": "0.1.0",
+  "scoringSemantics": "method-identity-v5",
+  "tsTranspilerVersion": "6.0.3",
+  "files": {
+    ".agents/scripts/apply-quality-bootstrap.js": {
+      "applyBootstrapAndMigration": 1,
+      "main": 2
+    },
+    ".agents/scripts/audit-baselines.js": {
+      "<anon assertEnvelope/map(e)#0>": 2.075851851851852,
+      "<anon runAsCli()#0>": 1,
+      "assertEnvelope": 3.1706666666666665,
+      "runCli": 2.0018206645425582
+    }
+  }
+}
