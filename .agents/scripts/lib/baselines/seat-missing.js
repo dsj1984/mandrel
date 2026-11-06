@@ -305,15 +305,6 @@ const coverageRow = (relPath, s) => ({
   functions: s?.functions ?? 0,
 });
 
-/** The c8 include/exclude predicate for `cwd`. */
-function c8Scope(cwd, loadScope, buildScope) {
-  const c8Config = loadScope(cwd);
-  return buildScope({
-    include: c8Config.include ?? [],
-    exclude: c8Config.exclude ?? [],
-  });
-}
-
 /** @param {string} coveragePath @param {string[]} inScope @param {string} cwd */
 function staleRefusal(coveragePath, inScope, cwd) {
   return new SeatRefusal(
@@ -342,31 +333,22 @@ function measuredRows(scores, inScope, logger) {
  * c8-scoped file never consults coverage.
  *
  * @param {{ coveragePath: string, readCoverage: Function }} targets
- * @param {{ targetDirs: string[], cwd?: string, isFresh?: Function,
- *   loadScope?: Function, buildScope?: Function, score?: Function,
- *   logger?: object }} deps `targetDirs` is the capture stamp's digest scope.
+ * @param {{ targetDirs: string[], cwd: string, logger: object }} deps
+ *   `targetDirs` is the capture stamp's digest scope.
  * @returns {(files: string[]) => object[]}
  */
 function buildCoverageSeatScorer(
   { coveragePath, readCoverage },
-  {
-    targetDirs,
-    cwd = process.cwd(),
-    isFresh,
-    loadScope = loadC8ScopeConfig,
-    buildScope = buildScopePredicate,
-    score = scoreCoverageFinal,
-    logger = Logger,
-  },
+  { targetDirs, cwd, logger },
 ) {
   return (files) => {
-    const scope = c8Scope(cwd, loadScope, buildScope);
+    const scope = buildScopePredicate(loadC8ScopeConfig(cwd));
     const inScope = files.filter((file) => scope(file));
     if (inScope.length === 0) return [];
-    if (!isCaptureFresh({ coveragePath, targetDirs }, { isFresh, cwd })) {
+    if (!isCaptureFresh({ coveragePath, targetDirs }, { cwd })) {
       throw staleRefusal(coveragePath, inScope, cwd);
     }
-    const scores = score({ raw: readCoverage(cwd), cwd, scope });
+    const scores = scoreCoverageFinal({ raw: readCoverage(cwd), cwd, scope });
     return measuredRows(scores, inScope, logger);
   };
 }
@@ -393,7 +375,7 @@ export function seatCoverageBaseline(
     fullScope: argv.includes('--full-scope'),
     baseBranch: config.project.baseBranch,
     score: buildCoverageSeatScorer(targets, {
-      targetDirs: quality.crap?.targetDirs ?? [],
+      targetDirs: quality.crap.targetDirs,
       cwd,
       logger,
     }),

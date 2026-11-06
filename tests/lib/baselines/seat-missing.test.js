@@ -777,14 +777,11 @@ function coverageSeatRepo({ stamp = true } = {}) {
   git('checkout', '-q', 'story');
   git('merge', '-q', '--no-edit', 'main');
   const raw = {};
-  for (const rel of [
-    'src/old.js',
-    'src/new.js',
-    'src/second.js',
-    'src/from-base.js',
-  ]) {
+  for (const rel of ['src/old.js', 'src/new.js', 'src/from-base.js']) {
     raw[path.join(cwd, rel)] = coveredEntry();
   }
+  // Measured, with no statement, branch or function: every axis seats as 0.
+  raw[path.join(cwd, 'src/second.js')] = { s: {}, b: {}, f: {} };
   write(COVERAGE_PATH, JSON.stringify(raw));
   if (stamp) {
     writeCaptureStamp({
@@ -845,6 +842,10 @@ describe('seatCoverageBaseline (Story #5960)', () => {
     assert.deepEqual(
       after.rows.map((r) => r.path),
       ['src/new.js', 'src/old.js', 'src/second.js', 'src/zz.js'],
+    );
+    assert.deepEqual(
+      after.rows.find((r) => r.path === 'src/second.js'),
+      { path: 'src/second.js', lines: 0, branches: 0, functions: 0 },
     );
     const text = fs.readFileSync(writePath, 'utf8');
     for (const row of JSON.parse(bytes).rows) {
