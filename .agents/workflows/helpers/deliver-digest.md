@@ -22,7 +22,7 @@ rule produces it:
 1. **Run topology.** A one-Story run is `inline` (the router's own session)
    whatever its shape — isolation only matters against a *concurrent*
    sibling.
-2. **Every other run is `subagent`**, however trivial each Story's shape.
+2. **Every other run is `subagent`**, whatever each Story's shape.
 
 `inline` drops only the `story-worker` boot — not the verdict owner, which
 the profile alone names (§ 3). **`subagent` and `inline` run the same engine**: same gates,
@@ -53,7 +53,7 @@ it; the worker gets it from § 4's `--init`):
 node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
 ```
 
-It prints one JSON object: `files` — the one change set handed to the verdict
+It prints one object: `files` — the one change set handed to the verdict
 owner (`null` when the diff is unenumerable) — plus `level` and
 `classes` from `review-depth.js`, and `mode`, `reason` and `verdictOwner`
 from `ceremony-routing.js`. Level rules: a sensitive path registered in
@@ -90,8 +90,8 @@ it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 
 The gate reads the Story's `acceptance[]` count itself and rejects, **before**
 scoring and consuming no round, a verdict whose `criteria[]` length differs
-or with an unfilled record (naming its indices). A second gate call in the
-same round wastes it and races the Story ledger.
+or with an unfilled record (naming its indices). A second gate call in a
+round wastes it and races the Story ledger.
 
 `proceed` → § 5. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.
@@ -99,21 +99,21 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 ## 5. The one credited run — `story-handoff.js`
 
-After the self-eval loop's last fix commit the worker runs **one** command,
-which runs this section in order and prints one envelope:
+After the self-eval's last fix commit the worker runs **one** command, which
+runs this section in order and prints one envelope:
 
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
 `ready` (exit 0) → hand off. `fix-required` (exit 2) → a finding, a red or
-deferred suite, a base-merge conflict (files named), a non-fast-forward push
-or a CRITICAL: fix, commit, re-run; labels untouched. `blocked` (exit 1) →
-only a remote-refused push, an unreachable remote, an unconfirmed base branch
-or an unregistered merge driver: it flips `agent::blocked` and posts
-`friction`. A re-run skips every step still valid for HEAD. It never runs
-close, opens a PR or writes another label. Outruns the sync Bash ceiling → run
-it in the **background**.
+deferred suite, a base-merge conflict (files named), a non-fast-forward push,
+a `commit_refs_rules` push stepping missed or a CRITICAL: fix, commit,
+re-run; labels untouched. `blocked` (exit 1) → only a remote-refused push,
+an unreachable remote, an unconfirmed base branch or an unregistered
+merge driver: it flips `agent::blocked` and posts `friction`. A re-run skips
+every step still valid for HEAD. It never closes, opens a PR or writes a
+label. Outruns the sync Bash ceiling → run it in the **background**.
 
-1. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
+1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops (or skips
    if `on-conflict`).
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
