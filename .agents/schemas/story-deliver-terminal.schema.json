@@ -232,6 +232,18 @@
             "ageSeconds": { "type": ["number", "null"], "minimum": 0 }
           },
           "additionalProperties": false
+        },
+        "admission": {
+          "type": "object",
+          "description": "Story #5963 — what the last declared run that waited was admitted at: its booked weight, the entry's declared weight, the sized slice's test-file count (null when unsized) and whether it backfilled ahead of an earlier waiter.",
+          "required": ["weight", "declaredWeight", "sliceFiles", "backfilled"],
+          "properties": {
+            "weight": { "type": "integer", "minimum": 1 },
+            "declaredWeight": { "type": "integer", "minimum": 1 },
+            "sliceFiles": { "type": ["integer", "null"], "minimum": 0 },
+            "backfilled": { "type": "boolean" }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

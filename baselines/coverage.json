@@ -1601,13 +1601,13 @@
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "lines": 100,
-      "branches": 99.06,
+      "branches": 98.41,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
-      "lines": 98.14,
-      "branches": 96.47,
+      "lines": 99,
+      "branches": 97.37,
       "functions": 100
     },
     {
@@ -3268,8 +3268,14 @@
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
-      "lines": 99.5,
-      "branches": 94.89,
+      "lines": 99.56,
+      "branches": 95.68,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "lines": 100,
+      "branches": 93.75,
       "functions": 100
     },
     {

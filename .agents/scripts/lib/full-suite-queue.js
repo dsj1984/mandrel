@@ -2,7 +2,8 @@
  * full-suite-queue.js — FIFO for full-suite lock waiters (the lockfile alone
  * is first-come-first-polled). A ticket counts only while well-formed, its
  * pid alive and its mtime fresh; any I/O failure means "first in line", so
- * no waiter can wait forever.
+ * no waiter can wait forever. A ticket's body names its waiter's workload, so
+ * a `backfill` waiter may pass earlier ones it provably fits beside.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -14,10 +15,10 @@ import {
 } from './single-story-sweep/sweep-lock.js';
 import {
   admissionWaitLine,
-  admittedLine,
   blockingLabel,
   publicBlocking,
 } from './suite-admission.js';
+import { admittedLine } from './suite-sizing.js';
 
 const LOCK_TAG = '[full-suite-lock]';
 
@@ -30,10 +31,39 @@ let sequence = 0;
  * @typedef {{ dir: string, name: string, file: string }} Ticket
  */
 
+/** The ticket body: a declared waiter's weight and resources, else exclusive. */
+function ticketBody(workload) {
+  return JSON.stringify(
+    workload?.kind === 'declared'
+      ? {
+          kind: 'declared',
+          weight: workload.weight,
+          resources: workload.resources,
+        }
+      : { kind: 'exclusive' },
+  );
+}
+
+/** An empty, unreadable or malformed ticket reads as exclusive. */
+function readTicketWorkload(file, fsImpl) {
+  try {
+    const body = JSON.parse(String(fsImpl.readFileSync(file, 'utf8')));
+    if (
+      body?.kind === 'declared' &&
+      Number.isInteger(body.weight) &&
+      Array.isArray(body.resources)
+    ) {
+      return body;
+    }
+  } catch {}
+  return { kind: 'exclusive' };
+}
+
 /**
  * `null` when unwritable: unordered, not blocked.
  *
- * @param {{ lockPath: string, nowFn?: () => number, fsImpl?: object, processImpl?: object }} opts
+ * @param {{ lockPath: string, nowFn?: () => number, fsImpl?: object,
+ *   processImpl?: object, workload?: object }} opts
  * @returns {Ticket|null}
  */
 function enqueueWaiter({
@@ -41,6 +71,7 @@ function enqueueWaiter({
   nowFn = Date.now,
   fsImpl = fs,
   processImpl = process,
+  workload,
 }) {
   const dir = `${lockPath}.queue`;
   const arrival = String(Math.max(0, Math.floor(nowFn()))).padStart(15, '0');
@@ -50,7 +81,7 @@ function enqueueWaiter({
   const file = path.join(dir, name);
   try {
     fsImpl.mkdirSync(dir, { recursive: true });
-    fsImpl.writeFileSync(file, '');
+    fsImpl.writeFileSync(file, ticketBody(workload));
   } catch {
     return null;
   }
@@ -100,8 +131,8 @@ function isLiveEntry({ dir, name, staleMs, nowFn, fsImpl, killFn }) {
   }
 }
 
-/** Live waiters ahead of `ticket`; `null` when the queue is unreadable. */
-function countAhead({
+/** Live ticket names ahead of `ticket`, oldest first; `null` when unreadable. */
+function liveAhead({
   lockPath,
   ticket,
   staleMs,
@@ -121,7 +152,46 @@ function countAhead({
     .slice(0, own === -1 ? names.length : own)
     .filter((name) =>
       isLiveEntry({ dir, name, staleMs, nowFn, fsImpl, killFn }),
-    ).length;
+    );
+}
+
+/** Live waiters ahead of `ticket`; `null` when the queue is unreadable. */
+function countAhead(opts) {
+  return liveAhead(opts)?.length ?? null;
+}
+
+const QUEUE_BLOCK = Object.freeze({ reason: 'queue' });
+
+/**
+ * Run under the admission mutex: `null` (with `passed` set) only when every
+ * earlier live waiter is declared, fits beside this run and shares no
+ * resource with it, and the oldest has waited less than the window.
+ */
+function backfillGate(opts, ticket, state) {
+  const { lockPath, workload, capacity, backfillWindowMs, nowFn, fsImpl } =
+    opts;
+  const ahead = liveAhead({ ...opts, ticket });
+  if (!ahead?.length) return QUEUE_BLOCK;
+  if (nowFn() - Number(ahead[0].slice(0, 15)) >= backfillWindowMs) {
+    return QUEUE_BLOCK;
+  }
+  const fitsBeside = ahead.every((name) => {
+    const e = readTicketWorkload(path.join(`${lockPath}.queue`, name), fsImpl);
+    return (
+      e.kind === 'declared' &&
+      e.weight + workload.weight <= capacity &&
+      !e.resources.some((r) => workload.resources.includes(r))
+    );
+  });
+  if (!fitsBeside) return QUEUE_BLOCK;
+  state.passed = ahead.length;
+  return null;
+}
+
+function tryBackfill(opts, ticket, state) {
+  if (!opts.workload?.backfill)
+    return { acquired: false, blocking: QUEUE_BLOCK };
+  return opts.attempt.tryOnce(() => backfillGate(opts, ticket, state));
 }
 
 /**
@@ -207,7 +277,12 @@ export async function waitInLine(opts) {
   clock.blocking = opts.blocking ?? null;
   announceWait(opts);
   reportProgress(opts, clock, 'waiting', null);
-  const ticket = enqueueWaiter({ lockPath, nowFn, fsImpl });
+  const ticket = enqueueWaiter({
+    lockPath,
+    nowFn,
+    fsImpl,
+    workload: opts.workload,
+  });
   try {
     const outcome = await pollForTurn(opts, ticket, clock);
     if (outcome)
@@ -288,14 +363,15 @@ async function pollForTurn(opts, ticket, clock) {
   while (nowFn() < clock.deadline) {
     await opts.sleepFn(Math.max(0, opts.pollMs));
     refreshTicket(ticket, { nowFn, fsImpl });
+    const state = { passed: 0 };
     const attempt = isFirstInLine({ lockPath, ticket, staleMs, nowFn, fsImpl })
       ? opts.attempt.tryOnce()
-      : { acquired: false, blocking: { reason: 'queue' } };
+      : tryBackfill(opts, ticket, state);
     clock.blocking = attempt.blocking ?? null;
     if (attempt.acquired) {
-      log(acquiredLine(opts.workload, clock.waited()));
+      log(acquiredLine(opts.workload, clock.waited(), state.passed));
       reportProgress(opts, clock, 'admitted', ticket);
-      return { held: attempt, expired: false };
+      return { held: attempt, expired: false, backfilled: state.passed > 0 };
     }
     // A hard I/O error will not resolve by waiting; it is not an expiry.
     if (attempt.reason === 'error') return { held: null, expired: false };
@@ -304,9 +380,9 @@ async function pollForTurn(opts, ticket, clock) {
   return null;
 }
 
-function acquiredLine(workload, waited) {
+function acquiredLine(workload, waited, passed) {
   return (
-    admittedLine(workload, waited) ??
+    admittedLine(workload, waited, passed) ??
     `${LOCK_TAG} ✅ acquired the full-suite lock (waited ${waited}s).`
   );
 }
