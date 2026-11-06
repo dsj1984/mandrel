@@ -309,7 +309,9 @@ describe('the skip-branch scoped deposit credits close at the same HEAD (Story #
   it("a green `evidence-gate --changed-since` run skips close's scoped `test` gate without spawning", async () => {
     const head = 'c'.repeat(40);
     const since = 'd'.repeat(40);
-    const worktree = '/repo/.worktrees/story-5961';
+    // A cwd `path.resolve` rewrites on every platform (a Windows drive does
+    // the same to any POSIX path): both sides must hash it identically.
+    const worktree = '/repo/.worktrees/x/../story-5961';
     const config = { project: { commands: { test: 'npm test' } } };
     const testChanged = {
       cmd: 'pnpm',

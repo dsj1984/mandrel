@@ -6,7 +6,7 @@
  */
 
 import { gitSpawn } from '../git-utils.js';
-import { testGateConfigHash } from '../test-run-credit.js';
+import { hashCommandConfig } from '../validation-evidence.js';
 import { resolveTestGateArgv } from './commands.js';
 import {
   NO_TEST_CHANGED,
@@ -138,6 +138,7 @@ export function scopedEvidenceRun({ cmd, args, since, config, cwd }) {
     cmdArgs: run.args,
     env: run.env,
     note: { scope: 'delta', since },
-    configHash: testGateConfigHash(config, cwd),
+    // Hashed exactly as close's runner hashes the `test` gate it spends this on.
+    configHash: hashCommandConfig({ ...resolveTestGateArgv(config), cwd }),
   };
 }

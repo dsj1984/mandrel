@@ -9,8 +9,8 @@ import {
 } from '../.agents/scripts/evidence-gate.js';
 import { createLockEventChannel } from '../.agents/scripts/lib/close-lock-events.js';
 import { acquireSweepLock } from '../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
-import { testGateConfigHash } from '../.agents/scripts/lib/test-run-credit.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+import { hashCommandConfig } from '../.agents/scripts/lib/validation-evidence.js';
 
 /**
  * Unit tests for the extracted `runEvidenceGate` runner. Drives the runner
@@ -611,10 +611,12 @@ test('runEvidenceGate: --changed-since runs the substituted argv with the env an
   assert.deepEqual(out, { status: 0, skipped: false });
   assert.deepEqual(runs[0].args, ['vitest', '--changed', SINCE]);
   assert.deepEqual(runs[0].childEnv, { MANDREL_CHANGED_SINCE: SINCE });
-  const fullIdentity = testGateConfigHash(
-    SCOPED_CONFIG,
-    '/repo/.worktrees/story-5961',
-  );
+  // Close's runner hashes its `test` gate on the raw spawn cwd.
+  const fullIdentity = hashCommandConfig({
+    cmd: 'npm',
+    args: ['run', 'test:all'],
+    cwd: '/repo/.worktrees/story-5961',
+  });
   assert.equal(skips[0].configHash, fullIdentity);
   assert.equal(records[0].configHash, fullIdentity);
   assert.equal(records[0].scope, 'delta');
