@@ -53,7 +53,7 @@ export function readDeferralMarker(body) {
 }
 
 /**
- * Record a deferral at `head`; a missing reason is the #5949 over-budget one.
+ * Record a deferral and its reason at `head`.
  *
  * @param {{ coverageDeferredHead?: string, coverageDeferredReason?: string }} state
  * @param {string} head @param {string} reason

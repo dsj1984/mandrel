@@ -573,37 +573,101 @@ re-tests the merged tree, and does **not** require PR branches to be up to
 date — otherwise the PR shows BEHIND and confirm-merge's `gh pr update-branch`
 merges the base anyway.
 
-#### `delivery.quality.gates.coverage.onOverBudget` — deferring to CI
+#### Deferring coverage to CI — `onOverBudget`, `suiteOfRecord` and the ratchet
 
 A hub change on a small host (a 4-core cloud VM, say) can select a capture
 slice that cannot finish inside `timeoutMs`, and the handoff then ends in
 exit 124. When the consumer's CI already runs that suite, a local run is a
-duplicate the host cannot finish. Exit `76` and this key let the consumer
-say so.
+duplicate the host cannot finish. Two settings defer the capture to CI, and
+`ciRatchetCheck` names the CI check that ratchets coverage and CRAP in its
+place.
 
-- **The signal is the consumer's.** Its `captureScript`,
+- **Exit `76` is the consumer's signal.** Its `captureScript`,
   `affectedCaptureScript` or `crap.captureScript` exits **76** to mean "the
   selected slice is over this host's budget; no test ran". Mandrel never
   sizes a slice or predicts its runtime. `coverage-capture.js` passes 76
   through unchanged: it writes and stamps no artifact, and runs no later
   capture pass.
-- **`block` (default).** The handoff settles `blocked` and close fails, each
-  naming this key. Nothing changes for a consumer that never emits 76.
-- **`defer-to-ci`.** The handoff settles `ready` with
-  `coverage: { status: "deferred", reason: "over-budget", policy:
-  "defer-to-ci" }` and records no credit. It skips the CRAP `--seat-missing`
-  pass and the gates that read the artifact (`quality-preview-crap`,
-  `check-baselines-coverage`). Close re-runs the capture, reports
+- **`onOverBudget: "block"` (default).** The handoff settles `blocked` and
+  close fails, each naming this key. Nothing changes for a consumer that
+  never emits 76.
+- **`onOverBudget: "defer-to-ci"`.** An exit 76 settles the coverage gate as
+  deferred, reason `over-budget`.
+- **`suiteOfRecord: "ci"`.** Set it in a small host's `.agentrc.local.json`.
+  The handoff and close defer the capture before anything spawns, reason
+  `suite-of-record-ci`: no full-suite lock is taken and `coverage-capture.js`
+  never runs. It applies only when `coverage-capture` is the credited
+  depositor; under the `test` depositor it changes nothing. It needs
+  `ciRatchetCheck`. Without one the handoff settles `blocked`
+  (`ci-ratchet-undeclared`) and close fails, both naming the two keys.
+- **What a deferral does.** The handoff settles `ready` with
+  `coverage: { status: "deferred", reason, policy }` (`policy` is
+  `defer-to-ci` or `suite-of-record`) and records no credit. It skips the CRAP
+  `--seat-missing` pass and the gates that read the artifact
+  (`quality-preview-crap`, `check-baselines-coverage`). Close reports
   `coverage-capture: "deferred"` and those gates as `skipped`
-  (`coverage-deferred-ci`), and opens the PR with a line saying coverage was
-  deferred to CI. Every other gate still runs.
-- **CI owns the deferred run.** Set `defer-to-ci` only when the consumer's
-  CI runs the suite with a coverage floor. Nothing local checks coverage or
-  CRAP for a deferred Story, and CRAP rows for its new methods stay unseated.
+  (`coverage-deferred-ci`), then opens the PR and arms auto-merge. Every other
+  gate still runs.
+- **The marker.** A deferred PR's body carries the prose line and, directly
+  beneath it, the key line `Coverage-deferred: <reason>` (`over-budget` or
+  `suite-of-record-ci`). Both tokens are a stable contract that CI workflows
+  and confirm-merge route on.
+- **The hand-back: `coverage-ratchet.js`.** The CI job named by
+  `ciRatchetCheck` runs it on the merge ref, after CI has produced and merged
+  its artifact:
+  `node .agents/scripts/coverage-ratchet.js --artifact <path> --head <sha>
+  [--scope affected|full] [--base <ref>] [--adopt-only]`. It refuses (exit 1)
+  when `--head` is not the checked-out HEAD, a tracked file is dirty, or the
+  artifact is missing or unparseable. Otherwise it places the artifact at
+  `coveragePath` and writes the standard capture stamp for that tree, so
+  `update-crap-baseline.js --seat-missing`, `quality-preview.js --only crap`
+  and `update-coverage-baseline.js` read it as a green capture at that head.
+  It then runs the value ratchet against `--base` (default
+  `origin/<baseBranch>`): `update-coverage-baseline.js --diff-scope`, which
+  only re-scores the working copy, then `quality-preview.js --only crap`, then
+  `check-baselines.js --gate coverage,crap`. It exits non-zero at the first
+  failing step and names it. `--adopt-only` stops after the stamp, for a host
+  that seats rows from the artifact. CI never commits seated rows: a later run
+  on any host checked out at the same head seats them, or a full-scope
+  refresh does. Sharding and merging shard artifacts stay CI's job.
+- **Confirm-merge holds on it.** With `ciRatchetCheck` set, a merged PR
+  carrying the key line flips `agent::done` only once that check is green on
+  the PR head. While the check is absent or in flight the Story stays at
+  `agent::closing` (`pending`, `ci-ratchet-pending`) and a re-run resolves
+  it. A red check flips `agent::blocked` and posts a friction comment naming
+  the check and the PR. The deferred code landed without its ratchet, so an
+  operator must decide. Making the check required in branch protection
+  remains the consumer's setting.
+- **Doctor.** `mandrel doctor`'s `coverage-ratchet` check reads
+  `.agentrc.json` with `.agentrc.local.json` over it. It fails when
+  `suiteOfRecord` is `ci`, or `onOverBudget` is `defer-to-ci`, and
+  `ciRatchetCheck` is unset.
 - **Nothing sticks.** A deferral writes no artifact, stamp or credit, so a
   later run on a bigger host captures, seats and scores as usual.
 - **A timeout is not a deferral.** Exit 124 can hide a hang, so it keeps its
-  current handling under either value.
+  current handling under every setting.
+
+A CI job, as an example. Shards, artifact merging and the ratchet must all
+check out the same ref:
+
+```yaml
+coverage-ratchet:
+  needs: coverage-shards # produced and merged coverage/merged.json
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+      with: { fetch-depth: 0 }
+    - uses: actions/download-artifact@v4
+      with: { name: coverage-merged, path: ci-coverage }
+    - run: npm ci
+    - run: >
+        node .agents/scripts/coverage-ratchet.js
+        --artifact ci-coverage/merged.json
+        --head "$(git rev-parse HEAD)"
+```
+
+On a `pull_request` event the checkout is the merge ref, so pass
+`--head "$(git rev-parse HEAD)"` from the job that produced the artifact.
 
 #### Exit `77` — a suite that lost workers to host memory
 
