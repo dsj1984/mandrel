@@ -118,7 +118,7 @@
     },
     "diagnostics": {
       "type": "array",
-      "description": "Story #4866: named, gate-level findings emitted INSTEAD of per-method verdicts when the gate has established that no verdict it could produce would be meaningful — an incomparable baseline, or a comparison basis whose drifted-row ratio proves the two sides disagree on line coordinates. Present only in that case; `violations` is then empty and the preview gate exits 0.",
+      "description": "Story #4866: named, gate-level findings emitted INSTEAD of per-method verdicts when the gate has established that no verdict it could produce would be meaningful — an incomparable baseline, a baseline stamped ahead of the running code, or a comparison basis whose drifted-row ratio proves the two sides disagree on line coordinates. Present only in that case; `violations` is then empty and the preview gate exits 0.",
       "items": {
         "type": "object",
         "required": ["name", "message"],
@@ -128,7 +128,8 @@
             "type": "string",
             "enum": [
               "crap-unsound-comparison-basis",
-              "crap-baseline-incompatible"
+              "crap-baseline-incompatible",
+              "crap-baseline-ahead"
             ]
           },
           "message": { "type": "string" }

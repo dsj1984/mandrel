@@ -18,7 +18,7 @@ import { canonicalizeBaselinePath } from './path-canon.js';
 import {
   deriveScopeFromDiff,
   fileFilterFor,
-  readPriorEnvelope,
+  readPriorState,
   resolveDefaultScorer,
 } from './refresh-service.js';
 import {
@@ -117,13 +117,26 @@ function buildSeatedEnvelope({ kind, priorEnvelope, seated }) {
   return envelope;
 }
 
+/** An ahead baseline is left untouched: nothing seated, nothing scored. */
+function handOff(ahead) {
+  return { seated: 0, wrote: false, files: [], ahead };
+}
+
+/** `seated: N`, preceded by the hand-off line when the baseline was ahead. */
+function logSeated(logger, label, { seated, ahead }) {
+  if (ahead) logger.info(ahead.message);
+  logger.info(`[${label}] seated: ${seated}`);
+}
+
 /**
  * Seat the missing rows of `kind` for the files changed in `baseRef...HEAD`.
  * `score(files)` may throw a {@link SeatRefusal}. No missing row, no write.
  *
  * @param {{kind: string, writePath: string, score: Function, baseRef: string,
  *   headRef?: string, cwd?: string, gitDiff?: Function, fs?: typeof nodeFs}} opts
- * @returns {Promise<{seated: number, wrote: boolean, files: string[]}>}
+ * @returns {Promise<{seated: number, wrote: boolean, files: string[],
+ *   ahead?: object}>} `ahead`: a baseline stamped newer than this code is
+ *   left untouched.
  */
 export async function seatMissingBaseline({
   kind,
@@ -134,6 +147,32 @@ export async function seatMissingBaseline({
   cwd = process.cwd(),
   gitDiff = mergeBaseGitDiff,
   fs = nodeFs,
+}) {
+  const prior = readPriorState(writePath, fs, kind);
+  if (prior.ahead) return handOff(prior.ahead);
+  return seatScoped({
+    kind,
+    writePath,
+    score,
+    baseRef,
+    headRef,
+    cwd,
+    gitDiff,
+    fs,
+    prior,
+  });
+}
+
+async function seatScoped({
+  kind,
+  writePath,
+  score,
+  baseRef,
+  headRef,
+  cwd,
+  gitDiff,
+  fs,
+  prior,
 }) {
   const files = await deriveScopeFromDiff({
     baseRef,
@@ -148,7 +187,7 @@ export async function seatMissingBaseline({
     ...row,
     path: canonicalizeBaselinePath(row.path ?? row.file),
   }));
-  const priorEnvelope = readPriorEnvelope(writePath, fs);
+  const priorEnvelope = prior.envelope;
   const seated = selectMissingRows({
     kind,
     priorRows: priorEnvelope?.rows,
@@ -188,14 +227,14 @@ export async function runSeatMissing({
     );
   }
   try {
-    const { seated } = await seat({
+    const result = await seat({
       kind,
       writePath,
       baseRef: diffScopeRef ?? `origin/${baseBranch}`,
       score: score ?? ((files) => resolveDefaultScorer(kind, { cwd })(files)),
       cwd,
     });
-    logger.info(`[${label}] seated: ${seated}`);
+    logSeated(logger, label, result);
     return 0;
   } catch (err) {
     if (!(err instanceof SeatRefusal)) throw err;

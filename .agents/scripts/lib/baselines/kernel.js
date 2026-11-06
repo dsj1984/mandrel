@@ -31,6 +31,7 @@ import {
   sortRows as coverageSortRows,
 } from './kinds/coverage.js';
 import {
+  aheadStampOf as crapAheadStampOf,
   applyEpsilon as crapApplyEpsilon,
   assertBaselineCompatible as crapAssertBaselineCompatible,
   compare as crapCompare,
@@ -102,9 +103,11 @@ function bindKindModule(members) {
     compare: members.compare,
     applyEpsilon: members.applyEpsilon,
     mergeRows: members.mergeRows,
-    // Optional hooks: extra envelope stamps; refusal of an incompatible baseline.
+    // Optional hooks: extra envelope stamps; refusal of an incompatible
+    // baseline; a stamp newer than this code (hands off, never compared).
     envelopeExtras: members.envelopeExtras,
     assertBaselineCompatible: members.assertBaselineCompatible,
+    aheadStampOf: members.aheadStampOf,
   });
 }
 
@@ -135,6 +138,7 @@ const KIND_MODULES = Object.freeze({
     mergeRows: crapMergeRows,
     envelopeExtras: crapEnvelopeExtras,
     assertBaselineCompatible: crapAssertBaselineCompatible,
+    aheadStampOf: crapAheadStampOf,
   }),
   maintainability: bindKindModule({
     name: maintainabilityName,
@@ -240,6 +244,20 @@ export function checkBaselineSemantics(kind, baseline, ctx = {}) {
   const mod = tryGetKindModule(kind);
   if (typeof mod?.assertBaselineCompatible !== 'function') return null;
   return mod.assertBaselineCompatible(baseline, ctx);
+}
+
+/**
+ * The kind's `aheadStampOf` hook over a raw (unvalidated) envelope; kinds
+ * without it are never ahead.
+ *
+ * @param {string} kind
+ * @param {unknown} envelope
+ * @returns {{baseline: string, running: string, message: string}|null}
+ */
+export function checkBaselineAhead(kind, envelope) {
+  const mod = tryGetKindModule(kind);
+  if (typeof mod?.aheadStampOf !== 'function') return null;
+  return mod.aheadStampOf(envelope);
 }
 
 /**

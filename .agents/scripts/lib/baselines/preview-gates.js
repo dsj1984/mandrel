@@ -12,6 +12,8 @@ import { calculateAll, scanDirectory } from '../maintainability-utils.js';
 import { toPosix } from '../util/paths.js';
 import { computeCrapPreviewScan } from './crap-preview-scan.js';
 import {
+  AHEAD_BASELINE_DIAGNOSTIC,
+  aheadStampOf,
   assertBaselineCompatible,
   INCOMPATIBLE_BASELINE_DIAGNOSTIC,
   loadCrapBaseline,
@@ -22,6 +24,7 @@ import {
   loadMaintainabilityBaseline,
   MAINTAINABILITY_EXCLUSIONS,
 } from './kinds/maintainability.js';
+import { peekFile } from './reader.js';
 
 export const MI_PREVIEW_DEFAULT_TOLERANCE = 0.5;
 
@@ -187,6 +190,25 @@ export async function runMaintainabilityPreview({
 }
 
 /**
+ * The skips decided before the schema-validated load: a disabled gate, or a
+ * baseline stamped ahead of this code (whose layout may be newer too).
+ */
+function crapPreviewSkip({ crap, baselinePath, scope, diffRef }) {
+  const empty = emptyCrapEnvelope({ scope, diffRef });
+  if (crap.enabled === false) return { exitCode: 0, envelope: empty };
+  return aheadSkip(aheadStampOf(peekFile(baselinePath)), empty);
+}
+
+function aheadSkip(ahead, empty) {
+  if (!ahead) return null;
+  const diagnostic = {
+    name: AHEAD_BASELINE_DIAGNOSTIC,
+    message: ahead.message,
+  };
+  return { exitCode: 0, envelope: suppressVerdicts(empty, diagnostic) };
+}
+
+/**
  * Run the CRAP gate in preview mode.
  */
 export async function runCrapPreview({
@@ -200,16 +222,12 @@ export async function runCrapPreview({
     cwd,
   });
   const config = resolveConfig({ cwd });
-  const baselinePath = getBaselines(config).crap.path;
-  const baseline = loadCrapBaseline({
-    baselinePath: path.isAbsolute(baselinePath)
-      ? baselinePath
-      : path.resolve(cwd, baselinePath),
-    epicRef: null,
-  });
-  const quality = getQuality(config);
-  const crap = quality.crap;
-  if (!baseline || crap.enabled === false) {
+  const baselinePath = path.resolve(cwd, getBaselines(config).crap.path);
+  const crap = getQuality(config).crap;
+  const skipped = crapPreviewSkip({ crap, baselinePath, scope, diffRef });
+  if (skipped) return skipped;
+  const baseline = loadCrapBaseline({ baselinePath, epicRef: null });
+  if (!baseline) {
     return { exitCode: 0, envelope: emptyCrapEnvelope({ scope, diffRef }) };
   }
 

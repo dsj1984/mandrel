@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, test } from 'node:test';
 import Ajv from 'ajv';
+import { runCheckBaselines } from '../.agents/scripts/check-baselines.js';
+import { currentKernelVersion } from '../.agents/scripts/lib/baselines/kernel.js';
 import {
   assertBaselineCompatible,
   buildCrapReport,
@@ -15,6 +17,12 @@ import {
   crapFormula,
 } from '../.agents/scripts/lib/crap-engine.js';
 import { KERNEL_VERSION } from '../.agents/scripts/lib/crap-utils.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+import {
+  AHEAD_STAMP,
+  RUNNING_STAMP,
+  writeAheadCrapBaseline,
+} from './fixtures/baselines/crap-ahead.js';
 
 /**
  * Schema-conformance and round-trip coverage for the `--json` envelope
@@ -708,5 +716,91 @@ describe('AC-5: the shipped baseline validates, re-keyed', () => {
       'path',
       'startLine',
     ]);
+  });
+});
+
+describe('crap:check against a baseline stamped ahead (#5991 AC-4/AC-5)', () => {
+  /** A repo whose CRAP baseline is ahead, beside a coverage baseline. */
+  function aheadRepo(coverageLines) {
+    const root = makeTempDir('crap-ahead-');
+    fs.mkdirSync(path.join(root, 'baselines'));
+    fs.writeFileSync(
+      path.join(root, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          baseBranch: 'main',
+          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        },
+        delivery: {
+          quality: {
+            gates: {
+              crap: { enabled: true },
+              coverage: {
+                enabled: true,
+                floors: { '*': { lines: 90, branches: 0, functions: 0 } },
+              },
+            },
+          },
+        },
+      }),
+    );
+    writeAheadCrapBaseline(path.join(root, 'baselines', 'crap.json'));
+    fs.writeFileSync(
+      path.join(root, 'baselines', 'coverage.json'),
+      JSON.stringify({
+        $schema: 'coverage.schema.json',
+        kernelVersion: currentKernelVersion('coverage'),
+        rows: [
+          {
+            path: 'src/a.js',
+            lines: coverageLines,
+            branches: 100,
+            functions: 100,
+          },
+        ],
+      }),
+    );
+    return root;
+  }
+
+  it('skips the CRAP gate visibly, naming both stamps and CI, and exits 0', async () => {
+    const root = aheadRepo(95);
+    try {
+      const res = await runCheckBaselines({
+        argv: ['--no-friction', '--format', 'text'],
+        cwd: root,
+      });
+      assert.strictEqual(res.exitCode, 0);
+      assert.deepStrictEqual(res.report.schemaErrors, []);
+      assert.deepStrictEqual(
+        res.report.skipped.map((s) => s.kind),
+        ['crap'],
+      );
+      assert.deepStrictEqual(
+        res.report.gates.map((g) => g.kind),
+        ['coverage'],
+      );
+      assert.match(res.output, /SKIPPED \(crap\)/);
+      assert.match(res.output, new RegExp(AHEAD_STAMP));
+      assert.match(res.output, new RegExp(RUNNING_STAMP));
+      assert.match(res.output, /CI/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('still checks every other kind', async () => {
+    const root = aheadRepo(50);
+    try {
+      const res = await runCheckBaselines({
+        argv: ['--no-friction'],
+        cwd: root,
+      });
+      assert.notStrictEqual(res.exitCode, 0);
+      assert.ok(res.report.totalBreaches > 0);
+      assert.strictEqual(res.report.skipped.length, 1);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
