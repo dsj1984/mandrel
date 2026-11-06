@@ -424,11 +424,11 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
-      "mi": 110.76
+      "mi": 115.048
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
-      "mi": 100.874
+      "mi": 102.231
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
@@ -1632,7 +1632,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-base-ref.js",
-      "mi": 100.527
+      "mi": 103.447
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
