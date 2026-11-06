@@ -578,12 +578,20 @@ for a source that was already `agent::ready`:
 2. One PATCH sets the new title and body (with the plan fingerprint, so a
    retried persist adopts the rewritten issue instead of duplicating it),
    adds the Story's labels and this run's `plan-run::` label, and removes
-   every `agent::*` label and any earlier run's `plan-run::` label.
+   every `agent::*` label and any earlier run's `plan-run::` label. When the
+   original body's last non-blank line is a single HTML comment — a
+   consumer's machine-readable marker such as
+   `<!-- design-lab-ship branch=… sha=… -->` — that line is appended
+   verbatim after the fingerprint, so it stays the body's last line. It is
+   read from the preserved `plan-rewrite` original when one exists, so a
+   re-plan keeps exactly one copy; Mandrel's own fingerprint and
+   structured-comment markers are never carried.
 3. The `story-plan-state` comment, then the terminal `agent::ready` flip.
 
 The supersede phase lists the rewritten id under `supersede.rewritten` and
 neither comments on nor closes it; the result's `rewrite` field names the
-ticket or why there was none.
+ticket or why there was none, and `rewrite.preservedMarker` says whether a
+trailing marker was carried (a dry run reports the same answer).
 
 **Falls back to create-and-close** with no warning for any other shape
 (several sources, several Stories), under `--no-rewrite-source`, and under
