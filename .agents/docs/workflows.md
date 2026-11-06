@@ -51,7 +51,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (37)
+## Commands (38)
 
 | Command | Description |
 | --- | --- |
@@ -77,6 +77,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-security` | Audit dependency CVEs, input-validation gaps, secrets handling, auth boundaries, and the trust-boundary attack classes the baseline is silent on (business logic, SSRF/traversal, deserialization, crypto misuse, feature abuse, LLM tool-binding); emit a structured High/Medium/Low findings report. |
 | `/audit-seo` | Audit SEO fundamentals and Generative Engine Optimization signals (meta, structured data, crawlability); only relevant for web targets. |
 | `/audit-sre` | "Audit production-readiness for a release candidate: SLOs, observability, runbooks, error budgets, and rollback paths." |
+| `/audit-state-machines` | Audit implicit state machines — co-varying flags, status sidecar fields, scattered transitions, state split across systems — and report only the impossible or unhandled combinations the code can reach, each with a traced write path and a sketch of the explicit form. |
 | `/audit-to-stories` | Convert findings produced by the audit-\* workflows into actionable GitHub Stories. Reads temp/audits/audit-results/audit-\*-results.md, groups findings cross-audit, deduplicates against existing Issues by fingerprint, and either chains into /mandrel-plan --seed-file or opens standalone Stories. |
 | `/audit-ux-ui` | Audit UX/UI consistency and design system adherence |
 | `/clean-git` | Tidy the local checkout in four phases: fast-forward `main`, prune stale remote-tracking refs, sweep merged branches (squash-aware), and triage `git stash` entries — each step gated by operator confirmation. |

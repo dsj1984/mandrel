@@ -32,6 +32,7 @@ export const AUDIT_LENSES = Object.freeze([
   'security',
   'seo',
   'sre',
+  'state-machines',
   'ux-ui',
 ]);
 
