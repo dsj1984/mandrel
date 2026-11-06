@@ -20,6 +20,7 @@ import { isScorableSourceFile } from '../source-extensions.js';
 import { parseDiffScopeFlag } from './diff-scope-cli.js';
 import {
   checkSeatResolution,
+  isCaptureFresh,
   runSeatMissing,
   SeatRefusal,
 } from './seat-missing.js';
@@ -221,9 +222,6 @@ function buildCrapUpdaterScorer(
   };
 }
 
-/** Stamp scopes a capture may have written; any one fresh stamp suffices. */
-const CAPTURE_SCOPES = ['full', 'incremental', 'affected'];
-
 /**
  * The coverage artifact when any capture stamp marks it fresh for the
  * current tree; otherwise `null`.
@@ -233,16 +231,9 @@ const CAPTURE_SCOPES = ['full', 'incremental', 'affected'];
  * @returns {object|null}
  */
 function loadFreshCoverage(options, { isFresh, loadCoverage, cwd }) {
-  const fresh = CAPTURE_SCOPES.some(
-    (requireScope) =>
-      isFresh({
-        coveragePath: options.coveragePath,
-        targetDirs: options.targetDirs,
-        cwd,
-        requireScope,
-      }).fresh,
-  );
-  return fresh ? loadCoverage(path.resolve(cwd, options.coveragePath)) : null;
+  return isCaptureFresh(options, { isFresh, cwd })
+    ? loadCoverage(path.resolve(cwd, options.coveragePath))
+    : null;
 }
 
 /**

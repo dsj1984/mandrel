@@ -14,6 +14,7 @@ import {
 import { loadFile } from '../../../.agents/scripts/lib/baselines/reader.js';
 import { refreshBaseline } from '../../../.agents/scripts/lib/baselines/refresh-service.js';
 import {
+  buildCoverageSeatScorer,
   checkSeatResolution,
   runSeatMissing,
   SeatRefusal,
@@ -27,6 +28,7 @@ import {
   writeFile as writeEnvelopeFile,
 } from '../../../.agents/scripts/lib/baselines/writer.js';
 import { resolveQuality } from '../../../.agents/scripts/lib/config/quality.js';
+import { scoreCoverageFinal } from '../../../.agents/scripts/lib/coverage-baseline.js';
 import {
   computeContentDigest,
   computeTreeDigest,
@@ -93,7 +95,7 @@ describe('seatKeyFor / selectMissingRows', () => {
       seatKeyFor('maintainability')({ path: 'x.js', mi: 1 }),
       'x.js',
     );
-    assert.throws(() => seatKeyFor('coverage'), /unsupported kind/);
+    assert.equal(seatKeyFor('coverage')({ path: 'x.js', lines: 1 }), 'x.js');
     // Duplication rows are never seated, so its diff scope never reaches here.
     assert.throws(() => seatKeyFor('duplication'), /unsupported kind/);
   });
@@ -732,5 +734,153 @@ describe('CRAP seat over a V8-folded module-scope arrow (Story #5755 AC-1)', () 
       score: async () => summary.rows,
     });
     assert.equal(result.seated, 2);
+  });
+});
+
+/** A git repo whose story branch adds `src/new.js` and `src/second.js`, then merges a base that added `src/from-base.js`. */
+function coverageSeatRepo() {
+  const cwd = tempDir();
+  const git = (...args) =>
+    execFileSync('git', args, { cwd, stdio: 'pipe' }).toString();
+  const write = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(cwd, rel)), { recursive: true });
+    fs.writeFileSync(path.join(cwd, rel), text);
+  };
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'seat@test.local');
+  git('config', 'user.name', 'seat');
+  git('config', 'commit.gpgsign', 'false');
+  write('src/old.js', 'export const old = 1;\n');
+  git('add', '.');
+  git('commit', '-qm', 'seed');
+  git('checkout', '-qb', 'story');
+  write('src/old.js', 'export const old = 2;\n');
+  write('src/new.js', 'export const n = 1;\n');
+  write('src/second.js', 'export const s = 1;\n');
+  write('src/unmeasured.js', 'export const u = 1;\n');
+  git('add', '.');
+  git('commit', '-qm', 'feat: story files');
+  git('checkout', '-q', 'main');
+  write('src/from-base.js', 'export const b = 1;\n');
+  git('add', '.');
+  git('commit', '-qm', 'feat: base file');
+  git('checkout', '-q', 'story');
+  git('merge', '-q', '--no-edit', 'main');
+  return cwd;
+}
+
+/** Istanbul-shaped entry: `hit` of two statements covered. */
+const istanbulEntry = (hit) => ({
+  s: { 0: hit > 0 ? 1 : 0, 1: hit > 1 ? 1 : 0 },
+  b: {},
+  f: { 0: 1 },
+});
+
+describe('seatMissingBaseline — coverage (Story #5960)', () => {
+  const COVERAGE_PRIOR = [
+    { path: 'src/old.js', lines: 50, branches: 100, functions: 100 },
+    { path: 'src/zz.js', lines: 10, branches: 20, functions: 30 },
+  ];
+
+  function coverageScorer(cwd, { fresh = true, logger = silentLogger() } = {}) {
+    const raw = {};
+    for (const rel of [
+      'src/old.js',
+      'src/new.js',
+      'src/second.js',
+      'src/from-base.js',
+    ]) {
+      raw[path.join(cwd, rel)] = istanbulEntry(2);
+    }
+    return buildCoverageSeatScorer(
+      { coveragePath: 'coverage/coverage-final.json', readCoverage: () => raw },
+      {
+        targetDirs: ['src'],
+        cwd,
+        isFresh: ({ requireScope }) => ({
+          fresh: fresh && requireScope === 'affected',
+        }),
+        loadScope: () => ({ include: ['src/**'], exclude: [] }),
+        score: scoreCoverageFinal,
+        logger,
+      },
+    );
+  }
+
+  it('seats exactly the two new measured files, keeps every prior row byte-identical and names the unmeasured one (AC-1, AC-3)', async () => {
+    const cwd = coverageSeatRepo();
+    const { writePath, bytes } = seedBaseline('coverage', COVERAGE_PRIOR);
+    const before = JSON.parse(bytes);
+    const logger = silentLogger();
+    const code = await runSeatMissing({
+      kind: 'coverage',
+      label: 'Coverage',
+      writePath,
+      diffScopeRef: 'main',
+      score: coverageScorer(cwd, { logger }),
+      cwd,
+      logger,
+    });
+    assert.equal(code, 0);
+    assert.match(logger.lines.join('\n'), /seated: 2/);
+    assert.match(
+      logger.lines.join('\n'),
+      /did not measure: src\/unmeasured\.js/,
+    );
+    const after = JSON.parse(fs.readFileSync(writePath, 'utf8'));
+    assert.deepEqual(
+      after.rows.map((r) => r.path),
+      ['src/new.js', 'src/old.js', 'src/second.js', 'src/zz.js'],
+    );
+    for (const row of before.rows) {
+      assert.deepEqual(
+        after.rows.find((r) => r.path === row.path),
+        row,
+        `${row.path} kept although its measured numbers moved`,
+      );
+    }
+    assert.ok(
+      !after.rows.some((r) => r.path === 'src/from-base.js'),
+      'a file only the base merge brought in is never seated',
+    );
+  });
+
+  it('refuses with the capture fix and writes nothing when no stamp is fresh (AC-2)', async () => {
+    const cwd = coverageSeatRepo();
+    const { writePath, bytes } = seedBaseline('coverage', COVERAGE_PRIOR);
+    const logger = silentLogger();
+    const code = await runSeatMissing({
+      kind: 'coverage',
+      label: 'Coverage',
+      writePath,
+      diffScopeRef: 'main',
+      score: coverageScorer(cwd, { fresh: false }),
+      cwd,
+      logger,
+    });
+    assert.equal(code, 1);
+    assert.match(
+      logger.lines.join('\n'),
+      new RegExp(
+        `coverage-capture\\.js --cwd ${cwd.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}`,
+      ),
+    );
+    assert.equal(fs.readFileSync(writePath, 'utf8'), bytes);
+  });
+
+  it('never consults coverage when no diff file is in the c8 scope', async () => {
+    const rows = await buildCoverageSeatScorer(
+      {
+        coveragePath: 'coverage/coverage-final.json',
+        readCoverage: () => assert.fail('coverage read'),
+      },
+      {
+        targetDirs: ['src'],
+        cwd: '/repo',
+        isFresh: () => assert.fail('freshness probed'),
+        loadScope: () => ({ include: ['src/**'] }),
+      },
+    )(['docs/x.js']);
+    assert.deepEqual(rows, []);
   });
 });

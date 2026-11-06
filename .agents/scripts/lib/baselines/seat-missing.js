@@ -3,14 +3,23 @@
  * key is absent from the committed baseline; prior rows keep their parsed
  * objects, so they serialise byte-identically. The CRAP key is
  * `path::method` — the gate matches a moved method by name, so it is not
- * missing.
+ * missing; MI and coverage key on `path`.
  */
 
 import nodeFs from 'node:fs';
 import path from 'node:path';
 import { execFileCaptureAsync } from '../child-exec.js';
-import { getBaselines, resolveConfig } from '../config-resolver.js';
+import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
+import {
+  buildScopePredicate,
+  scoreCoverageFinal,
+} from '../coverage-baseline.js';
+import { isCoverageFresh } from '../coverage-capture.js';
 import { Logger } from '../Logger.js';
+import {
+  coverageUpdaterTargets,
+  loadC8ScopeConfig,
+} from './coverage-updater-cli.js';
 import { parseDiffScopeFlag } from './diff-scope-cli.js';
 import { assertEnvelope } from './envelope.js';
 import { getKindModule } from './kernel.js';
@@ -37,7 +46,29 @@ export class SeatRefusal extends Error {
 const SEAT_KEYS = Object.freeze({
   crap: (row) => `${row.path}::${row.method}`,
   maintainability: (row) => row.path,
+  coverage: (row) => row.path,
 });
+
+/** Stamp scopes a capture may have written; any one fresh stamp suffices. */
+const CAPTURE_SCOPES = ['full', 'incremental', 'affected'];
+
+/**
+ * Whether any capture stamp marks the coverage artifact fresh for the
+ * current tree. `targetDirs` is the stamp's digest scope.
+ *
+ * @param {{coveragePath: string, targetDirs: string[]}} options
+ * @param {{isFresh?: Function, cwd: string}} deps
+ * @returns {boolean}
+ */
+export function isCaptureFresh(
+  { coveragePath, targetDirs },
+  { isFresh = isCoverageFresh, cwd },
+) {
+  return CAPTURE_SCOPES.some(
+    (requireScope) =>
+      isFresh({ coveragePath, targetDirs, cwd, requireScope }).fresh,
+  );
+}
 
 /**
  * @param {string} kind
@@ -262,6 +293,109 @@ export function seatMaintainabilityBaseline(
     diffScopeRef: parseDiffScopeFlag(argv),
     fullScope: argv.includes('--full-scope'),
     baseBranch: config.project.baseBranch,
+    cwd,
+  });
+}
+
+/** One coverage baseline row from a file's scores. */
+const coverageRow = (relPath, s) => ({
+  path: relPath,
+  lines: s?.lines ?? 0,
+  branches: s?.branches ?? 0,
+  functions: s?.functions ?? 0,
+});
+
+/** The c8 include/exclude predicate for `cwd`. */
+function c8Scope(cwd, loadScope, buildScope) {
+  const c8Config = loadScope(cwd);
+  return buildScope({
+    include: c8Config.include ?? [],
+    exclude: c8Config.exclude ?? [],
+  });
+}
+
+/** @param {string} coveragePath @param {string[]} inScope @param {string} cwd */
+function staleRefusal(coveragePath, inScope, cwd) {
+  return new SeatRefusal(
+    `[Coverage] --seat-missing refused: no coverage artifact at ${coveragePath} is fresh for the current tree ` +
+      `(in-scope files: ${inScope.join(', ')}).\n` +
+      `Fix: re-capture coverage for the current tree — node .agents/scripts/coverage-capture.js --cwd ${cwd}`,
+  );
+}
+
+/** Rows for the measured files; an unmeasured one is named, never seated. */
+function measuredRows(scores, inScope, logger) {
+  const measured = inScope.filter((file) => Object.hasOwn(scores, file));
+  const unmeasured = inScope.filter((file) => !measured.includes(file));
+  if (unmeasured.length > 0) {
+    logger.info(
+      `[Coverage] not seated — the fresh artifact did not measure: ${unmeasured.join(', ')}`,
+    );
+  }
+  return measured.map((file) => coverageRow(file, scores[file]));
+}
+
+/**
+ * The `--seat-missing` scorer. Refuses (throws {@link SeatRefusal}) unless a
+ * capture stamp marks the artifact fresh for the current tree; a diff file
+ * the artifact did not measure is never seated at 0%. A diff with no
+ * c8-scoped file never consults coverage.
+ *
+ * @param {{ coveragePath: string, readCoverage: Function }} targets
+ * @param {{ targetDirs: string[], cwd?: string, isFresh?: Function,
+ *   loadScope?: Function, buildScope?: Function, score?: Function,
+ *   logger?: object }} deps `targetDirs` is the capture stamp's digest scope.
+ * @returns {(files: string[]) => object[]}
+ */
+export function buildCoverageSeatScorer(
+  { coveragePath, readCoverage },
+  {
+    targetDirs,
+    cwd = process.cwd(),
+    isFresh,
+    loadScope = loadC8ScopeConfig,
+    buildScope = buildScopePredicate,
+    score = scoreCoverageFinal,
+    logger = Logger,
+  },
+) {
+  return (files) => {
+    const scope = c8Scope(cwd, loadScope, buildScope);
+    const inScope = files.filter((file) => scope(file));
+    if (inScope.length === 0) return [];
+    if (!isCaptureFresh({ coveragePath, targetDirs }, { isFresh, cwd })) {
+      throw staleRefusal(coveragePath, inScope, cwd);
+    }
+    const scores = score({ raw: readCoverage(cwd), cwd, scope });
+    return measuredRows(scores, inScope, logger);
+  };
+}
+
+/**
+ * `update-coverage-baseline.js --seat-missing`: seat rows for the diff's
+ * files that have none. Resolves to the exit code.
+ *
+ * @param {string[]} argv
+ * @param {{ config?: object, cwd?: string }} [deps]
+ * @returns {Promise<number>}
+ */
+export function seatCoverageBaseline(
+  argv,
+  { config = resolveConfig(), cwd = process.cwd() } = {},
+) {
+  const quality = getQuality(config);
+  const targets = coverageUpdaterTargets(quality.coverage, cwd);
+  return runSeatMissing({
+    kind: 'coverage',
+    label: 'Coverage',
+    writePath: targets.absBaselinePath,
+    diffScopeRef: parseDiffScopeFlag(argv),
+    fullScope: argv.includes('--full-scope'),
+    baseBranch: config.project.baseBranch,
+    score: buildCoverageSeatScorer(targets, {
+      targetDirs: quality.crap?.targetDirs ?? [],
+      cwd,
+    }),
     cwd,
   });
 }

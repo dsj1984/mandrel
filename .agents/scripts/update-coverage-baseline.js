@@ -14,6 +14,7 @@ import {
   resolveCoverageUpdaterScope,
 } from './lib/baselines/coverage-updater-cli.js';
 import { refreshBaseline } from './lib/baselines/refresh-service.js';
+import { seatCoverageBaseline } from './lib/baselines/seat-missing.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
@@ -21,7 +22,7 @@ import { Logger } from './lib/Logger.js';
 /** `runAsCli` answers `--help` before `main`, so a usage probe never writes. */
 const USAGE = {
   invocation:
-    'node .agents/scripts/update-coverage-baseline.js [--full-scope | --diff-scope <ref>]',
+    'node .agents/scripts/update-coverage-baseline.js [--full-scope | --diff-scope <ref>] [--seat-missing]',
   summary:
     'Score → write the coverage baseline from the coverage artifact (`delivery.quality.gates.coverage.coveragePath`, Istanbul coverage-final.json) already on disk. With no scope flag the refresh is scoped to the files changed in `origin/main..HEAD`; out-of-scope rows are preserved verbatim.',
   flags: [
@@ -32,6 +33,10 @@ const USAGE = {
     [
       '--diff-scope <ref>',
       'Scope the refresh to files changed between <ref> and HEAD. Incompatible with --full-scope.',
+    ],
+    [
+      '--seat-missing',
+      'Insert-only: write rows ONLY for changed files (merge-base of `--diff-scope <ref>`, default `origin/<baseBranch>`) that have no baseline row; every existing row stays byte-identical. Refuses unless a coverage capture stamp is fresh for the current tree; a changed file the artifact did not measure is logged, never seated. Prints `seated: N`. Incompatible with --full-scope.',
     ],
   ],
   notes: [
@@ -67,7 +72,12 @@ function main() {
     });
 }
 
-runAsCli(import.meta.url, main, {
+async function seat() {
+  process.exitCode = await seatCoverageBaseline(process.argv.slice(2));
+}
+
+const seating = process.argv.includes('--seat-missing');
+runAsCli(import.meta.url, seating ? seat : main, {
   source: 'coverage-baseline',
   usage: USAGE,
   onError: (err) => {
