@@ -26,8 +26,8 @@ import {
   isDefaultFormatCheck,
   resolveFormatWriteCommand,
   resolveGateCommand,
-  resolveTestGateArgv,
 } from './commands.js';
+import { closeTestGate, closeTestScope } from './skip-branch-test.js';
 
 /**
  * @typedef {Object} Gate
@@ -100,7 +100,7 @@ function captureQuality(config) {
 }
 
 /**
- * What a capture script's over-budget exit (76) means here and in the handoff.
+ * What a suite's over-budget exit (76) — the capture's or `test`'s — means here and in the handoff.
  *
  * @param {object|undefined|null} config - Canonical resolved config.
  * @returns {'block'|'defer-to-ci'}
@@ -142,9 +142,9 @@ export const CI_RATCHET_UNDECLARED_HINT =
 /** Skip reason for a gate that would read the artifact a deferral never wrote. */
 export const COVERAGE_DEFERRED_SKIP_REASON = 'coverage-deferred-ci';
 
-/** Shown when a capture exits 76 and the policy blocks. */
+/** Shown when a suite gate (the capture or `test`) exits 76 and the policy blocks. */
 export const OVER_BUDGET_BLOCK_HINT =
-  'The capture script declared its slice over this host\'s budget (exit 76) and ran no tests. Run the delivery on a larger host, or — when CI runs the suite with a coverage floor — set `delivery.quality.gates.coverage.onOverBudget: "defer-to-ci"`.';
+  'The suite declared its slice over this host\'s budget (exit 76) and ran no tests. Run the delivery on a larger host, or — when CI runs the suite with a coverage floor — set `delivery.quality.gates.coverage.onOverBudget: "defer-to-ci"`.';
 
 /**
  * Coverage-capture registers when the coverage or CRAP gate is on AND the
@@ -176,13 +176,11 @@ function isCoverageCaptureActive(config, scripts) {
  * @param {object|undefined|null} config - Canonical resolved config.
  * @returns {Gate[]}
  */
-function buildTestGateEntry(coverageCaptureRunsSuite, config) {
+function buildTestGateEntry(coverageCaptureRunsSuite, config, scope) {
   if (coverageCaptureRunsSuite) return [];
   // `fullSuiteLock` serializes this suite behind the host lock; when
   // coverage-capture runs instead, `runCapture` takes the lock itself.
-  return [
-    { name: 'test', ...resolveTestGateArgv(config), fullSuiteLock: true },
-  ];
+  return [{ ...closeTestGate(config, scope), ...overBudgetFlag(config) }];
 }
 
 const CHECK_BASELINES_HINT =
@@ -387,9 +385,16 @@ function predictsIncrementalCaptureSkip({
   }
 }
 
+/** Capture-active and not skipping → the capture deposits; else `test`. */
+function depositorShape(active, skipBranch) {
+  const depositor = active && !skipBranch ? 'coverage-capture' : 'test';
+  return { depositor, skipBranch };
+}
+
 /**
  * The credited-run depositor, shared by close and `story-handoff.js`: a
  * predicted incremental skip runs no suite, so it is never the depositor.
+ * `skipBranch` tells that `test` depositor apart from an inactive capture's.
  *
  * @param {{
  *   config?: object,
@@ -399,7 +404,7 @@ function predictsIncrementalCaptureSkip({
  *   getChangedFilesImpl?: typeof getChangedFiles,
  *   resolveBaseRefImpl?: typeof resolveCaptureBaseRef,
  * }} opts
- * @returns {'coverage-capture'|'test'}
+ * @returns {{ depositor: 'coverage-capture'|'test', skipBranch: boolean }}
  */
 export function resolveCreditedDepositor({
   config,
@@ -409,15 +414,17 @@ export function resolveCreditedDepositor({
   getChangedFilesImpl,
   resolveBaseRefImpl,
 }) {
-  if (!isCoverageCaptureActive(config, scripts)) return 'test';
-  const skip = predictsIncrementalCaptureSkip({
-    config,
-    cwd,
-    baseBranch,
-    ...(getChangedFilesImpl ? { getChangedFilesImpl } : {}),
-    resolveBaseRefImpl,
-  });
-  return skip ? 'test' : 'coverage-capture';
+  const active = isCoverageCaptureActive(config, scripts);
+  const skipBranch =
+    active &&
+    predictsIncrementalCaptureSkip({
+      config,
+      cwd,
+      baseBranch,
+      ...(getChangedFilesImpl ? { getChangedFilesImpl } : {}),
+      resolveBaseRefImpl,
+    });
+  return depositorShape(active, skipBranch);
 }
 
 /**
@@ -579,12 +586,15 @@ export function buildDefaultGates({
       baseBranch,
       getChangedFilesImpl,
       resolveBaseRefImpl,
-    }) === 'test';
-  if (captureSkipPredicted) {
-    log?.(
-      '[close-validation] coverage-capture will take the incremental skip (no changed file under the CRAP target dirs) — registering the plain `test` gate so this close still runs the suite.',
-    );
-  }
+    }).skipBranch;
+  const testScope = closeTestScope({
+    skipBranch: captureSkipPredicted,
+    config,
+    cwd,
+    baseBranch,
+    gitSpawnImpl,
+    log,
+  });
   const typecheck = resolveGateCommand(config, 'typecheck');
   const lint = resolveGateCommand(config, 'lint');
   const format = resolveGateCommand(config, 'formatCheck');
@@ -630,6 +640,7 @@ export function buildDefaultGates({
         testCredited,
       }),
       config,
+      testScope,
     ),
     {
       name: 'format',

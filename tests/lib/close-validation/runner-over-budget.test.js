@@ -161,6 +161,73 @@ describe('runCloseValidation — exit 76', () => {
   });
 });
 
+// Story #5961 — a `test` gate's exit 76, in any form, settles by the same policy.
+describe('runCloseValidation — a `test` gate exit 76 (Story #5961)', () => {
+  const TEST_FORMS = {
+    full: { name: 'test', cmd: 'npm', args: ['test'] },
+    scoped: {
+      name: 'test',
+      cmd: 'pnpm',
+      args: ['vitest', '--changed', 'a'.repeat(40)],
+      evidenceNote: { scope: 'delta', since: 'a'.repeat(40) },
+    },
+  };
+  async function runTest(gate, status) {
+    const lines = [];
+    const recorded = [];
+    const validation = await runCloseValidation({
+      cwd: '/repo',
+      gates: [gate],
+      runner: () => ({ status }),
+      log: (m) => lines.push(m),
+      storyId: 5961,
+      standalone: true,
+      getHeadSha: () => 'a'.repeat(40),
+      getTreeFingerprint: () => 'tree',
+      shouldSkip: () => ({ skip: false }),
+      recordPass: (record) => recorded.push(record.gateName),
+      runProjections: async () => ({}),
+    });
+    return { validation, lines, recorded };
+  }
+
+  for (const [form, gate] of Object.entries(TEST_FORMS)) {
+    it(`defers a flagged ${form} test gate with no credit`, async () => {
+      const { validation, recorded } = await runTest(
+        { ...gate, deferOnOverBudget: true },
+        76,
+      );
+      assert.equal(validation.ok, true);
+      assert.deepEqual(
+        validation.deferred.map((d) => [d.gate.name, d.reason]),
+        [['test', 'over-budget']],
+      );
+      assert.deepEqual(recorded, []);
+    });
+
+    it(`fails an unflagged ${form} test gate as over-budget, naming the key`, async () => {
+      const { validation, lines } = await runTest(gate, 76);
+      assert.equal(validation.ok, false);
+      const [failure] = validation.failed;
+      assert.equal(failure.outcome, 'over-budget');
+      assert.match(failure.gate.hint, /onOverBudget/);
+      assert.doesNotMatch(failure.gate.hint, /capture script/);
+      assert.ok(lines.some((l) => /test over budget \(exit 76\)/.test(l)));
+    });
+
+    it(`reports a ${form} test gate exit 124 as a timeout under either policy`, async () => {
+      for (const flag of [true, false]) {
+        const { validation } = await runTest(
+          { ...gate, ...(flag ? { deferOnOverBudget: true } : {}) },
+          124,
+        );
+        assert.equal(validation.failed[0].outcome, 'timeout');
+        assert.deepEqual(validation.deferred, []);
+      }
+    });
+  }
+});
+
 describe('close envelope and PR body', () => {
   it('reports a deferred capture in the envelope gates', () => {
     const gates = closeEnvelopeGates(

@@ -16,7 +16,9 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { runEvidenceGate } from '../../../.agents/scripts/evidence-gate.js';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
+import { closeTestGate } from '../../../.agents/scripts/lib/close-validation/skip-branch-test.js';
 import { hashCommandConfig } from '../../../.agents/scripts/lib/validation-evidence.js';
 
 const TREE = `tree:${'a'.repeat(40)}`;
@@ -298,6 +300,80 @@ describe('runCloseValidation — the delta re-credit identity (Story #5880)', ()
       lines.some((l) =>
         l.includes('▶ test (delta since abcdef012345, 2 incoming path(s))'),
       ),
+    );
+  });
+});
+
+// Story #5961 AC-2 — the handoff's scoped deposit is the credit close spends.
+describe('the skip-branch scoped deposit credits close at the same HEAD (Story #5961)', () => {
+  it("a green `evidence-gate --changed-since` run skips close's scoped `test` gate without spawning", async () => {
+    const head = 'c'.repeat(40);
+    const since = 'd'.repeat(40);
+    // A cwd `path.resolve` rewrites on every platform (a Windows drive does
+    // the same to any POSIX path): both sides must hash it identically.
+    const worktree = '/repo/.worktrees/x/../story-5961';
+    const config = { project: { commands: { test: 'npm test' } } };
+    const testChanged = {
+      cmd: 'pnpm',
+      args: ['vitest', '--changed', '$MANDREL_CHANGED_SINCE'],
+      raw: 'pnpm vitest',
+    };
+    const store = [];
+    const silent = { info() {}, warn() {}, error() {}, fatal() {} };
+    await runEvidenceGate(
+      {
+        scopeId: 5961,
+        standalone: true,
+        gate: 'test',
+        useEvidence: true,
+        cwd: '/repo',
+        worktreePath: worktree,
+        runnerArgs: [testChanged.cmd, ...testChanged.args],
+        changedSince: since,
+      },
+      {
+        gitSpawnFn: () => ({ status: 0, stdout: head }),
+        runSuiteFn: async () => 0,
+        shouldSkipFn: () => ({ skip: false }),
+        recordPassFn: (record) => store.push(record),
+        loadConfigFn: () => config,
+        logger: silent,
+      },
+    );
+    assert.equal(store.length, 1);
+    assert.equal(store[0].scope, 'delta');
+
+    let spawned = 0;
+    const result = await runCloseValidation({
+      cwd: '/repo',
+      worktreePath: worktree,
+      gates: [closeTestGate(config, { testChanged, since })],
+      storyId: 5961,
+      standalone: true,
+      runner: async () => {
+        spawned += 1;
+        return { status: 0 };
+      },
+      getHeadSha: () => head,
+      getTreeFingerprint: () => store[0].inputFingerprint,
+      shouldSkip: (q) => {
+        const hit = store.find(
+          (r) =>
+            r.gateName === q.gateName &&
+            r.sha === q.currentSha &&
+            r.configHash === q.configHash,
+        );
+        return hit
+          ? { skip: true, reason: 'evidence-match', record: hit }
+          : { skip: false };
+      },
+      recordPass: () => {},
+    });
+    assert.equal(result.ok, true);
+    assert.equal(
+      spawned,
+      0,
+      'close must not spawn a suite the deposit credited',
     );
   });
 });

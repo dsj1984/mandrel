@@ -166,20 +166,18 @@ export function isCoverageDeferred(ctx) {
 }
 
 /**
- * Did the capture depositor declare its slice over this host's budget?
+ * Did the depositor — the capture or the `test` run — declare its slice over
+ * this host's budget?
  *
- * @param {{ depositor: string }} ctx @param {number} status
+ * @param {number} status
  * @returns {boolean}
  */
-export function isOverBudgetCapture(ctx, status) {
-  return (
-    ctx.depositor === 'coverage-capture' &&
-    status === COVERAGE_OVER_BUDGET_EXIT_CODE
-  );
+export function isOverBudgetExit(status) {
+  return status === COVERAGE_OVER_BUDGET_EXIT_CODE;
 }
 
 /**
- * An over-budget capture's step result: deferred to CI (no credit, the
+ * An over-budget depositor's step result: deferred to CI (no credit, the
  * coverage-reading gates skipped) or `blocked`, by `coverage.onOverBudget`.
  *
  * @param {object} ctx @param {string} name @param {object} extra
@@ -199,7 +197,7 @@ export function settleOverBudget(ctx, name, extra) {
   return {
     name,
     outcome: 'failed',
-    detail: `capture over budget (${exit}) under onOverBudget: block`,
+    detail: `${ctx.depositor} over budget (${exit}) under delivery.quality.gates.coverage.onOverBudget: block`,
     reason: OVER_BUDGET_BLOCK_HINT,
     stop: 'blocked',
     ...extra,

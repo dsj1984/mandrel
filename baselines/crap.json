@@ -586,13 +586,17 @@
       "loadConfig": 2,
       "main": 2,
       "parseWrapperArgs": 3,
+      "plainRun": 1,
       "reportGateExit": 2,
       "resolveEvidenceKeys": 2,
       "resolveHeadShaDefault": 4,
+      "resolveRun": 2,
       "runEvidenceGate": 12,
       "runGateCommand": 2,
       "runLockedSuite": 1,
-      "splitOnDashDash": 2
+      "scopedRun": 1,
+      "splitOnDashDash": 2,
+      "usageError": 6
     },
     ".agents/scripts/file-ci-gap.js": {
       "<anon liveIntakePorts/createIssue(owner,repo,title,body,labels)#0>": 6,
@@ -2539,6 +2543,7 @@
       "coverageCaptureHint": 2,
       "coverageCaptureRunsSuite": 3,
       "coverageReaderFlag": 3,
+      "depositorShape": 3,
       "disabledSkip": 2,
       "enabledBaselineKinds": 1,
       "isCoverageCaptureActive": 1,
@@ -2650,16 +2655,31 @@
       "runSerialGates": 7.036814425244177,
       "settleSerialResult": 3
     },
+    ".agents/scripts/lib/close-validation/skip-branch-test.js": {
+      "buildSkipBranchTestGate": 1,
+      "changedSinceError": 5,
+      "closeTestGate": 2,
+      "closeTestScope": 4,
+      "describeCloseScope": 2,
+      "readMergeBase": 3,
+      "resolveSkipBranchScope": 3,
+      "scopedEvidenceRun": 1,
+      "skipBranchDeposit": 2
+    },
     ".agents/scripts/lib/close-validation/test-delta.js": {
       "<anon applyTestDelta/credited()#0>": 2,
       "<anon applyTestDelta/gates.findIndex(g)#0>": 1,
       "<anon applyTestDelta/gates.map(g,i)#0>": 2,
       "<anon applyTestDelta/storyFiles()#0>": 1,
       "<anon buildTestDeltaGate/testChanged.args.map(a)#0>": 2,
+      "<anon substituteChangedSince/args.map(a)#0>": 2,
       "applyTestDelta": 3,
       "buildTestDeltaGate": 1,
+      "keptRun": 2,
+      "overBudgetOf": 2,
       "readStoryFiles": 4,
       "resolveTestChangedCommand": 3,
+      "substituteChangedSince": 1,
       "testDeltaIneligibility": 5
     },
     ".agents/scripts/lib/codex/agents-projection.js": {
@@ -4853,6 +4873,7 @@
       "holdsLint": 2,
       "isCoverageDeferred": 2,
       "isOverBudgetCapture": 2,
+      "isOverBudgetExit": 1,
       "postCaptureFilter": 1,
       "postCaptureGates": 2,
       "postCaptureSettled": 2,
@@ -6777,6 +6798,7 @@
       "creditCheck": 2,
       "creditedRun": 9,
       "defaultBlock": 1.004096,
+      "depositorArgv": 2,
       "describeLockProgress": 5,
       "describeSuiteFailure": 4,
       "durations": 1,
@@ -6830,6 +6852,7 @@
       "stepSeatStatic": 1,
       "stepTargets": 1,
       "suiteFailureDetail": 3,
+      "testDeposit": 3,
       "testGateArgv": 1,
       "withLockProgress": 1,
       "worktreeEnv": 1

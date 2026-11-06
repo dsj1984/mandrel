@@ -77,6 +77,7 @@ function gitWorld({
   branch = `story-${STORY}`,
   firstParent = [],
   ancestor = true,
+  mergeBase = null,
 } = {}) {
   const world = { head, remote, dirty: [], calls: [] };
   const ok = (stdout = '') => ({ status: 0, stdout, stderr: '' });
@@ -102,6 +103,9 @@ function gitWorld({
     }
     if (verb === 'add') return ok();
     if (verb === 'rev-list') return ok(firstParent.join('\n'));
+    if (verb === 'merge-base' && !args.includes('--is-ancestor')) {
+      return mergeBase ? ok(`${mergeBase}\n`) : { status: 1, stdout: '' };
+    }
     if (verb === 'merge-base') return { status: ancestor ? 0 : 1 };
     if (verb === 'commit') {
       world.head = SEATED_HEAD;
@@ -635,7 +639,8 @@ describe('story-handoff — a predicted incremental skip is never the depositor'
         baseBranch: 'main',
         getChangedFilesImpl,
       });
-      assert.equal(predicate, expected);
+      assert.equal(predicate.depositor, expected);
+      assert.equal(predicate.skipBranch, expected === 'test');
       const gates = buildDefaultGates({
         config: configFor(),
         packageScripts: CAPTURE_SCRIPTS,
@@ -672,6 +677,163 @@ describe('story-handoff — a predicted incremental skip is never the depositor'
       const { envelope, exitCode } = await h.run();
       assert.equal(exitCode, 2, stdout);
       assert.equal(envelope.failedStep, 'credited-run');
+      rmSync(path.join(tempRoot, 'orchestration'), {
+        recursive: true,
+        force: true,
+      });
+    }
+  });
+});
+
+// Story #5961 — the skip branch deposits `testChanged` since the merge-base.
+describe('story-handoff — the skip-branch scoped `test` deposit (Story #5961)', () => {
+  const MERGE_BASE = '7'.repeat(40);
+  const TEST_CHANGED = 'pnpm vitest run --changed $MANDREL_CHANGED_SINCE';
+  const DOCS_ONLY = ['docs/decisions.md'];
+  const scopedConfig = (testChanged = TEST_CHANGED, coverage = undefined) =>
+    configFor({
+      project: {
+        baseBranch: 'main',
+        paths: { tempRoot },
+        commands: { test: 'npm test', testChanged },
+      },
+      ...(coverage ? { delivery: { quality: { gates: { coverage } } } } : {}),
+    });
+  const testRun = (h) =>
+    h.runCommand.calls.find(
+      (c) => c.key === 'evidence-gate.js' && c.args.includes('test'),
+    );
+
+  test('AC-1: spawns testChanged --changed-since the merge-base and names it in the step', async () => {
+    const h = harness({
+      changed: DOCS_ONLY,
+      config: scopedConfig(),
+      world: gitWorld({ mergeBase: MERGE_BASE }),
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.depositor, 'test');
+    const { args } = testRun(h);
+    const tail = args.slice(args.indexOf('--changed-since'));
+    assert.deepEqual(tail, [
+      '--changed-since',
+      MERGE_BASE,
+      '--',
+      'pnpm',
+      'vitest',
+      'run',
+      '--changed',
+      '$MANDREL_CHANGED_SINCE',
+    ]);
+    const step = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.equal(step.outcome, 'ran');
+    assert.match(
+      step.detail,
+      new RegExp(`testChanged since ${MERGE_BASE.slice(0, 12)}`),
+    );
+    assert.ok(
+      h.world.calls.some((a) => a.join(' ') === 'merge-base origin/main HEAD'),
+    );
+  });
+
+  test('AC-4: an unset testChanged or an unreadable merge-base runs the full suite, naming why', async () => {
+    for (const [config, world, reason] of [
+      [
+        scopedConfig(null),
+        gitWorld({ mergeBase: MERGE_BASE }),
+        /no `project\.commands\.testChanged`/,
+      ],
+      [scopedConfig(), gitWorld(), /merge-base unreadable/],
+    ]) {
+      const h = harness({ changed: DOCS_ONLY, config, world });
+      const lines = [];
+      h.deps.progress = (tag, msg) => lines.push({ tag, msg });
+      const { envelope } = await h.run();
+      const { args } = testRun(h);
+      assert.ok(!args.includes('--changed-since'));
+      assert.deepEqual(args.slice(args.indexOf('--') + 1), ['npm', 'test']);
+      const step = envelope.steps.find((s) => s.name === 'credited-run');
+      assert.match(step.detail, reason);
+      assert.ok(lines.some((l) => reason.test(l.msg)));
+      rmSync(path.join(tempRoot, 'orchestration'), {
+        recursive: true,
+        force: true,
+      });
+    }
+  });
+
+  test('AC-5: an inactive capture keeps the full suite and an app Story the capture, whatever testChanged says', async () => {
+    const inactive = harness({
+      changed: DOCS_ONLY,
+      scripts: { test: 'x' },
+      config: scopedConfig(),
+      world: gitWorld({ mergeBase: MERGE_BASE }),
+    });
+    await inactive.run();
+    assert.ok(!testRun(inactive).args.includes('--changed-since'));
+    rmSync(path.join(tempRoot, 'orchestration'), {
+      recursive: true,
+      force: true,
+    });
+    const app = harness({
+      changed: ['src/app.js'],
+      config: scopedConfig(),
+      world: gitWorld({ mergeBase: MERGE_BASE }),
+    });
+    const { envelope } = await app.run();
+    assert.equal(envelope.depositor, 'coverage-capture');
+    assert.equal(testRun(app), undefined);
+  });
+
+  test('AC-8: a test depositor exit 76 defers under defer-to-ci, blocks under block, and 124 is a timeout', async () => {
+    const over = { 'evidence-gate.js': { status: 76, stdout: '' } };
+    const defer = harness({
+      changed: DOCS_ONLY,
+      config: scopedConfig(TEST_CHANGED, { onOverBudget: 'defer-to-ci' }),
+      world: gitWorld({ mergeBase: MERGE_BASE }),
+      outputs: over,
+    });
+    const deferred = await defer.run();
+    assert.equal(deferred.exitCode, 0);
+    assert.equal(deferred.envelope.status, 'ready');
+    assert.deepEqual(deferred.envelope.coverage, {
+      status: 'deferred',
+      reason: 'over-budget',
+      policy: 'defer-to-ci',
+    });
+    const step = deferred.envelope.steps.find((s) => s.name === 'credited-run');
+    assert.equal(step.outcome, 'deferred');
+    rmSync(path.join(tempRoot, 'orchestration'), {
+      recursive: true,
+      force: true,
+    });
+
+    const block = harness({
+      changed: DOCS_ONLY,
+      config: scopedConfig(),
+      world: gitWorld({ mergeBase: MERGE_BASE }),
+      outputs: over,
+    });
+    const blocked = await block.run();
+    assert.equal(blocked.exitCode, 1);
+    assert.equal(blocked.envelope.status, 'blocked');
+    assert.match(blocked.envelope.reason, /onOverBudget/);
+    assert.doesNotMatch(blocked.envelope.reason, /capture script/);
+    rmSync(path.join(tempRoot, 'orchestration'), {
+      recursive: true,
+      force: true,
+    });
+
+    for (const coverage of [{ onOverBudget: 'defer-to-ci' }, undefined]) {
+      const h = harness({
+        changed: DOCS_ONLY,
+        config: scopedConfig(TEST_CHANGED, coverage),
+        world: gitWorld({ mergeBase: MERGE_BASE }),
+        outputs: { 'evidence-gate.js': { status: 124, stdout: '' } },
+      });
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 2);
+      assert.match(envelope.steps.at(-1).detail, /timed out/);
       rmSync(path.join(tempRoot, 'orchestration'), {
         recursive: true,
         force: true,

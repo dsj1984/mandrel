@@ -15,7 +15,7 @@ import { resolveTestGateArgv } from './commands.js';
  *
  * @param {object|null|undefined} config
  */
-function resolveTestChangedCommand(config) {
+export function resolveTestChangedCommand(config) {
   const raw = config?.project?.commands?.testChanged?.trim() || null;
   const [cmd, ...args] = raw ? raw.split(/\s+/) : [];
   return { cmd, args, raw, disabled: raw === null };
@@ -23,15 +23,29 @@ function resolveTestChangedCommand(config) {
 
 const CHANGED_SINCE_TOKEN = '$MANDREL_CHANGED_SINCE';
 
-/** `testChanged` keyed on `since`, credited as the full suite; no shell runs it, so the token is substituted here. */
+/**
+ * `testChanged` keyed on `since`: no shell runs it, so the token is
+ * substituted here and the sha is also handed over in the env.
+ *
+ * @param {{ cmd: string, args: string[] }} testChanged @param {string} since
+ */
+export function substituteChangedSince({ cmd, args }, since) {
+  return {
+    cmd,
+    args: args.map((a) => (a === CHANGED_SINCE_TOKEN ? since : a)),
+    env: { MANDREL_CHANGED_SINCE: since },
+  };
+}
+
+export const NO_TEST_CHANGED = 'no `project.commands.testChanged`';
+
+/** `testChanged` keyed on `since`, credited as the full suite. */
 function buildTestDeltaGate({ config, testChanged, since, incoming }) {
   const label = `test (delta since ${since.slice(0, 12)}, ${incoming} incoming path(s))`;
   return {
     name: 'test',
     label,
-    cmd: testChanged.cmd,
-    args: testChanged.args.map((a) => (a === CHANGED_SINCE_TOKEN ? since : a)),
-    env: { MANDREL_CHANGED_SINCE: since },
+    ...substituteChangedSince(testChanged, since),
     fullSuiteLock: true,
     evidenceIdentity: resolveTestGateArgv(config),
     evidenceNote: { scope: 'delta', since },
@@ -48,7 +62,7 @@ function testDeltaIneligibility({
   storyFiles,
   config,
 }) {
-  if (testChanged.disabled) return 'no `project.commands.testChanged`';
+  if (testChanged.disabled) return NO_TEST_CHANGED;
   if (captureRuns) return 'coverage-capture runs the suite';
   if (!credited()) return 'no `test` credit for the pre-sync head';
   const files = storyFiles();
@@ -69,6 +83,16 @@ function readStoryFiles({ cwd, baseBranch, getChangedFilesImpl }) {
   } catch {
     return null;
   }
+}
+
+/** The run an ineligible delta leaves in place, for its log line. */
+function keptRun(gate) {
+  return gate?.evidenceNote ? 'the skip-branch scoped run' : 'the full suite';
+}
+
+/** The replaced gate's over-budget flag, carried onto the delta. */
+function overBudgetOf({ deferOnOverBudget }) {
+  return deferOnOverBudget ? { deferOnOverBudget } : {};
 }
 
 /**
@@ -116,7 +140,7 @@ export function applyTestDelta(
   });
   if (reason) {
     log?.(
-      `[close-validation] test delta re-credit not eligible (${reason}) — running the full suite`,
+      `[close-validation] test delta re-credit not eligible (${reason}) — running ${keptRun(gates[index])}`,
     );
     return gates;
   }
@@ -126,5 +150,6 @@ export function applyTestDelta(
     since,
     incoming: incoming.length,
   });
-  return gates.map((g, i) => (i === index ? delta : g));
+  const swapped = { ...delta, ...overBudgetOf(gates[index]) };
+  return gates.map((g, i) => (i === index ? swapped : g));
 }

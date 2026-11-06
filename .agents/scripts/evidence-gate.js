@@ -12,6 +12,10 @@ import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { claimLockEventSink, lockEventHooks } from './lib/close-lock-events.js';
+import {
+  changedSinceError,
+  scopedEvidenceRun,
+} from './lib/close-validation/skip-branch-test.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import { COVERAGE_HOST_RESOURCES_EXIT_CODE } from './lib/coverage-capture.js';
 import {
@@ -54,6 +58,7 @@ export function parseWrapperArgs(argv) {
       standalone: { type: 'boolean', default: false },
       cwd: { type: 'string' },
       worktree: { type: 'string' },
+      'changed-since': { type: 'string' },
     },
     strict: false,
   });
@@ -65,7 +70,35 @@ export function parseWrapperArgs(argv) {
     useEvidence: values['no-evidence'] !== true,
     cwd: values.cwd ?? PROJECT_ROOT,
     worktreePath: values.worktree ?? null,
+    changedSince: values['changed-since'] ?? null,
   };
+}
+
+const USAGE =
+  'Usage: node evidence-gate.js --standalone --scope-id <id> --gate <name> [--worktree <path>] [--no-evidence] [--changed-since <sha>] -- <cmd> [args...]';
+
+/** The usage refusal, or `null` when the params may run. */
+function usageError({ scopeId, standalone, gate, runnerArgs, changedSince }) {
+  if (!scopeId || !standalone || !gate || !runnerArgs?.length) return USAGE;
+  const scoped = changedSinceError(gate, changedSince);
+  return scoped ? `[evidence-gate] ${scoped}` : null;
+}
+
+/** The spawned argv and evidence identity; `--changed-since` scopes a `test` run. */
+function resolveRun({ runnerArgs, changedSince }, cwd, loadConfigFn) {
+  const [cmd, ...args] = runnerArgs;
+  return changedSince
+    ? scopedRun({ cmd, args, since: changedSince, cwd, loadConfigFn })
+    : plainRun(cmd, args, cwd);
+}
+
+function scopedRun({ loadConfigFn, ...run }) {
+  return scopedEvidenceRun({ ...run, config: loadConfigFn(run.cwd) });
+}
+
+function plainRun(cmd, args, cwd) {
+  const configHash = hashCommandConfig({ cmd, args, cwd });
+  return { cmd, cmdArgs: args, configHash, note: {} };
 }
 
 function resolveHeadShaDefault(cwd, gitSpawnFn) {
@@ -99,6 +132,7 @@ function resolveEvidenceKeys({ spawnCwd, gitSpawnFn, useEvidence }) {
  * @param {string}   params.cwd          — evidence cwd (locates the temp tree)
  * @param {string|null} [params.worktreePath] — spawn cwd and HEAD source
  * @param {string[]} params.runnerArgs
+ * @param {string|null} [params.changedSince] — skip-branch scoped `test` deposit
  * @param {object}   [deps]
  * @param {Function} [deps.gitSpawnFn]
  * @param {Function} [deps.spawnFn]
@@ -106,6 +140,7 @@ function resolveEvidenceKeys({ spawnCwd, gitSpawnFn, useEvidence }) {
  * @param {Function} [deps.recordPassFn]
  * @param {object}   [deps.logger]
  * @param {Function} [deps.runSuiteFn]
+ * @param {Function} [deps.loadConfigFn]
  * @returns {{ status: number, skipped: boolean }}
  */
 export async function runEvidenceGate(params, deps = {}) {
@@ -116,6 +151,7 @@ export async function runEvidenceGate(params, deps = {}) {
     recordPassFn = recordPass,
     logger = Logger,
     runSuiteFn = runLockedSuite,
+    loadConfigFn = loadConfig,
   } = deps;
   const {
     scopeId,
@@ -124,19 +160,11 @@ export async function runEvidenceGate(params, deps = {}) {
     useEvidence,
     cwd,
     worktreePath,
-    runnerArgs,
   } = params ?? {};
 
-  if (
-    !scopeId ||
-    !standalone ||
-    !gate ||
-    !runnerArgs ||
-    runnerArgs.length === 0
-  ) {
-    logger.fatal(
-      'Usage: node evidence-gate.js --standalone --scope-id <id> --gate <name> [--worktree <path>] [--no-evidence] -- <cmd> [args...]',
-    );
+  const usage = usageError(params ?? {});
+  if (usage) {
+    logger.fatal(usage);
     return { status: 1, skipped: false };
   }
   const evidenceStoreOpts = { cwd, standalone };
@@ -144,8 +172,11 @@ export async function runEvidenceGate(params, deps = {}) {
   // The gate runs in the worktree; evidence stays anchored to the main
   // checkout so the temp tree resolves under the main `.git/`.
   const spawnCwd = worktreePath ?? cwd;
-  const [cmd, ...cmdArgs] = runnerArgs;
-  const configHash = hashCommandConfig({ cmd, args: cmdArgs, cwd: spawnCwd });
+  const { cmd, cmdArgs, env, note, configHash } = resolveRun(
+    params,
+    spawnCwd,
+    loadConfigFn,
+  );
   const { headSha, inputFingerprint } = resolveEvidenceKeys({
     spawnCwd,
     gitSpawnFn,
@@ -180,6 +211,7 @@ export async function runEvidenceGate(params, deps = {}) {
     gate,
     cmd,
     cmdArgs,
+    env,
     spawnCwd,
     logger,
     spawnFn,
@@ -203,6 +235,7 @@ export async function runEvidenceGate(params, deps = {}) {
           exitCode: 0,
           durationMs: Date.now() - startedAt,
           inputFingerprint,
+          ...note,
         },
         evidenceStoreOpts,
       );
@@ -216,12 +249,12 @@ export async function runEvidenceGate(params, deps = {}) {
 }
 
 /**
- * @param {{ cmd: string, args: string[], cwd: string, log: (m: string) => void }} run
+ * @param {{ cmd: string, args: string[], cwd: string, log: (m: string) => void, childEnv?: Record<string, string> }} run
  * @param {{ config?: object|null, env?: object, lockOptions?: object, runSuiteImpl?: typeof runSupervisedSuite }} [seams]
  * @returns {Promise<number>} 75 when the lock wait expired.
  */
 export function runLockedSuite(
-  { cmd, args, cwd, log },
+  { cmd, args, cwd, log, childEnv },
   {
     config = loadConfig(cwd),
     env = process.env,
@@ -248,6 +281,7 @@ export function runLockedSuite(
         cwd,
         timeoutMs,
         ...lock,
+        env: { ...childEnv, ...lock.env },
         onTimings: (t) => {
           log(`[evidence-gate] ${formatSuiteTimings(t)}`);
           lockHooks.onTimings(t);
@@ -265,6 +299,7 @@ async function runGateCommand({
   gate,
   cmd,
   cmdArgs,
+  env,
   spawnCwd,
   logger,
   spawnFn,
@@ -272,7 +307,13 @@ async function runGateCommand({
 }) {
   if (gate === FULL_SUITE_GATE) {
     const log = (m) => logger.info(m);
-    return await runSuiteFn({ cmd, args: cmdArgs, cwd: spawnCwd, log });
+    return await runSuiteFn({
+      cmd,
+      args: cmdArgs,
+      cwd: spawnCwd,
+      log,
+      childEnv: env,
+    });
   }
   const result = spawnFn(cmd, cmdArgs, {
     cwd: spawnCwd,
@@ -326,7 +367,7 @@ runAsCli(import.meta.url, main, {
   source: 'evidence-gate',
   usage: {
     invocation:
-      'node .agents/scripts/evidence-gate.js --scope-id <id> --gate <name> [--standalone] [--no-evidence] [--cwd <path>] [--worktree <path>] -- <cmd> [args...]',
+      'node .agents/scripts/evidence-gate.js --scope-id <id> --gate <name> [--standalone] [--no-evidence] [--cwd <path>] [--worktree <path>] [--changed-since <sha>] -- <cmd> [args...]',
     summary:
       'Run one named gate, reusing a prior evidence stamp for the same HEAD instead of re-running it.',
     flags: [
@@ -339,6 +380,10 @@ runAsCli(import.meta.url, main, {
       ],
       ['--cwd <path>', 'Repository root (default: project root).'],
       ['--worktree <path>', 'Worktree the gate runs in.'],
+      [
+        '--changed-since <sha>',
+        "With --gate test only: substitute $MANDREL_CHANGED_SINCE in the command, set it in the env, and credit the run as close's full-suite test (scope: delta).",
+      ],
       [
         '-- <cmd> [args...]',
         'Required. The command this gate runs, passed through verbatim (never via a shell).',
