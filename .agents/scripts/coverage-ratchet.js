@@ -7,10 +7,10 @@
  * or a ratchet step failed (named on stderr).
  */
 
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { spawnChild } from './lib/child-exec.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import {
@@ -53,7 +53,7 @@ const USAGE = {
 /** Spawn one ratchet step in `cwd`, output passed through. */
 function runStep(cwd) {
   return (args, env) =>
-    spawnSync(process.execPath, args, {
+    spawnChild(process.execPath, args, {
       cwd,
       stdio: 'inherit',
       env: env ? { ...process.env, ...env } : process.env,

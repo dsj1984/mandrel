@@ -5,7 +5,7 @@
  * green on the PR head: absent or in flight stays pending, red blocks.
  */
 
-import { suiteOfRecord } from '../close-validation/gates.js';
+import { resolveQuality } from '../config/quality.js';
 import { readDeferralMarker } from '../coverage-deferral.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
@@ -76,7 +76,8 @@ export async function holdForCiRatchet({
   progress,
   blockFn = blockOnRedRatchet,
 }) {
-  const { ciRatchetCheck } = suiteOfRecord(config);
+  const coverage = config?.delivery?.quality?.gates?.coverage;
+  const { ciRatchetCheck } = resolveQuality({ gates: { coverage } }).coverage;
   if (!ciRatchetCheck) return null;
   const view = await gh.pr.view(prNumber, ['body', 'statusCheckRollup']);
   if (!readDeferralMarker(view?.body)) return null;
