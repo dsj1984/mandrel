@@ -47,7 +47,7 @@ import { parseSprintArgsTolerant } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { formatCliError } from './lib/error-redactor.js';
 import { Logger } from './lib/Logger.js';
-import { emitCloseTerminalSignals } from './lib/observability/close-telemetry.js';
+import { emitCloseCrashSignals } from './lib/observability/story-outcome.js';
 import { resolveRunScopedConfig } from './lib/orchestration/run-scoped-config.js';
 import {
   failedTerminalFor,
@@ -103,7 +103,7 @@ async function main() {
     // Mirrors runAsCli's default error line, which this catch pre-empts.
     Logger.error(`[single-story-close] Fatal error: ${formatCliError(err)}`);
     emitTerminalEnvelope(terminal);
-    await emitCloseTerminalSignals({ envelope: terminal });
+    await emitCloseCrashSignals(terminal);
     return exitCodeForTerminal(terminal);
   }
 }

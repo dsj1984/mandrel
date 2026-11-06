@@ -101,6 +101,7 @@ const DELEGATIONS = [
   // Legacy private alias with live call sites; same target, so both agree.
   ['_getNativeSubIssues', 'subIssues.getNativeSubIssues'],
   ['getTicketComments', 'comments.getTicketComments'],
+  ['getRepoCommentsSince', 'comments.getRepoCommentsSince'],
   ['deleteComment', 'comments.deleteComment'],
   ['postComment', 'comments.postComment'],
   ['getBranchProtection', 'branchProtection.getBranchProtection'],

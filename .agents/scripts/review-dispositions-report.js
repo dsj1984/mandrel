@@ -47,7 +47,7 @@ function renderTable(label, groups) {
 }
 
 /** @param {string[][]} rows @returns {string[]} space-padded columns. */
-function alignRows(rows) {
+export function alignRows(rows) {
   const widths = [];
   for (const row of rows) {
     row.forEach((cell, i) => {

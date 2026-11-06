@@ -63,6 +63,8 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // The source ticket's pre-plan title and body, posted once before a
   // one-for-one rewrite; first write wins, so re-plans keep the original.
   'plan-rewrite',
+  // Opt-in per-Story close outcome record, upserted on every close attempt.
+  'story-outcome',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

@@ -261,8 +261,9 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `refactorStage.enabled` | No | `boolean` | `false` | When true, story-deliver runs an advisory post-green refactor stage (core/code-review-and-quality skill, Post-Green Refactor Pass) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged. |
 | `acceptanceEval` | No | `object` | — | Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the caller-injected change set against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped at `maxRounds` redraft rounds (0 = scored once, no redraft), then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the scoring pass is a hard cutover (always on). |
 | `acceptanceEval.maxRounds` | No | `integer` | `2` | Maximum number of redraft rounds before escalation. Default 2; 0 means the verdict is scored once with no redraft round (Story #5313 dropped the hard ceiling and the floor-of-one clamp). |
-| `feedbackLoop` | No | `object` | — | Opt-in toggle for the close-time retro auto-file graduator. Auto-filing defaults to OFF (Story #5341). |
+| `feedbackLoop` | No | `object` | — | Opt-in toggles for anything posted to the tracker unasked: the retro auto-file graduator and the per-Story outcome record. Both default to OFF (Story #5341). |
 | `feedbackLoop.retroProposals` | No | `boolean` | `false` | When true, the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Defaults to false (Story #5341), which renders the command stanzas instead. |
+| `feedbackLoop.outcomeRecord` | No | `boolean` | `false` | When true, every close and confirm-merge attempt upserts one `story-outcome` structured comment on the Story issue: a JSON record of each attempt (status, cause, failed gates, mandrel version) plus a carried-forward summary, read back by story-outcomes-report.js. Defaults to false, which makes no extra GitHub call. |
 | `ci` | No | `object` | — | CI-aware delivery namespace (Story #4356, Epic #4355): the merge posture and the advisory-check policy. |
 | `ci.autoMerge` | No | `"trust-ci"` \| `"strict"` | `"trust-ci"` | Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' skips arming auto-merge, so the operator owns the merge; it adds no review gate. |
 | `ci.blockOnAdvisoryFailure` | No | `boolean` | `true` | Story #5096. When true (default), delivery refuses to arm — and disarms — GitHub native auto-merge while a non-required (advisory) check is genuinely red on the PR head and GitHub reports the PR mergeable anyway (mergeStateStatus=UNSTABLE). `--auto` waits on REQUIRED contexts only, so without this a red advisory quality gate merges unattended. Set false to restore the pre-#5096 behaviour verbatim. |
@@ -672,13 +673,24 @@ non-Claude consumers can pin the same `.agents/` version unmodified. The fix
 budget (`maxFixAttempts` / `maxFixScopeFiles`) uses the same values for every
 Story in a run — there is no per-Story override.
 
-#### `delivery.feedbackLoop` — retro auto-graduation
+#### `delivery.feedbackLoop` — retro auto-graduation and the outcome record
 
 `retroProposals` auto-graduates the retro's actionable routed proposals into
 follow-up issues; the graduator embeds a content-derived idempotency marker so
 re-runs skip proposals that already have an issue (re-enabling after a
 manual-triage window is safe). It defaults to `false` (Story #5341) — set it
 to `true` to opt in.
+
+`outcomeRecord` (default `false`) makes every close and confirm-merge attempt
+upsert one `story-outcome` structured comment on the Story issue: a fenced JSON
+record of each attempt (status, cause, failed gates, PR, mandrel version,
+worker figures) and a summary whose counters carry across machines and across
+the 100-attempt cap. Recording is best-effort and never changes the terminal
+envelope or exit code. `node .agents/scripts/story-outcomes-report.js
+[--since <YYYY-MM-DD>] [--json]` reads those comments back in one paginated
+call and reports first-pass rate, mean attempts to land, failed gates by count
+and the same rates by landing mandrel version. Off, close makes no extra
+GitHub call.
 
 Two sibling keys were retired and a config carrying either fails validation;
 delete it. `codeReviewAutoFile` went when Story #4411 unified the pass.

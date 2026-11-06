@@ -859,6 +859,15 @@ is a cost/quality trade-off set by the consumer's host quota, which no tool
 config, gate key or package manifest records. Unset depths keep the shipped
 `light: low`, `standard: low`, `deep: high`.
 
+**Raised to 151 (2026-11-06, Story #5977)** for
+`delivery.feedbackLoop.outcomeRecord`. Close tallied a Story's cost only from
+the local signals stream of the machine that ran it, so a Story closed from two
+machines had no whole record and close outcomes could not be compared across
+mandrel versions. Whether close may post a per-Story record to the tracker is a
+per-project choice about writing to the tracker unasked (Story #5341's posture),
+so no tool config, package manifest or existing gate key can supply it. It
+defaults to `false`, which makes no extra GitHub call.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

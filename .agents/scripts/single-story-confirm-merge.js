@@ -26,6 +26,7 @@ import { createGh } from './lib/gh-exec.js';
 import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
+import { recordStoryOutcome } from './lib/observability/story-outcome.js';
 import { emitTerseResult } from './lib/observability/terse-result.js';
 import { probeCloseArtifacts } from './lib/orchestration/deliver-recover.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/emit-merge-flip-failed.js';
@@ -138,7 +139,7 @@ export async function resolvePrNumber({ storyBranch, gh }) {
  * The friction emit is awaited because `runAsCli` exits via `process.exit`
  * as soon as `main` resolves.
  */
-async function logConfirmResult(result, terminal, config) {
+async function logConfirmResult(result, terminal, { config, provider }) {
   emitTerseResult({
     label: 'CONFIRM MERGE RESULT',
     result,
@@ -152,6 +153,13 @@ async function logConfirmResult(result, terminal, config) {
   });
   emitTerminalEnvelope(terminal, { config });
   await emitTerminalFriction({ envelope: terminal, tool: CLI_SOURCE, config });
+  await recordStoryOutcome({
+    envelope: terminal,
+    result,
+    config,
+    provider,
+    tool: CLI_SOURCE,
+  });
   return { success: terminal.status !== 'failed', result, terminal };
 }
 
@@ -267,7 +275,7 @@ async function confirmWithoutPr(ctx) {
       tail: null,
       elapsedSeconds: elapsedSeconds(ctx),
     }),
-    ctx.config,
+    ctx,
   );
 }
 
@@ -343,7 +351,7 @@ async function resumeMergeWait(ctx) {
       tail: waitOutcome.tail ?? null,
     },
     terminal,
-    ctx.config,
+    ctx,
   );
 }
 
@@ -382,7 +390,7 @@ async function probeMergeOnce(ctx) {
   return await logConfirmResult(
     { ...confirmation, standalone: true, tail },
     terminal,
-    config,
+    ctx,
   );
 }
 
@@ -464,6 +472,11 @@ async function failWithEnvelope(err, phase, fullArgv) {
   );
   emitTerminalEnvelope(terminal);
   await emitTerminalFriction({ envelope: terminal, tool: CLI_SOURCE });
+  await recordStoryOutcome({
+    envelope: terminal,
+    cwd: args.cwd,
+    tool: CLI_SOURCE,
+  });
   return exitCodeForTerminal(terminal);
 }
 

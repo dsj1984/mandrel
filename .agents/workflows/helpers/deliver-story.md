@@ -127,7 +127,9 @@ dispatch, pass it as `--worker-tokens <n>` — close records it in its
 result's local `telemetry`; omit it when the host reports none. Every close
 command deliver-run renders (a multi-Story run, or a one-Story resume) already
 carries `--worker-model`, plus `--worker-effort` when the worker ran at a
-resume effort.
+resume effort. With `delivery.feedbackLoop.outcomeRecord` on, each close also
+updates the Story's `story-outcome` comment, which
+`node .agents/scripts/story-outcomes-report.js` rolls up.
 
 **The whole delivery tail** — gates, PR, merge wait, `agent::done` flip,
 post-land tail in one process. Never background it, never delegate it to a

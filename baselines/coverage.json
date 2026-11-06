@@ -1780,8 +1780,8 @@
     },
     {
       "path": ".agents/scripts/lib/observability/close-telemetry.js",
-      "lines": 98.55,
-      "branches": 87.18,
+      "lines": 98.61,
+      "branches": 89.02,
       "functions": 100
     },
     {
@@ -1818,6 +1818,12 @@
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "lines": 100,
       "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/observability/story-outcome.js",
+      "lines": 99.46,
+      "branches": 92.11,
       "functions": 100
     },
     {
@@ -3010,8 +3016,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "lines": 99.63,
-      "branches": 91.67,
+      "lines": 99.64,
+      "branches": 91.8,
       "functions": 100
     },
     {
@@ -3671,7 +3677,7 @@
     {
       "path": ".agents/scripts/providers/github/comments.js",
       "lines": 100,
-      "branches": 91.67,
+      "branches": 92.31,
       "functions": 100
     },
     {
@@ -3808,7 +3814,7 @@
     },
     {
       "path": ".agents/scripts/review-dispositions-report.js",
-      "lines": 96.69,
+      "lines": 96.9,
       "branches": 100,
       "functions": 80
     },
@@ -3826,9 +3832,9 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "lines": 91.05,
-      "branches": 75.95,
-      "functions": 90
+      "lines": 96.2,
+      "branches": 84.71,
+      "functions": 95
     },
     {
       "path": ".agents/scripts/single-story-init.js",
@@ -3847,6 +3853,12 @@
       "lines": 95.6,
       "branches": 80,
       "functions": 33.33
+    },
+    {
+      "path": ".agents/scripts/story-outcomes-report.js",
+      "lines": 98.27,
+      "branches": 78.48,
+      "functions": 92.86
     },
     {
       "path": ".agents/scripts/story-review-compute.js",
