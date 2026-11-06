@@ -14,6 +14,7 @@ import PluginSyntaxBabylon from 'escomplex-plugin-syntax-babylon/dist/PluginSynt
 import ASTWalker from 'typhonjs-ast-walker/dist/ASTWalker.js';
 import ModuleScopeControl from 'typhonjs-escomplex-commons/dist/module/report/control/ModuleScopeControl.js';
 import ModuleReport from 'typhonjs-escomplex-commons/dist/module/report/ModuleReport.js';
+import { anchorOf } from './escomplex-anchor.js';
 import { install as installAstCompat } from './escomplex-ast-compat.js';
 import { describeParserMajorError } from './runtime-deps/parser-major.js';
 
@@ -104,6 +105,23 @@ function traitNewScope(syntax, node, parent) {
 }
 
 /**
+ * Per method report: its enclosing method report and its call-site anchor.
+ * A side table, so no report gains a property (the parity corpus hashes
+ * them); `finalize()` keeps object identity, so lookups survive it.
+ */
+const METHOD_SITES = new WeakMap();
+
+/**
+ * @param {object} report A method report from {@link analyzeModule}.
+ * @returns {{parent: object|null, anchor: string|null}|undefined}
+ */
+export function methodSiteOf(report) {
+  return report !== null && typeof report === 'object'
+    ? METHOD_SITES.get(report)
+    : undefined;
+}
+
+/**
  * Event shapes are the displaced shell's: scope events lack `syntaxes`, and
  * name the scope `newScope` on entry but `scope` on exit.
  *
@@ -118,6 +136,8 @@ function traitNewScope(syntax, node, parent) {
 function buildVisitor({ moduleReport, scopeControl, syntaxes, settings }) {
   const nodeBase = { moduleReport, scopeControl, syntaxes, settings };
   const scopeBase = { moduleReport, scopeControl, settings };
+  /** Every entered node; the walker pairs enter/exit, so it stays balanced. */
+  const ancestors = [];
   return {
     enterNode(node, parent) {
       const syntax = syntaxes[node.type];
@@ -132,12 +152,21 @@ function buildVisitor({ moduleReport, scopeControl, syntaxes, settings }) {
       if (newScope) {
         const scoped = { ...scopeBase, newScope, node, parent };
         dispatch('onModulePreScopeCreated', scoped);
-        scopeControl.createScope(newScope);
+        const enclosing = scopeControl.getCurrentMethodReport() ?? null;
+        const report = scopeControl.createScope(newScope);
+        if (newScope.type === 'method') {
+          METHOD_SITES.set(report, {
+            parent: enclosing,
+            anchor: anchorOf(node, ancestors, ancestors.length - 1),
+          });
+        }
         dispatch('onModulePostScopeCreated', scoped);
       }
+      ancestors.push(node);
       return ignoreKeys;
     },
     exitNode(node, parent) {
+      ancestors.pop();
       const syntax = syntaxes[node.type];
       const newScope = traitNewScope(syntax, node, parent);
       if (newScope) {

@@ -12,10 +12,14 @@ import {
   UNSCORABLE,
 } from '../../.agents/scripts/lib/crap-engine.js';
 import {
+  anonymousStem,
   deriveMethodIdentities,
   isAnonymousMethodLabel,
 } from '../../.agents/scripts/lib/crap-method-identity.js';
-import { analyzeModule } from '../../.agents/scripts/lib/escomplex-kernel.js';
+import {
+  analyzeModule,
+  methodSiteOf,
+} from '../../.agents/scripts/lib/escomplex-kernel.js';
 import {
   FOLDED_ARROW_SOURCE,
   foldedArrowCoverageEntry,
@@ -641,7 +645,8 @@ test('deriveFixGuidance — deterministic across repeated calls', () => {
 
 /** Identities for a source, in escomplex's emission order. */
 function identitiesFor(source) {
-  return deriveMethodIdentities(analyzeModule(source).methods);
+  const { methods } = analyzeModule(source);
+  return deriveMethodIdentities(methods, methods.map(methodSiteOf));
 }
 
 /** Just the derived anonymous identities, as a Set for order-free compare. */
@@ -675,11 +680,11 @@ describe('deriveMethodIdentities — scope-path identity (Story #4969)', () => {
     assert.deepEqual(
       [...anonIdentities(ANON_FIXTURE)].sort(),
       [
-        '<anon (p)#0>',
-        '<anon (p)#1>',
+        '<anon first(p)#0>',
         // `/` sorts before `>`, so the nested one lands first.
-        '<anon outer/(files,opts)#0/(r)#0>',
-        '<anon outer/(files,opts)#0>',
+        '<anon outer/inner(files,opts)#0/files.map(r)#0>',
+        '<anon outer/inner(files,opts)#0>',
+        '<anon second(p)#0>',
       ],
       'the path must carry the enclosing chain, and nesting must be visible',
     );
@@ -729,13 +734,11 @@ describe('deriveMethodIdentities — scope-path identity (Story #4969)', () => {
   });
 
   it('AC-2: two anonymous functions in one scope get different identities', () => {
-    // Same enclosing scope, same arity, same body shape — nothing but their
-    // order tells them apart, so the discriminator has to hold.
+    // Same enclosing scope, same anchor, same arity, same body shape —
+    // nothing but their order tells them apart, so the ordinal has to hold.
     const source = `
 export function host() {
-  const a = (x) => x + 1;
-  const b = (x) => x + 2;
-  return [a, b];
+  return [(x) => x + 1, (x) => x + 2];
 }
 `;
     const ids = [...anonIdentities(source)];
@@ -769,10 +772,10 @@ export function host(v) {
   });
 }
 `;
-    assert.deepEqual([...anonIdentities(before)], ['<anon host/(x)#0>']);
+    assert.deepEqual([...anonIdentities(before)], ['<anon host/map(x)#0>']);
     assert.deepEqual(
       [...anonIdentities(after)],
-      ['<anon host/(x)#0>'],
+      ['<anon host/map(x)#0>'],
       'a branchier body is the same method and must keep the same key',
     );
 
@@ -810,11 +813,149 @@ export function host(v) {
   });
 });
 
+describe('deriveMethodIdentities — call-site anchors and true nesting', () => {
+  it('AC-4: a line split leaves every identity unchanged; same-line closures are siblings', () => {
+    const oneLine =
+      'function C(){ useEffect(() => {}); useEffect(() => {}); return [1].map((x)=>x).filter((y)=>y); }';
+    const split = `function C(){
+  useEffect(() => {});
+  useEffect(() => {});
+  return [1]
+    .map((x) => x)
+    .filter((y) => y);
+}`;
+    const ids = identitiesFor(oneLine).map((i) => i.method);
+    assert.deepEqual(ids, [
+      'C',
+      '<anon C/useEffect()#0>',
+      '<anon C/useEffect()#1>',
+      '<anon C/map(x)#0>',
+      '<anon C/filter(y)#0>',
+    ]);
+    assert.deepEqual(
+      identitiesFor(split).map((i) => i.method),
+      ids,
+    );
+  });
+
+  it('AC-5: each anchor kind survives a differently anchored sibling inserted, removed or reordered', () => {
+    const parts = {
+      callee: 'runner.run(() => 1);',
+      jsx: 'const el = <b onClick={() => 2} />;',
+      key: 'const o = { handle: () => 3 };',
+      decl: 'const named = () => 4;',
+      literal: "it('works', () => 5);",
+    };
+    const host = (list) => `function host() {\n${list.join('\n')}\n}`;
+    const order = Object.keys(parts);
+    const base = new Set(
+      identitiesFor(host(order.map((k) => parts[k]))).map((i) => i.method),
+    );
+    const variants = [
+      ['other(() => 0);', ...order.map((k) => parts[k])],
+      order.slice(1).map((k) => parts[k]),
+      [...order].reverse().map((k) => parts[k]),
+    ];
+    for (const lines of variants) {
+      const after = identitiesFor(host(lines)).map((i) => i.method);
+      for (const id of after) {
+        if (id === '<anon host/other()#0>' || id === 'host') continue;
+        assert.ok(base.has(id), `${id} re-keyed`);
+      }
+    }
+    assert.ok(base.has('<anon host/runner.run()#0>'));
+    assert.ok(base.has('<anon host/onClick()#0>'));
+    assert.ok(base.has('<anon host/handle()#0>'));
+    assert.ok(base.has('<anon host/named()#0>'));
+    assert.ok(base.has('<anon host/it:works()#0>'));
+  });
+
+  it('AC-7: two closures sharing anchor and parameters stay distinct', () => {
+    const ids = identitiesFor(
+      'function host() { useEffect(() => 1); useEffect(() => 2); }',
+    ).map((i) => i.method);
+    assert.equal(new Set(ids).size, ids.length);
+  });
+
+  it('AC-8: a body-only edit keeps the identity', () => {
+    const before = 'function host() { register((a) => a); }';
+    const after =
+      'function host() { register((a) => { if (a) { return 1; } return a ? 2 : 3; }); }';
+    assert.deepEqual([...anonIdentities(after)], [...anonIdentities(before)]);
+  });
+
+  it('reads through wrappers and sanitizes anchors to segment-safe text', () => {
+    const ids = [
+      ...anonIdentities(`
+async function host() {
+  await (cb as any);
+  this.store.set = (k) => k;
+  arr[i].then(() => 1);
+  it('a very long test name / with # and (parens) that keeps going', () => 2);
+  const list = [() => 3];
+  x = ((() => 4));
+}`),
+    ];
+    assert.ok(ids.includes('<anon host/this.store.set(k)#0>'));
+    assert.ok(ids.includes('<anon host/then()#0>'));
+    assert.ok(ids.includes('<anon host/list()#0>'));
+    assert.ok(ids.includes('<anon host/x()#0>'));
+    const long = ids.find((i) => i.includes('it:a_very'));
+    assert.equal(
+      long,
+      '<anon host/it:a_very_long_test_name___with___and__p()#0>',
+    );
+  });
+
+  it('leaves non-call-site positions unanchored', () => {
+    const ids = [
+      ...anonIdentities(`
+function host(k) {
+  (() => 1)();
+  const { a } = (() => 2)();
+  const o = { [k]: () => 3, 7: () => 4, ['s']: () => 5 };
+  const j = <i x:on={() => 6}>{() => 7}</i>;
+  o[k] = () => 8;
+  foo[k](() => 9);
+  return () => 10;
+}`),
+    ];
+    for (const id of [
+      '<anon host/()#0>',
+      '<anon host/7()#0>',
+      '<anon host/s()#0>',
+      '<anon host/x:on()#0>',
+      '<anon host/()#5>',
+    ]) {
+      assert.ok(ids.includes(id), `${id} missing from ${ids.join(' ')}`);
+    }
+  });
+
+  it('strips every ordinal to form the stem', () => {
+    assert.equal(
+      anonymousStem('<anon host/useEffect()#3/map(x)#12>'),
+      '<anon host/useEffect()/map(x)>',
+    );
+  });
+
+  it('a method with no recorded site falls back to line-span nesting', () => {
+    const outer = { name: '<anon method-1>', lineStart: 1, lineEnd: 9 };
+    const inner = { name: '<anon method-2>', lineStart: 2, lineEnd: 3 };
+    const ids = deriveMethodIdentities([outer, inner], [undefined, undefined]);
+    assert.deepEqual(
+      ids.map((i) => i.method),
+      ['<anon ()#0>', '<anon ()#0/()#0>'],
+    );
+    assert.equal(methodSiteOf(null), undefined);
+    assert.equal(methodSiteOf(outer), undefined);
+  });
+});
+
 describe('methodRowsFromReport — rows carry the identity marker (#4969)', () => {
   it('flags a derived identity and leaves a named row unflagged', () => {
     const rows = calculateCrapForSource(ANON_FIXTURE, null);
     const named = rows.find((r) => r.method === 'outer');
-    const anon = rows.find((r) => r.method === '<anon (p)#0>');
+    const anon = rows.find((r) => r.method === '<anon first(p)#0>');
     assert.ok(named && anon);
     assert.equal(named.anonymous, false);
     assert.equal(anon.anonymous, true);
