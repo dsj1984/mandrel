@@ -484,7 +484,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 97.782
+      "mi": 100.855
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -928,7 +928,7 @@
     },
     {
       "path": ".agents/scripts/lib/crap-method-identity.js",
-      "mi": 95.294
+      "mi": 100.954
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
@@ -985,6 +985,10 @@
     {
       "path": ".agents/scripts/lib/errors/index.js",
       "mi": 126.057
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-anchor.js",
+      "mi": 106.716
     },
     {
       "path": ".agents/scripts/lib/escomplex-ast-compat.js",
