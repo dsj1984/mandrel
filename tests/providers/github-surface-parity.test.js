@@ -49,6 +49,7 @@ function buildProvider() {
   };
   provider.comments = {
     getTicketComments: async () => 'comments.getTicketComments',
+    getRepoCommentsSince: async () => 'comments.getRepoCommentsSince',
     deleteComment: async () => 'comments.deleteComment',
     postComment: async () => 'comments.postComment',
   };
@@ -131,6 +132,11 @@ describe('providers/github.js — surface parity (Story #2462 / Task #2481)', ()
       ['getParentIssue', [1], 'issues.getParentIssue'],
       // comments
       ['getTicketComments', [1], 'comments.getTicketComments'],
+      [
+        'getRepoCommentsSince',
+        ['2026-11-01T00:00:00Z'],
+        'comments.getRepoCommentsSince',
+      ],
       ['deleteComment', [1], 'comments.deleteComment'],
       ['postComment', [1, {}], 'comments.postComment'],
       // labels

@@ -291,6 +291,18 @@
       "percentage": 6.06
     },
     {
+      "path": ".agents/scripts/review-dispositions-report.js",
+      "duplicatedLines": 9,
+      "totalLines": 129,
+      "percentage": 6.98
+    },
+    {
+      "path": ".agents/scripts/story-outcomes-report.js",
+      "duplicatedLines": 9,
+      "totalLines": 231,
+      "percentage": 3.9
+    },
+    {
       "path": ".agents/scripts/validate-skills.js",
       "duplicatedLines": 32,
       "totalLines": 245,

@@ -72,6 +72,22 @@ describe('providers/github/comments.js — CommentGateway', () => {
     assert.equal(out[0].id, 9);
   });
 
+  it('getRepoCommentsSince: one paginated repo-wide read with an encoded since', async () => {
+    const gh = makeFakeGh({
+      'GET /repos/o/r/issues/comments?since=': {
+        status: 200,
+        json: [{ id: 7, body: 'c', issue_url: '.../issues/3' }],
+      },
+    });
+    const gw = new CommentGateway({ gh, owner: 'o', repo: 'r' });
+    const out = await gw.getRepoCommentsSince('2026-11-01T00:00:00Z');
+    assert.equal(out[0].id, 7);
+    assert.match(
+      gh.__exec.calls[0].args[3],
+      /issues\/comments\?since=2026-11-01T00%3A00%3A00Z&page=1/,
+    );
+  });
+
   it('deleteComment: issues a DELETE call against the comments endpoint', async () => {
     const gh = makeFakeGh({
       'DELETE /issues/comments/123': { status: 204, json: {} },

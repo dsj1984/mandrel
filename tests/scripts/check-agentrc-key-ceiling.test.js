@@ -91,8 +91,8 @@ describe('checkLeafKeyCeiling', () => {
     assert.equal(checkLeafKeyCeiling(schema, 2).ok, false);
   });
 
-  it('the landed ceiling is 150 (183 before Story #5382, +1 for #5459 scratch, +1 for #5472 captureScope, +1 for #5485 coverage.timeoutMs, +1 for #5519 agentModels, +1 for #5605 duplication.formats, +2 for #5668 execution.capacity/workloads, +1 for #5693 github.cliConfigDir, +2 for #5717 crap.coveragePath/captureScript, +1 for #5737 coverage.captureScript, -1 for #5738 retiring duplication.formats, +4 for #5848 project.policies, +1 for #5849 duplication.additionalFormats, -3 for #5850 retiring delivery.quality.navigability, +1 for #5875 pullRequest.bodyTrailers, +1 for #5880 commands.testChanged, +1 for #5917 codeReview.sensitivePaths, +2 for #5920 codeReview.guidanceFile/skipPaths, +1 for #5949 coverage.onOverBudget, +3 for #5954 coverage.nonInputGlobs/captureHandlesConfigChanges and close.baseSync, +1 for #5976 codeReview.effortByDepth)', () => {
-    assert.equal(AGENTRC_LEAF_KEY_CEILING, 150);
+  it('the landed ceiling is 151 (183 before Story #5382, +1 for #5459 scratch, +1 for #5472 captureScope, +1 for #5485 coverage.timeoutMs, +1 for #5519 agentModels, +1 for #5605 duplication.formats, +2 for #5668 execution.capacity/workloads, +1 for #5693 github.cliConfigDir, +2 for #5717 crap.coveragePath/captureScript, +1 for #5737 coverage.captureScript, -1 for #5738 retiring duplication.formats, +4 for #5848 project.policies, +1 for #5849 duplication.additionalFormats, -3 for #5850 retiring delivery.quality.navigability, +1 for #5875 pullRequest.bodyTrailers, +1 for #5880 commands.testChanged, +1 for #5917 codeReview.sensitivePaths, +2 for #5920 codeReview.guidanceFile/skipPaths, +1 for #5949 coverage.onOverBudget, +3 for #5954 coverage.nonInputGlobs/captureHandlesConfigChanges and close.baseSync, +1 for #5976 codeReview.effortByDepth, +1 for #5977 feedbackLoop.outcomeRecord)', () => {
+    assert.equal(AGENTRC_LEAF_KEY_CEILING, 151);
   });
 
   it('holds the real schema at the landed ceiling', () => {

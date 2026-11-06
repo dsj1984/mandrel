@@ -125,6 +125,8 @@ const KEY_MEANINGS = Object.freeze({
     'When true, single-story-close lands through merge in one close (opt out with --no-wait-merge).',
   'delivery.feedbackLoop.retroProposals':
     'When true, auto-file actionable retro proposals as follow-up issues.',
+  'delivery.feedbackLoop.outcomeRecord':
+    'When true, each close attempt updates one story-outcome comment on the Story for story-outcomes-report.js.',
   'delivery.quality.requireBaselines':
     'When true, absent baseline artifacts fail close-validation instead of skipping cleanly.',
   'delivery.refactorStage.enabled':
@@ -156,7 +158,7 @@ const PREFIX_MEANINGS = Object.freeze([
   ['delivery.close', 'Close-time base-sync posture.'],
   [
     'delivery.feedbackLoop',
-    'Opt-out toggles for auto-filing non-blocking findings.',
+    'Opt-in toggles for posting to the tracker unasked.',
   ],
   [
     'delivery.routing',
