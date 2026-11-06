@@ -2,8 +2,8 @@
 
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail in one
- * command: preflight (lint + quality-preview + baselined ratchets) → merge
- * origin/<base> → the one credited run → `--seat-missing` baseline seating →
+ * command: merge origin/<base> → close's untagged duplication re-score →
+ * preflight (lint + quality-preview + baselined ratchets) → the one credited run → `--seat-missing` baseline seating →
  * push + remote-ref check → held Story-scope review. Prints one JSON envelope on stdout.
  *
  * Exit 0 `ready` (hand off) · 2 `fix-required` (fix, commit, re-run; labels
@@ -26,7 +26,7 @@ const USAGE = {
   invocation:
     'node .agents/scripts/story-handoff.js --story <id> [--cwd <workCwd>]',
   summary:
-    "Run the story-worker's post-implementation tail — preflight, base merge, the one credited run, baseline seating, push and held review — and print one envelope: ready (exit 0), fix-required (exit 2) or blocked (exit 1).",
+    "Run the story-worker's post-implementation tail — base merge, duplication re-score, preflight, the one credited run, baseline seating, push and held review — and print one envelope: ready (exit 0), fix-required (exit 2) or blocked (exit 1).",
   flags: [
     ['--story <id>', 'Story issue number; the branch is story-<id>.'],
     ['--cwd <path>', "The Story's worktree (default: the current directory)."],

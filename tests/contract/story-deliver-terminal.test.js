@@ -689,6 +689,34 @@ describe('story-deliver-terminal — blocked / failed', () => {
   });
 });
 
+describe('story-deliver-terminal — failure.baselinesKinds (Story #5956)', () => {
+  const failedWith = (failure) => ({
+    ...buildTerminalEnvelope({
+      storyId: 5956,
+      status: 'failed',
+      phase: 'close-validation',
+      failure: { reason: 'Gate failed' },
+      nextCommand: NEXT_COMMANDS.close(5956),
+      elapsedSeconds: 1,
+    }),
+    failure,
+  });
+
+  it('accepts a failure with and without baselinesKinds', () => {
+    const kinds = { reason: 'Gate failed', baselinesKinds: ['duplication'] };
+    assert.equal(validateTerminalEnvelope(failedWith(kinds)).valid, true);
+    assert.equal(
+      validateTerminalEnvelope(failedWith({ reason: 'Gate failed' })).valid,
+      true,
+    );
+  });
+
+  it('rejects an empty kind string', () => {
+    const bad = { reason: 'Gate failed', baselinesKinds: [''] };
+    assert.equal(validateTerminalEnvelope(failedWith(bad)).valid, false);
+  });
+});
+
 describe('story-deliver-terminal — the PR block', () => {
   it('admits a null PR number (the unparseable-create-URL case)', () => {
     // `gh pr create` can return a URL the /pull/<n> parser cannot read. The

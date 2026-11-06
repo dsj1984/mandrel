@@ -12,6 +12,7 @@ import path from 'node:path';
 
 import { orchestrationLogDir } from '../../config/temp-paths.js';
 import { Logger, resolveLevel } from '../../Logger.js';
+import { parseGateFailLine } from '../check-baselines/phases/report.js';
 
 /** Trailing lines replayed on failure; a failed gate's evidence sits at the end. */
 export const REPLAY_TAIL_LINES = 200;
@@ -39,6 +40,7 @@ class GateLogSink {
     this._flush = flush ?? (() => Promise.resolve());
     this._emit = emit;
     this._tail = [];
+    this._failedKinds = new Set();
   }
 
   /**
@@ -52,6 +54,9 @@ class GateLogSink {
       this.lineCount += 1;
       this._tail.push(line);
       if (this._tail.length > REPLAY_TAIL_LINES) this._tail.shift();
+      // Every line, not the tail: parallel lint output can push these out.
+      const kind = parseGateFailLine(line);
+      if (kind) this._failedKinds.add(kind);
       this._write(line);
       if (this.streamInline) this._emit(line);
     };
@@ -64,6 +69,11 @@ class GateLogSink {
    */
   flush() {
     return this._flush();
+  }
+
+  /** @returns {string[]} the check-baselines kinds any line reported FAIL. */
+  baselinesKinds() {
+    return [...this._failedKinds];
   }
 
   /**

@@ -334,6 +334,16 @@ export function isRecoveredSignal(signal) {
   );
 }
 
+/** `baselinesKinds` rides along only when the failed terminal carried it. */
+function closeFailedDetails(phase, failure) {
+  const kinds = failure?.baselinesKinds;
+  return {
+    phase: phase ?? null,
+    reason: preview(failure?.reason),
+    ...(kinds ? { baselinesKinds: kinds } : {}),
+  };
+}
+
 /**
  * The friction a terminal envelope implies; each incident is emitted from one
  * place only. `blocked` → null (the transition mutator emits it); `failed` →
@@ -351,10 +361,7 @@ function frictionForTerminal(envelope) {
   if (status === 'failed') {
     return {
       category: RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED,
-      details: {
-        phase: phase ?? null,
-        reason: preview(failure?.reason),
-      },
+      details: closeFailedDetails(phase, failure),
     };
   }
 

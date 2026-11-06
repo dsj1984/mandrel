@@ -243,10 +243,33 @@ function postCaptureFilter(names, deferred) {
     names.has(g.name) && !g.skip && !(deferred && g.readsCoverageArtifact);
 }
 
+/** The kinds a baselines entry scores; `null` without `--gate` (every kind). */
+function gateKinds(gate) {
+  const i = gate.args.indexOf('--gate');
+  return i === -1 ? null : gate.args[i + 1];
+}
+
 /** The gate name, plus the kinds a baselines entry scores. */
 function describeGate(gate) {
-  const i = gate.args.indexOf('--gate');
-  return i === -1 ? gate.name : `${gate.name} (kinds: ${gate.args[i + 1]})`;
+  const kinds = gateKinds(gate);
+  return kinds ? `${gate.name} (kinds: ${kinds})` : gate.name;
+}
+
+/** Does a baselines entry score duplication? (No `--gate` scores every kind.) */
+function scoresDuplication(gate) {
+  if (gate.name === QUALITY_PREVIEW_GATE_NAMES.crap) return false;
+  return (gateKinds(gate) ?? 'duplication').includes('duplication');
+}
+
+/** A non-zero post-capture exit as the handoff's finding. */
+function failure(gate, res) {
+  return {
+    gate: gate.name,
+    finding: `${describeGate(gate)} finding (exit ${res.status}) — fix and commit, then re-run`,
+    evidencePath: res.evidencePath,
+    scoresDuplication: scoresDuplication(gate),
+    baselineRef: gate.env?.BASELINE_REF,
+  };
 }
 
 /** Run each post-capture gate through `run`; the first non-zero exit is the finding. */
@@ -260,13 +283,7 @@ export async function scorePostCapture(ctx, run) {
       gate.args,
       env,
     );
-    if (res.status !== 0) {
-      const finding = `${describeGate(gate)} finding (exit ${res.status}) — fix and commit, then re-run`;
-      return {
-        gates,
-        failed: { gate: gate.name, finding, evidencePath: res.evidencePath },
-      };
-    }
+    if (res.status !== 0) return { gates, failed: failure(gate, res) };
   }
   return { gates, failed: null };
 }
