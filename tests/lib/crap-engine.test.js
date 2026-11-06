@@ -907,6 +907,30 @@ async function host() {
     );
   });
 
+  it('leaves non-call-site positions unanchored', () => {
+    const ids = [
+      ...anonIdentities(`
+function host(k) {
+  (() => 1)();
+  const { a } = (() => 2)();
+  const o = { [k]: () => 3, 7: () => 4, ['s']: () => 5 };
+  const j = <i x:on={() => 6}>{() => 7}</i>;
+  o[k] = () => 8;
+  foo[k](() => 9);
+  return () => 10;
+}`),
+    ];
+    for (const id of [
+      '<anon host/()#0>',
+      '<anon host/7()#0>',
+      '<anon host/s()#0>',
+      '<anon host/x:on()#0>',
+      '<anon host/()#5>',
+    ]) {
+      assert.ok(ids.includes(id), `${id} missing from ${ids.join(' ')}`);
+    }
+  });
+
   it('strips every ordinal to form the stem', () => {
     assert.equal(
       anonymousStem('<anon host/useEffect()#3/map(x)#12>'),

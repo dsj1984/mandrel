@@ -54,6 +54,26 @@ export function anonymousStem(label) {
 }
 
 /**
+ * `<anchor>(<params>)#<ordinal>`, counting the ordinal in `ordinals`.
+ *
+ * @param {object} m
+ * @param {{anchor?: string|null}|undefined} site
+ * @param {string} parentPath
+ * @param {Map<string, number>} ordinals
+ * @returns {string}
+ */
+function anonymousSegment(m, site, parentPath, ordinals) {
+  const params = Array.isArray(m?.paramNames) ? m.paramNames : [];
+  const head = `${sanitizeAnchor(site?.anchor)}(${params.join(',')})`;
+  // NUL can never appear in a scope path; keep it an escape (a raw NUL
+  // makes the file binary to git).
+  const bucket = `${parentPath}\u0000${head}`;
+  const ordinal = ordinals.get(bucket) ?? 0;
+  ordinals.set(bucket, ordinal + 1);
+  return `${head}#${ordinal}`;
+}
+
+/**
  * Named methods keep their name. An anonymous one becomes `<anon {scope
  * path}>`, e.g. `<anon build/arr.map(r)#0>`: each link is a name, or a
  * call-site anchor plus parameter list plus an ordinal among siblings
@@ -86,33 +106,14 @@ export function deriveMethodIdentities(methods, sites = []) {
       openAncestors.pop();
     }
     const site = sites?.[i];
-    let parentPath;
-    if (site) {
-      parentPath = pathOf.get(site.parent) ?? '';
-    } else {
-      parentPath =
-        openAncestors.length > 0
-          ? openAncestors[openAncestors.length - 1].scopePath
-          : '';
-    }
-
+    const parentPath = site
+      ? (pathOf.get(site.parent) ?? '')
+      : (openAncestors.at(-1)?.scopePath ?? '');
     const name = typeof m?.name === 'string' ? m.name : '';
-    let segment;
-    let anonymous;
-    if (name === '' || ESCOMPLEX_ANON_LABEL_RE.test(name)) {
-      const params = Array.isArray(m?.paramNames) ? m.paramNames : [];
-      const head = `${sanitizeAnchor(site?.anchor)}(${params.join(',')})`;
-      // NUL can never appear in a scope path; keep it an escape (a raw NUL
-      // makes the file binary to git).
-      const bucket = `${parentPath}\u0000${head}`;
-      const ordinal = ordinals.get(bucket) ?? 0;
-      ordinals.set(bucket, ordinal + 1);
-      segment = `${head}#${ordinal}`;
-      anonymous = true;
-    } else {
-      segment = name;
-      anonymous = false;
-    }
+    const anonymous = name === '' || ESCOMPLEX_ANON_LABEL_RE.test(name);
+    const segment = anonymous
+      ? anonymousSegment(m, site, parentPath, ordinals)
+      : name;
 
     const scopePath = parentPath === '' ? segment : `${parentPath}/${segment}`;
     identities.push({

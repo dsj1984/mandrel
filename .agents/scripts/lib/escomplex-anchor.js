@@ -75,6 +75,44 @@ function calleeAnchor(call) {
   return first?.type === 'StringLiteral' ? `${callee}:${first.value}` : callee;
 }
 
+/** @param {object} attr @returns {string|null} */
+function jsxAttributeName(attr) {
+  if (attr?.type !== 'JSXAttribute') return null;
+  const n = attr.name;
+  return n?.type === 'JSXNamespacedName'
+    ? `${n.namespace.name}:${n.name.name}`
+    : (n?.name ?? null);
+}
+
+/**
+ * Per parent type: the anchor for `child` under `parent`, where
+ * `ancestors[i]` is `parent`.
+ */
+const ANCHOR_BY_PARENT = new Map(
+  Object.entries({
+    JSXExpressionContainer: (_parent, _child, ancestors, i) =>
+      jsxAttributeName(ancestors[i - 1]),
+    ArrayExpression: (parent, _child, ancestors, i) =>
+      anchorOf(parent, ancestors, i - 1),
+    VariableDeclarator: (parent, child) =>
+      parent.init === child && parent.id?.type === 'Identifier'
+        ? parent.id.name
+        : null,
+    AssignmentExpression: (parent, child) =>
+      parent.right === child ? memberChain(parent.left) : null,
+  }),
+);
+for (const type of CALL_TYPES) {
+  ANCHOR_BY_PARENT.set(type, (parent, child) =>
+    parent.arguments?.includes(child) ? calleeAnchor(parent) : null,
+  );
+}
+for (const type of KEYED_VALUE_TYPES) {
+  ANCHOR_BY_PARENT.set(type, (parent, child) =>
+    parent.value === child ? staticKey(parent.key, parent.computed) : null,
+  );
+}
+
 /**
  * The call site of `node`, read from its parent chain; `ancestors[at]` is
  * its parent.
@@ -92,33 +130,6 @@ export function anchorOf(node, ancestors, at) {
     i -= 1;
   }
   const parent = ancestors[i];
-  if (!parent) return null;
-  if (CALL_TYPES.has(parent.type)) {
-    return parent.arguments?.includes(child) ? calleeAnchor(parent) : null;
-  }
-  if (parent.type === 'JSXExpressionContainer') {
-    const attr = ancestors[i - 1];
-    if (attr?.type !== 'JSXAttribute') return null;
-    const n = attr.name;
-    return n?.type === 'JSXNamespacedName'
-      ? `${n.namespace.name}:${n.name.name}`
-      : (n?.name ?? null);
-  }
-  if (KEYED_VALUE_TYPES.has(parent.type)) {
-    return parent.value === child
-      ? staticKey(parent.key, parent.computed)
-      : null;
-  }
-  if (parent.type === 'ArrayExpression') {
-    return anchorOf(parent, ancestors, i - 1);
-  }
-  if (parent.type === 'VariableDeclarator') {
-    return parent.init === child && parent.id?.type === 'Identifier'
-      ? parent.id.name
-      : null;
-  }
-  if (parent.type === 'AssignmentExpression') {
-    return parent.right === child ? memberChain(parent.left) : null;
-  }
-  return null;
+  const rule = parent ? ANCHOR_BY_PARENT.get(parent.type) : undefined;
+  return rule ? rule(parent, child, ancestors, i) : null;
 }
