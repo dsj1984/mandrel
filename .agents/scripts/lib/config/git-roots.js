@@ -120,7 +120,7 @@ const hasOverlay = (dir, fsImpl = fs) =>
  */
 export function overlayRoot(root, exec, fsImpl = fs) {
   const main = storeRoot(root, exec);
-  return main !== root && hasOverlay(main, fsImpl) ? main : root;
+  return hasOverlay(main, fsImpl) ? main : root;
 }
 
 const sameDir = (a, b) =>
