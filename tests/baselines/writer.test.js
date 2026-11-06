@@ -179,6 +179,21 @@ describe('writeFile()', () => {
     assert.deepEqual(loadFile(filePath, { kind: 'crap' }).rows, env.rows);
   });
 
+  it('an edit above a method leaves its entry byte-identical (AC-1)', () => {
+    const bytesAt = (startLine) => {
+      const filePath = path.join(workDir, `crap-${startLine}.json`);
+      writeFile(
+        filePath,
+        write({
+          kind: 'crap',
+          rows: [{ path: 'src/a.js', method: 'run', startLine, crap: 3 }],
+        }),
+      );
+      return readFileSync(filePath, 'utf8');
+    };
+    assert.equal(bytesAt(10), bytesAt(42));
+  });
+
   it('leaves every other kind in the rows[] layout, byte for byte (AC-11)', () => {
     for (const kind of [
       'coverage',
