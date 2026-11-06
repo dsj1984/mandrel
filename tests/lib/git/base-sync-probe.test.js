@@ -4,6 +4,7 @@ import { before, describe, it } from 'node:test';
 import {
   describeProbe,
   probeBaseSync,
+  syncFromBaseByMode,
 } from '../../../.agents/scripts/lib/git/base-sync-probe.js';
 import { gitSpawn } from '../../../.agents/scripts/lib/git-utils.js';
 import {
@@ -140,5 +141,33 @@ describe('probeBaseSync (Story #5954)', () => {
   it('a failed fetch merges', async () => {
     const probe = await probeAt('sync/disjoint', { fetchStatus: 1 });
     assert.deepEqual(probe, { skip: false, reason: 'fetch-failed' });
+  });
+});
+
+describe('syncFromBaseByMode (Story #5954)', () => {
+  const merged = {
+    synced: true,
+    kind: 'noop-already-current',
+    changedPaths: [],
+  };
+
+  it('an unresolvable config keeps always: no probe, today’s sync', async () => {
+    const out = await syncFromBaseByMode({
+      cwd: '/repo',
+      baseBranch: 'main',
+      resolveConfigImpl: () => {
+        throw new Error('unreadable');
+      },
+      probeImpl: async () => {
+        throw new Error('the probe must not run');
+      },
+      syncImpl: async () => merged,
+    });
+    assert.deepEqual(out.decision, {
+      mode: 'always',
+      outcome: 'already-current',
+      reason: 'always',
+      incoming: 0,
+    });
   });
 });

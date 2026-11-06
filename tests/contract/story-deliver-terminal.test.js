@@ -496,6 +496,71 @@ describe('story-deliver-terminal — lockWait (Story #5377)', () => {
   });
 });
 
+describe('story-deliver-terminal — baseSync (Story #5954)', () => {
+  const base = {
+    kind: 'story-deliver-terminal',
+    storyId: 5954,
+    status: 'pending',
+    phase: 'auto-merge',
+    nextCommand: NEXT_COMMANDS.confirmMerge(5954),
+    elapsedSeconds: 1,
+  };
+
+  it('carries the decision, null when no sync ran, and stays optional', () => {
+    const skipped = {
+      mode: 'on-conflict',
+      outcome: 'skipped',
+      reason: 'conflict-free',
+      incoming: 3,
+    };
+    const env = buildTerminalEnvelope({ ...base, baseSync: skipped });
+    assert.deepEqual(env.baseSync, skipped);
+    assert.equal(
+      buildTerminalEnvelope({ ...base, baseSync: null }).baseSync,
+      null,
+    );
+    assert.equal('baseSync' in buildTerminalEnvelope(base), false);
+  });
+
+  it('the schema pins the baseSync shape', () => {
+    for (const baseSync of [
+      { mode: 'always', outcome: 'merged', reason: 'always', incoming: 2 },
+      {
+        mode: 'on-conflict',
+        outcome: 'merged',
+        reason: 'intersects',
+        incoming: 1,
+      },
+      {
+        mode: 'on-conflict',
+        outcome: 'already-current',
+        reason: 'already-current',
+        incoming: 0,
+      },
+    ]) {
+      assert.equal(validateTerminalEnvelope({ ...base, baseSync }).valid, true);
+    }
+    for (const baseSync of [
+      { mode: 'sometimes', outcome: 'merged', reason: 'x', incoming: 0 },
+      { mode: 'always', outcome: 'rebased', reason: 'x', incoming: 0 },
+      { mode: 'always', outcome: 'merged', reason: 'x' },
+      {
+        mode: 'always',
+        outcome: 'merged',
+        reason: 'x',
+        incoming: -1,
+        extra: 1,
+      },
+    ]) {
+      assert.equal(
+        validateTerminalEnvelope({ ...base, baseSync }).valid,
+        false,
+        `expected ${JSON.stringify(baseSync)} to be rejected`,
+      );
+    }
+  });
+});
+
 describe('story-deliver-terminal — blocked / failed', () => {
   it('blocked carries a shared-classifier class and a friction pointer', () => {
     const env = buildTerminalEnvelope({

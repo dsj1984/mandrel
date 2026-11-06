@@ -153,6 +153,7 @@ const PREFIX_MEANINGS = Object.freeze([
   ],
   ['delivery.quality', 'Delivery-time quality configuration.'],
   ['delivery.mergeWatch', 'Merge-wait posture and wall-clock budget.'],
+  ['delivery.close', 'Close-time base-sync posture.'],
   [
     'delivery.feedbackLoop',
     'Opt-out toggles for auto-filing non-blocking findings.',

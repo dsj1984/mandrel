@@ -386,6 +386,42 @@ describe('delivery.* shape', () => {
     expectErrors(withPolicy('skip'), /allowed values/);
   });
 
+  // Story #5954 AC-7 — the close base-sync posture and the coverage delta keys.
+  it('accepts delivery.close.baseSync always/on-conflict and rejects any other', () => {
+    const withMode = (baseSync) => ({
+      ...REQ,
+      delivery: { close: { baseSync } },
+    });
+    assert.equal(validate(withMode('always')), true);
+    assert.equal(validate(withMode('on-conflict')), true);
+    expectErrors(withMode('never'), /allowed values/);
+    expectErrors(
+      { ...REQ, delivery: { close: { other: true } } },
+      /additional properties/,
+    );
+  });
+
+  it('accepts coverage.nonInputGlobs and captureHandlesConfigChanges', () => {
+    const withCoverage = (coverage) => ({
+      ...REQ,
+      delivery: { quality: { gates: { coverage } } },
+    });
+    assert.equal(
+      validate(
+        withCoverage({
+          nonInputGlobs: ['docs/**', '**/*.md'],
+          captureHandlesConfigChanges: true,
+        }),
+      ),
+      true,
+    );
+    expectErrors(withCoverage({ nonInputGlobs: 'docs/**' }), /must be array/);
+    expectErrors(
+      withCoverage({ captureHandlesConfigChanges: 'yes' }),
+      /must be boolean/,
+    );
+  });
+
   it('keeps execution.fullSuiteLock, the operator opt-out', () => {
     assert.equal(
       validate({ ...REQ, delivery: { execution: { fullSuiteLock: false } } }),

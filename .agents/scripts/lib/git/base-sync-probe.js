@@ -6,13 +6,12 @@
  * other answer, or any git failure, means merge as usual.
  */
 
+import { resolveConfig } from '../config-resolver.js';
 import {
   gitFetchWithRetry as defaultGitFetchWithRetry,
   gitSpawn as defaultGitSpawn,
 } from '../git-utils.js';
-
-/** The accepted `delivery.close.baseSync` values; `always` is the default. */
-export const BASE_SYNC_MODES = Object.freeze(['always', 'on-conflict']);
+import { syncBranchFromBase } from './sync-from-base.js';
 
 function names(res) {
   return (res.stdout ?? '')
@@ -88,4 +87,71 @@ export function describeProbe(probe) {
   }
   const at = probe.path ? ` (${probe.path})` : '';
   return `merging — probe answered ${probe.reason}${at}`;
+}
+
+/**
+ * The `baseSync` record the close envelope carries for a sync that ran.
+ *
+ * @param {{ mode: string, probe: object|null, kind?: string, changedPaths?: string[] }} args
+ * @returns {{ mode: string, outcome: 'merged'|'already-current'|'skipped', reason: string, incoming: number }}
+ */
+export function baseSyncDecision({ mode, probe, kind, changedPaths }) {
+  if (probe?.skip) {
+    return {
+      mode,
+      outcome: 'skipped',
+      reason: 'conflict-free',
+      incoming: probe.incoming,
+    };
+  }
+  return {
+    mode,
+    outcome: kind === 'noop-already-current' ? 'already-current' : 'merged',
+    reason: probe?.reason ?? mode,
+    incoming: Array.isArray(changedPaths) ? changedPaths.length : 0,
+  };
+}
+
+/** `delivery.close.baseSync`; an unresolvable config keeps today's `always`. */
+function configuredMode(resolveConfigImpl, cwd) {
+  try {
+    return resolveConfigImpl({ cwd })?.delivery?.close?.baseSync ?? 'always';
+  } catch {
+    return 'always';
+  }
+}
+
+/**
+ * Close's sync: `syncBranchFromBase`, preceded under `on-conflict` by the
+ * probe. A skip is a `synced` result of kind `skipped` that carries the
+ * merge-base as `baselineRef`; every result carries its `decision`.
+ *
+ * @param {{ cwd: string, baseBranch: string, log?: (tag: string, msg: string) => void, resolveConfigImpl?: typeof resolveConfig, probeImpl?: typeof probeBaseSync, syncImpl?: typeof syncBranchFromBase }} opts
+ * @returns {Promise<object>} `syncBranchFromBase`'s result plus `decision`.
+ */
+export async function syncFromBaseByMode({
+  cwd,
+  baseBranch,
+  log = () => {},
+  resolveConfigImpl = resolveConfig,
+  probeImpl = probeBaseSync,
+  syncImpl = syncBranchFromBase,
+}) {
+  const mode = configuredMode(resolveConfigImpl, cwd);
+  const probe =
+    mode === 'on-conflict' ? await probeImpl({ cwd, baseBranch }) : null;
+  if (probe) log('SYNC', `baseSync on-conflict: ${describeProbe(probe)}`);
+  if (probe?.skip) {
+    const decision = baseSyncDecision({ mode, probe });
+    const base = { changedPaths: [], preSyncHead: null };
+    return {
+      synced: true,
+      kind: 'skipped',
+      ...base,
+      baselineRef: probe.mergeBase,
+      decision,
+    };
+  }
+  const result = await syncImpl({ cwd, baseBranch, log });
+  return { ...result, decision: baseSyncDecision({ mode, probe, ...result }) };
 }
