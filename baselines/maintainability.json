@@ -407,6 +407,10 @@
       "mi": 107.258
     },
     {
+      "path": ".agents/scripts/lib/baselines/codec.js",
+      "mi": 110.564
+    },
+    {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
       "mi": 132.148
     },
@@ -428,7 +432,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
-      "mi": 100.874
+      "mi": 103.117
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
@@ -463,12 +467,16 @@
       "mi": 95.628
     },
     {
+      "path": ".agents/scripts/lib/baselines/kinds/_crap-codec.js",
+      "mi": 104.471
+    },
+    {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js",
       "mi": 111.405
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
-      "mi": 95.98
+      "mi": 98.333
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_shared-metric.js",
@@ -484,7 +492,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 100.855
+      "mi": 104.158
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -536,7 +544,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "mi": 99.198
+      "mi": 100.486
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
@@ -2372,7 +2380,7 @@
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
-      "mi": 97.758
+      "mi": 98.362
     },
     {
       "path": ".agents/scripts/nav-registry-diff.js",
