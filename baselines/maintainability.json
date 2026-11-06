@@ -1199,6 +1199,10 @@
       "mi": 102.113
     },
     {
+      "path": ".agents/scripts/lib/observability/story-outcome.js",
+      "mi": 98.058
+    },
+    {
       "path": ".agents/scripts/lib/observability/terse-result.js",
       "mi": 103.562
     },
@@ -2440,7 +2444,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/comments.js",
-      "mi": 110.088
+      "mi": 111.453
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
@@ -2565,6 +2569,10 @@
     {
       "path": ".agents/scripts/story-handoff.js",
       "mi": 100.476
+    },
+    {
+      "path": ".agents/scripts/story-outcomes-report.js",
+      "mi": 106.744
     },
     {
       "path": ".agents/scripts/story-review-compute.js",
