@@ -547,11 +547,16 @@ full-suite lock wait expired) logs a deferred line and the close settles
 line naming host contention — neither is reported as failing tests. A
 coverage-capture exiting `76` (the consumer's capture script declared its
 slice over this host's budget, so nothing ran) follows
-`delivery.quality.gates.coverage.onOverBudget`: under `defer-to-ci` the gate
-reports `deferred`, the coverage-reading gates report `skipped`
-(`coverage-deferred-ci`), the handoff settles `ready` with a `coverage`
-field, and the PR body says coverage was deferred to CI; under the default
-`block` the handoff settles `blocked` and close fails, both naming the key.
+`delivery.quality.gates.coverage.onOverBudget`, and under
+`coverage.suiteOfRecord: "ci"` the capture is deferred before anything
+spawns (no lock, no credit). A deferral reports the gate `deferred`, the
+coverage-reading gates `skipped` (`coverage-deferred-ci`), settles the
+handoff `ready` with a `coverage` field, and puts a `Coverage-deferred:
+<reason>` key line in the PR body. CI's `ciRatchetCheck` job then runs
+`node .agents/scripts/coverage-ratchet.js --artifact <path> --head <sha>`,
+and confirm-merge holds `agent::done` until that check is green. Under the
+default `block`, or `suiteOfRecord: "ci"` with no `ciRatchetCheck`, the
+handoff settles `blocked` and close fails, naming the keys.
 A credited suite exiting `77` (the consumer's `test` or capture script
 confirmed it lost workers to host memory and no test failed) is never read
 as failing tests: the handoff settles `blocked` with `reason:

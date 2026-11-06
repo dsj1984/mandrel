@@ -11,7 +11,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import test from 'node:test';
-
+import { COVERAGE_DEFERRED_REASONS } from '../../../../coverage-deferral.js';
 import { makeTempDir } from '../../../../test-temp.js';
 import { buildPullRequestFields } from '../normalize-pr-title.js';
 import { liftTrailers } from '../pr-body-trailers.js';
@@ -41,8 +41,10 @@ function build({
   messages = [],
   ownMessages = messages,
   trailerKeys,
+  coverageDeferred,
 }) {
   return buildPullRequestFields({
+    coverageDeferred,
     storyTitle,
     storyId,
     storyBody,
@@ -210,6 +212,24 @@ test('the BREAKING CHANGE footer still goes after a lifted trailer', () => {
   const lines = body.split('\n');
   assert.equal(lines.at(-1), 'BREAKING CHANGE: drop v1.');
   assert.equal(lines.at(-3), 'Policy-impact: none — cart-only edit');
+});
+
+test('a coverage deferral puts its prose line, then its key line, beneath Closes', () => {
+  for (const reason of Object.values(COVERAGE_DEFERRED_REASONS)) {
+    const { body } = build({
+      storyTitle: 'Defer',
+      storyId: 5955,
+      coverageDeferred: reason,
+    });
+    const lines = body.split('\n');
+    assert.equal(lines[0], 'Closes #5955');
+    assert.match(lines[2], /^Coverage deferred to CI: /);
+    assert.equal(lines[3], `Coverage-deferred: ${reason}`);
+  }
+  assert.doesNotMatch(
+    build({ storyTitle: 'Plain', coverageDeferred: null }).body,
+    /Coverage-deferred/,
+  );
 });
 
 test('the last commit carrying a declared trailer wins, matched case-insensitively', () => {

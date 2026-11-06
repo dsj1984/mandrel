@@ -20,6 +20,7 @@ import {
   treeFingerprint as defaultTreeFingerprint,
   hashCommandConfig,
 } from '../validation-evidence.js';
+import { presetCiDeferral } from './ci-deferral.js';
 import {
   isFormatterEligible,
   listChangedFilesForFormatGate,
@@ -139,11 +140,12 @@ export function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   shouldSkip?: typeof defaultShouldSkip,
  * }} opts An expired full-suite lock wait spawns nothing (here or in any gate
  *   child) and reports `LOCK_WAIT_EXPIRED_EXIT_CODE`.
- * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'host-resources'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }>, deferred: Array<{ gate: Gate, status: number, reason: 'over-budget' }> }}
+ * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'host-resources'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }>, deferred: Array<{ gate: Gate, status: number|null, reason: 'over-budget'|'suite-of-record-ci' }> }}
  *   `outcome` classifies the exit: `deferred` (75), `timeout` (124),
  *   `over-budget` (76 under `block`), `host-resources` (77 from a suite gate),
  *   else `failed`. `deferred[]` holds a
- *   `deferOnOverBudget` gate that exited 76: not a failure, no evidence.
+ *   `deferOnOverBudget` gate that exited 76, or a `suiteOfRecordCi` capture
+ *   never spawned: not a failure, no evidence.
  */
 export async function runCloseValidation({
   cwd,
@@ -446,6 +448,9 @@ async function runSerialGates(
     failed.push(reportGateExit({ gate, status, cwd: spawnCwd, log }));
   };
   for (const gate of serial) {
+    const preset = presetCiDeferral(gate, { deferred, failed, log, spawnCwd });
+    if (preset === 'stop') return;
+    if (preset) continue;
     let execution;
     try {
       execution = resolveSerialExecution({ gate, spawnCwd, log, deferred });

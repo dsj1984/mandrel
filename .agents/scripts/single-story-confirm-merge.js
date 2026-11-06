@@ -184,9 +184,19 @@ function confirmBlocked(blockClass, reason, nextCommand) {
   };
 }
 
+/** A red CI ratchet on a deferred PR: blocked until an operator decides. */
+function ratchetBlocked(storyId, { detail }) {
+  return confirmBlocked(
+    'checks-failed',
+    detail,
+    NEXT_COMMANDS.confirmMerge(storyId),
+  );
+}
+
 /**
  * done/noop → landed; flip-failed → blocked (re-run this command);
- * pr-not-merged → blocked (needs a human); otherwise pending.
+ * pr-not-merged → blocked (needs a human); a red CI ratchet → blocked
+ * (`checks-failed`); otherwise pending.
  */
 function confirmOutcomeFields({ storyId, confirmation, tail }) {
   if (confirmation.action === 'done' || confirmation.action === 'noop') {
@@ -203,6 +213,9 @@ function confirmOutcomeFields({ storyId, confirmation, tail }) {
       'merge confirmed but the agent::closing → agent::done label write failed',
       NEXT_COMMANDS.confirmMerge(storyId),
     );
+  }
+  if (confirmation.action === 'blocked') {
+    return ratchetBlocked(storyId, confirmation);
   }
   if (confirmation.reason === 'pr-not-merged') {
     return confirmBlocked(

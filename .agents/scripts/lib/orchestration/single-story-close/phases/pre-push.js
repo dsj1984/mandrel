@@ -111,6 +111,6 @@ export async function runPrePushPhases(ctx, deps) {
     lockWait: validation?.lockWait ?? null,
     suiteTimings: validation?.suiteTimings ?? null,
     pending: validation?.pending === true,
-    coverageDeferred: validation?.coverageDeferred === true,
+    coverageDeferred: validation?.coverageDeferred ?? null,
   };
 }

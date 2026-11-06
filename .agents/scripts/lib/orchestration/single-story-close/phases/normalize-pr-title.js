@@ -5,6 +5,7 @@
  * module does the git read and assembles the `gh pr create` strings.
  */
 
+import { deferralLines as markerLines } from '../../../coverage-deferral.js';
 import { gitSpawn as defaultGitSpawn } from '../../../git-utils.js';
 import { Logger as DefaultLogger } from '../../../Logger.js';
 import {
@@ -134,6 +135,11 @@ function synthesizeSubject({ description, storyId, commitMessages }) {
   return `${type}: ${shapeDescription(raw)}`;
 }
 
+/** @param {string|null} coverageDeferred @returns {string[]} */
+function deferralLines(coverageDeferred) {
+  return markerLines(coverageDeferred);
+}
+
 /**
  * `Closes #<id>` auto-closes the Story; lifted trailers follow the marker and
  * a breaking footer goes LAST, per the spec, for repos that squash with the
@@ -143,20 +149,11 @@ function synthesizeSubject({ description, storyId, commitMessages }) {
  *   trailerBlock?: string[] }} args
  * @returns {string}
  */
-/** The PR-body line a capture deferred to CI adds beneath `Closes #<id>`. */
-const COVERAGE_DEFERRED_PR_LINE =
-  "Coverage deferred to CI: the capture slice was over this host's budget (exit 76, onOverBudget: defer-to-ci).";
-
-/** @param {boolean} coverageDeferred @returns {string[]} */
-function deferralLines(coverageDeferred) {
-  return coverageDeferred ? ['', COVERAGE_DEFERRED_PR_LINE] : [];
-}
-
 function buildPrBody({
   storyId,
   breakingNotes,
   trailerBlock = [],
-  coverageDeferred = false,
+  coverageDeferred = null,
 }) {
   const lines = [
     `Closes #${storyId}`,
@@ -191,7 +188,7 @@ function announceBreaking(breakingNotes, progress) {
  *   storyBranch: string, baseBranch: string, cwd?: string,
  *   gitSpawn?: typeof defaultGitSpawn, config?: object,
  *   progress?: (tag: string, msg: string) => void,
- *   coverageDeferred?: boolean }} args
+ *   coverageDeferred?: 'over-budget'|'suite-of-record-ci'|null }} args
  * @returns {{ title: string, body: string, breaking: boolean, breakingNotes: string[] }}
  */
 export function buildPullRequestFields({
@@ -204,7 +201,7 @@ export function buildPullRequestFields({
   gitSpawn = defaultGitSpawn,
   config,
   progress = () => {},
-  coverageDeferred = false,
+  coverageDeferred = null,
 }) {
   const read = { storyBranch, baseBranch, cwd, gitSpawn };
   const commitMessages = readBranchCommits(read);

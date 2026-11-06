@@ -423,6 +423,22 @@ describe('delivery.* shape', () => {
     );
   });
 
+  it('accepts coverage.suiteOfRecord/ciRatchetCheck and rejects another posture', () => {
+    const withCoverage = (coverage) => ({
+      ...REQ,
+      delivery: { quality: { gates: { coverage } } },
+    });
+    assert.equal(validate(withCoverage({ suiteOfRecord: 'local' })), true);
+    assert.equal(
+      validate(
+        withCoverage({ suiteOfRecord: 'ci', ciRatchetCheck: 'ratchet' }),
+      ),
+      true,
+    );
+    assert.equal(validate(withCoverage({ ciRatchetCheck: null })), true);
+    expectErrors(withCoverage({ suiteOfRecord: 'remote' }), /allowed values/);
+  });
+
   it('keeps execution.fullSuiteLock, the operator opt-out', () => {
     assert.equal(
       validate({ ...REQ, delivery: { execution: { fullSuiteLock: false } } }),

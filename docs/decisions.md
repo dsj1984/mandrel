@@ -868,6 +868,15 @@ per-project choice about writing to the tracker unasked (Story #5341's posture),
 so no tool config, package manifest or existing gate key can supply it. It
 defaults to `false`, which makes no extra GitHub call.
 
+**Raised to 153 (2026-11-06, Story #5955)** for
+`delivery.quality.gates.coverage.suiteOfRecord` and
+`delivery.quality.gates.coverage.ciRatchetCheck`. The #5949 deferral dropped the
+per-file coverage and CRAP ratchet for a deferred Story with nothing in its
+place. Whether this host or CI is the suite of record is a per-host fact (it
+belongs in `.agentrc.local.json`), and the name of the CI check that runs the
+ratchet is a per-repo fact; no tool config or existing key records either. They
+default to `local` and `null`, so nothing changes unless a consumer opts in.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

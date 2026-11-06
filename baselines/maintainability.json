@@ -103,6 +103,10 @@
       "mi": 95.113
     },
     {
+      "path": ".agents/scripts/coverage-ratchet.js",
+      "mi": 97.187
+    },
+    {
       "path": ".agents/scripts/deliver-light.js",
       "mi": 94.257
     },
@@ -707,6 +711,10 @@
       "mi": 112.976
     },
     {
+      "path": ".agents/scripts/lib/close-validation/ci-deferral.js",
+      "mi": 103.475
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "mi": 111.988
     },
@@ -913,6 +921,14 @@
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
       "mi": 101.916
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-deferral.js",
+      "mi": 114.786
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "mi": 97.84
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
@@ -1432,7 +1448,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "mi": 106.251
+      "mi": 106.788
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
@@ -1441,6 +1457,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/handoff-state.js",
       "mi": 115.924
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-suite-of-record.js",
+      "mi": 103.707
     },
     {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
@@ -2135,6 +2155,10 @@
       "mi": 102.976
     },
     {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "mi": 100.736
+    },
+    {
       "path": ".agents/scripts/lib/single-story/confirm-and-land.js",
       "mi": 106.201
     },
@@ -2659,8 +2683,16 @@
       "mi": 100.975
     },
     {
+      "path": "lib/cli/doctor-checks/coverage-ratchet.js",
+      "mi": 109.753
+    },
+    {
+      "path": "lib/cli/doctor-checks/effective-agentrc.js",
+      "mi": 119.579
+    },
+    {
       "path": "lib/cli/doctor-checks/llm-review.js",
-      "mi": 97.356
+      "mi": 100.301
     },
     {
       "path": "lib/cli/doctor-checks/merge-driver.js",

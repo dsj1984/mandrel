@@ -31,6 +31,10 @@ export const COVERAGE_GATE_DEFAULTS = Object.freeze({
   timeoutMs: 600_000,
   // What a capture script's over-budget exit (76) means to handoff and close.
   onOverBudget: 'block',
+  // `ci` makes CI the coverage and CRAP ratchet of record (a host setting).
+  suiteOfRecord: 'local',
+  // The consumer's CI check that runs `coverage-ratchet.js`.
+  ciRatchetCheck: null,
   // Consumer-declared paths that feed no test; no built-in entries.
   nonInputGlobs: Object.freeze([]),
   captureHandlesConfigChanges: false,
@@ -89,6 +93,20 @@ export const COVERAGE_GATE = {
       description:
         "What handoff and close do when the capture script exits 76 — the consumer-declared signal that the selected slice is over this host's budget and no test ran. `block` (default) stops the handoff (`blocked`) and fails close, naming this key. `defer-to-ci` settles the coverage gate as deferred to CI: no artifact is written or stamped and no credit is recorded, the coverage-reading gates (CRAP preview, coverage and CRAP baselines) are skipped, and handoff and close proceed — the terminal envelope and the PR body say coverage was deferred. Set it only when the consumer's CI runs the deferred suite with a coverage floor. A timeout (124) is never deferred, under either value.",
       default: COVERAGE_GATE_DEFAULTS.onOverBudget,
+    },
+    suiteOfRecord: {
+      type: 'string',
+      enum: ['local', 'ci'],
+      description:
+        "Where the coverage capture runs. `local` (default) changes nothing. `ci` — meant for a small host's `.agentrc.local.json` — makes CI the coverage and CRAP ratchet of record: handoff and close settle the coverage gate as deferred (reason `suite-of-record-ci`) without spawning the capture, the PR body carries the `Coverage-deferred:` key line, and confirm-merge waits for `ciRatchetCheck` to go green. Requires `ciRatchetCheck`; without it handoff blocks and close fails.",
+      default: COVERAGE_GATE_DEFAULTS.suiteOfRecord,
+    },
+    ciRatchetCheck: {
+      type: ['string', 'null'],
+      minLength: 1,
+      description:
+        "Name of the consumer's CI check (check-run or status context) that runs `coverage-ratchet.js` on a deferred PR. Required by `suiteOfRecord: ci`; when set, confirm-merge holds `agent::done` on a PR carrying the `Coverage-deferred:` key line until this check is green on the PR head. Default `null`.",
+      default: null,
     },
     nonInputGlobs: {
       type: 'array',

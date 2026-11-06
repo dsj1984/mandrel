@@ -99,6 +99,8 @@ const COVERAGE_GATE_KEYS = new Set([
   'captureScope',
   'timeoutMs',
   'onOverBudget',
+  'suiteOfRecord',
+  'ciRatchetCheck',
   'nonInputGlobs',
   'captureHandlesConfigChanges',
 ]);
@@ -309,22 +311,10 @@ function resolveMaintainabilityQuality(userBlock) {
   return out;
 }
 
-function resolveCoverageGate(userBlock) {
+function resolveCoverageGate(raw) {
   const defaults = COVERAGE_GATE_DEFAULTS;
-  if (userBlock == null || typeof userBlock !== 'object') {
-    return {
-      enabled: defaults.enabled,
-      baselinePath: defaults.baselinePath,
-      coveragePath: defaults.coveragePath,
-      captureScript: defaults.captureScript,
-      captureScope: defaults.captureScope,
-      tolerance: toleranceScalar(defaults.tolerance, 0),
-      timeoutMs: defaults.timeoutMs,
-      onOverBudget: defaults.onOverBudget,
-      nonInputGlobs: [...defaults.nonInputGlobs],
-      captureHandlesConfigChanges: defaults.captureHandlesConfigChanges,
-    };
-  }
+  // An absent or malformed block resolves exactly as an empty one.
+  const userBlock = raw != null && typeof raw === 'object' ? raw : {};
   warnUnknownKeys(userBlock, COVERAGE_GATE_KEYS, 'quality.gates.coverage');
   return {
     enabled: userBlock.enabled ?? defaults.enabled,
@@ -339,6 +329,9 @@ function resolveCoverageGate(userBlock) {
     ),
     timeoutMs: userBlock.timeoutMs ?? defaults.timeoutMs,
     onOverBudget: userBlock.onOverBudget ?? defaults.onOverBudget,
+    suiteOfRecord: userBlock.suiteOfRecord ?? defaults.suiteOfRecord,
+    ciRatchetCheck:
+      nonEmptyString(userBlock.ciRatchetCheck) ?? defaults.ciRatchetCheck,
     nonInputGlobs: Array.isArray(userBlock.nonInputGlobs)
       ? userBlock.nonInputGlobs.slice()
       : [...defaults.nonInputGlobs],
