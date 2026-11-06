@@ -186,11 +186,18 @@ function harness({
   cwd = '/work',
   // `null` is an unreadable change set: no incremental skip is predicted.
   changed = null,
+  // Close's re-score double: no test runs a real jscpd scan.
+  rescore = { ran: false, committed: false, reason: 'no-changed-files' },
 } = {}) {
   const runCommand = commandDouble(world, outputs);
   const blocks = [];
   const reviews = [];
+  const rescores = [];
   const deps = {
+    runDuplicationRescore: async (input) => {
+      rescores.push(input);
+      return typeof rescore === 'function' ? rescore(input) : rescore;
+    },
     git: world.git,
     runCommand,
     syncFromBase: async () => sync,
@@ -211,7 +218,7 @@ function harness({
     presentBaselines: [],
   };
   const run = () => runStoryHandoff({ storyId: STORY, cwd, config }, deps);
-  return { run, runCommand, blocks, reviews, world, deps };
+  return { run, runCommand, blocks, reviews, rescores, world, deps };
 }
 
 const stepNames = (envelope) => envelope.steps.map((s) => s.name);
@@ -225,6 +232,7 @@ describe('story-handoff — the happy path (AC-1)', () => {
     assert.equal(envelope.status, 'ready');
     assert.deepEqual(stepNames(envelope), [
       'base-merge',
+      'duplication-rescore',
       'preflight',
       'credited-run',
       'seat',
@@ -307,7 +315,7 @@ describe('story-handoff — the happy path (AC-1)', () => {
   test('on the evidence-gate path the seat runs before the suite so its commit cannot void the tree-keyed credit', async () => {
     const h = harness({ scripts: { test: 'x' } });
     const { envelope } = await h.run();
-    assert.deepEqual(stepNames(envelope).slice(2, 4), ['seat', 'credited-run']);
+    assert.deepEqual(stepNames(envelope).slice(3, 5), ['seat', 'credited-run']);
     const gate = h.runCommand.calls.find((c) => c.key === 'evidence-gate.js');
     assert.deepEqual(gate.args.slice(1), [
       '--standalone',
@@ -452,7 +460,8 @@ describe('story-handoff — the preflight runs the standalone ratchets (#5528)',
       'quality-preview.js',
       ...Object.keys(RATCHET_BASELINES),
     ]);
-    assert.match(envelope.steps[1].detail, /dead-exports-production/);
+    const preflight = envelope.steps.find((st) => st.name === 'preflight');
+    assert.match(preflight.detail, /dead-exports-production/);
   });
 
   test('a test-only export ends fix-required at preflight with the production evidence, before the suite or the push (AC-1)', async () => {
@@ -1246,7 +1255,12 @@ describe('story-handoff — the story-progress record (Story #5553)', () => {
       assert.equal(record.prNumber, null);
       if (observed.at(-1) !== record.phase) observed.push(record.phase);
     };
-    const { runCommand, syncFromBase, computeReview } = h.deps;
+    const { runCommand, syncFromBase, computeReview, runDuplicationRescore } =
+      h.deps;
+    h.deps.runDuplicationRescore = async (...args) => {
+      peek();
+      return runDuplicationRescore(...args);
+    };
     h.deps.runCommand = async (...args) => {
       peek();
       return runCommand(...args);
@@ -1949,6 +1963,7 @@ describe('story-handoff — the review runs beside the credited run (Story #5905
     assert.equal(envelope.failedStep, 'review');
     assert.deepEqual(stepNames(envelope), [
       'base-merge',
+      'duplication-rescore',
       'preflight',
       'credited-run',
       'seat',
@@ -2489,5 +2504,162 @@ describe('story-handoff — on-conflict base-merge re-runs (Story #5954)', () =>
     await h.run();
     assert.equal(p.probes.length, 0);
     assert.equal(p.syncs(), 1);
+  });
+});
+
+describe('story-handoff — the duplication re-score (Story #5956)', () => {
+  const RESCORED_HEAD = 'c'.repeat(40);
+  const dupConfig = () =>
+    configFor({
+      delivery: {
+        quality: { gates: { duplication: { enabled: true } } },
+      },
+    });
+  const dupRows = (rows) =>
+    JSON.stringify({
+      kind: 'duplication',
+      rows: Object.entries(rows).map(([p, v]) => ({ path: p, percentage: v })),
+    });
+
+  /** A re-score double that commits: HEAD moves as the real commit would. */
+  const committing = (h) => () => {
+    h.world.head = RESCORED_HEAD;
+    return {
+      ran: true,
+      committed: true,
+      sha: 'c'.repeat(7),
+      movedPaths: ['lib/a.js'],
+      moved: [{ path: 'lib/a.js', before: 1, after: 9 }],
+      partners: { 'lib/a.js': ['lib/b.js'] },
+    };
+  };
+
+  test('AC-1: a raised duplication row is fix-required at post-capture, names base → head and the clone partner, and pushes nothing', async () => {
+    const cwd = path.join(tempRoot, 'wt');
+    mkdirSync(path.join(cwd, 'baselines'), { recursive: true });
+    writeFileSync(
+      path.join(cwd, 'baselines', 'duplication.json'),
+      dupRows({ 'lib/a.js': 9, 'lib/c.js': 2, 'lib/new.js': 4 }),
+    );
+    const h = harness({
+      cwd,
+      config: dupConfig(),
+      outputs: { 'check-baselines.js duplication': { status: 1 } },
+    });
+    h.deps.runDuplicationRescore = committing(h);
+    h.deps.presentBaselines = ['duplication'];
+    const git = h.world.git;
+    const shows = [];
+    h.deps.git = (c, ...args) => {
+      if (args[0] !== 'show') return git(c, ...args);
+      shows.push(args[1]);
+      return { status: 0, stdout: dupRows({ 'lib/a.js': 1, 'lib/c.js': 2 }) };
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'post-capture');
+    const detail = envelope.steps.at(-1).detail;
+    assert.match(detail, /check-baselines-independent \(kinds: duplication\)/);
+    assert.match(detail, /lib\/a\.js 1% → 9% \(clones: lib\/b\.js\)/);
+    assert.match(detail, /lib\/new\.js none → 4%/);
+    assert.doesNotMatch(detail, /lib\/c\.js/);
+    assert.deepEqual(shows, ['origin/main:baselines/duplication.json']);
+    assert.ok(!spawned(h.runCommand).includes('git'), 'nothing was pushed');
+  });
+
+  test('an unreadable base baseline appends nothing and keeps the finding', async () => {
+    const h = harness({
+      config: dupConfig(),
+      outputs: { 'check-baselines.js duplication': { status: 1 } },
+    });
+    h.deps.presentBaselines = ['duplication'];
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.doesNotMatch(envelope.steps.at(-1).detail, /raised duplication/);
+  });
+
+  test('AC-3: runs after the base merge and before preflight with close inputs, moves HEAD on a commit, and skips at the same HEAD', async () => {
+    const h = harness();
+    const inputs = [];
+    const commit = committing(h);
+    h.deps.runDuplicationRescore = async (input) => {
+      inputs.push(input);
+      return commit();
+    };
+    const { envelope } = await h.run();
+    assert.deepEqual(stepNames(envelope).slice(0, 3), [
+      'base-merge',
+      'duplication-rescore',
+      'preflight',
+    ]);
+    const step = envelope.steps[1];
+    assert.equal(step.outcome, 'ran');
+    assert.match(step.detail, /lib\/a\.js 1% → 9%; committed untagged c{7}/);
+    assert.equal(envelope.headSha, RESCORED_HEAD);
+    assert.equal(inputs.length, 1);
+    assert.equal(inputs[0].storyBranch, `story-${STORY}`);
+    assert.equal(inputs[0].worktreePath, '/work');
+    assert.equal(inputs[0].baseBranch, 'main');
+
+    const again = await h.run();
+    assert.equal(inputs.length, 1, 'no second scan at the same HEAD');
+    assert.equal(again.envelope.steps[1].outcome, 'skipped');
+  });
+
+  test('an unchanged scan settles ran', async () => {
+    const h = harness({
+      rescore: {
+        ran: false,
+        committed: false,
+        reason: 'unchanged',
+        moved: [],
+        partners: {},
+      },
+    });
+    const { envelope } = await h.run();
+    assert.deepEqual(
+      { outcome: envelope.steps[1].outcome, detail: envelope.steps[1].detail },
+      { outcome: 'ran', detail: 'unchanged' },
+    );
+  });
+
+  for (const reason of ['gate-disabled', 'no-changed-files']) {
+    test(`AC-4: ${reason} settles skipped`, async () => {
+      const h = harness({ rescore: { ran: false, committed: false, reason } });
+      const { envelope } = await h.run();
+      assert.equal(envelope.steps[1].outcome, 'skipped');
+      assert.equal(envelope.steps[1].detail, reason);
+    });
+  }
+
+  for (const reason of [
+    'scorer-failed: jscpd exploded',
+    'git-failed: hook refused',
+    'wrong-branch',
+    'dirty-tree',
+    'config-failed: bad json',
+  ]) {
+    test(`AC-4: ${reason} settles error, the run continues, and a re-run retries`, async () => {
+      const h = harness({ rescore: { ran: false, committed: false, reason } });
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 0);
+      assert.equal(envelope.steps[1].outcome, 'error');
+      assert.equal(envelope.steps[1].detail, reason);
+      assert.equal(envelope.steps.at(-1).name, 'review');
+      await h.run();
+      assert.equal(h.rescores.length, 2, 'an error records nothing');
+    });
+  }
+
+  test('AC-4: a throwing re-score settles error and the run continues', async () => {
+    const h = harness({
+      rescore: () => {
+        throw new Error('boom');
+      },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.steps[1].outcome, 'error');
+    assert.match(envelope.steps[1].detail, /boom/);
   });
 });

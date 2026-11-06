@@ -1,6 +1,6 @@
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail as one
- * deterministic sequence: base merge → blocking preflight (lint and format
+ * deterministic sequence: base merge → duplication re-score → blocking preflight (lint and format
  * deposited as close's credit, quality-preview, baselined ratchets) → the one
  * credited run with the held review beside it → baseline seating → close's
  * post-capture CRAP and baselines scoring → push + remote-ref check → review
@@ -66,8 +66,13 @@ import {
   seatableKinds,
   settleOverBudget,
 } from './handoff-gates.js';
+import {
+  raisedDuplicationRows,
+  rescoreDuplication,
+} from './handoff-rescore.js';
 import { handoffStatePath } from './handoff-state.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
+import { runDuplicationCloseRescore } from './story-close/duplication-close-rescore.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
 import {
   STATE_LABELS,
@@ -998,6 +1003,17 @@ function stepReview(ctx) {
 }
 
 /**
+ * Close's own duplication re-score, before any credit is minted, so close's
+ * re-score no-ops on the handed-off tree. Best-effort: never stops the run.
+ *
+ * @param {object} ctx @returns {Promise<StepResult>}
+ */
+async function stepDuplicationRescore(ctx) {
+  const settled = await rescoreDuplication(ctx, () => headSha(ctx));
+  return { name: 'duplication-rescore', ...settled };
+}
+
+/**
  * Pure scoring after depositor and seat: no lock, no suite, no evidence, so
  * close re-scores them and stays authoritative.
  *
@@ -1013,7 +1029,17 @@ async function stepPostCapture(ctx) {
     runLogged(ctx, ...a),
   );
   if (failed) {
-    return fixRequired(name, failed.finding, {
+    const raised = failed.scoresDuplication
+      ? raisedDuplicationRows(ctx, {
+          baselineRef: failed.baselineRef,
+          limit: MAX_OFFENDING_LINES,
+        })
+      : [];
+    const rows =
+      raised.length > 0
+        ? `; raised duplication rows: ${raised.join('; ')}`
+        : '';
+    return fixRequired(name, `${failed.finding}${rows}`, {
       evidencePath: failed.evidencePath,
       gate: failed.gate,
     });
@@ -1041,6 +1067,7 @@ function stepOrder(depositor) {
       : [stepCreditedRun, stepSeat];
   return [
     stepBaseMerge,
+    stepDuplicationRescore,
     stepPreflight,
     ...middle,
     stepPostCapture,
@@ -1101,7 +1128,7 @@ function precheck(ctx) {
  *
  * @param {string} statePath
  * @param {(tag: string, msg: string) => void} progress
- * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, preflightCredits?: Record<string, { head: string, configHash: string }>, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string }}
+ * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, preflightCredits?: Record<string, { head: string, configHash: string }>, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string, duplicationRescore?: { head: string, partners: Record<string, string[]> } }}
  */
 function readState(statePath, progress) {
   let raw;
@@ -1182,6 +1209,7 @@ async function defaultBlock({
  *   evidenceCwd?: string,
  *   scopeGate?: typeof applyChangedFileScope,
  *   presentBaselines?: string[],
+ *   runDuplicationRescore?: typeof runDuplicationCloseRescore,
  * }} deps `evidenceCwd` anchors close's evidence store (the main checkout);
  *   `runCommand` receives `onChunk`, `signal` and (when set)
  *   `timeoutMs` beside `cwd`/`env`; a runner that never calls `onChunk`
@@ -1213,6 +1241,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     evidenceCwd = PROJECT_ROOT,
     scopeGate = applyChangedFileScope,
     presentBaselines,
+    runDuplicationRescore = runDuplicationCloseRescore,
   } = deps;
   const block =
     deps.block ??
@@ -1254,6 +1283,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     scopeGate,
     presentBaselines,
     getChangedFilesFn,
+    runDuplicationRescore,
     state: readState(statePath, progress),
     review: null,
     reviewPending: null,
