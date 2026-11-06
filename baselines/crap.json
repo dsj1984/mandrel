@@ -27196,9 +27196,47 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "trailingMarkerOf",
+      "startLine": 133,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "<anon trailingMarkerOf/(line)#0>",
+      "startLine": 137,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "<anon trailingMarkerOf/(line)#1>",
+      "startLine": 138,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
       "method": "rewriteSourceTicket",
       "startLine": 146,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "originalBodyOf",
+      "startLine": 148,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "resolveTrailingMarker",
+      "startLine": 165,
+      "crap": 2.014565316340464
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "withTrailingMarker",
+      "startLine": 184,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",

@@ -142,7 +142,11 @@ describe('runPlanPersist — one-for-one rewrite in place (Story #5604)', () => 
 
     assert.equal(result.primaryStoryId, SOURCE_ID);
     assert.equal(result.stories[0].rewritten, true);
-    assert.deepEqual(result.rewrite, { ticket: SOURCE_ID, reason: null });
+    assert.deepEqual(result.rewrite, {
+      ticket: SOURCE_ID,
+      reason: null,
+      preservedMarker: false,
+    });
     assert.deepEqual(result.supersede.rewritten, [SOURCE_ID]);
     assert.deepEqual(result.supersede.closed, []);
     assert.equal(commentsOfType(provider, 'superseded-by').length, 0);
@@ -326,4 +330,126 @@ describe('the plan-rewrite comment (Story #5604)', () => {
     const [preserved] = commentsOfType(provider, 'plan-rewrite');
     assert.match(preserved.body, /_\(empty body\)_/);
   });
+});
+
+describe('a trailing HTML-comment marker survives the rewrite (Story #5948)', () => {
+  const MARKER = '<!-- design-lab-ship branch=lab/x sha=abc123 -->';
+  const withMarker = `The original analysis.\n\n${MARKER}\n`;
+  const lastLine = (body) => body.trimEnd().split('\n').at(-1);
+  const count = (body) => body.split(MARKER).length - 1;
+
+  it('keeps the marker byte for byte as the last line, after the fingerprint', async () => {
+    const provider = recordingProvider({ body: withMarker });
+    const result = await persist(provider);
+    const { body } = provider.issues.get(SOURCE_ID);
+
+    assert.equal(lastLine(body), MARKER);
+    assert.ok(body.endsWith(`\n${MARKER}`));
+    assert.ok(
+      body.indexOf('<!-- plan-story:') < body.indexOf(MARKER),
+      'the marker follows the plan fingerprint',
+    );
+    assert.equal(result.rewrite.preservedMarker, true);
+  });
+
+  it('leaves a marker-less source rendered exactly as before', async () => {
+    const plain = recordingProvider();
+    const marked = recordingProvider({ body: withMarker });
+    await persist(plain);
+    await persist(marked);
+    const plainBody = plain.issues.get(SOURCE_ID).body;
+
+    assert.equal(
+      marked.issues.get(SOURCE_ID).body,
+      `${plainBody}\n${MARKER}`,
+      'the only difference is the appended marker line',
+    );
+    assert.match(lastLine(plainBody), /^<!-- plan-story: [0-9a-f]+ -->$/);
+  });
+
+  it('a re-plan reads the preserved original and keeps exactly one copy', async () => {
+    const provider = recordingProvider({ body: withMarker });
+    await persist(provider);
+    const result = await persist(provider, {}, [draft('A second plan.')]);
+    const { body } = provider.issues.get(SOURCE_ID);
+
+    assert.match(body, /A second plan\./);
+    assert.equal(count(body), 1);
+    assert.equal(lastLine(body), MARKER);
+    assert.equal(result.rewrite.preservedMarker, true);
+  });
+
+  it('restores the marker on a source an earlier rewrite already stripped', async () => {
+    const provider = recordingProvider({ body: withMarker });
+    await persist(provider);
+    const source = provider.issues.get(SOURCE_ID);
+    source.body = source.body.replace(`\n${MARKER}`, '');
+    source.labels = source.labels.filter((l) => l !== AGENT_LABELS.READY);
+
+    await persist(provider, {}, [draft('A third plan.')]);
+    const { body } = provider.issues.get(SOURCE_ID);
+    assert.equal(lastLine(body), MARKER);
+    assert.equal(count(body), 1);
+  });
+
+  it('a dry run reports the marker it would keep and writes nothing', async () => {
+    const provider = recordingProvider({ body: withMarker });
+    const result = await persist(provider, { dryRun: true });
+    assert.deepEqual(provider.events, []);
+    assert.equal(result.rewrite.preservedMarker, true);
+  });
+
+  it('a retried persist still adopts by fingerprint with a marker after it', async () => {
+    const provider = recordingProvider({ body: withMarker });
+    const update = provider.updateTicket.bind(provider);
+    provider.updateTicket = async (id, mutations) => {
+      if (
+        mutations.title === undefined &&
+        mutations.labels?.add?.includes(AGENT_LABELS.READY)
+      ) {
+        throw new Error('502 bad gateway');
+      }
+      return update(id, mutations);
+    };
+    await assert.rejects(() => persist(provider), /agent::ready/);
+    provider.updateTicket = update;
+
+    const result = await persist(provider);
+    assert.equal(provider.issues.size, 1, 'no duplicate is created');
+    assert.equal(result.stories[0].adopted, true);
+    assert.equal(count(provider.issues.get(SOURCE_ID).body), 1);
+  });
+});
+
+describe('which trailing line counts as a marker (Story #5948)', () => {
+  async function rewrittenLastLine(body) {
+    const provider = recordingProvider({ body });
+    const result = await persist(provider);
+    return {
+      last: provider.issues.get(SOURCE_ID).body.split('\n').at(-1),
+      preserved: result.rewrite.preservedMarker,
+    };
+  }
+
+  it('trims surrounding whitespace and CRLF off a single-comment last line', async () => {
+    const { last, preserved } = await rewrittenLastLine(
+      'a\r\n  <!-- m k=v -->  \r\n\n',
+    );
+    assert.equal(last, '<!-- m k=v -->');
+    assert.equal(preserved, true);
+  });
+
+  for (const body of [
+    'a\n<!-- m --> trailing text',
+    'a\n<!-- one --> x <!-- two -->',
+    '<!-- m -->\nprose last',
+    'body\n\n<!-- plan-story: 0123456789abcdef -->',
+    'body\n\n<!-- ap:structured-comment type="plan-rewrite" -->',
+  ]) {
+    it(`carries nothing for ${JSON.stringify(body)}`, async () => {
+      const { last, preserved } = await rewrittenLastLine(body);
+      assert.match(last, /^<!-- plan-story: [0-9a-f]+ -->$/);
+      assert.equal(preserved, false);
+    });
+  }
 });

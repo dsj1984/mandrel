@@ -794,7 +794,7 @@ function adoptedEntry(story, already, rewriting) {
  * @param {object} args
  * @param {object} args.provider
  * @param {object} args.story
- * @param {{ id: number, ticket: object }} args.rewriting
+ * @param {{ id: number, ticket: object, trailingMarker?: string|null }} args.rewriting
  * @param {string[]} args.labels
  * @param {Map<string, number>} args.idBySlug
  * @returns {Promise<object>} The `created[]` entry.
@@ -892,7 +892,7 @@ async function createOneStory({
  * @param {ReturnType<typeof assemblePlanStories>['stories']} args.stories
  * @param {object} [args.opts]
  * @param {boolean} [args.opts.dryRun=false]
- * @param {{ id: number, ticket: object }|null} [args.opts.rewriteTarget=null]
+ * @param {{ id: number, ticket: object, trailingMarker?: string|null }|null} [args.opts.rewriteTarget=null]
  * @returns {Promise<{
  *   created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean, rewritten?: boolean }>,
  *   dependencyEdges: { edgesAdded: number, edgesSkipped: number, edgesFailed: number, storiesProcessed: number }|null,

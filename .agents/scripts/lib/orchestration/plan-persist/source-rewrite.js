@@ -28,7 +28,7 @@ const MID_DELIVERY_LABELS = Object.freeze([
 
 /**
  * @typedef {object} RewriteResolution
- * @property {{ id: number, ticket: object }|null} target The source to
+ * @property {{ id: number, ticket: object, trailingMarker?: string|null }|null} target The source to
  *   rewrite, carrying the probe's fresh copy so the rewrite needs no re-read.
  * @property {number|null} ticketId The rewritten source's id, or null.
  * @property {string|null} reason Why there is no target.
@@ -111,7 +111,79 @@ export async function resolveRewriteTarget({
         `filing a new Story and closing #${id} instead.`,
     ]);
   }
-  return { target: { id, ticket }, ticketId: id, reason: null, warnings: [] };
+  const trailingMarker = await resolveTrailingMarker(provider, id, ticket);
+  return {
+    target: { id, ticket, trailingMarker },
+    ticketId: id,
+    reason: null,
+    warnings: [],
+  };
+}
+
+/** One HTML comment filling the whole line, and nothing after its close. */
+const SINGLE_COMMENT_LINE_RE = /^<!--(?:(?!-->)[\s\S])*-->$/;
+/** Mandrel's own markers: a carried stale fingerprint would shadow the new one. */
+const MANDREL_MARKER_RE = /^<!--\s*(?:plan-story:|ap:structured-comment\b)/;
+
+/**
+ * @param {unknown} body
+ * @returns {string|null} The last non-blank line when it is a consumer's
+ *   single-line HTML-comment marker.
+ */
+function trailingMarkerOf(body) {
+  if (typeof body !== 'string') return null;
+  const last = body
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .at(-1);
+  if (!last || !SINGLE_COMMENT_LINE_RE.test(last)) return null;
+  return MANDREL_MARKER_RE.test(last) ? null : last;
+}
+
+/**
+ * @param {unknown} commentBody A `plan-rewrite` comment.
+ * @returns {string|null} The original body inside its `<details>` block.
+ */
+function originalBodyOf(commentBody) {
+  if (typeof commentBody !== 'string') return null;
+  const open = commentBody.indexOf('</summary>');
+  const close = commentBody.lastIndexOf('</details>');
+  if (open < 0 || close < open) return null;
+  return commentBody.slice(open + '</summary>'.length, close);
+}
+
+/**
+ * The pre-plan body decides: a preserved original wins over a body an earlier
+ * rewrite already replaced. Reads only, so a dry run resolves it too.
+ *
+ * @param {object} provider
+ * @param {number} id
+ * @param {{ body?: string }} ticket
+ * @returns {Promise<string|null>}
+ */
+async function resolveTrailingMarker(provider, id, ticket) {
+  try {
+    const preserved = await findStructuredComment(
+      provider,
+      id,
+      PLAN_REWRITE_COMMENT_TYPE,
+    );
+    if (preserved) return trailingMarkerOf(originalBodyOf(preserved.body));
+  } catch {
+    // Unreadable comments: the current body is the best remaining evidence.
+  }
+  return trailingMarkerOf(ticket.body);
+}
+
+/**
+ * @param {string} body
+ * @param {string|null|undefined} marker
+ * @returns {string} `body` with `marker` as its last line, exactly once.
+ */
+function withTrailingMarker(body, marker) {
+  if (!marker || trailingMarkerOf(body) === marker) return body;
+  return `${body}\n${marker}`;
 }
 
 /**
@@ -141,7 +213,7 @@ function buildPlanRewriteCommentBody(ticket) {
  *
  * @param {object} args
  * @param {object} args.provider
- * @param {{ id: number, ticket: object }} args.target
+ * @param {{ id: number, ticket: object, trailingMarker?: string|null }} args.target
  * @param {string} args.title
  * @param {string} args.body
  * @param {{ add: string[], remove: string[] }} args.labels
@@ -170,7 +242,7 @@ export async function rewriteSourceTicket({
   }
   await provider.updateTicket(id, {
     title,
-    body,
+    body: withTrailingMarker(body, target.trailingMarker),
     labels,
     _ticketSnapshot: ticket,
   });

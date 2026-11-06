@@ -1536,7 +1536,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
-      "mi": 99.766
+      "mi": 101.106
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
