@@ -33927,6 +33927,12 @@
       "crap": 5
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
+      "method": "reviewSerially",
+      "startLine": 155,
+      "crap": 3
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "acquireLease",
       "startLine": 56,
