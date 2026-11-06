@@ -3346,6 +3346,18 @@
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
+      "method": "deferredLine",
+      "startLine": 285,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "hostResourcesLine",
+      "startLine": 289,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
       "method": "loadConfig",
       "startLine": 297,
       "crap": 2
@@ -14721,6 +14733,18 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "overBudgetExit",
+      "startLine": 533,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "hostResourcesExit",
+      "startLine": 539,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "settleSerialResult",
       "startLine": 548,
       "crap": 3
@@ -17033,6 +17057,12 @@
       "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "failingSuiteMessage",
       "startLine": 764,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "hostResourcesMessage",
+      "startLine": 770,
       "crap": 1
     },
     {
@@ -36588,8 +36618,47 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon isPlainObject(v)#0>",
+      "startLine": 587,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "hostResourcesFromLine",
+      "startLine": 591,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "parseHostResources",
+      "startLine": 609,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon commitSeatedRows/paths.every(p)#0>",
       "startLine": 616,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "countsSuffix",
+      "startLine": 621,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon countsSuffix/HOST_COUNT_KEYS.filter(k)#0>",
+      "startLine": 622,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon countsSuffix/map(k)#0>",
+      "startLine": 623,
       "crap": 1,
       "anonymous": true
     },
@@ -36601,14 +36670,38 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "settleHostResources",
+      "startLine": 636,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepSeat",
       "startLine": 640,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "hostResourcesEnvelope",
+      "startLine": 666,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "remoteBranchSha",
       "startLine": 675,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "settleCodeExit",
+      "startLine": 678,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "suiteFailureDetail",
+      "startLine": 685,
       "crap": 3
     },
     {
