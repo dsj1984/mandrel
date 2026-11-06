@@ -151,6 +151,13 @@ async function postHeldReview(held, args) {
   }
 }
 
+/** Review `sha` and post it; the branch name only when no SHA or PR. */
+function reviewSerially(args, sha) {
+  if (args.prNumber == null || !sha) return runStoryScopeReview(args);
+  args.pauseTimer();
+  return postHeldReview(holdReview(args, sha), args);
+}
+
 /**
  * Post a held review whose diff digest matches the pushed diff, else review
  * the pushed SHA serially (deposited before it posts). Either phase is
@@ -184,9 +191,5 @@ export async function reviewAfterPrOpen(args) {
     );
   }
   setPhase('code-review');
-  if (args.prNumber != null && sha) {
-    args.pauseTimer();
-    return await postHeldReview(holdReview(args, sha), args);
-  }
-  return await runStoryScopeReview(args);
+  return await reviewSerially(args, sha);
 }
