@@ -107,9 +107,9 @@ runs this section in order and prints one envelope:
 deferred suite, a base-merge conflict (files named), a non-fast-forward push,
 a `commit_refs_rules` push stepping missed or a CRITICAL: fix, commit,
 re-run; labels untouched. `blocked` (exit 1) → only a remote-refused push,
-an unreachable remote, an unconfirmed base branch or an unregistered
-merge driver: it flips `agent::blocked` and posts `friction`. A re-run skips
-every step still valid for HEAD. Past the sync Bash ceiling → **background**.
+an unreachable remote, an unconfirmed base branch, an unregistered merge
+driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
+`friction`. A re-run skips every step still valid for HEAD. Past the sync Bash ceiling → **background**.
 
 1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops (or skips
@@ -149,7 +149,7 @@ respawned.
 `single-story-close.js` emits exactly one envelope on stdout between
 `--- STORY DELIVER TERMINAL ---` markers, schema-validated against
 [`story-deliver-terminal.schema.json`](../../schemas/story-deliver-terminal.schema.json)
-— the SSOT. Relay it verbatim; never hand-compose one or substitute prose.
+— the SSOT. Relay it verbatim; never hand-compose one.
 
 | `status` | Exit | Meaning | You do |
 | --- | --- | --- | --- |
@@ -166,8 +166,7 @@ reported, never omitted, so a missing gate is never read as a passing one.
 
 ## 7. When to leave this file
 
-Unclear state / a re-run refusal → `deliver-recover.js --story <id>`
-(read-only). Lease, sweep, worktree scope; sequencing, epilogue, checklist
-threading → [`deliver-story-reference.md`](deliver-story-reference.md) and
+Unclear state / a re-run refusal → `deliver-recover.js --story <id>`.
+Lease, sweep, worktree scope; sequencing, epilogue, checklist threading → [`deliver-story-reference.md`](deliver-story-reference.md) and
 [`deliver-reference.md`](deliver-reference.md). CI red after the PR opens →
 [`rules/ci-remediation.md`](../../rules/ci-remediation.md).

@@ -289,6 +289,24 @@ describe('emitRuntimeFriction (write path)', () => {
     assert.ok(typeof row.ts === 'string' && row.ts.length > 0);
   });
 
+  it('Story #5959: appends a host-resources record carrying its details', async () => {
+    const ok = await emitRuntimeFriction({
+      storyId: 5959,
+      category: RUNTIME_FRICTION_CATEGORIES.HOST_RESOURCES,
+      tool: 'story-handoff',
+      details: { exitCode: 77, depositor: 'test', head: 'abc123' },
+      config,
+    });
+    assert.equal(ok, true);
+    const [row] = await readStorySignals(5959);
+    assert.equal(row.category, 'host-resources');
+    assert.deepEqual(row.details, {
+      exitCode: 77,
+      depositor: 'test',
+      head: 'abc123',
+    });
+  });
+
   it('writes to the standalone stream the epilogue roll-up actually reads', async () => {
     await emitRuntimeFriction({
       storyId: 99,

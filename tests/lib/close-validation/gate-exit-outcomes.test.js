@@ -91,6 +91,40 @@ for (const [partition, gate] of Object.entries(GATES)) {
   });
 }
 
+// Story #5959 — 77 is a suite gate's lost-workers signal; a non-suite gate's 77 stays generic.
+describe('gate exit outcomes — exit 77 (host resources)', () => {
+  const testGate = {
+    name: 'test',
+    cmd: 'npm',
+    args: ['test'],
+    hint: 'Fix failing tests, then re-run close.',
+  };
+  for (const gate of [GATES.serial, testGate]) {
+    it(`AC-6: ${gate.name} exit 77 logs host resources with its own hint, never the gate hint`, async () => {
+      const { result, text } = await closeWith(gate, 77);
+      const [entry] = result.failed;
+      assert.equal(entry.outcome, 'host-resources');
+      assert.equal(entry.status, 77);
+      assert.match(
+        text,
+        new RegExp(`⛔ ${gate.name} lost workers to host memory \\(exit 77\\)`),
+      );
+      assert.doesNotMatch(text, /✖/);
+      assert.ok(!text.includes(gate.hint), text);
+      assert.match(entry.gate.hint, /no test failed/);
+      assert.match(entry.gate.hint, /fewer workers/);
+    });
+  }
+
+  it('AC-6: a non-suite gate (lint) exit 77 stays a generic failure', async () => {
+    const { result, text } = await closeWith(GATES.parallel, 77);
+    const [entry] = result.failed;
+    assert.equal(entry.outcome, 'failed');
+    assert.equal(entry.gate.hint, GATES.parallel.hint);
+    assert.match(text, /✖ lint failed \(exit 77\)/);
+  });
+});
+
 describe('gate exit outcomes — the close phase settles them', () => {
   const phaseWith = (status, lockOutcome) =>
     runCloseValidationPhase({

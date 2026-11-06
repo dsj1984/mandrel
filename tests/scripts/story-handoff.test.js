@@ -193,7 +193,12 @@ function harness({
   const blocks = [];
   const reviews = [];
   const rescores = [];
+  const frictions = [];
   const deps = {
+    emitFriction: async (record) => {
+      frictions.push(record);
+      return true;
+    },
     runDuplicationRescore: async (input) => {
       rescores.push(input);
       return typeof rescore === 'function' ? rescore(input) : rescore;
@@ -218,7 +223,16 @@ function harness({
     presentBaselines: [],
   };
   const run = () => runStoryHandoff({ storyId: STORY, cwd, config }, deps);
-  return { run, runCommand, blocks, reviews, rescores, world, deps };
+  return {
+    run,
+    runCommand,
+    blocks,
+    reviews,
+    rescores,
+    frictions,
+    world,
+    deps,
+  };
 }
 
 const stepNames = (envelope) => envelope.steps.map((s) => s.name);
@@ -2418,6 +2432,120 @@ describe('story-handoff — an over-budget capture (exit 76, Story #5949)', () =
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.match(envelope.steps.at(-1).detail, /timed out/);
+  });
+});
+
+describe('story-handoff — a suite that lost workers to host memory (exit 77, Story #5959)', () => {
+  const counts = {
+    testsPassed: 812,
+    testsFailed: 0,
+    workersLost: 2,
+    filesAffected: ['a.test.js'],
+    peakWorkerRssMb: 1900,
+  };
+  const countsLine = JSON.stringify({ hostResources: counts });
+  const readState = () =>
+    JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+
+  for (const [depositor, scripts, key] of [
+    ['coverage-capture', CAPTURE_SCRIPTS, 'coverage-capture.js'],
+    ['test', { test: 'x' }, 'evidence-gate.js'],
+  ]) {
+    test(`AC-2: a ${depositor} exit 77 settles blocked host-resources with no credit`, async () => {
+      const h = harness({ scripts, outputs: { [key]: { status: 77 } } });
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 1);
+      assert.equal(envelope.status, 'blocked');
+      assert.equal(envelope.depositor, depositor);
+      assert.equal(envelope.failedStep, 'credited-run');
+      assert.equal(envelope.reason, 'host-resources');
+      assert.equal(envelope.hostResources, undefined);
+      const { detail } = envelope.steps.at(-1);
+      assert.match(detail, /no test failed/);
+      assert.match(detail, /fewer workers/);
+      assert.match(detail, /larger host/);
+      assert.match(detail, /exit 76/);
+      assert.match(detail, /defer-to-ci/);
+      assert.doesNotMatch(detail, /fix the failing tests/);
+      assert.equal(readState().creditHead, undefined);
+      assert.equal(h.blocks.length, 1);
+      assert.equal(h.blocks[0].reason, 'host-resources');
+      assert.equal(h.frictions.length, 1);
+      assert.equal(h.frictions[0].category, 'host-resources');
+      assert.equal(h.frictions[0].tool, 'story-handoff');
+      assert.equal(h.frictions[0].details.exitCode, 77);
+      assert.equal(h.frictions[0].details.depositor, depositor);
+      assert.equal(h.frictions[0].details.hostResources, undefined);
+    });
+  }
+
+  test('AC-3/AC-4: the last counts line reaches the envelope, the detail and the friction record', async () => {
+    const stdout = [
+      JSON.stringify({ hostResources: { workersLost: 9 } }),
+      countsLine,
+      'trailing noise',
+    ].join('\n');
+    const h = harness({
+      outputs: { 'coverage-capture.js': { status: 77, stdout } },
+    });
+    const { envelope } = await h.run();
+    assert.deepEqual(envelope.hostResources, counts);
+    const { detail } = envelope.steps.at(-1);
+    assert.match(
+      detail,
+      /testsPassed: 812, testsFailed: 0, workersLost: 2, peakWorkerRssMb: 1900/,
+    );
+    assert.doesNotMatch(detail, /a\.test\.js/);
+    assert.match(h.blocks[0].detail, /workersLost: 2/);
+    assert.deepEqual(h.frictions[0].details.hostResources, counts);
+  });
+
+  for (const [why, stdout] of [
+    ['malformed', '{"hostResources": {oops'],
+    ['non-object', '{"hostResources": [1, 2]}'],
+    ['array', '[{"hostResources": {}}]'],
+  ]) {
+    test(`AC-3: a ${why} counts line is ignored and the run still blocks`, async () => {
+      const h = harness({
+        outputs: { 'coverage-capture.js': { status: 77, stdout } },
+      });
+      const { envelope } = await h.run();
+      assert.equal(envelope.reason, 'host-resources');
+      assert.equal('hostResources' in envelope, false);
+    });
+  }
+
+  test('AC-4: a failing friction append never changes the envelope', async () => {
+    const h = harness({ outputs: { 'coverage-capture.js': { status: 77 } } });
+    h.deps.emitFriction = async () => {
+      throw new Error('disk full');
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.reason, 'host-resources');
+  });
+
+  test('AC-5: a second 124 at the same HEAD points past a plain re-run; the first reads as before', async () => {
+    const h = harness({ outputs: { 'coverage-capture.js': { status: 124 } } });
+    const first = await h.run();
+    assert.equal(first.exitCode, 2);
+    assert.match(
+      first.envelope.steps.at(-1).detail,
+      /^suite timed out \(exit 124\) — usually host contention; re-run the handoff/,
+    );
+    const second = await h.run();
+    assert.equal(second.exitCode, 2);
+    const { detail } = second.envelope.steps.at(-1);
+    assert.match(detail, /timed out again at this HEAD/);
+    assert.match(detail, /coverage\.timeoutMs/);
+    assert.match(detail, /exit 76/);
+    assert.match(detail, /quieter host/);
+    assert.equal(h.frictions.length, 0);
   });
 });
 

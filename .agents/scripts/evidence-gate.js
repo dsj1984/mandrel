@@ -13,6 +13,7 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { claimLockEventSink, lockEventHooks } from './lib/close-lock-events.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
+import { COVERAGE_HOST_RESOURCES_EXIT_CODE } from './lib/coverage-capture.js';
 import {
   fullSuiteLockPolicy,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -281,11 +282,24 @@ async function runGateCommand({
   return result.status ?? 1;
 }
 
+function deferredLine(gate, status) {
+  return `⏸ ${gate} deferred (exit ${status}) — another full suite still holds the host lock, so nothing ran and no evidence was recorded.`;
+}
+
+function hostResourcesLine(gate, status) {
+  return `⛔ ${gate} lost workers to host memory (exit ${status}) — no test failed and no evidence was recorded.`;
+}
+
+/** Exits that are not a failed gate, each logged as what happened. */
+const NON_FAILURE_EXITS = {
+  [LOCK_WAIT_EXPIRED_EXIT_CODE]: ['info', deferredLine],
+  [COVERAGE_HOST_RESOURCES_EXIT_CODE]: ['error', hostResourcesLine],
+};
+
 function reportGateExit({ gate, status, spawnCwd, logger }) {
-  if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
-    logger.info(
-      `[evidence-gate] ⏸ ${gate} deferred (exit ${status}) — another full suite still holds the host lock, so nothing ran and no evidence was recorded.`,
-    );
+  const exit = NON_FAILURE_EXITS[status];
+  if (exit) {
+    logger[exit[0]](`[evidence-gate] ${exit[1](gate, status)}`);
     return;
   }
   logger.error(

@@ -552,6 +552,15 @@ reports `deferred`, the coverage-reading gates report `skipped`
 (`coverage-deferred-ci`), the handoff settles `ready` with a `coverage`
 field, and the PR body says coverage was deferred to CI; under the default
 `block` the handoff settles `blocked` and close fails, both naming the key.
+A credited suite exiting `77` (the consumer's `test` or capture script
+confirmed it lost workers to host memory and no test failed) is never read
+as failing tests: the handoff settles `blocked` with `reason:
+host-resources`, records no credit, copies any consumer `hostResources`
+counts line into the envelope and appends a `host-resources` friction
+record; close logs the suite gate as `host-resources` with its own hint.
+`onOverBudget` never governs it. A second `124` at the same HEAD stays
+`fix-required` but points at `coverage.timeoutMs`, an exit-76 declaration
+or a quieter host instead of a plain re-run.
 
 Every full-suite run ends on `⏲ suite timings: lockWaitMs=… hostWaitMs=…
 testRunMs=…`. The handoff envelope carries its credited run's figures as
