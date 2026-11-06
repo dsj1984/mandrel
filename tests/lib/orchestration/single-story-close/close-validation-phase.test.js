@@ -57,6 +57,34 @@ describe('runCloseValidationPhase — standalone parity (Story #4250)', () => {
     );
   });
 
+  it('carries the deferral reason and reports the deferred gate (Story #5955)', async () => {
+    const capture = { name: 'coverage-capture', cmd: 'node', args: [] };
+    const phase = (validation) =>
+      runCloseValidationPhase({
+        cwd: '/main/repo',
+        worktreePath: '/main/repo/.worktrees/story-5955',
+        config: {},
+        baseBranch: 'main',
+        storyBranch: 'story-5955',
+        storyId: 5955,
+        progress: noopProgress,
+        runCloseValidation: () => validation,
+        buildDefaultGates: () => [capture],
+        runBaselineUpwardWriteback: () => ({ ran: false, committed: false }),
+        runScopedFormatAutofix: () => ({ ran: false, committed: false }),
+      });
+    const deferred = await phase({
+      ok: true,
+      failed: [],
+      skipped: [],
+      deferred: [{ gate: capture, status: null, reason: 'suite-of-record-ci' }],
+    });
+    assert.equal(deferred.coverageDeferred, 'suite-of-record-ci');
+    assert.equal(deferred.gates['coverage-capture'], 'deferred');
+    const plain = await phase({ ok: true, failed: [], skipped: [] });
+    assert.equal(plain.coverageDeferred, null);
+  });
+
   it('runs scoped format-autofix before validation with baseBranch as the diff anchor', async () => {
     const order = [];
     const autofixArgs = [];

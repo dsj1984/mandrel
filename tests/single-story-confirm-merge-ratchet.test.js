@@ -8,9 +8,10 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
 import { ratchetWaitOutcome } from '../.agents/scripts/lib/single-story/ci-ratchet-gate.js';
 import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+import { runConfirmMerge } from '../.agents/scripts/single-story-confirm-merge.js';
 
 const CHECK = 'coverage-ratchet';
 const DEFERRED_BODY =
@@ -144,5 +145,40 @@ describe('ratchetWaitOutcome', () => {
     );
     assert.equal(blocked.terminal, 'blocked');
     assert.equal(blocked.blockClass, 'checks-failed');
+  });
+});
+
+describe('single-story-confirm-merge — a red CI ratchet', () => {
+  it('ends blocked as checks-failed, re-run by confirm-merge', async () => {
+    const tempRoot = makeTempDir('confirm-merge-ratchet-');
+    const { terminal } = await runConfirmMerge({
+      storyId: 5955,
+      cwd: '/repo',
+      pr: 77,
+      injectedProvider: fakeProvider(),
+      injectedConfig: {
+        ...config(CHECK),
+        project: { baseBranch: 'main', paths: { tempRoot } },
+        github: { owner: 'o', repo: 'r' },
+      },
+      injectedGh: {
+        pr: {
+          view: async () => ({
+            body: DEFERRED_BODY,
+            statusCheckRollup: [
+              run({ status: 'COMPLETED', conclusion: 'FAILURE' }),
+            ],
+          }),
+        },
+      },
+      injectedNotify: async () => {},
+      injectedReadPrMergeState: async () => ({
+        state: 'MERGED',
+        mergedAt: 'now',
+      }),
+    });
+    assert.equal(terminal.status, 'blocked');
+    assert.equal(terminal.blocked.blockClass, 'checks-failed');
+    assert.match(terminal.blocked.reason, /coverage-ratchet/);
   });
 });

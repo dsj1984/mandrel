@@ -257,6 +257,27 @@ describe('merge wait — the confirmed path', () => {
     assert.equal(tailArgs.prNumber, 99);
   });
 
+  it('a confirmation held for its CI ratchet runs no land tail (Story #5955)', async () => {
+    let tailRan = false;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () => ({ state: 'MERGED', mergedAt: 'now' }),
+        confirmStoryMergedFn: async () => ({
+          storyId: 4428,
+          action: 'pending',
+          reason: 'ci-ratchet-pending',
+          merged: false,
+        }),
+        runPostLandTailFn: async () => {
+          tailRan = true;
+        },
+      }),
+    );
+    assert.equal(outcome.confirmed, false);
+    assert.equal(outcome.terminal, 'pending');
+    assert.equal(tailRan, false);
+  });
+
   it('does NOT re-read the ticket on every poll (the ~240-reads-per-hour fix)', async () => {
     const provider = makeFakeProvider();
     const states = [
