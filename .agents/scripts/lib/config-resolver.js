@@ -12,7 +12,11 @@ import {
 } from './config/agentrc-overlay.js';
 import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
-import { overlayRoot, resolveAgentrcRoot } from './config/git-roots.js';
+import {
+  overlayDivergence,
+  overlayRoot,
+  resolveAgentrcRoot,
+} from './config/git-roots.js';
 import { applyOperatorHandleEnv, getGitHub } from './config/github.js';
 import { resolvePaths } from './config/paths.js';
 import { validateOrchestrationConfig } from './config/validate-orchestration.js';
@@ -56,6 +60,7 @@ export { PROJECT_ROOT } from './project-root.js';
 // `validate: false` read never answer a validating caller.
 const _cacheByKey = new Map();
 const _envLoadedRoots = new Set();
+const _divergenceWarned = new Set();
 
 /**
  * Enrich `github.notifications` with NOTIFICATIONS_DEFAULTS so an omitted
@@ -146,7 +151,10 @@ function applyDefaults(raw) {
  */
 function readRawConfig(fsImpl, root) {
   const agentrcPath = path.join(root, '.agentrc.json');
-  const localPath = path.join(overlayRoot(root), '.agentrc.local.json');
+  const localPath = path.join(
+    overlayRoot(root, undefined, fsImpl),
+    '.agentrc.local.json',
+  );
   const hasAgentrc = fsImpl.existsSync(agentrcPath);
   const hasLocal = fsImpl.existsSync(localPath);
   if (!hasAgentrc) {
@@ -193,6 +201,17 @@ function finalizeConfig({ raw, source }, validate) {
   return { ...blocks, raw, source };
 }
 
+const divergenceLine = ({ worktreePath, mainPath }) =>
+  `[config] ⚠️ ${worktreePath} differs from ${mainPath}; the main checkout's overlay is in force, and the worktree copy is ignored and can be deleted.\n`;
+
+/** One stderr line per worktree root whose own overlay a main one shadows. */
+function warnOverlayDivergence(root) {
+  if (_divergenceWarned.has(root)) return;
+  _divergenceWarned.add(root);
+  const diverged = overlayDivergence(root);
+  if (diverged) process.stderr.write(divergenceLine(diverged));
+}
+
 function ensureEnvLoaded(root) {
   if (_envLoadedRoots.has(root)) return;
   loadEnv(root);
@@ -216,6 +235,7 @@ export function resolveConfig(opts) {
     return _cacheByKey.get(key);
   }
   ensureEnvLoaded(root);
+  warnOverlayDivergence(root);
   const resolved = finalizeConfig(
     applyOperatorHandleEnv(readRawConfig(injectedFs ?? fs, root)),
     validate,

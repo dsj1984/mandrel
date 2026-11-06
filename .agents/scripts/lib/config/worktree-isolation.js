@@ -21,14 +21,11 @@ export const WORKTREE_ISOLATION_DEFAULTS = Object.freeze({
   primeFromPath: null,
   allowSymlinkOnWindows: false,
   reapOnSuccess: true,
-  // Local overrides must reach the worktree, or e.g. `operatorHandle` reads
-  // the committed placeholder and lease release breaks at close. Absent
-  // files are skipped. Keep in sync with `DEFAULT_WORKSPACE_FILES` in
-  // `../workspace-provisioner.js`.
+  // Gitignored files a worktree needs; absent files are skipped. Keep in
+  // sync with `DEFAULT_WORKSPACE_FILES` in `../workspace-provisioner.js`.
   bootstrapFiles: Object.freeze([
     '.env',
     '.mcp.json',
-    '.agentrc.local.json',
     '.agents/instructions.local.md',
   ]),
 });
