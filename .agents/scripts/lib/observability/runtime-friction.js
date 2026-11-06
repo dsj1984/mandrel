@@ -33,6 +33,8 @@ export const RUNTIME_FRICTION_CATEGORIES = Object.freeze({
   REVIEW_RECORDED_AT_LAND: 'review-recorded-at-land',
   /** A held CRITICAL reached the base branch with no override record. */
   REVIEW_CRITICAL_MERGED: 'review-critical-merged',
+  /** A credited suite lost workers to host memory (consumer exit 77). */
+  HOST_RESOURCES: 'host-resources',
 });
 
 /**

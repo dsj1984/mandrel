@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { getQuality } from '../../.agents/scripts/lib/config/quality.js';
 import {
   anyChangedUnderTargets,
+  COVERAGE_HOST_RESOURCES_EXIT_CODE,
   COVERAGE_OVER_BUDGET_EXIT_CODE,
   COVERAGE_TIMEOUT_EXIT_CODE,
   captureStampPath,
@@ -948,6 +949,15 @@ describe('reportCaptureFailure (Story #5377)', () => {
     assert.deepEqual(lines.error, []);
     assert.match(lines.info[0], /no suite ran/);
     assert.match(lines.info[0], /coverage\.onOverBudget/);
+  });
+
+  it('Story #5959: reports a host-resources exit (77) as lost workers, never as failing tests', () => {
+    const { lines, logger } = recorder();
+    assert.equal(COVERAGE_HOST_RESOURCES_EXIT_CODE, 77);
+    assert.equal(reportCaptureFailure(77, logger), 77);
+    assert.equal(lines.error.length, 1);
+    assert.match(lines.error[0], /host memory/);
+    assert.doesNotMatch(lines.error[0], /Fix failing tests/);
   });
 
   it('reports any other non-zero exit as a suite failure', () => {

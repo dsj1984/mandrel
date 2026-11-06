@@ -42,6 +42,17 @@ export class CommentGateway {
     );
   }
 
+  /**
+   * @field-manifest /repos/{owner}/{repo}/issues/comments:
+   *                 id, body, issue_url, updated_at
+   */
+  async getRepoCommentsSince(since) {
+    return paginateRest(
+      this._gh,
+      `/repos/${this.owner}/${this.repo}/issues/comments?since=${encodeURIComponent(since)}`,
+    );
+  }
+
   async deleteComment(commentId) {
     await this._gh.api({
       method: 'DELETE',

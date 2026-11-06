@@ -34,6 +34,17 @@ about **where** a friction record lands and **how** it is validated.
 
 ---
 
+## Story outcome record
+
+With `delivery.feedbackLoop.outcomeRecord: true`, every close and
+confirm-merge terminal upserts one `story-outcome` comment on the Story, so
+attempts from any machine add to one record (a re-run confirm-merge on a
+landed Story adds nothing). `story-outcomes-report.js [--since <YYYY-MM-DD>]
+[--json]` rolls the records up by gate and mandrel version; details in
+[`configuration.md`](configuration.md). Off by default.
+
+---
+
 ## Anti-thrashing: attack the premise
 
 Procedure behind the Re-Plan step of

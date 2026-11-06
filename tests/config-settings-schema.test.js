@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  AGENTRC_SCHEMA,
   COMMENT_EVENT_NAMES,
   getAgentrcValidator,
   WEBHOOK_EVENT_NAMES,
@@ -1224,6 +1225,20 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
       }),
       true,
       'the retro toggle has a live reader and must survive',
+    );
+  });
+
+  it('accepts a boolean feedbackLoop.outcomeRecord, defaulting false (Story #5977)', () => {
+    const { outcomeRecord } =
+      AGENTRC_SCHEMA.properties.delivery.properties.feedbackLoop.properties;
+    assert.equal(outcomeRecord.default, false);
+    assert.equal(
+      validate({ ...REQ, delivery: { feedbackLoop: { outcomeRecord: true } } }),
+      true,
+    );
+    expectErrors(
+      { ...REQ, delivery: { feedbackLoop: { outcomeRecord: 'yes' } } },
+      /boolean/,
     );
   });
 

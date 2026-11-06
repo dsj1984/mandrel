@@ -242,7 +242,8 @@
       "maxRounds": 2
     },
     "feedbackLoop": {
-      "retroProposals": false
+      "retroProposals": false,
+      "outcomeRecord": false
     },
     "ci": {
       "autoMerge": "trust-ci",

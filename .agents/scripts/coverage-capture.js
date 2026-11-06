@@ -16,7 +16,8 @@
  * Exit codes: 0 fresh/skipped/captured; 1 capture failed or refused (callers
  * MUST surface it); 75 lock wait expired, nothing spawned; 76 the capture
  * script declared its slice over this host's budget, nothing ran or was
- * stamped (callers settle it by `coverage.onOverBudget`); 124 suite timed out.
+ * stamped (callers settle it by `coverage.onOverBudget`); 77 the run lost
+ * workers to host memory with no failing test (callers block); 124 suite timed out.
  */
 import { getChangedFiles, resolveCaptureBaseRef } from './lib/changed-files.js';
 import { isDirectInvocation } from './lib/cli-utils.js';

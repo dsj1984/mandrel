@@ -160,6 +160,7 @@ export async function finishWithMergeWait(prCtx, deps) {
     config: prCtx.config,
     phaseTimer: prCtx.phaseTimer,
     worker: prCtx.worker,
+    provider: deps.provider,
   });
   reportWaitTerminal(terminal, { storyId: prCtx.storyId, prUrl: prCtx.prUrl });
   return { success: terminal.status === 'landed', result, terminal };

@@ -5,6 +5,7 @@
 
 import { getQuality } from '../config/quality.js';
 import {
+  COVERAGE_HOST_RESOURCES_EXIT_CODE,
   COVERAGE_OVER_BUDGET_EXIT_CODE,
   COVERAGE_TIMEOUT_EXIT_CODE,
 } from '../coverage-capture.js';
@@ -40,13 +41,13 @@ import { defaultGetHeadSha } from './projections/head-sha.js';
  * Classify a non-zero gate exit and log it as what it is: `75` is an expired
  * full-suite lock wait (nothing ran), `124` a killed suite (no verdict), and
  * `76` an over-budget capture the policy blocks (a deferring gate never gets
- * here), and anything else a real failure with the gate's own hint. Returns the
+ * here), `77` a suite gate that lost workers to host memory, and anything else a real failure with the gate's own hint. Returns the
  * `failed[]` entry, carrying `outcome` so callers never re-derive it; its
  * `gate.hint` is the one that fits the outcome (none when deferred), so a
  * caller replaying it never prints the failing-tests hint for a non-failure.
  *
  * @param {{ gate: Gate, status: number, cwd: string, log: (m: string) => void }} args
- * @returns {{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'failed' }}
+ * @returns {{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'host-resources'|'failed' }}
  */
 function reportGateExit({ gate, status, cwd, log }) {
   if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
@@ -138,9 +139,10 @@ export function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   shouldSkip?: typeof defaultShouldSkip,
  * }} opts An expired full-suite lock wait spawns nothing (here or in any gate
  *   child) and reports `LOCK_WAIT_EXPIRED_EXIT_CODE`.
- * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }>, deferred: Array<{ gate: Gate, status: number, reason: 'over-budget' }> }}
+ * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'host-resources'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }>, deferred: Array<{ gate: Gate, status: number, reason: 'over-budget' }> }}
  *   `outcome` classifies the exit: `deferred` (75), `timeout` (124),
- *   `over-budget` (76 under `block`), else `failed`. `deferred[]` holds a
+ *   `over-budget` (76 under `block`), `host-resources` (77 from a suite gate),
+ *   else `failed`. `deferred[]` holds a
  *   `deferOnOverBudget` gate that exited 76: not a failure, no evidence.
  */
 export async function runCloseValidation({
@@ -502,21 +504,43 @@ function isBlockedOverBudget(gate, status) {
   );
 }
 
+/** Replaces a suite gate's own hint on exit 77: lost workers, no failing test. */
+const GATE_HOST_RESOURCES_HINT =
+  'The suite lost workers to host memory (exit 77) and no test failed — do not re-run it unchanged on this host. Use fewer workers or a larger host, or — when CI runs the suite with a coverage floor — have the capture script declare the slice over budget (exit 76) under `delivery.quality.gates.coverage.onOverBudget: "defer-to-ci"`.';
+
+/** The gates that run the suite, the only ones whose 77 means lost workers. */
+const SUITE_GATES = new Set(['test', 'coverage-capture']);
+
 /**
  * A non-failure exit that carries its own hint in place of the gate's: a
- * killed suite (124), or a capture over budget the policy blocks (76).
+ * killed suite (124), a suite that lost workers to host memory (77), or a
+ * capture over budget the policy blocks (76).
  *
  * @param {Gate} gate @param {number} status
- * @returns {{ outcome: 'timeout'|'over-budget', hint: string, line: string }|null}
+ * @returns {{ outcome: 'timeout'|'host-resources'|'over-budget', hint: string, line: string }|null}
  */
 function hintedExit(gate, status) {
   if (status === COVERAGE_TIMEOUT_EXIT_CODE) {
     const line = `⏱ ${gate.name} timed out (exit ${status})`;
     return { outcome: 'timeout', hint: GATE_TIMEOUT_HINT, line };
   }
-  if (!isBlockedOverBudget(gate, status)) return null;
+  return isBlockedOverBudget(gate, status)
+    ? overBudgetExit(gate, status)
+    : hostResourcesExit(gate, status);
+}
+
+/** @param {Gate} gate @param {number} status */
+function overBudgetExit(gate, status) {
   const line = `✖ ${gate.name} over budget (exit ${status}) — the capture ran no tests`;
   return { outcome: 'over-budget', hint: OVER_BUDGET_BLOCK_HINT, line };
+}
+
+/** A suite gate's 77; any other gate's 77 is an ordinary failure. @param {Gate} gate @param {number} status */
+function hostResourcesExit(gate, status) {
+  if (status !== COVERAGE_HOST_RESOURCES_EXIT_CODE) return null;
+  if (!SUITE_GATES.has(gate.name)) return null;
+  const line = `⛔ ${gate.name} lost workers to host memory (exit ${status}) — no test failed`;
+  return { outcome: 'host-resources', hint: GATE_HOST_RESOURCES_HINT, line };
 }
 
 function reportHintedExit({ gate, status, cwd, log, outcome, hint, line }) {
