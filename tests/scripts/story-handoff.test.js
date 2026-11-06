@@ -231,6 +231,7 @@ describe('story-handoff — the happy path (AC-1)', () => {
       suggestion: 2,
     });
     assert.deepEqual(spawned(h.runCommand), [
+      'typecheck',
       'lint',
       'quality-preview.js',
       'coverage-capture.js',
@@ -435,7 +436,8 @@ describe('story-handoff — the preflight runs the standalone ratchets (#5528)',
     const h = harness({ cwd: seededWorktree() });
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 0);
-    assert.deepEqual(spawned(h.runCommand).slice(0, 6), [
+    assert.deepEqual(spawned(h.runCommand).slice(0, 7), [
+      'typecheck',
       'lint',
       'quality-preview.js',
       ...Object.keys(RATCHET_BASELINES),
@@ -780,6 +782,64 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
       assert.equal(h.blocks.length, 0, 'no label is written');
     });
   }
+
+  test('lint and quality-preview both failing → one fix-required naming each, no suite', async () => {
+    const h = harness({
+      outputs: {
+        lint: { status: 1 },
+        'quality-preview.js': { status: 1 },
+      },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    const step = envelope.steps.at(-1);
+    assert.deepEqual(
+      step.findings.map((f) => f.check),
+      ['lint', 'quality-preview'],
+    );
+    assert.deepEqual(
+      step.detail.split('\n'),
+      step.findings.map((f) => f.detail),
+    );
+    assert.ok(step.findings.every((f) => f.evidencePath));
+    assert.notEqual(
+      step.findings[0].evidencePath,
+      step.findings[1].evidencePath,
+    );
+    assert.equal(envelope.evidencePath, step.findings[0].evidencePath);
+    assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
+  });
+
+  test('a re-run at the same HEAD repeats preflight after a finding, skips it after a clean pass', async () => {
+    const outputs = { 'quality-preview.js': { status: 1 } };
+    const h = harness({ outputs });
+    await h.run();
+    const statePath = path.join(
+      tempRoot,
+      'orchestration',
+      `story-handoff-${STORY}.json`,
+    );
+    const { state } = JSON.parse(readFileSync(statePath, 'utf8'));
+    assert.equal(state.preflightCredits.lint.head, HEAD, 'lint still credited');
+    assert.equal(state.preflightHead, undefined);
+    const firstSpawns = h.runCommand.calls.length;
+    delete outputs['quality-preview.js'];
+    const second = await h.run();
+    const preflightSpawns = h.runCommand.calls
+      .slice(firstSpawns)
+      .map((c) => c.key)
+      .filter((k) => ['typecheck', 'lint', 'quality-preview.js'].includes(k));
+    assert.deepEqual(preflightSpawns, [
+      'typecheck',
+      'lint',
+      'quality-preview.js',
+    ]);
+    assert.equal(second.envelope.status, 'ready');
+    const third = await h.run();
+    const pf = third.envelope.steps.find((s) => s.name === 'preflight');
+    assert.equal(pf.outcome, 'skipped');
+  });
 
   test('a base-merge conflict names the conflicting files', async () => {
     const h = harness({
@@ -1770,6 +1830,11 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     args: ['run', 'lint'],
     cwd: '/work',
   });
+  const typecheckHash = hashCommandConfig({
+    cmd: 'npm',
+    args: ['run', 'typecheck'],
+    cwd: '/work',
+  });
   const callFor = (h, key) => h.runCommand.calls.find((c) => c.key === key);
   const evidenceSkip = (gateName, sha, configHash) =>
     shouldSkip(
@@ -1808,10 +1873,57 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
       closeLint.cmd,
       ...closeLint.args,
     ]);
-    assert.deepEqual(readState().lintCredit, {
+    assert.deepEqual(readState().preflightCredits.lint, {
       head: HEAD,
       configHash: lintHash,
     });
+  });
+
+  test('AC-3: typecheck deposits first, with close typecheck argv and command hash', async () => {
+    const h = harness();
+    await h.run();
+    assert.equal(spawned(h.runCommand)[0], 'typecheck');
+    const closeTypecheck = buildDefaultGates({
+      config: configFor(),
+      baseBranch: 'main',
+      cwd: '/work',
+      packageScripts: CAPTURE_SCRIPTS,
+    }).find((g) => g.name === 'typecheck');
+    assert.deepEqual(callFor(h, 'typecheck').args.slice(-4), [
+      '--',
+      closeTypecheck.cmd,
+      ...closeTypecheck.args,
+    ]);
+    assert.deepEqual(readState().preflightCredits.typecheck, {
+      head: HEAD,
+      configHash: typecheckHash,
+    });
+  });
+
+  test('AC-4: a failing typecheck is fix-required naming typecheck, before the suite', async () => {
+    const h = harness({ outputs: { typecheck: { status: 2 } } });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.match(envelope.steps.at(-1).detail, /^typecheck finding/);
+    assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
+    assert.ok(!('typecheck' in readState().preflightCredits));
+  });
+
+  test('AC-6: typecheck: null neither spawns nor deposits typecheck', async () => {
+    const h = harness({
+      config: configFor({
+        project: {
+          baseBranch: 'main',
+          paths: { tempRoot },
+          commands: { typecheck: null },
+        },
+      }),
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.ok(!spawned(h.runCommand).includes('typecheck'));
+    assert.deepEqual(Object.keys(readState().preflightCredits), ['lint']);
   });
 
   test('AC-2: format deposits the argv close executes after its own scoping', async () => {
@@ -1882,11 +1994,14 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'preflight');
-    assert.match(envelope.steps.at(-1).detail, /lint\/format gates: bad ref/);
+    assert.match(
+      envelope.steps.at(-1).detail,
+      /typecheck\/lint\/format gates: bad ref/,
+    );
     assert.deepEqual(spawned(h.runCommand), []);
   });
 
-  test('AC-3: a baselines-only seat commit carries the lint credit to the seated head', async () => {
+  test('AC-5: a baselines-only seat commit carries the lint and typecheck credits to the seated head', async () => {
     const h = harness({
       outputs: {
         'update-crap-baseline.js': { status: 0, stdout: 'seated: 2' },
@@ -1894,31 +2009,34 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     });
     const { envelope } = await h.run();
     assert.equal(envelope.headSha, SEATED_HEAD);
-    const lintGate = buildDefaultGates({
+    const carried = buildDefaultGates({
       config: configFor(),
       baseBranch: 'main',
       cwd: '/work',
       packageScripts: CAPTURE_SCRIPTS,
-    }).find((g) => g.name === 'lint');
+    }).filter((g) => ['typecheck', 'lint'].includes(g.name));
     const close = await runCloseValidation({
       cwd: tempRoot,
       worktreePath: '/work',
-      gates: [lintGate],
+      gates: carried,
       storyId: STORY,
       standalone: true,
       getHeadSha: () => SEATED_HEAD,
       getTreeFingerprint: () => null,
-      runner: () => assert.fail('close must not re-run lint'),
+      runner: () => assert.fail('close must not re-run a carried gate'),
       runProjections: async () => {},
     });
     assert.deepEqual(
       close.skipped.map((x) => [x.gate.name, x.reason]),
-      [['lint', 'evidence-match']],
+      [
+        ['typecheck', 'evidence-match'],
+        ['lint', 'evidence-match'],
+      ],
     );
     assert.equal(evidenceSkip('format', SEATED_HEAD, lintHash).skip, false);
   });
 
-  test('AC-3: a seat commit touching anything outside baselines/ carries nothing', async () => {
+  test('AC-5: a seat commit touching anything outside baselines/ carries nothing', async () => {
     const h = harness({
       outputs: {
         'update-crap-baseline.js': { status: 0, stdout: 'seated: 2' },
@@ -1932,6 +2050,10 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     };
     await h.run();
     assert.equal(evidenceSkip('lint', SEATED_HEAD, lintHash).skip, false);
+    assert.equal(
+      evidenceSkip('typecheck', SEATED_HEAD, typecheckHash).skip,
+      false,
+    );
   });
 
   test('AC-4: a CRAP regression in the fresh capture is fix-required and pushes nothing', async () => {
