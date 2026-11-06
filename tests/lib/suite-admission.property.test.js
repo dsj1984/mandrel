@@ -14,7 +14,10 @@
  *   - the on-disk reservation set agrees with the model after every step;
  *   - every schema-valid `{ weight, resources }` survives the reservation
  *     filename encoding: a peer reading the file back sees that exact weight
- *     and exactly those resources.
+ *     and exactly those resources;
+ *   - (Story #5963) with sized, backfill-gated, declared and exclusive
+ *     contenders mixed, live weights still never exceed capacity, a live
+ *     exclusive run never overlaps a reservation, and a gate only vetoes.
  *
  * Runs are pinned by `fcParams()` (seed + run count); override with
  * `MANDREL_FC_SEED` / `MANDREL_FC_NUM_RUNS` to explore.
@@ -273,6 +276,128 @@ describe('suite admission — properties (Story #5684)', () => {
           }
         },
       ),
+      fcParams(),
+    );
+  });
+});
+
+const mixedScenario = fc.integer({ min: 1, max: 8 }).chain((capacity) =>
+  fc.record({
+    capacity: fc.constant(capacity),
+    agents: fc.array(
+      fc.oneof(
+        fc.record({ kind: fc.constant('exclusive') }),
+        fc.record({
+          kind: fc.constant('declared'),
+          weight: fc.integer({ min: 1, max: capacity }),
+          resources: fc.subarray(POOL),
+          tiers: fc.array(
+            fc.record({
+              maxFiles: fc.nat({ max: 50 }),
+              weight: fc.integer({ min: 1, max: capacity + 2 }),
+            }),
+            { maxLength: 3 },
+          ),
+          slice: fc.option(fc.nat({ max: 60 })),
+        }),
+      ),
+      { minLength: 2, maxLength: 6 },
+    ),
+    ops: fc.array(
+      fc.record({
+        kind: fc.constantFrom('try', 'release'),
+        agent: fc.nat(),
+        veto: fc.option(fc.boolean()),
+      }),
+      { maxLength: 40 },
+    ),
+  }),
+);
+
+/** The model of a sized booking: the covering tier, else full weight. */
+function bookedWeight({ weight, tiers, slice }) {
+  if (slice === null) return weight;
+  const tier = [...tiers]
+    .sort((a, b) => a.maxFiles - b.maxFiles)
+    .find((t) => slice <= t.maxFiles);
+  return tier && tier.weight <= weight ? tier.weight : weight;
+}
+
+function mixedAttempt(fsImpl, capacity, agent) {
+  const base = {
+    lockPath: LOCK,
+    capacity,
+    staleMs: FULL_SUITE_STALE_MS,
+    fsImpl,
+    nowFn: Date.now,
+    acquireReservationFn: quietAcquire,
+    acquireOnceFn: quietAcquire,
+  };
+  if (agent.kind === 'exclusive') {
+    return createAttempt({ ...base, workload: { kind: 'exclusive' } });
+  }
+  const workload = {
+    kind: 'declared',
+    command: 'suite',
+    weight: bookedWeight(agent),
+    resources: agent.resources,
+  };
+  return createAttempt({ ...base, workload });
+}
+
+function mixedStep(state, fsImpl, op) {
+  const slot = state[op.agent % state.length];
+  if (op.kind === 'release') {
+    slot.attempt?.release();
+    slot.attempt = null;
+    slot.live = false;
+    return;
+  }
+  if (slot.live) return;
+  slot.attempt ??= mixedAttempt(fsImpl, state.capacity, slot.agent);
+  const gated = slot.agent.kind === 'declared' && op.veto !== null;
+  const result = gated
+    ? slot.attempt.tryOnce(() => (op.veto ? { reason: 'queue' } : null))
+    : slot.attempt.tryOnce();
+  if (gated && op.veto) assert.equal(result.acquired, false, 'a veto holds');
+  slot.live = result.acquired;
+  if (slot.live && slot.agent.kind === 'declared') {
+    slot.weight = bookedWeight(slot.agent);
+  }
+}
+
+function assertMixedInvariant(state) {
+  const live = state.filter((s) => s.live);
+  const declared = live.filter((s) => s.agent.kind === 'declared');
+  const used = declared.reduce((sum, s) => sum + s.weight, 0);
+  assert.ok(used <= state.capacity, `live weight ${used} > ${state.capacity}`);
+  assert.ok(declared.every((s) => s.weight <= s.agent.weight));
+  const exclusive = live.filter((s) => s.agent.kind === 'exclusive');
+  assert.ok(exclusive.length <= 1, 'one exclusive holder at most');
+  if (exclusive.length) assert.equal(declared.length, 0, 'exclusive is alone');
+}
+
+describe('suite admission — sized and backfilled mixes (Story #5963)', () => {
+  it('AC-8: live admitted weights never exceed capacity under any contender mix', () => {
+    fc.assert(
+      fc.property(mixedScenario, ({ capacity, agents, ops }) => {
+        const fsImpl = makeMemoryFs();
+        const state = agents.map((agent) => ({
+          agent,
+          attempt: null,
+          live: false,
+          weight: 0,
+        }));
+        state.capacity = capacity;
+        try {
+          for (const op of ops) {
+            mixedStep(state, fsImpl, op);
+            assertMixedInvariant(state);
+          }
+        } finally {
+          for (const slot of state) slot.attempt?.release();
+        }
+      }),
       fcParams(),
     );
   });

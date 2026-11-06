@@ -13832,38 +13832,44 @@
       "path": ".agents/scripts/lib/close-lock-events.js",
       "method": "mergeLockWait",
       "startLine": 122,
-      "crap": 3
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "latest",
+      "startLine": 131,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-lock-events.js",
       "method": "timingsOf",
-      "startLine": 131,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/close-lock-events.js",
-      "method": "lockEventHooks",
       "startLine": 136,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "lockEventHooks",
+      "startLine": 141,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
       "method": "<anon lockEventHooks/onLockOutcome(outcome)#0>",
-      "startLine": 138,
+      "startLine": 143,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-lock-events.js",
       "method": "<anon lockEventHooks/onLockProgress(progress)#0>",
-      "startLine": 139,
+      "startLine": 144,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-lock-events.js",
       "method": "<anon lockEventHooks/onTimings(timings)#0>",
-      "startLine": 140,
+      "startLine": 145,
       "crap": 1,
       "anonymous": true
     },
@@ -19293,400 +19299,476 @@
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon log()#0>",
-      "startLine": 61,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/full-suite-lock.js",
-      "method": "<anon sleepFn(ms)#0>",
-      "startLine": 68,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/full-suite-lock.js",
-      "method": "<anon acquireOnceFn(opts)#0>",
       "startLine": 69,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "<anon sleepFn(ms)#0>",
+      "startLine": 78,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "<anon acquireOnceFn(opts)#0>",
+      "startLine": 79,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon onWaitExpired()#0>",
-      "startLine": 70,
+      "startLine": 80,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon onAdmissionRefused()#0>",
-      "startLine": 71,
+      "startLine": 81,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon onLockOutcome()#0>",
-      "startLine": 74,
+      "startLine": 84,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon onLockProgress()#0>",
-      "startLine": 75,
+      "startLine": 85,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "resolveFullSuiteLockBudget",
-      "startLine": 88,
+      "startLine": 98,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "isFullSuiteLockEnabled",
-      "startLine": 99,
+      "startLine": 109,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "resolveFullSuiteLockPath",
-      "startLine": 112,
+      "startLine": 122,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "beginLock",
-      "startLine": 129,
+      "startLine": 139,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "firstTry",
-      "startLine": 140,
+      "startLine": 150,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "afterFirst",
-      "startLine": 148,
+      "startLine": 158,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "lockHome",
-      "startLine": 158,
+      "startLine": 168,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "consult",
-      "startLine": 172,
+      "startLine": 182,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "withFullSuiteLockAsync",
-      "startLine": 210,
+      "startLine": 223,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "admitAndSpawn",
-      "startLine": 216,
+      "startLine": 229,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "lockAndSpawn",
-      "startLine": 223,
+      "startLine": 237,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "<anon lockAndSpawn/then(sized)#0>",
+      "startLine": 239,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "reserveAndSpawn",
+      "startLine": 243,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "needsSizing",
+      "startLine": 255,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "sizedOpts",
+      "startLine": 259,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "inheritedMarker",
-      "startLine": 234,
+      "startLine": 269,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon inheritedMarker/lockHomeFn()#0>",
-      "startLine": 235,
+      "startLine": 270,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "spawnInside",
-      "startLine": 238,
+      "startLine": 273,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "isRefused",
-      "startLine": 245,
+      "startLine": 280,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "refuse",
-      "startLine": 249,
+      "startLine": 284,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "awaitTurn",
-      "startLine": 254,
+      "startLine": 289,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "reportOutcome",
-      "startLine": 262,
-      "crap": 2
+      "startLine": 297,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "isFinishedWait",
-      "startLine": 269,
+      "startLine": 308,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "lockOutcome",
-      "startLine": 273,
+      "startLine": 312,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "withDefaults",
-      "startLine": 278,
+      "startLine": 317,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "spawnOrStandIn",
-      "startLine": 286,
+      "startLine": 325,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "timedSpawn",
-      "startLine": 300,
+      "startLine": 339,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "reportCompleted",
-      "startLine": 310,
+      "startLine": 349,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "fullSuiteLockPolicy",
-      "startLine": 324,
+      "startLine": 363,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon fullSuiteLockPolicy/onWaitExpired()#0>",
-      "startLine": 328,
+      "startLine": 367,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "coverageCaptureArgv",
-      "startLine": 342,
+      "startLine": 381,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "lockedCapture",
-      "startLine": 360,
+      "startLine": 399,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon lockedCapture/(captureOpts)#0>",
-      "startLine": 366,
+      "startLine": 405,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "captureInLock",
-      "startLine": 385,
+      "startLine": 425,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon captureInLock/(lockWaitMs,env)#0>",
-      "startLine": 386,
+      "startLine": 426,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "withSuiteAdmission",
-      "startLine": 406,
+      "startLine": 446,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "freshnessProbe",
-      "startLine": 429,
+      "startLine": 469,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon freshnessProbe/()#0>",
-      "startLine": 431,
+      "startLine": 471,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "ticketBody",
+      "startLine": 35,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "readTicketWorkload",
+      "startLine": 48,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "enqueueWaiter",
-      "startLine": 39,
+      "startLine": 69,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "refreshTicket",
-      "startLine": 65,
+      "startLine": 96,
       "crap": 2.0438957475994513
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "dequeueWaiter",
-      "startLine": 79,
+      "startLine": 110,
       "crap": 2.0625
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "isLiveEntry",
-      "startLine": 92,
-      "crap": 3.072
-    },
-    {
-      "path": ".agents/scripts/lib/full-suite-queue.js",
-      "method": "countAhead",
-      "startLine": 104,
+      "startLine": 123,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
-      "method": "<anon countAhead/filter(name)#0>",
-      "startLine": 122,
+      "method": "liveAhead",
+      "startLine": 135,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "<anon liveAhead/filter(name)#0>",
+      "startLine": 153,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "countAhead",
+      "startLine": 159,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "backfillGate",
+      "startLine": 170,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "<anon backfillGate/ahead.every(name)#0>",
+      "startLine": 178,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "<anon backfillGate/ahead.every(name)#0/e.resources.some(r)#0>",
+      "startLine": 183,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "tryBackfill",
+      "startLine": 191,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "<anon tryBackfill/opts.attempt.tryOnce()#0>",
+      "startLine": 194,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "isFirstInLine",
-      "startLine": 140,
+      "startLine": 210,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "readLockHolder",
-      "startLine": 155,
+      "startLine": 225,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "describeHolder",
-      "startLine": 176,
+      "startLine": 246,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "holderLabel",
-      "startLine": 180,
+      "startLine": 250,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "waitInLine",
-      "startLine": 204,
+      "startLine": 274,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "waitClock",
-      "startLine": 221,
+      "startLine": 296,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "<anon waitClock/waitedMs()#0>",
-      "startLine": 226,
+      "startLine": 301,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "<anon waitClock/waited()#0>",
-      "startLine": 227,
+      "startLine": 302,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "reportProgress",
-      "startLine": 231,
+      "startLine": 306,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "waitContext",
-      "startLine": 245,
+      "startLine": 320,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "waitHolder",
-      "startLine": 256,
+      "startLine": 331,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "announceWait",
-      "startLine": 260,
+      "startLine": 335,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "exclusiveWaitLine",
-      "startLine": 265,
+      "startLine": 340,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "giveUp",
-      "startLine": 269,
+      "startLine": 344,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "pollForTurn",
-      "startLine": 286,
+      "startLine": 361,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "acquiredLine",
-      "startLine": 307,
+      "startLine": 383,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "reportStillWaiting",
-      "startLine": 314,
+      "startLine": 390,
       "crap": 2
     },
     {
@@ -39540,268 +39622,350 @@
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "normalizeCommand",
-      "startLine": 53,
+      "startLine": 57,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "resolveSuiteCapacity",
-      "startLine": 63,
+      "startLine": 67,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "classifySuiteWorkload",
-      "startLine": 75,
+      "startLine": 79,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon classifySuiteWorkload/workloads.find(w)#0>",
-      "startLine": 82,
+      "startLine": 86,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "resolveAdmission",
-      "startLine": 102,
+      "startLine": 107,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "createAttempt",
-      "startLine": 111,
+      "startLine": 116,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "completedProgress",
-      "startLine": 118,
+      "startLine": 123,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "describeRefusal",
-      "startLine": 129,
+      "startLine": 134,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "reservationsDir",
-      "startLine": 133,
+      "startLine": 138,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "ageOf",
-      "startLine": 137,
+      "startLine": 142,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "holderState",
-      "startLine": 150,
+      "startLine": 155,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "holderOf",
-      "startLine": 158,
+      "startLine": 163,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "readLiveReservations",
-      "startLine": 172,
+      "startLine": 177,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon readLiveReservations/names.flatMap(name)#0>",
-      "startLine": 180,
+      "startLine": 185,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "liveReservation",
-      "startLine": 183,
+      "startLine": 188,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "unlinkQuietly",
-      "startLine": 203,
+      "startLine": 208,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "liveLegacyHolder",
-      "startLine": 210,
+      "startLine": 215,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "underAdmissionMutex",
-      "startLine": 219,
+      "startLine": 224,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "blocked",
-      "startLine": 239,
+      "startLine": 244,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "sharedResource",
-      "startLine": 243,
+      "startLine": 248,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon sharedResource/reservation.resources.find(r)#0>",
-      "startLine": 245,
+      "startLine": 250,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "reservationName",
-      "startLine": 251,
+      "startLine": 256,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
+      "method": "gated",
+      "startLine": 261,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/suite-admission.js",
       "method": "createDeclaredAttempt",
-      "startLine": 264,
-      "crap": 1.0000537356341141
+      "startLine": 274,
+      "crap": 1.0000508052634254
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createDeclaredAttempt/admit()#0>",
-      "startLine": 269,
+      "startLine": 279,
       "crap": 4,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createDeclaredAttempt/admit()#0/live.reduce(sum,r)#0>",
-      "startLine": 281,
+      "startLine": 291,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createDeclaredAttempt/reserve()#0>",
-      "startLine": 292,
+      "startLine": 302,
       "crap": 2.004665403119988,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
-      "method": "<anon createDeclaredAttempt/tryOnce()#0>",
-      "startLine": 312,
+      "method": "<anon createDeclaredAttempt/tryOnce(gate)#0/underAdmissionMutex()#0>",
+      "startLine": 323,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/suite-admission.js",
+      "method": "<anon createDeclaredAttempt/tryOnce(gate)#0>",
+      "startLine": 323,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createDeclaredAttempt/release()#0>",
-      "startLine": 313,
+      "startLine": 324,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createDeclaredAttempt/heldPath()#0>",
-      "startLine": 314,
+      "startLine": 325,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "createExclusiveAttempt",
-      "startLine": 327,
+      "startLine": 338,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createExclusiveAttempt/drained()#0>",
-      "startLine": 330,
+      "startLine": 341,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createExclusiveAttempt/drained()#0/live.reduce(sum,r)#0>",
-      "startLine": 335,
+      "startLine": 346,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createExclusiveAttempt/tryOnce()#0>",
-      "startLine": 341,
+      "startLine": 352,
       "crap": 4,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createExclusiveAttempt/release()#0>",
-      "startLine": 358,
+      "startLine": 369,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "<anon createExclusiveAttempt/heldPath()#0>",
-      "startLine": 359,
+      "startLine": 370,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "reservationEnv",
-      "startLine": 364,
+      "startLine": 375,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/suite-admission.js",
+      "method": "weightEnv",
+      "startLine": 381,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "inheritedReservation",
-      "startLine": 378,
+      "startLine": 396,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "admissionWaitLine",
-      "startLine": 394,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/suite-admission.js",
-      "method": "admittedLine",
-      "startLine": 400,
+      "startLine": 412,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "blockingLabel",
-      "startLine": 406,
+      "startLine": 418,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "publicBlocking",
-      "startLine": 413,
+      "startLine": 425,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/suite-admission.js",
       "method": "describeBlocking",
-      "startLine": 429,
+      "startLine": 441,
       "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "runSizeCommand",
+      "startLine": 20,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "failureReason",
+      "startLine": 42,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "parseCount",
+      "startLine": 49,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "<anon parseCount/filter(l)#0>",
+      "startLine": 52,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "selectTierWeight",
+      "startLine": 68,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "<anon selectTierWeight/sort(a,b)#0>",
+      "startLine": 71,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "<anon selectTierWeight/find(t)#0>",
+      "startLine": 72,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "sizeWorkload",
+      "startLine": 92,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "admittedLine",
+      "startLine": 112,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "admissionRecord",
+      "startLine": 128,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/suite-sizing.js",
+      "method": "sizingFields",
+      "startLine": 139,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/supervised-suite.js",

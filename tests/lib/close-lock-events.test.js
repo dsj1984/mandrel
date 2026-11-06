@@ -8,6 +8,7 @@ import {
   lockEventHooks,
   summarizeLockEvents,
 } from '../../.agents/scripts/lib/close-lock-events.js';
+import { buildTerminalEnvelope } from '../../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const CLOSE_LOCK_EVENTS_FILE_ENV = 'MANDREL_CLOSE_LOCK_EVENTS_FILE';
@@ -97,6 +98,44 @@ describe('close-lock-events', () => {
           { lockWaitMs: 4, hostWaitMs: null, testRunMs: 6 },
         ],
       },
+    );
+  });
+
+  it('Story #5963 AC-10: the last admission record rides lockWait and the envelope schema accepts it', () => {
+    const first = {
+      weight: 8,
+      declaredWeight: 8,
+      sliceFiles: null,
+      backfilled: false,
+    };
+    const last = {
+      weight: 2,
+      declaredWeight: 8,
+      sliceFiles: 12,
+      backfilled: true,
+    };
+    const { lockWait } = summarizeLockEvents([
+      { kind: 'lock-wait', waitedSeconds: 3, expired: false, admission: first },
+      { kind: 'lock-wait', waitedSeconds: 4, expired: false },
+      { kind: 'lock-wait', waitedSeconds: 1, expired: false, admission: last },
+    ]);
+    assert.deepEqual(lockWait, {
+      waitedSeconds: 8,
+      expired: false,
+      admission: last,
+    });
+    const envelope = (wait) =>
+      buildTerminalEnvelope({
+        storyId: 5963,
+        status: 'pending',
+        phase: 'close-validation',
+        nextCommand: 'node close.js --story 5963',
+        lockWait: wait,
+      });
+    assert.deepEqual(envelope(lockWait).lockWait, lockWait);
+    assert.throws(
+      () => envelope({ ...lockWait, admission: { ...last, extra: 1 } }),
+      /violates/,
     );
   });
 

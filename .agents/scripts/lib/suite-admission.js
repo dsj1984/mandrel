@@ -20,12 +20,16 @@ import {
   isHolderAlive,
   readLockHolderPid,
 } from './single-story-sweep/sweep-lock.js';
+import { sizingFields } from './suite-sizing.js';
 
 /**
  * Set on every spawn made under a held lockfile or reservation, naming it, so
  * a descendant that asks for admission runs inside its parent's.
  */
 export const SUITE_RESERVATION_ENV = 'MANDREL_SUITE_RESERVATION';
+
+/** Beside a reservation marker: the weight it booked, to cap a worker pool. */
+const SUITE_WEIGHT_ENV = 'MANDREL_SUITE_WEIGHT';
 
 /** `EX_CONFIG`: a declared weight the capacity can never admit. */
 export const ADMISSION_REFUSED_EXIT_CODE = 78;
@@ -91,6 +95,7 @@ function classifySuiteWorkload({ config, argv, capacity }) {
     command,
     weight: entry.weight,
     resources: [...(entry.resources ?? [])],
+    ...sizingFields(entry),
   };
 }
 
@@ -253,6 +258,11 @@ function reservationName({ weight, resources }) {
   return `w${weight}~${resources.join('+')}~${process.pid}-${rand}.lock`;
 }
 
+function gated(gate, admit) {
+  const veto = gate?.();
+  return veto ? blocked(veto) : admit();
+}
+
 /**
  * A declared run: admitted when no exclusive holder is live, no live
  * reservation shares a resource, and the live weights plus its own fit.
@@ -309,7 +319,8 @@ function createDeclaredAttempt(opts) {
     return result;
   };
   return {
-    tryOnce: () => underAdmissionMutex(opts, admit),
+    /** `gate`, under the mutex: a blocking that vetoes, or null to admit. */
+    tryOnce: (gate) => underAdmissionMutex(opts, () => gated(gate, admit)),
     release: () => held?.release(),
     heldPath: () => heldPath,
   };
@@ -362,7 +373,14 @@ function createExclusiveAttempt(opts) {
 
 /** The child environment naming `heldPath`; empty when nothing is held. */
 export function reservationEnv(heldPath) {
-  return heldPath ? { [SUITE_RESERVATION_ENV]: heldPath } : {};
+  return heldPath
+    ? { [SUITE_RESERVATION_ENV]: heldPath, ...weightEnv(heldPath) }
+    : {};
+}
+
+function weightEnv(heldPath) {
+  const match = RESERVATION_RE.exec(path.basename(heldPath));
+  return match ? { [SUITE_WEIGHT_ENV]: match[1] } : {};
 }
 
 /**
@@ -394,12 +412,6 @@ const LOCK_TAG = '[full-suite-lock]';
 export function admissionWaitLine(workload, blocking, waitMs) {
   if (workload?.kind !== 'declared') return null;
   return `${LOCK_TAG} ⏳ waiting for admission of \`${workload.command}\` (weight ${workload.weight}; ${describeBlocking(blocking)}) — waiting up to ${Math.round(waitMs / 1000)}s before spawning.`;
-}
-
-/** The declared-run admitted line; `null` leaves the exclusive wording. */
-export function admittedLine(workload, waited) {
-  if (workload?.kind !== 'declared') return null;
-  return `${LOCK_TAG} ✅ admitted \`${workload.command}\` (weight ${workload.weight}, waited ${waited}s).`;
 }
 
 /** A reason worth naming over the holder pid; `null` for a plain queue. */
