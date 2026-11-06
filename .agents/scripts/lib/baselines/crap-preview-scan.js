@@ -59,6 +59,12 @@ export function listCyclomaticAdvisories(rows) {
     }));
 }
 
+function loadPreviewCoverage(crap, cwd) {
+  const coveragePath =
+    crap.coveragePath ?? COVERAGE_CAPTURE_DEFAULTS.coveragePath;
+  return loadCoverage(path.resolve(cwd, coveragePath));
+}
+
 /**
  * @param {{
  *   crap: object,
@@ -67,6 +73,7 @@ export function listCyclomaticAdvisories(rows) {
  *   scope: string,
  *   diffRef: string|null,
  *   baseline: { rows: object[] },
+ *   baseBranch?: string,
  * }} opts
  * @returns {Promise<{ exitCode: number, envelope: object }>}
  */
@@ -77,15 +84,14 @@ export async function computeCrapPreviewScan({
   scope,
   diffRef,
   baseline,
+  baseBranch,
 }) {
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
   const crapIgnoreGlobs = Array.isArray(crap.ignoreGlobs)
     ? crap.ignoreGlobs
     : [];
   const requireCoverage = crap.requireCoverage !== false;
-  const coveragePath =
-    crap.coveragePath ?? COVERAGE_CAPTURE_DEFAULTS.coveragePath;
-  const coverage = loadCoverage(path.resolve(cwd, coveragePath));
+  const coverage = loadPreviewCoverage(crap, cwd);
   // The configured tolerance keeps the preview aligned with the authoritative
   // gate: deltas at or under it are demoted, not failed.
   const { newMethodCeiling, tolerance } = resolveCrapEnvOverrides(
@@ -95,6 +101,7 @@ export async function computeCrapPreviewScan({
   const incremental = resolveCrapPreviewIncremental({
     crap,
     diffRef,
+    baseBranch,
     cwd,
     baselineRows: baseline.rows,
   });

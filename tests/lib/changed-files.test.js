@@ -4,6 +4,9 @@ import {
   diffNameOnly,
   getChangedFiles,
   getStagedFiles,
+  remoteBaseRef,
+  resolveCaptureBaseRef,
+  resolveChangedFilesRef,
   resolveMergeHead,
   resolvePreviewScope,
 } from '../../.agents/scripts/lib/changed-files.js';
@@ -467,5 +470,83 @@ describe('diffNameOnly', () => {
       diffNameOnly({ range: 'main...HEAD', cwd: '/repo', gitSpawn }),
       ['lib/foo.js'],
     );
+  });
+});
+
+// Story #5962 — the default is the remote-tracking base, so a local base that
+// trails origin cannot widen a Story's change set.
+describe('resolveChangedFilesRef / resolveCaptureBaseRef', () => {
+  const CONFIGURED = { incrementalCoverage: { baseRef: 'upstream/dev' } };
+  const noProbe = () => {
+    throw new Error('a named or configured ref must not be probed');
+  };
+
+  it('AC-1: defaults to origin/<baseBranch>', () => {
+    assert.equal(
+      resolveChangedFilesRef({ crap: {}, ref: null }),
+      'origin/main',
+    );
+    assert.equal(
+      resolveChangedFilesRef({ crap: {}, ref: null, baseBranch: 'trunk' }),
+      'origin/trunk',
+    );
+    assert.equal(remoteBaseRef('origin/main'), 'origin/main');
+  });
+
+  it('AC-2: a named ref, then a configured baseRef, win unprobed', () => {
+    assert.deepEqual(
+      resolveCaptureBaseRef({
+        crap: CONFIGURED,
+        ref: 'feature',
+        baseBranch: 'trunk',
+        gitSpawnFn: noProbe,
+      }),
+      { ref: 'feature', source: 'flag' },
+    );
+    assert.deepEqual(
+      resolveCaptureBaseRef({
+        crap: CONFIGURED,
+        ref: null,
+        baseBranch: 'trunk',
+        gitSpawnFn: noProbe,
+      }),
+      { ref: 'upstream/dev', source: 'config' },
+    );
+  });
+
+  it('probes origin/<baseBranch> and uses it when it resolves', () => {
+    const calls = [];
+    const out = resolveCaptureBaseRef({
+      crap: {},
+      baseBranch: 'trunk',
+      cwd: '/repo',
+      gitSpawnFn: (cwd, ...args) => {
+        calls.push([cwd, ...args]);
+        return { status: 0 };
+      },
+    });
+    assert.deepEqual(out, { ref: 'origin/trunk', source: 'remote' });
+    assert.deepEqual(calls, [
+      ['/repo', 'rev-parse', '--verify', '--quiet', 'origin/trunk^{commit}'],
+    ]);
+  });
+
+  it('AC-4: falls back to the local base when the remote ref is missing', () => {
+    const expected = {
+      ref: 'trunk',
+      source: 'local-fallback',
+      unresolved: 'origin/trunk',
+    };
+    for (const gitSpawnFn of [
+      () => ({ status: 1 }),
+      () => {
+        throw new Error('spawn failed');
+      },
+    ]) {
+      assert.deepEqual(
+        resolveCaptureBaseRef({ crap: {}, baseBranch: 'trunk', gitSpawnFn }),
+        expected,
+      );
+    }
   });
 });

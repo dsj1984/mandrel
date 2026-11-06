@@ -10,6 +10,7 @@ import { getChangedFiles, resolveChangedFilesRef } from '../changed-files.js';
  * @param {{
  *   crap: { incrementalCoverage?: { baselineJoin?: boolean, baseRef?: string } },
  *   diffRef: string | null,
+ *   baseBranch?: string,
  *   cwd: string,
  *   baselineRows: Array<object>,
  *   getChangedFilesImpl?: typeof getChangedFiles,
@@ -19,15 +20,20 @@ import { getChangedFiles, resolveChangedFilesRef } from '../changed-files.js';
 export function resolveCrapPreviewIncremental({
   crap,
   diffRef,
+  baseBranch,
   cwd,
   baselineRows,
   getChangedFilesImpl = getChangedFiles,
 }) {
   if (crap.incrementalCoverage?.baselineJoin !== true) return null;
-  const baseRef = resolveChangedFilesRef({ crap, ref: diffRef });
+  const ref = resolveChangedFilesRef({ crap, ref: diffRef, baseBranch });
+  const touchedFiles = readTouched(getChangedFilesImpl, ref, cwd);
+  return touchedFiles && { touchedFiles, baselineRows };
+}
+
+function readTouched(getChangedFilesImpl, ref, cwd) {
   try {
-    const touchedFiles = new Set(getChangedFilesImpl({ ref: baseRef, cwd }));
-    return { touchedFiles, baselineRows };
+    return new Set(getChangedFilesImpl({ ref, cwd }));
   } catch {
     return null;
   }

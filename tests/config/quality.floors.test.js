@@ -224,6 +224,22 @@ describe('gates.crap.incrementalCoverage (Story #5173)', () => {
       assert.deepEqual(seen, ['v1']);
     });
 
+    it('joins against origin/<baseBranch> when neither names a ref (Story #5962)', () => {
+      const seen = [];
+      resolveCrapPreviewIncremental({
+        crap: { incrementalCoverage: { baselineJoin: true } },
+        diffRef: null,
+        baseBranch: 'trunk',
+        cwd: '/repo',
+        baselineRows: [],
+        getChangedFilesImpl: (args) => {
+          seen.push(args.ref);
+          return [];
+        },
+      });
+      assert.deepEqual(seen, ['origin/trunk']);
+    });
+
     it('falls back to full scope when the ref cannot be resolved', () => {
       assert.equal(
         resolveCrapPreviewIncremental({
