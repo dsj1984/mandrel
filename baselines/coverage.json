@@ -46,9 +46,9 @@
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
-      "lines": 99.14,
-      "branches": 88.73,
-      "functions": 78.57
+      "lines": 99.22,
+      "branches": 89.47,
+      "functions": 81.25
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -3201,6 +3201,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "lines": 100,
+      "branches": 85.71,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "lines": 98.47,
       "branches": 89.58,
@@ -3838,9 +3844,9 @@
     },
     {
       "path": ".agents/scripts/single-story-init.js",
-      "lines": 88.85,
-      "branches": 66.99,
-      "functions": 70.59
+      "lines": 89.13,
+      "branches": 67.62,
+      "functions": 69.44
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
