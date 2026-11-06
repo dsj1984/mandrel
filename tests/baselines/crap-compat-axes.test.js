@@ -3,8 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
+  aheadStampOf,
   assertBaselineCompatible,
   CRAP_COMPAT_AXES,
+  classifyScoringSemantics,
   envelopeExtras,
   evaluateBaselineCompatibility,
   loadCrapBaseline,
@@ -374,6 +376,55 @@ describe('scoring-semantics-drift axis', () => {
 
   it('treats a null baseline as the missing-baseline axis job, not its own', () => {
     assert.equal(assertBaselineCompatible(null), null);
+  });
+});
+
+// Story #5991: stamps one step either side of the running one, derived so the
+// suite survives the next bump.
+const RUNNING_N = Number(/^method-identity-v(\d+)$/.exec(SCORING_SEMANTICS)[1]);
+const AHEAD_STAMP = `method-identity-v${RUNNING_N + 1}`;
+const BEHIND_STAMP = `method-identity-v${RUNNING_N - 1}`;
+
+describe('classifyScoringSemantics — ahead, current, behind (#5991)', () => {
+  it('orders method-identity-v<N> stamps against the running one', () => {
+    assert.equal(classifyScoringSemantics(AHEAD_STAMP), 'ahead');
+    assert.equal(classifyScoringSemantics(SCORING_SEMANTICS), 'current');
+    assert.equal(classifyScoringSemantics(BEHIND_STAMP), 'behind');
+  });
+
+  it('calls an unstamped or foreign-family stamp behind', () => {
+    for (const stamp of [undefined, null, '', 'coverage-join-v9', 'v99']) {
+      assert.equal(classifyScoringSemantics(stamp), 'behind', String(stamp));
+    }
+  });
+
+  it('skips the drift axis on an ahead stamp, naming both stamps once', () => {
+    const ahead = { ...VALID_BASELINE, scoringSemantics: AHEAD_STAMP };
+    assert.equal(
+      axis('scoring-semantics-drift').check({ ...VALID_CTX, baseline: ahead }),
+      null,
+    );
+    const note = aheadStampOf(ahead);
+    assert.equal(note.baseline, AHEAD_STAMP);
+    assert.equal(note.running, SCORING_SEMANTICS);
+    assert.match(
+      note.message,
+      new RegExp(`${AHEAD_STAMP}.*${SCORING_SEMANTICS}`),
+    );
+    assert.match(note.message, /skipped/);
+    assert.match(note.message, /CI/);
+    assert.equal(aheadStampOf(VALID_BASELINE), null);
+    assert.equal(aheadStampOf(null), null);
+  });
+
+  it('keeps a behind stamp fatal with the full-scope re-seed remedy', () => {
+    const message = assertBaselineCompatible({
+      ...VALID_BASELINE,
+      scoringSemantics: BEHIND_STAMP,
+    });
+    assert.match(message, /scoring semantics changed/);
+    assert.match(message, new RegExp(`baseline=${BEHIND_STAMP}`));
+    assert.match(message, /crap:update -- --full-scope/);
   });
 });
 

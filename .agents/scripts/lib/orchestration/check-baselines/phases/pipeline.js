@@ -40,6 +40,7 @@ function emptyReport(cwd) {
     totalRegressions: 0,
     kernelDriftCount: 0,
     schemaErrors: [],
+    skipped: [],
   };
 }
 
@@ -96,14 +97,22 @@ async function accumulateGateResult(result, ctx) {
   ctx.frictionEvents.push(...events);
 }
 
+/** A skip is visible in the report and never fails the run. */
+function accumulateSkipped(result, ctx) {
+  ctx.report.skipped.push({ kind: result.kind, ...result.skipped });
+  ctx.perKindExitCodes.push(EXIT_PASS);
+}
+
+function accumulatorFor(result) {
+  if (result.skipped) return accumulateSkipped;
+  if (result.schemaError) return accumulateSchemaError;
+  return accumulateGateResult;
+}
+
 async function consumePerKindResults(perKindResults, args, report) {
   const ctx = { args, report, perKindExitCodes: [], frictionEvents: [] };
   for (const result of perKindResults) {
-    if (result.schemaError) {
-      await accumulateSchemaError(result, ctx);
-      continue;
-    }
-    await accumulateGateResult(result, ctx);
+    await accumulatorFor(result)(result, ctx);
   }
   return {
     exitCode: aggregateExitCodes(...ctx.perKindExitCodes),

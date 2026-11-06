@@ -7,6 +7,7 @@
 
 import { groupRows, resolveComponents } from '../../../baselines/components.js';
 import {
+  checkBaselineAhead,
   checkBaselineSemantics,
   checkKernelVersion,
   getKindModule,
@@ -67,7 +68,20 @@ function withComponentRollups(mod, rows, components) {
   return out;
 }
 
+/** The kind's ahead-stamp skip, read off the raw baseline file. */
+function aheadSkipOf(kind, cwd, configPath) {
+  const ahead = checkBaselineAhead(
+    kind,
+    reader.peek(kind, { cwd, configPath }),
+  );
+  return ahead ? { reason: 'ahead', ...ahead } : null;
+}
+
 function loadHeadBaseline(kind, cwd, configPath) {
+  // Before the schema-validated load: a newer layout must not read as a
+  // schema error.
+  const skipped = aheadSkipOf(kind, cwd, configPath);
+  if (skipped) return { skipped };
   try {
     return { baseline: reader.load(kind, { cwd, configPath }) };
   } catch (err) {
@@ -122,7 +136,8 @@ export async function evaluateKind({
   env = process.env,
 }) {
   const headLoad = loadHeadBaseline(kind, cwd, configPath);
-  if (headLoad.schemaError) return { kind, schemaError: headLoad.schemaError };
+  // A schema error or a skip.
+  if (!headLoad.baseline) return { kind, ...headLoad };
   const baseline = headLoad.baseline;
   // Rows from superseded scoring semantics pass schema but are incomparable;
   // fail closed.
