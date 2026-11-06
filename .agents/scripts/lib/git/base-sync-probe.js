@@ -95,7 +95,7 @@ export function describeProbe(probe) {
  * @param {{ mode: string, probe: object|null, kind?: string, changedPaths?: string[] }} args
  * @returns {{ mode: string, outcome: 'merged'|'already-current'|'skipped', reason: string, incoming: number }}
  */
-export function baseSyncDecision({ mode, probe, kind, changedPaths }) {
+function baseSyncDecision({ mode, probe, kind, changedPaths }) {
   if (probe?.skip) {
     return {
       mode,
