@@ -11,7 +11,7 @@ description: >-
 > the steps; this file is the material they reference, bundled so one read
 > covers the happy path. Situational material stays on demand in
 > [`deliver-story-reference.md`](deliver-story-reference.md) and
-> [`deliver-reference.md`](deliver-reference.md); read those only when routed.
+> [`deliver-reference.md`](deliver-reference.md), read only when routed.
 
 ## 1. Dispatch — where the engine runs
 
@@ -89,8 +89,8 @@ it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 
 The gate reads the Story's `acceptance[]` count itself and rejects, **before**
 scoring and consuming no round, a verdict whose `criteria[]` length differs
-or with an unfilled record (naming its indices). A second gate call in a
-round wastes it and races the Story ledger.
+or with an unfilled record (naming its indices). A second call in a round
+wastes it.
 
 `proceed` → § 5. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.
@@ -112,8 +112,7 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
 `friction`. A re-run skips every step still valid for HEAD. Past the sync Bash ceiling → **background**.
 
 1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
-   **first**, ahead of every check: close's base-sync then no-ops (or skips
-   if `on-conflict`). Then close's **duplication re-score**, committed
+   **first**, ahead of every check: close's base-sync then no-ops. Then close's **duplication re-score**, committed
    **untagged** before any credit, so close's own no-ops.
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
@@ -162,11 +161,12 @@ Required fields: `kind` (`story-deliver-terminal`), `storyId`, `status`,
 `phase` (the schema's enum names where it stopped), `elapsedSeconds`,
 `nextCommand`. `gates`
 reports every gate as `passed` / `failed` / `skipped` — a skipped gate is
-reported, never omitted, so a missing gate is never read as a passing one.
+never omitted, so a missing gate never reads as passing.
 
 ## 7. When to leave this file
 
-Unclear state / a re-run refusal → `deliver-recover.js --story <id>`.
+Unclear state / a re-run refusal → `deliver-recover.js --story <id>`; boot
+auto-lists stalled `agent::executing` Stories with it (read-only, advisory).
 Lease, sweep, worktree scope; sequencing, epilogue, checklist threading → [`deliver-story-reference.md`](deliver-story-reference.md) and
 [`deliver-reference.md`](deliver-reference.md). CI red after the PR opens →
 [`rules/ci-remediation.md`](../../rules/ci-remediation.md).

@@ -36,7 +36,7 @@
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
-      "mi": 97.243
+      "mi": 99.034
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -2125,6 +2125,10 @@
     {
       "path": ".agents/scripts/lib/single-story-sweep/reconcile-closing.js",
       "mi": 98.485
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "mi": 91.94
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",

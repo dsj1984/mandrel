@@ -15,6 +15,7 @@ import { afterEach, describe, it } from 'node:test';
 
 import { FetchCache } from '../../.agents/scripts/lib/git/cached-fetch.js';
 import { gitSpawn } from '../../.agents/scripts/lib/git-utils.js';
+import { reportStalledExecuting } from '../../.agents/scripts/lib/single-story-sweep/report-stalled-executing.js';
 import {
   materializeBaseBranch,
   reapClosedStoryWorktrees,
@@ -118,6 +119,61 @@ describe('single-story-init — closed-Story worktree sweep (Story #5461)', () =
     assert.equal(seen.config, CONFIG);
     assert.equal(seen.cwd, repo);
     assert.deepEqual(closingReconcile.reconciled, [4561]);
+  });
+
+  it('the init reap reports stalled agent::executing Stories, never its own (Story #5980)', async () => {
+    const { repo } = fixtureRepo();
+    const progress = [];
+    // init's progress sink writes to stderr.
+    const origErr = console.error;
+    console.error = (...a) => progress.push(a.join(' '));
+    let outcome;
+    try {
+      outcome = await reapMergedStoryBranches({
+        cwd: repo,
+        baseBranch: 'main',
+        storyBranch: 'story-33',
+        config: CONFIG,
+        provider: {
+          ...provider,
+          listTicketsByLabel: async () =>
+            [32, 33].map((id) => ({
+              id,
+              state: 'open',
+              labels: ['type::story', 'agent::executing'],
+            })),
+        },
+        injectedSweep: noopBranchSweep,
+        closingReconcileFn: async () => ({ ok: true, reconciled: [] }),
+        stalledExecutingFn: (args) =>
+          reportStalledExecuting({
+            ...args,
+            now: () => Date.parse('2026-11-06T12:00:00Z'),
+            gh: {
+              api: async () => ({
+                stdout: JSON.stringify({
+                  commit: {
+                    sha: 'abc',
+                    commit: { committer: { date: '2026-11-05T12:00:00Z' } },
+                  },
+                }),
+              }),
+              pr: { list: async () => [] },
+            },
+          }),
+      });
+    } finally {
+      console.error = origErr;
+    }
+    assert.deepEqual(
+      outcome.stalledExecuting.stalled.map((s) => s.storyId),
+      [32],
+    );
+    const lines = progress.filter((l) => l.includes('Story #32'));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /CLEANUP/);
+    assert.match(lines[0], /idle 24h/);
+    assert.match(lines[0], /deliver-recover\.js --story 32/);
   });
 
   it('materializeBaseBranch carries the sweep outcome back for the init envelope', async () => {

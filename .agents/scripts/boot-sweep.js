@@ -13,7 +13,8 @@
  * tree and the tree this process runs from are never touched.
  *
  * Then it flips closed Stories stranded at `agent::closing` to
- * `agent::done` (`closingReconcile`).
+ * `agent::done` (`closingReconcile`), and reports — never touches — open
+ * `agent::executing` Stories stalled with no open PR (`stalledExecuting`).
  *
  * `content-merged` branches (merge-tree equivalence — no merge check ever
  * validated their exact diff) are never reaped here, only reported for
@@ -31,6 +32,7 @@ import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktr
 import { createProvider } from './lib/provider-factory.js';
 import { buildProtectionCtx } from './lib/single-story-sweep/protection-ctx.js';
 import { reconcileStrandedClosing } from './lib/single-story-sweep/reconcile-closing.js';
+import { reportStalledExecuting } from './lib/single-story-sweep/report-stalled-executing.js';
 import {
   acquireSweepLock,
   resolveSweepLockPath,
@@ -66,6 +68,10 @@ the outcome lands under "worktreeSweep".
 Then flips closed Stories still labelled agent::closing whose story-<id> PR
 is MERGED to agent::done (at most 10 per run); the outcome lands under
 "closingReconcile".
+Then reports (read-only) open agent::executing Stories whose story-<id>
+origin head is older than the stall threshold and that have no open PR,
+each with its deliver-recover.js command (at most 20 probed per run); the
+outcome lands under "stalledExecuting".
 Branches detected only via the weaker content-equivalence signal
 (detectedBy: 'content-merged') are never reaped here — they are reported
 under "contentMerged" (and a routing hint in the summary line) for the
@@ -77,6 +83,8 @@ Options:
   --current <branch>   A branch to always exclude (e.g. the active story).
   --base <branch>      Base branch to fast-forward. Default: project baseBranch.
   --no-fast-forward    Skip the base-branch fast-forward step.
+  --stalled-after-hours <n>
+                       Stall threshold in hours (positive). Default: 6.
   --json               Emit the result envelope as JSON.
 `;
 
@@ -154,10 +162,12 @@ export async function runWorktreeSweep({
  *   acquireLockFn?: Function,
  *   purgeFn?: Function,
  *   closingReconcileFn?: Function,
+ *   stalledExecutingFn?: Function,
+ *   stalledAfterHours?: unknown,
  *   logger?: { info?: Function, warn?: Function },
  * }} [args]
  * @returns {Promise<object>} the {@link sweepMergedBranches} envelope plus
- *   `worktreeSweep`, `closingReconcile` and `tempPurge`.
+ *   `worktreeSweep`, `closingReconcile`, `stalledExecuting` and `tempPurge`.
  */
 export async function runBootSweep({
   cwd,
@@ -173,6 +183,8 @@ export async function runBootSweep({
   acquireLockFn = acquireSweepLock,
   purgeFn = sweepTempRetention,
   closingReconcileFn = reconcileStrandedClosing,
+  stalledExecutingFn = reportStalledExecuting,
+  stalledAfterHours,
   logger = Logger,
 } = {}) {
   const root = path.resolve(cwd ?? PROJECT_ROOT);
@@ -233,6 +245,17 @@ export async function runBootSweep({
       },
     });
 
+    const stalledExecuting = await stalledExecutingFn({
+      provider,
+      config,
+      stalledAfterHours,
+      excludeStoryIds: [parseStoryBranch(current)],
+      logger: {
+        info: (m) => logger.info?.(`[boot-sweep] ${m}`),
+        warn: (m) => logger.warn?.(`[boot-sweep] ${m}`),
+      },
+    });
+
     // Temp-retention catch-up: reaped branches are confirmed merges, so their
     // artifacts are spent; the age floor collects the rest.
     const purge = await purgeFn({
@@ -241,7 +264,13 @@ export async function runBootSweep({
       label: 'boot-sweep',
       logger,
     });
-    return { ...result, worktreeSweep, closingReconcile, tempPurge: purge };
+    return {
+      ...result,
+      worktreeSweep,
+      closingReconcile,
+      stalledExecuting,
+      tempPurge: purge,
+    };
   } catch (err) {
     const msg = err?.message ?? String(err);
     logger.warn?.(`[boot-sweep] sweep threw (host continues): ${msg}`);
@@ -283,6 +312,13 @@ export function buildSummaryLine(result) {
       (n) => `flipped ${n} stranded agent::closing Story(ies) to agent::done`,
     ),
     countSuffix(
+      result.stalledExecuting?.stalled,
+      (n) =>
+        `${n} agent::executing Story(ies) idle over ${result.stalledExecuting.thresholdHours}h with no open PR — run ${result.stalledExecuting.stalled
+          .map((s) => `deliver-recover.js --story ${s.storyId}`)
+          .join(', ')}`,
+    ),
+    countSuffix(
       result.contentMerged,
       (n) => `${n} content-merged branch(es) left for /clean-git`,
     ),
@@ -310,6 +346,7 @@ export async function runBootSweepCli(
       exclude: { type: 'string', multiple: true, default: [] },
       current: { type: 'string' },
       'no-fast-forward': { type: 'boolean', default: false },
+      'stalled-after-hours': { type: 'string' },
       json: { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h' },
     },
@@ -328,6 +365,7 @@ export async function runBootSweepCli(
     exclude: Array.isArray(values.exclude) ? values.exclude : [],
     current: typeof values.current === 'string' ? values.current : undefined,
     fastForward: values['no-fast-forward'] !== true,
+    stalledAfterHours: values['stalled-after-hours'],
   });
 
   if (values.json) {

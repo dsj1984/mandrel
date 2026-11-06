@@ -114,6 +114,13 @@ owned by `boot-sweep.js` / `clean-git.js`:
   ancestry of its own) is **never** reaped by the boot sweep; it is surfaced
   under `contentMerged` for the operator to send to `/clean-git` for a
   confirmed, eyeballed reap.
+- **Stalled deliveries are reported, never touched.** The same boot sweep
+  (`boot-sweep.js` and `single-story-init.js`) automatically lists every open
+  `agent::executing` Story whose `story-<id>` origin head has not moved for
+  6 hours (`--stalled-after-hours <n>`) and that has no open PR — a session
+  that died silently. It reads origin over the REST API, writes nothing, and
+  is advisory: each row names `deliver-recover.js --story <id>`, which owns
+  the verdict.
 - **`/clean-git` is recovery, not routine.** Run it by hand only for a state
   the automated hygiene does not cover — triaging stashes, reaping across
   non-standard namespaces, or `--remote` pruning after a force-push. Reaching
