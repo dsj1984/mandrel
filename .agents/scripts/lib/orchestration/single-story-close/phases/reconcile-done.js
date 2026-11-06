@@ -68,6 +68,7 @@ async function reconcileFromMergedHead(ctx, deps, progress) {
     cwd: ctx.options.cwd,
     config: deps.config,
     progress,
+    injectedGh: deps.gh,
     injectedNotify: deps.notify,
     prState: { state: 'MERGED', mergedAt: null },
     sleepFn: deps.sleep,
