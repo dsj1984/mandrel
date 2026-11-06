@@ -9,7 +9,7 @@ import { deriveMethodIdentities } from './crap-method-identity.js';
 import { install as installAstCompat } from './escomplex-ast-compat.js';
 import { analyzeModule, methodSiteOf } from './escomplex-kernel.js';
 
-export { COORDINATE_ORIGINAL, COORDINATE_TRANSPILED, crapFormula };
+export { COORDINATE_ORIGINAL, crapFormula };
 
 /**
  * Returned for a source the kernel cannot parse — never `[]`, which would be

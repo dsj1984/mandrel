@@ -7,9 +7,9 @@ import {
   projectRow,
 } from '../../.agents/scripts/lib/baselines/kinds/crap.js';
 import { coverageForMethodInEntry } from '../../.agents/scripts/lib/coverage-utils.js';
+import { COORDINATE_TRANSPILED } from '../../.agents/scripts/lib/crap-coordinates.js';
 import {
   COORDINATE_ORIGINAL,
-  COORDINATE_TRANSPILED,
   calculateCrapForSource,
   finalizeMethodRows,
 } from '../../.agents/scripts/lib/crap-engine.js';

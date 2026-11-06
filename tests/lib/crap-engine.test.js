@@ -1,9 +1,9 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import { describe, it, test } from 'node:test';
+import { COORDINATE_TRANSPILED } from '../../.agents/scripts/lib/crap-coordinates.js';
 import {
   COORDINATE_ORIGINAL,
-  COORDINATE_TRANSPILED,
   calculateCrapForSource,
   crapFormula,
   deriveFixGuidance,
