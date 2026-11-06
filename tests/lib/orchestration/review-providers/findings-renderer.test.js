@@ -364,3 +364,76 @@ test('renderFindings: states how many findings skipPaths dropped', () => {
   });
   assert.doesNotMatch(none, /skipPaths/);
 });
+
+// --- Earlier CRITICALs (Story #5974) ---------------------------------------
+
+const earlier = (id, status, reason) => ({
+  id,
+  title: `Bug ${id}`,
+  instances: [{ file: 'src/a.js', line: 3 }],
+  headSha: 'abc123',
+  status,
+  ...(reason ? { reason } : {}),
+});
+
+test('#5974 AC-6: Earlier CRITICALs lists each with its status, on a zero-finding run too', () => {
+  const out = renderFindings({
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [],
+    earlierCriticals: [
+      earlier('a', 'fixed', 'gone'),
+      earlier('b', 'refuted', 'guarded'),
+      earlier('c', 'overridden'),
+    ],
+  });
+  assert.match(out, /### 🔁 Earlier CRITICALs \(3\)/);
+  assert.ok(
+    out.includes(
+      '- Bug a — `a` — `src/a.js:3` — raised at `abc123` — **fixed**: gone',
+    ),
+  );
+  assert.match(out, /`b` .* — \*\*refuted\*\*: guarded/);
+  assert.match(out, /`c` .* — \*\*overridden\*\*$/m);
+  assert.match(out, /### ✅ No findings/);
+});
+
+test('#5974 AC-6: a carried CRITICAL renders only under Earlier CRITICALs, and no unqualified no-findings claim', () => {
+  const carried = {
+    severity: 'critical',
+    title: 'Bug c',
+    body: 'CARRIED-BODY',
+    file: 'src/a.js',
+    line: 3,
+    carried: 'still there',
+    carriedId: 'c',
+    repeat: true,
+  };
+  const out = renderFindings({
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [carried],
+    earlierCriticals: [earlier('c', 'still-open', 'still there')],
+  });
+  assert.match(out, /- 🔴 Critical Blocker: 1/);
+  assert.match(out, /\*\*still open\*\*: still there/);
+  assert.doesNotMatch(out, /CARRIED-BODY|Previously raised|No findings/);
+  assert.doesNotMatch(out, /### 🔴 Critical Blocker \(/);
+  const open = renderFindings({
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [],
+    earlierCriticals: [earlier('c', 'still-open')],
+  });
+  assert.doesNotMatch(open, /No findings/);
+  const none = renderFindings({
+    ticketId: 1,
+    baseRef: 'main',
+    headRef: 'h',
+    findings: [],
+  });
+  assert.doesNotMatch(none, /Earlier CRITICALs/);
+});
