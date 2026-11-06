@@ -524,16 +524,23 @@ function hintedExit(gate, status) {
     const line = `⏱ ${gate.name} timed out (exit ${status})`;
     return { outcome: 'timeout', hint: GATE_TIMEOUT_HINT, line };
   }
-  if (
-    status === COVERAGE_HOST_RESOURCES_EXIT_CODE &&
-    SUITE_GATES.has(gate.name)
-  ) {
-    const line = `⛔ ${gate.name} lost workers to host memory (exit ${status}) — no test failed`;
-    return { outcome: 'host-resources', hint: GATE_HOST_RESOURCES_HINT, line };
-  }
-  if (!isBlockedOverBudget(gate, status)) return null;
+  return isBlockedOverBudget(gate, status)
+    ? overBudgetExit(gate, status)
+    : hostResourcesExit(gate, status);
+}
+
+/** @param {Gate} gate @param {number} status */
+function overBudgetExit(gate, status) {
   const line = `✖ ${gate.name} over budget (exit ${status}) — the capture ran no tests`;
   return { outcome: 'over-budget', hint: OVER_BUDGET_BLOCK_HINT, line };
+}
+
+/** A suite gate's 77; any other gate's 77 is an ordinary failure. @param {Gate} gate @param {number} status */
+function hostResourcesExit(gate, status) {
+  if (status !== COVERAGE_HOST_RESOURCES_EXIT_CODE) return null;
+  if (!SUITE_GATES.has(gate.name)) return null;
+  const line = `⛔ ${gate.name} lost workers to host memory (exit ${status}) — no test failed`;
+  return { outcome: 'host-resources', hint: GATE_HOST_RESOURCES_HINT, line };
 }
 
 function reportHintedExit({ gate, status, cwd, log, outcome, hint, line }) {

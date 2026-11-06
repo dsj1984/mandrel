@@ -325,15 +325,12 @@ async function withLockProgress(ctx, run) {
  * @param {number} status
  * @returns {string}
  */
-function describeSuiteFailure(status, repeatedTimeout = false) {
+function describeSuiteFailure(status) {
   if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
     return `suite deferred (exit ${status}): another full suite holds the host lock — re-run the handoff once it frees`;
   }
   if (status === ADMISSION_REFUSED_EXIT_CODE) {
     return `suite refused (exit ${status}): its declared delivery.execution.workloads weight exceeds capacity — fix the declaration, then re-run`;
-  }
-  if (status === TIMEOUT_EXIT_CODE && repeatedTimeout) {
-    return `suite timed out again at this HEAD (exit ${status}) — a plain re-run will not help: raise delivery.quality.gates.coverage.timeoutMs, have the capture script declare the slice over budget (exit 76, onOverBudget), or run on a quieter host`;
   }
   if (status === TIMEOUT_EXIT_CODE) {
     return `suite timed out (exit ${status}) — usually host contention; re-run the handoff`;
@@ -670,20 +667,28 @@ function hostResourcesEnvelope(ctx) {
   return ctx.hostResources ? { hostResources: ctx.hostResources } : {};
 }
 
-/**
- * A non-zero depositor exit: lost workers block, an over-budget capture
- * settles by policy, else a fix. A 124 records its HEAD so a repeat says so.
- */
+/** A non-zero depositor exit: lost workers block, else {@link settleCodeExit}. */
 function settleSuiteExit(ctx, name, { status, output }, extra) {
-  if (status === COVERAGE_HOST_RESOURCES_EXIT_CODE) {
-    return settleHostResources(ctx, name, output, extra);
-  }
-  if (isOverBudgetCapture(ctx, status))
-    return settleOverBudget(ctx, name, extra);
-  const repeated =
-    status === TIMEOUT_EXIT_CODE && ctx.state.timeoutHead === ctx.head;
-  if (status === TIMEOUT_EXIT_CODE) ctx.state.timeoutHead = ctx.head;
-  return fixRequired(name, describeSuiteFailure(status, repeated), extra);
+  return status === COVERAGE_HOST_RESOURCES_EXIT_CODE
+    ? settleHostResources(ctx, name, output, extra)
+    : settleCodeExit(ctx, name, status, extra);
+}
+
+/** An over-budget capture settles by policy, anything else is a fix. */
+function settleCodeExit(ctx, name, status, extra) {
+  return isOverBudgetCapture(ctx, status)
+    ? settleOverBudget(ctx, name, extra)
+    : fixRequired(name, suiteFailureDetail(ctx, status), extra);
+}
+
+/** A 124 records its HEAD, so a second one there stops recommending a re-run. */
+function suiteFailureDetail(ctx, status) {
+  if (status !== TIMEOUT_EXIT_CODE) return describeSuiteFailure(status);
+  const repeated = ctx.state.timeoutHead === ctx.head;
+  ctx.state.timeoutHead = ctx.head;
+  return repeated
+    ? `suite timed out again at this HEAD (exit ${status}) — a plain re-run will not help: raise delivery.quality.gates.coverage.timeoutMs, have the capture script declare the slice over budget (exit 76, onOverBudget), or run on a quieter host`
+    : describeSuiteFailure(status);
 }
 
 /** Credit and its run's figures move together, keyed by the credited head. */
