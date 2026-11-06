@@ -217,11 +217,14 @@ function postCaptureGates(ctx) {
   if (ctx.depositor === 'coverage-capture') {
     names.add(QUALITY_PREVIEW_GATE_NAMES.crap);
   }
-  const deferred = isCoverageDeferred(ctx);
-  return closeGates(ctx).filter(
-    (g) =>
-      names.has(g.name) && !g.skip && !(deferred && g.readsCoverageArtifact),
-  );
+  const keep = postCaptureFilter(names, isCoverageDeferred(ctx));
+  return closeGates(ctx).filter(keep);
+}
+
+/** A registered, unskipped post-capture gate, minus artifact readers after a deferral. */
+function postCaptureFilter(names, deferred) {
+  return (g) =>
+    names.has(g.name) && !g.skip && !(deferred && g.readsCoverageArtifact);
 }
 
 /** The gate name, plus the kinds a baselines entry scores. */

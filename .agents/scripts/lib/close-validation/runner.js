@@ -49,9 +49,6 @@ import { defaultGetHeadSha } from './projections/head-sha.js';
  * @returns {{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'failed' }}
  */
 function reportGateExit({ gate, status, cwd, log }) {
-  if (isBlockedOverBudget(gate, status)) {
-    return reportOverBudget({ gate, status, cwd, log });
-  }
   if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
     log(
       `[close-validation] ⏸ ${gate.name} deferred (exit ${status}) — the full-suite lock wait expired, so nothing ran in ${cwd}`,
@@ -59,18 +56,8 @@ function reportGateExit({ gate, status, cwd, log }) {
     const { hint: _failureHint, ...deferredGate } = gate;
     return { gate: deferredGate, status, cwd, outcome: 'deferred' };
   }
-  if (status === COVERAGE_TIMEOUT_EXIT_CODE) {
-    log(
-      `[close-validation] ⏱ ${gate.name} timed out (exit ${status}) in ${cwd}`,
-    );
-    log(`[close-validation]   hint: ${GATE_TIMEOUT_HINT}`);
-    return {
-      gate: { ...gate, hint: GATE_TIMEOUT_HINT },
-      status,
-      cwd,
-      outcome: 'timeout',
-    };
-  }
+  const hinted = hintedExit(gate, status);
+  if (hinted) return reportHintedExit({ gate, status, cwd, log, ...hinted });
   log(`[close-validation] ✖ ${gate.name} failed (exit ${status}) in ${cwd}`);
   if (gate.hint) log(`[close-validation]   hint: ${gate.hint}`);
   return { gate, status, cwd, outcome: 'failed' };
@@ -457,10 +444,9 @@ async function runSerialGates(
     failed.push(reportGateExit({ gate, status, cwd: spawnCwd, log }));
   };
   for (const gate of serial) {
-    if (skipAfterDeferral(gate, { deferred, skipped, log })) continue;
     let execution;
     try {
-      execution = applyChangedFileScope({ gate, spawnCwd, log });
+      execution = resolveSerialExecution({ gate, spawnCwd, log, deferred });
     } catch (err) {
       log(
         `[close-validation] ✖ ${gate.name} failed to resolve changed-file scope: ${err?.message ?? err}`,
@@ -492,19 +478,14 @@ async function runSerialGates(
       undefined,
       configHash,
     );
-    if (deferOverBudget(gate, result.status, { deferred, log, spawnCwd })) {
-      continue;
-    }
-    if (result.status !== 0) {
-      failGate(gate, result.status);
-      return;
-    }
-    log(`[close-validation] ✓ ${gate.name}`);
-    recordIfActive(
-      gate,
-      configHash,
-      evidenceActive ? evidenceClock() - startedAt : 0,
-    );
+    const recordPass = () =>
+      recordIfActive(
+        gate,
+        configHash,
+        evidenceActive ? evidenceClock() - startedAt : 0,
+      );
+    const settle = { deferred, log, spawnCwd, failGate, recordPass };
+    if (settleSerialResult(gate, result, settle)) return;
   }
 }
 
@@ -521,32 +502,61 @@ function isBlockedOverBudget(gate, status) {
   );
 }
 
-/** @param {{ gate: Gate, status: number, cwd: string, log: (m: string) => void }} args */
-function reportOverBudget({ gate, status, cwd, log }) {
-  log(
-    `[close-validation] ✖ ${gate.name} over budget (exit ${status}) — the capture ran no tests in ${cwd}`,
-  );
-  log(`[close-validation]   hint: ${OVER_BUDGET_BLOCK_HINT}`);
-  return {
-    gate: { ...gate, hint: OVER_BUDGET_BLOCK_HINT },
-    status,
-    cwd,
-    outcome: 'over-budget',
-  };
+/**
+ * A non-failure exit that carries its own hint in place of the gate's: a
+ * killed suite (124), or a capture over budget the policy blocks (76).
+ *
+ * @param {Gate} gate @param {number} status
+ * @returns {{ outcome: 'timeout'|'over-budget', hint: string, line: string }|null}
+ */
+function hintedExit(gate, status) {
+  if (status === COVERAGE_TIMEOUT_EXIT_CODE) {
+    const line = `⏱ ${gate.name} timed out (exit ${status})`;
+    return { outcome: 'timeout', hint: GATE_TIMEOUT_HINT, line };
+  }
+  if (!isBlockedOverBudget(gate, status)) return null;
+  const line = `✖ ${gate.name} over budget (exit ${status}) — the capture ran no tests`;
+  return { outcome: 'over-budget', hint: OVER_BUDGET_BLOCK_HINT, line };
+}
+
+function reportHintedExit({ gate, status, cwd, log, outcome, hint, line }) {
+  log(`[close-validation] ${line} in ${cwd}`);
+  log(`[close-validation]   hint: ${hint}`);
+  return { gate: { ...gate, hint }, status, cwd, outcome };
 }
 
 /**
- * After a deferral, record a coverage-reading gate as skipped.
- *
- * @returns {boolean} `true` when the gate was skipped.
+ * The gate's execution: a skip once a capture deferred and the gate reads
+ * its artifact, else its changed-file scope.
  */
-function skipAfterDeferral(gate, { deferred, skipped, log }) {
-  if (deferred.length === 0 || !gate.readsCoverageArtifact) return false;
+function resolveSerialExecution({ gate, spawnCwd, log, deferred }) {
+  if (deferred.length === 0 || !gate.readsCoverageArtifact) {
+    return applyChangedFileScope({ gate, spawnCwd, log });
+  }
   log(
     `[close-validation] ⏭ ${gate.name} skipped (${COVERAGE_DEFERRED_SKIP_REASON})`,
   );
-  skipped.push({ gate, reason: COVERAGE_DEFERRED_SKIP_REASON });
-  return true;
+  return { gate, skip: true, skipReason: COVERAGE_DEFERRED_SKIP_REASON };
+}
+
+/**
+ * Settle a dispatched serial gate: a deferral or a pass continues (a pass is
+ * logged and earns evidence), any other non-zero exit fails the chain.
+ *
+ * @returns {boolean} `true` when the chain must stop.
+ */
+function settleSerialResult(gate, result, ctx) {
+  const { deferred, log, spawnCwd, failGate, recordPass } = ctx;
+  if (deferOverBudget(gate, result.status, { deferred, log, spawnCwd })) {
+    return false;
+  }
+  if (result.status !== 0) {
+    failGate(gate, result.status);
+    return true;
+  }
+  log(`[close-validation] ✓ ${gate.name}`);
+  recordPass();
+  return false;
 }
 
 /**

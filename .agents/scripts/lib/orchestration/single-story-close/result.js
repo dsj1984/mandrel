@@ -164,11 +164,19 @@ function baselinesEnvelopeGates(validationGates) {
   for (const [name, outcome] of Object.entries(validationGates ?? {})) {
     if (registered.includes(name)) out[name] = outcome;
   }
-  // A capture deferred to CI is the one gate outcome a reviewer must see.
-  if (validationGates?.['coverage-capture'] === 'deferred') {
-    out['coverage-capture'] = 'deferred';
-  }
   return out;
+}
+
+/**
+ * A capture deferred to CI is the one capture outcome a reviewer must see.
+ *
+ * @param {Record<string, string>|null|undefined} validationGates
+ * @returns {Record<string, string>}
+ */
+function deferredCaptureGate(validationGates) {
+  return validationGates?.['coverage-capture'] === 'deferred'
+    ? { 'coverage-capture': 'deferred' }
+    : {};
 }
 
 /**
@@ -201,6 +209,7 @@ export function closeEnvelopeGates(
   return {
     validation: options.skipValidation ? 'skipped' : 'passed',
     ...baselinesEnvelopeGates(validationGates),
+    ...deferredCaptureGate(validationGates),
     baseSync: options.skipSync ? 'skipped' : 'passed',
     codeReview: codeReviewGate(reviewOverride, reviewDegraded),
   };

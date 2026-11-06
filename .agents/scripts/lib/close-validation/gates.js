@@ -101,6 +101,13 @@ export function overBudgetPolicy(config) {
   return captureQuality(config).coverage.onOverBudget;
 }
 
+/** @param {object|undefined|null} config @returns {{ deferOnOverBudget?: true }} */
+function overBudgetFlag(config) {
+  return overBudgetPolicy(config) === 'defer-to-ci'
+    ? { deferOnOverBudget: true }
+    : {};
+}
+
 /** Skip reason for a gate that would read the artifact a deferral never wrote. */
 export const COVERAGE_DEFERRED_SKIP_REASON = 'coverage-deferred-ci';
 
@@ -254,6 +261,19 @@ function probeBaselinesGate({
  * @param {{ decision: { register: boolean, hint?: string }, kinds: string[]|null, env: { BASELINE_REF: string }|null }} args
  * @returns {Gate[]}
  */
+/**
+ * The unsplit gate (`null` kinds) scores every kind, coverage ones included.
+ *
+ * @param {string[]|null} gateKinds
+ * @returns {{ readsCoverageArtifact?: true }}
+ */
+function coverageReaderFlag(gateKinds) {
+  const reads =
+    gateKinds === null ||
+    gateKinds.some((k) => COVERAGE_CONSUMING_KINDS.has(k));
+  return reads ? { readsCoverageArtifact: true } : {};
+}
+
 function buildBaselinesGateEntries({ decision, kinds, env }) {
   if (!decision.register) return [];
   const entry = (name, gateKinds) => ({
@@ -267,11 +287,7 @@ function buildBaselinesGateEntries({ decision, kinds, env }) {
     ],
     hint: decision.hint ?? CHECK_BASELINES_HINT,
     ...(env ? { env } : {}),
-    // The unsplit gate scores every kind, coverage ones included.
-    ...(gateKinds === null ||
-    gateKinds.some((k) => COVERAGE_CONSUMING_KINDS.has(k))
-      ? { readsCoverageArtifact: true }
-      : {}),
+    ...coverageReaderFlag(gateKinds),
   });
   if (!Array.isArray(kinds) || kinds.length === 0) {
     return [entry(BASELINES_GATE_NAMES.single, null)];
@@ -425,6 +441,12 @@ export const QUALITY_PREVIEW_GATE_NAMES = Object.freeze({
   crap: 'quality-preview-crap',
 });
 
+/** The CRAP half reads the coverage artifact; the MI half does not. */
+const PREVIEW_ARTIFACT_FLAGS = Object.freeze({
+  maintainability: {},
+  crap: { readsCoverageArtifact: true },
+});
+
 const QUALITY_PREVIEW_HINTS = Object.freeze({
   maintainability:
     'Maintainability preview failed — the per-file MI check the `pre-push` hook runs, scored against the base branch. Simplify the flagged file(s), then re-run close; this gate runs before coverage-capture, so no suite was spent.',
@@ -454,7 +476,7 @@ function buildQualityPreviewGateEntries({ coverageCaptureActive, baseBranch }) {
         ref,
       ],
       hint: QUALITY_PREVIEW_HINTS[half],
-      ...(half === 'crap' ? { readsCoverageArtifact: true } : {}),
+      ...PREVIEW_ARTIFACT_FLAGS[half],
     },
   ];
   return {
@@ -589,9 +611,7 @@ export function buildDefaultGates({
             args: [...COVERAGE_CAPTURE_ARGS],
             hint: coverageCaptureHint(config),
             lockEventChannel: true,
-            ...(overBudgetPolicy(config) === 'defer-to-ci'
-              ? { deferOnOverBudget: true }
-              : {}),
+            ...overBudgetFlag(config),
             ...(captureSkipPredicted
               ? { skip: { reason: 'incremental-no-crap-changes' } }
               : {}),

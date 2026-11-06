@@ -147,6 +147,11 @@ function synthesizeSubject({ description, storyId, commitMessages }) {
 const COVERAGE_DEFERRED_PR_LINE =
   "Coverage deferred to CI: the capture slice was over this host's budget (exit 76, onOverBudget: defer-to-ci).";
 
+/** @param {boolean} coverageDeferred @returns {string[]} */
+function deferralLines(coverageDeferred) {
+  return coverageDeferred ? ['', COVERAGE_DEFERRED_PR_LINE] : [];
+}
+
 function buildPrBody({
   storyId,
   breakingNotes,
@@ -155,7 +160,7 @@ function buildPrBody({
 }) {
   const lines = [
     `Closes #${storyId}`,
-    ...(coverageDeferred ? ['', COVERAGE_DEFERRED_PR_LINE] : []),
+    ...deferralLines(coverageDeferred),
     '',
     '_Auto-opened by `/mandrel-deliver`._',
     ...trailerBlock,
