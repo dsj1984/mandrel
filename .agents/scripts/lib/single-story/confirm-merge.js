@@ -17,6 +17,7 @@ import {
   transitionTicketState,
 } from '../orchestration/ticketing.js';
 import { sleep as defaultSleep } from '../util/poll-loop.js';
+import { holdForCiRatchet } from './ci-ratchet-gate.js';
 
 /**
  * Backoff before each RETRY of the post-merge done flip (so attempts =
@@ -98,9 +99,11 @@ export async function confirmStoryMerged({
       gh: injectedGh,
     }));
 
-  if (!isPrMerged({ state, mergedAt })) {
-    return pendingResult({ storyId, prNumber, state, progress });
-  }
+  const held = await unconfirmedResult({
+    pr: { state, mergedAt },
+    ratchet: { config, prNumber, storyId, provider, progress, gh: injectedGh },
+  });
+  if (held) return held;
 
   // Best-effort: a flaky API must not crash confirmation; re-runs are idempotent.
   const flipped = await flipDoneWithRetry({
@@ -125,6 +128,12 @@ export async function confirmStoryMerged({
     action: flipped ? 'done' : 'flip-failed',
     merged: true,
   };
+}
+
+/** Not merged, or merged but held for its CI ratchet; `null` confirms. */
+async function unconfirmedResult({ pr, ratchet }) {
+  if (isPrMerged(pr)) return holdForCiRatchet(ratchet);
+  return pendingResult({ ...ratchet, state: pr.state });
 }
 
 /** The PR is not merged yet: the Story stays at `agent::closing`. */

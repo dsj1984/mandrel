@@ -24,6 +24,7 @@
 import { getCiDelivery } from '../../../config/ci.js';
 import { createGh, prTransportOf } from '../../../gh-exec.js';
 import { REST_MERGE_ON_GREEN } from '../../../gh-pr-rest.js';
+import { ratchetWaitOutcome } from '../../../single-story/ci-ratchet-gate.js';
 import {
   confirmStoryMerged as defaultConfirmStoryMerged,
   readPrMergeState as defaultReadPrMergeState,
@@ -1074,6 +1075,8 @@ async function onMergeObserved({
     sleepFn,
   });
 
+  const held = ratchetWaitOutcome(confirmation, { prProbe, elapsedSeconds });
+  if (held) return held;
   if (confirmation.merged && confirmation.action === 'flip-failed') {
     // Block explicitly (confirmed:true would strand it at agent::closing),
     // but not as unlanded — the merge landed.
