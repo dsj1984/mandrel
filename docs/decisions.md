@@ -886,6 +886,15 @@ merge for, because a row outside the delta can go stale high. That risk posture
 belongs to the consumer. One integer instead of a boolean plus a cap costs one
 leaf key. It defaults to `0`, which runs no extra git command.
 
+**Raised to 155 (2026-11-06, Story #5960)** for
+`delivery.handoff.postSeatChecks`. The handoff now seats a Story's new MI and
+coverage rows itself, so a consumer check that refuses a missing row may defer
+that direction during `preflight` (keyed on `MANDREL_HANDOFF_STEP`) and must
+re-assert it after the seat. Which consumer sub-check that is cannot be
+derived: no tool config, package script or existing gate key names the part of
+a consumer's lint that asserts baseline rows. It defaults to `[]`, which runs
+nothing and leaves the preflight `lint` credit exactly as before.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

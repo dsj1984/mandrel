@@ -12,9 +12,11 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   buildCoverageRefreshOpts,
   coverageUpdaterTargets,
@@ -347,5 +349,45 @@ describe('coverage updater targets and scope config (Story #5672)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('update-coverage-baseline.js --seat-missing CLI (Story #5960 AC-4)', () => {
+  const root = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    '..',
+  );
+  const cli = path.join(
+    root,
+    '.agents',
+    'scripts',
+    'update-coverage-baseline.js',
+  );
+  const baseline = path.join(root, 'baselines', 'coverage.json');
+  const runCli = (args) =>
+    spawnSync(process.execPath, [cli, ...args], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 120_000,
+    });
+
+  it('--help documents --seat-missing and its --full-scope incompatibility', () => {
+    const result = runCli(['--help']);
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /--seat-missing\s+Insert-only/);
+    assert.match(result.stdout, /seated: N`\. Incompatible with --full-scope/);
+  });
+
+  it('--seat-missing --full-scope exits non-zero and writes nothing', () => {
+    const before = readFileSync(baseline);
+    const result = runCli(['--seat-missing', '--full-scope']);
+    assert.notEqual(result.status, 0);
+    assert.match(
+      `${result.stdout}${result.stderr}`,
+      /incompatible with --seat-missing/,
+    );
+    assert.ok(readFileSync(baseline).equals(before));
   });
 });

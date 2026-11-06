@@ -26,7 +26,7 @@
     "phase": {
       "type": "string",
       "minLength": 1,
-      "description": "For close, the phase name close passes to setPhase (the phaseDurations keys). For handoff, the step name: preflight, base-merge, credited-run, seat, push, review."
+      "description": "For close, the phase name close passes to setPhase (the phaseDurations keys). For handoff, the step name: base-merge, duplication-rescore, seat-static, preflight, credited-run, seat, post-capture, push, review."
     },
     "stageStartedAt": {
       "type": "string",

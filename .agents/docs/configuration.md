@@ -274,6 +274,8 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `ci.rerunAdvisory` | No | `integer` | `0` | Story #5266. How many times close may re-run a failed advisory workflow run before blocking on it, per close invocation. Default 0: close spends no CI minutes and issues no GitHub mutation on an advisory red unless asked. At n > 0 the failed run(s) are re-run within that allowance and the merge wait re-polls inside its existing budget, landing or blocking on the re-run verdict. Overridden per invocation by --rerun-advisory <n>. |
 | `pullRequest` | No | `object` | — | Story #5875. What close writes into the pull request it opens, beyond the title and the `Closes #<id>` line. |
 | `pullRequest.bodyTrailers` | No | `array<string>` | `[]` | Story #5875. Git-trailer keys close lifts from the Story branch commits into the PR body, for a consumer whose required check reads a body line (e.g. `Policy-impact`). For each key the last branch commit carrying `<Key>: <value>` as a trailer wins, and the line is appended after the auto-opened marker and before any `BREAKING CHANGE:` footer. A key no commit carries appends nothing and logs one info line. Workers record the value with `git commit --trailer`. Default [] leaves the body unchanged. |
+| `handoff` | No | `object` | — | Story #5960. What `story-handoff.js` runs beyond close's own gates. |
+| `handoff.postSeatChecks[]` | No | `array<object>` | `[]` | Story #5960. Consumer checks the handoff re-runs in its post-capture step, after the seat commits the Story's new baseline rows: each `{ cmd, args? }` runs in the worktree without a shell, with `MANDREL_HANDOFF_STEP=post-capture`, and a non-zero exit settles `fix-required`. Declare the check a consumer downgrades during `preflight` (keyed on `MANDREL_HANDOFF_STEP`) here, so a row the seat did not write still fails the handoff; while any is declared the preflight `lint` credit is withheld until they pass at HEAD. Skipped under a coverage deferral. Default [] runs nothing extra. Each item has: cmd, args. |
 | `routing` | No | `object` | — | v2 delivery-spawn routing: role-scoped boot contexts and the ceremony profile. The v1 singleDelivery epic-route kill-switch was removed in Stage 6; the freshCriticSampleRate sampling floor was retired in Story #5313 and the derived-level ceremony routing in Story #5343. |
 | `routing.roleScopedAgents` | No | `boolean` | `true` | Epic #4478 (M7-B). Kill-switch for the role-scoped boot contexts. When true (default), a converted delivery spawn (`story-worker`, `acceptance-critic`) boots on its own `.claude/agents/<role>.md` system prompt instead of re-paying the full entry-doc (AGENTS.md or CLAUDE.md) @-import closure. When false, every converted spawn falls back to `subagent_type: general-purpose` — the instant, code-rollback-free per-consumer revert, and the universal escape for hosts that ignore `.claude/agents/`. The fallback is the full-closure agent that ran before M7-B, so flipping it off never drops a gate. |
 | `routing.ceremonyProfile` | No | `"minimal"` \| `"standard"` \| `"strict"` | `"standard"` | Acceptance-ceremony depth — who authors the Story acceptance verdict. minimal and standard (default) = the inline self-eval, whatever the diff touches; strict = a fresh-context maker-blind critic. Review depth is a separate decision and still derives `deep` for any sensitive path (review-depth.js). |
@@ -744,6 +746,31 @@ always blocks — `onOverBudget` never governs it and it is never deferred.
 - **Close** reports a `test` or `coverage-capture` gate's 77 as outcome
   `host-resources` with its own hint; a 77 from any other gate is an
   ordinary failure.
+
+#### `delivery.handoff.postSeatChecks` — the seat order and the step env
+
+`story-handoff.js` seats the baseline rows a Story's own diff needs before
+any check refuses the change for missing them. MI is static, so its
+`--seat-missing` pass runs in `seat-static`, after the base merge and before
+preflight. CRAP and coverage need a fresh capture, so theirs run in `seat`,
+after the credited capture (coverage only on the capture path with the
+coverage gate on, never under a coverage deferral). Each seat writes only
+absent rows for files changed since the `origin/<baseBranch>` merge-base and
+commits them as a `baseline-refresh:`.
+
+Every child the handoff spawns gets `MANDREL_HANDOFF_STEP` set to the running
+step (`seat-static`, `preflight`, `credited-run`, `seat`, `post-capture`, …),
+over any inherited value. A consumer check that refuses a missing row may key
+on `MANDREL_HANDOFF_STEP=preflight` to downgrade that direction for change-set
+files, since the seat has not run yet; stale and extra rows stay fatal.
+
+That downgrade is sound only with `postSeatChecks` declared: list the check
+(`{ "cmd": "node", "args": ["scripts/check-rows.js"] }`) so the handoff
+re-runs it in `post-capture`, after the seat, and a row the seat did not
+write still settles `fix-required`. While any check is declared, preflight
+runs `lint` without depositing close's credit and records the one `lint` pass
+only after every post-seat check passed at that HEAD; under a coverage
+deferral the checks are skipped and close runs lint itself.
 
 #### `delivery.worktreeIsolation` — node_modules strategies
 

@@ -333,6 +333,15 @@ describe('deliver-digest § 5 — the one credited run (#5174, #5313, #5324)', (
       /post-capture checks: close's `quality-preview-crap` and `check-baselines`/,
       'the digest must name the post-capture checks after the seat',
     );
+    // Story #5960 — MI seats before preflight, CRAP and coverage after the
+    // capture; the step env and the post-seat checks are named.
+    assertDocMentions(doc, /MI before step 2/, 'the static MI seat');
+    assertDocMentions(doc, /MANDREL_HANDOFF_STEP/, 'the step env contract');
+    assertDocMentions(
+      doc,
+      /delivery\.handoff\.postSeatChecks/,
+      'the post-seat checks',
+    );
     assertDocMentions(
       doc,
       /base-sync then no-ops/,

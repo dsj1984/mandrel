@@ -13,6 +13,7 @@ import {
   overBudgetPolicy,
   QUALITY_PREVIEW_GATE_NAMES,
 } from '../close-validation/gates.js';
+import { getPostSeatChecks } from '../config/handoff.js';
 import { COVERAGE_OVER_BUDGET_EXIT_CODE } from '../coverage-capture.js';
 import {
   COVERAGE_DEFERRED_REASONS,
@@ -55,6 +56,39 @@ function closeGates(ctx) {
 const CARRYABLE_GATES = new Set(['lint', 'typecheck']);
 
 /**
+ * With `postSeatChecks` declared, `lint` runs bare: its credit is held until
+ * those checks pass at HEAD (story-handoff's `releaseHeldLint`).
+ */
+function holdsLint(ctx, gate) {
+  return gate.name === 'lint' && getPostSeatChecks(ctx.config).length > 0;
+}
+
+/** The argv a preflight check runs: bare when held, else deposited. */
+function preflightArgv(ctx, gate, run) {
+  if (holdsLint(ctx, gate)) {
+    return { cmd: run.cmd, args: run.args, held: true };
+  }
+  return {
+    cmd: 'node',
+    args: [
+      EVIDENCE_GATE,
+      '--standalone',
+      '--scope-id',
+      String(ctx.storyId),
+      '--gate',
+      gate.name,
+      '--worktree',
+      ctx.cwd,
+      '--cwd',
+      ctx.evidenceCwd,
+      '--',
+      run.cmd,
+      ...run.args,
+    ],
+  };
+}
+
+/**
  * Close's preflight entries wrapped in `evidence-gate.js` with the argv close
  * executes; a disabled or scoped-out gate deposits nothing.
  */
@@ -71,22 +105,7 @@ export function creditedPreflight(ctx) {
     if (run.skip) continue;
     checks.push({
       key: gate.name,
-      cmd: 'node',
-      args: [
-        EVIDENCE_GATE,
-        '--standalone',
-        '--scope-id',
-        String(ctx.storyId),
-        '--gate',
-        gate.name,
-        '--worktree',
-        ctx.cwd,
-        '--cwd',
-        ctx.evidenceCwd,
-        '--',
-        run.cmd,
-        ...run.args,
-      ],
+      ...preflightArgv(ctx, gate, run),
       deposit: { cmd: run.cmd, args: run.args },
       tolerateNoFilesProcessed: run.tolerateNoFilesProcessed,
     });
@@ -104,7 +123,7 @@ export function recordPreflightCredit(ctx, check) {
 }
 
 /** Re-key one credit onto the seated HEAD; best-effort, like close's rerun. */
-function carryCredit(ctx, gateName, credit) {
+export function carryCredit(ctx, gateName, credit) {
   try {
     recordPass(
       {
@@ -142,7 +161,7 @@ export function carryPreflightCredits(ctx, priorHead) {
  * @param {{ head: string, state: { coverageDeferredHead?: string } }} ctx
  * @returns {boolean}
  */
-function isCoverageDeferred(ctx) {
+export function isCoverageDeferred(ctx) {
   return Boolean(ctx.head) && ctx.state.coverageDeferredHead === ctx.head;
 }
 
@@ -218,10 +237,13 @@ export function postCaptureSettled(ctx) {
   return ctx.state.creditHead === ctx.head || isCoverageDeferred(ctx);
 }
 
-/** CRAP seating needs a fresh artifact, which a deferral never writes. */
+/** Seat kinds that read the coverage artifact, which a deferral never writes. */
+const ARTIFACT_SEATS = new Set(['crap', 'coverage']);
+
+/** CRAP and coverage seating need a fresh artifact. */
 export function seatableKinds(ctx, kinds) {
   const deferred = isCoverageDeferred(ctx);
-  return kinds.filter((kind) => kind !== 'crap' || !deferred);
+  return kinds.filter((kind) => !deferred || !ARTIFACT_SEATS.has(kind));
 }
 
 /**

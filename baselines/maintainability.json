@@ -544,7 +544,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/seat-missing.js",
-      "mi": 103.326
+      "mi": 104.359
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
@@ -833,6 +833,10 @@
     {
       "path": ".agents/scripts/lib/config/github.js",
       "mi": 83.672
+    },
+    {
+      "path": ".agents/scripts/lib/config/handoff.js",
+      "mi": 123.646
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
@@ -1976,7 +1980,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "mi": 94.955
+      "mi": 95.597
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
