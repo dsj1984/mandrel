@@ -168,6 +168,18 @@ function baselinesEnvelopeGates(validationGates) {
 }
 
 /**
+ * A capture deferred to CI is the one capture outcome a reviewer must see.
+ *
+ * @param {Record<string, string>|null|undefined} validationGates
+ * @returns {Record<string, string>}
+ */
+function deferredCaptureGate(validationGates) {
+  return validationGates?.['coverage-capture'] === 'deferred'
+    ? { 'coverage-capture': 'deferred' }
+    : {};
+}
+
+/**
  * `overridden` > `degraded` > `passed`: an override records the human
  * decision on a failed review; `degraded` says a review surface produced no
  * verdict (reported, not blocking — a secondary review does not gate merge).
@@ -197,6 +209,7 @@ export function closeEnvelopeGates(
   return {
     validation: options.skipValidation ? 'skipped' : 'passed',
     ...baselinesEnvelopeGates(validationGates),
+    ...deferredCaptureGate(validationGates),
     baseSync: options.skipSync ? 'skipped' : 'passed',
     codeReview: codeReviewGate(reviewOverride, reviewDegraded),
   };

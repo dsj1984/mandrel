@@ -130,7 +130,8 @@
           "coveragePath": "coverage/coverage-final.json",
           "captureScript": "test:coverage",
           "captureScope": "full",
-          "timeoutMs": 600000
+          "timeoutMs": 600000,
+          "onOverBudget": "block"
         },
         "crap": {
           "enabled": true,

@@ -98,6 +98,7 @@ const COVERAGE_GATE_KEYS = new Set([
   'captureScript',
   'captureScope',
   'timeoutMs',
+  'onOverBudget',
 ]);
 
 const MI_GATE_KEYS = new Set([
@@ -317,6 +318,7 @@ function resolveCoverageGate(userBlock) {
       captureScope: defaults.captureScope,
       tolerance: toleranceScalar(defaults.tolerance, 0),
       timeoutMs: defaults.timeoutMs,
+      onOverBudget: defaults.onOverBudget,
     };
   }
   warnUnknownKeys(userBlock, COVERAGE_GATE_KEYS, 'quality.gates.coverage');
@@ -332,6 +334,7 @@ function resolveCoverageGate(userBlock) {
       toleranceScalar(defaults.tolerance, 0),
     ),
     timeoutMs: userBlock.timeoutMs ?? defaults.timeoutMs,
+    onOverBudget: userBlock.onOverBudget ?? defaults.onOverBudget,
   };
 }
 

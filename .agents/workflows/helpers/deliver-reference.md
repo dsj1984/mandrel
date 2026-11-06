@@ -510,7 +510,14 @@ reports a one-line digest on success; a failed gate replays its tail inline.
 `AGENT_LOG_LEVEL=verbose` restores live streaming. A gate exiting `75` (its
 full-suite lock wait expired) logs a deferred line and the close settles
 `pending`; one exiting `124` (the suite outran its timeout) logs a timeout
-line naming host contention — neither is reported as failing tests.
+line naming host contention — neither is reported as failing tests. A
+coverage-capture exiting `76` (the consumer's capture script declared its
+slice over this host's budget, so nothing ran) follows
+`delivery.quality.gates.coverage.onOverBudget`: under `defer-to-ci` the gate
+reports `deferred`, the coverage-reading gates report `skipped`
+(`coverage-deferred-ci`), the handoff settles `ready` with a `coverage`
+field, and the PR body says coverage was deferred to CI; under the default
+`block` the handoff settles `blocked` and close fails, both naming the key.
 
 Every full-suite run ends on `⏲ suite timings: lockWaitMs=… hostWaitMs=…
 testRunMs=…`. The handoff envelope carries its credited run's figures as

@@ -143,9 +143,24 @@ function synthesizeSubject({ description, storyId, commitMessages }) {
  *   trailerBlock?: string[] }} args
  * @returns {string}
  */
-function buildPrBody({ storyId, breakingNotes, trailerBlock = [] }) {
+/** The PR-body line a capture deferred to CI adds beneath `Closes #<id>`. */
+const COVERAGE_DEFERRED_PR_LINE =
+  "Coverage deferred to CI: the capture slice was over this host's budget (exit 76, onOverBudget: defer-to-ci).";
+
+/** @param {boolean} coverageDeferred @returns {string[]} */
+function deferralLines(coverageDeferred) {
+  return coverageDeferred ? ['', COVERAGE_DEFERRED_PR_LINE] : [];
+}
+
+function buildPrBody({
+  storyId,
+  breakingNotes,
+  trailerBlock = [],
+  coverageDeferred = false,
+}) {
   const lines = [
     `Closes #${storyId}`,
+    ...deferralLines(coverageDeferred),
     '',
     '_Auto-opened by `/mandrel-deliver`._',
     ...trailerBlock,
@@ -175,7 +190,8 @@ function announceBreaking(breakingNotes, progress) {
  * @param {{ storyTitle: string, storyId: number|string, storyBody?: string,
  *   storyBranch: string, baseBranch: string, cwd?: string,
  *   gitSpawn?: typeof defaultGitSpawn, config?: object,
- *   progress?: (tag: string, msg: string) => void }} args
+ *   progress?: (tag: string, msg: string) => void,
+ *   coverageDeferred?: boolean }} args
  * @returns {{ title: string, body: string, breaking: boolean, breakingNotes: string[] }}
  */
 export function buildPullRequestFields({
@@ -188,6 +204,7 @@ export function buildPullRequestFields({
   gitSpawn = defaultGitSpawn,
   config,
   progress = () => {},
+  coverageDeferred = false,
 }) {
   const read = { storyBranch, baseBranch, cwd, gitSpawn };
   const commitMessages = readBranchCommits(read);
@@ -205,6 +222,7 @@ export function buildPullRequestFields({
       storyId,
       breakingNotes,
       trailerBlock: liftTrailers({ commitMessages, config }),
+      coverageDeferred,
     }),
     breaking,
     breakingNotes,

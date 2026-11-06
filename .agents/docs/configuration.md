@@ -181,6 +181,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.coverage.captureScript` | No | `string` | `"test:coverage"` | `package.json` script (never a shell command) the coverage gate's capture runs, spawned as `<pm> run <script>` under the detected package manager (npm, pnpm, yarn or bun). Close registers the coverage-capture gate when the coverage or CRAP gate is enabled and this script exists; the full-suite lock's workload identity and `mandrel doctor`'s `test-credit-path` check follow it. Default `test:coverage`. |
 | `quality.gates.coverage.captureScope` | No | `"full"` \| `"affected"` | `"full"` | What coverage-capture runs. `full` (default) runs `captureScript`. `affected` runs the consumer-owned `test:coverage:affected` script with the base ref in `MANDREL_COVERAGE_BASE_REF`, merges its rows over the prior artifact and stamps it `affected`; baseline rows the scoped run did not measure are treated as unmeasured, never removed. Falls back to `full` with a warning when the script is absent. Meant for consumers whose CI already enforces coverage on the full suite. |
 | `quality.gates.coverage.timeoutMs` | No | `integer` | `600000` | Kill bound (ms) for one full-suite run — the coverage capture, the close-validation full-suite gate and the full-suite lock-wait budget all read it. The clock starts at spawn, never while queued on the host lock; a suite that signals `MANDREL_SUITE_READY_FILE` gets a fresh bound for its test phase, so worst-case wall is lock wait + 2 × timeoutMs. On expiry the run exits 124 so callers can tell a hang from a failure. |
+| `quality.gates.coverage.onOverBudget` | No | `"block"` \| `"defer-to-ci"` | `"block"` | What handoff and close do when the capture script exits 76 — the consumer-declared signal that the selected slice is over this host's budget and no test ran. `block` (default) stops the handoff (`blocked`) and fails close, naming this key. `defer-to-ci` settles the coverage gate as deferred to CI: no artifact is written or stamped and no credit is recorded, the coverage-reading gates (CRAP preview, coverage and CRAP baselines) are skipped, and handoff and close proceed — the terminal envelope and the PR body say coverage was deferred. Set it only when the consumer's CI runs the deferred suite with a coverage floor. A timeout (124) is never deferred, under either value. |
 | `quality.gates.crap` | No | `object` | — | CRAP (Change Risk Anti-Pattern) ratchet — per-method cyclomatic complexity joined against per-method coverage. |
 | `quality.gates.crap.enabled` | No | `boolean` | `true` | When false, the checker exits 0 with a skip line and the gate is reported as `skipped`, never omitted. |
 | `quality.gates.crap.baselinePath` | No | `string` | `"baselines/crap.json"` | Repo-root-relative path to the gate's committed baseline artifact. |
@@ -473,6 +474,38 @@ Every freshness log line names the stamp's scope, the required scope and the
 verdict (`fresh`, `stale`, `scope-mismatch`, `missing`, or `delta-refresh`
 with the delta's file count), so an unexpected full re-run is explainable
 from the log alone. `captureScope: "full"` is unaffected.
+
+#### `delivery.quality.gates.coverage.onOverBudget` — deferring to CI
+
+A hub change on a small host (a 4-core cloud VM, say) can select a capture
+slice that cannot finish inside `timeoutMs`, and the handoff then ends in
+exit 124. When the consumer's CI already runs that suite, a local run is a
+duplicate the host cannot finish. Exit `76` and this key let the consumer
+say so.
+
+- **The signal is the consumer's.** Its `captureScript`,
+  `affectedCaptureScript` or `crap.captureScript` exits **76** to mean "the
+  selected slice is over this host's budget; no test ran". Mandrel never
+  sizes a slice or predicts its runtime. `coverage-capture.js` passes 76
+  through unchanged: it writes and stamps no artifact, and runs no later
+  capture pass.
+- **`block` (default).** The handoff settles `blocked` and close fails, each
+  naming this key. Nothing changes for a consumer that never emits 76.
+- **`defer-to-ci`.** The handoff settles `ready` with
+  `coverage: { status: "deferred", reason: "over-budget", policy:
+  "defer-to-ci" }` and records no credit. It skips the CRAP `--seat-missing`
+  pass and the gates that read the artifact (`quality-preview-crap`,
+  `check-baselines-coverage`). Close re-runs the capture, reports
+  `coverage-capture: "deferred"` and those gates as `skipped`
+  (`coverage-deferred-ci`), and opens the PR with a line saying coverage was
+  deferred to CI. Every other gate still runs.
+- **CI owns the deferred run.** Set `defer-to-ci` only when the consumer's
+  CI runs the suite with a coverage floor. Nothing local checks coverage or
+  CRAP for a deferred Story, and CRAP rows for its new methods stay unseated.
+- **Nothing sticks.** A deferral writes no artifact, stamp or credit, so a
+  later run on a bigger host captures, seats and scores as usual.
+- **A timeout is not a deferral.** Exit 124 can hide a hang, so it keeps its
+  current handling under either value.
 
 #### `delivery.worktreeIsolation` — node_modules strategies
 

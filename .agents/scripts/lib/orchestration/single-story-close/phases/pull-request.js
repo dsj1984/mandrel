@@ -78,6 +78,7 @@ function emptyDiffError({ storyBranch, baseRef, storyId }) {
  *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   computeChangeSetFn?: typeof defaultComputeChangeSet,
  *   progress?: (tag: string, msg: string) => void,
+ *   coverageDeferred?: boolean,
  * }} args
  * @returns {Promise<{ url: string, alreadyMerged: boolean, created: boolean }>}
  */
@@ -92,6 +93,7 @@ export async function ensurePullRequestWith({
   gh = defaultGh,
   computeChangeSetFn = defaultComputeChangeSet,
   progress = () => {},
+  coverageDeferred = false,
 }) {
   // `gh-exec` spawns `gh` in the process cwd, not `_cwd`.
   try {
@@ -139,6 +141,7 @@ export async function ensurePullRequestWith({
     cwd: _cwd ?? process.cwd(),
     config,
     progress,
+    coverageDeferred,
   });
   try {
     const createResult = await gh.pr.create([

@@ -134,6 +134,7 @@ export async function runCloseValidationPhase({
     lockWait,
     suiteTimings: sourcedTimings(timings, 'close'),
     pending: false,
+    coverageDeferred: (validation.deferred ?? []).length > 0,
   };
 }
 
@@ -248,5 +249,7 @@ function gateOutcomes(gateList, validation) {
   for (const gate of gateList) outcomes[gate.name] = 'passed';
   for (const { gate } of validation.skipped ?? [])
     outcomes[gate.name] = 'skipped';
+  for (const { gate } of validation.deferred ?? [])
+    outcomes[gate.name] = 'deferred';
   return outcomes;
 }
