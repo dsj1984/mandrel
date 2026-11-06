@@ -11,6 +11,7 @@ import {
   SUITE_RESERVATION_ENV,
   withFullSuiteLockAsync,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
+import { isFirstInLine } from '../../.agents/scripts/lib/full-suite-queue.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
@@ -959,6 +960,19 @@ describe('size-aware admission and backfill (Story #5963)', () => {
         backfillWindowMs: 1_000,
       });
       assert.ok(ranAt >= 1_020_000, 'the window is a lock option');
+    });
+
+    it('a ticket that vanishes between listing and stat holds no place in line', () => {
+      const fsImpl = {
+        readdirSync: () => [`000000000000001-000001-${process.pid}-ab`],
+        statSync: () => {
+          throw Object.assign(new Error('gone'), { code: 'ENOENT' });
+        },
+      };
+      assert.equal(
+        isFirstInLine({ lockPath, ticket: null, staleMs: 1_000, fsImpl }),
+        true,
+      );
     });
 
     it('AC-7: an unmarked workload never passes even a fitting declared waiter', async () => {
