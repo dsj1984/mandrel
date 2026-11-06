@@ -347,7 +347,7 @@ function measuredRows(scores, inScope, logger) {
  *   logger?: object }} deps `targetDirs` is the capture stamp's digest scope.
  * @returns {(files: string[]) => object[]}
  */
-export function buildCoverageSeatScorer(
+function buildCoverageSeatScorer(
   { coveragePath, readCoverage },
   {
     targetDirs,
@@ -376,12 +376,12 @@ export function buildCoverageSeatScorer(
  * files that have none. Resolves to the exit code.
  *
  * @param {string[]} argv
- * @param {{ config?: object, cwd?: string }} [deps]
+ * @param {{ config?: object, cwd?: string, logger?: object }} [deps]
  * @returns {Promise<number>}
  */
 export function seatCoverageBaseline(
   argv,
-  { config = resolveConfig(), cwd = process.cwd() } = {},
+  { config = resolveConfig(), cwd = process.cwd(), logger = Logger } = {},
 ) {
   const quality = getQuality(config);
   const targets = coverageUpdaterTargets(quality.coverage, cwd);
@@ -395,7 +395,9 @@ export function seatCoverageBaseline(
     score: buildCoverageSeatScorer(targets, {
       targetDirs: quality.crap?.targetDirs ?? [],
       cwd,
+      logger,
     }),
     cwd,
+    logger,
   });
 }

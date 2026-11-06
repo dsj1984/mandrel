@@ -14,10 +14,10 @@ import {
 import { loadFile } from '../../../.agents/scripts/lib/baselines/reader.js';
 import { refreshBaseline } from '../../../.agents/scripts/lib/baselines/refresh-service.js';
 import {
-  buildCoverageSeatScorer,
   checkSeatResolution,
   runSeatMissing,
   SeatRefusal,
+  seatCoverageBaseline,
   seatKeyFor,
   seatMaintainabilityBaseline,
   seatMissingBaseline,
@@ -28,7 +28,6 @@ import {
   writeFile as writeEnvelopeFile,
 } from '../../../.agents/scripts/lib/baselines/writer.js';
 import { resolveQuality } from '../../../.agents/scripts/lib/config/quality.js';
-import { scoreCoverageFinal } from '../../../.agents/scripts/lib/coverage-baseline.js';
 import {
   computeContentDigest,
   computeTreeDigest,
@@ -737,8 +736,17 @@ describe('CRAP seat over a V8-folded module-scope arrow (Story #5755 AC-1)', () 
   });
 });
 
-/** A git repo whose story branch adds `src/new.js` and `src/second.js`, then merges a base that added `src/from-base.js`. */
-function coverageSeatRepo() {
+const COVERAGE_PATH = 'coverage/coverage-final.json';
+
+/** Istanbul-shaped entry: two statements, both covered. */
+const coveredEntry = () => ({ s: { 0: 1, 1: 1 }, b: {}, f: { 0: 1 } });
+
+/**
+ * A git repo whose story branch adds `src/new.js`, `src/second.js` and
+ * `src/unmeasured.js` and changes `src/old.js`, then merges a base that added
+ * `src/from-base.js`; the artifact measures every file but `unmeasured.js`.
+ */
+function coverageSeatRepo({ stamp = true } = {}) {
   const cwd = tempDir();
   const git = (...args) =>
     execFileSync('git', args, { cwd, stdio: 'pipe' }).toString();
@@ -750,6 +758,7 @@ function coverageSeatRepo() {
   git('config', 'user.email', 'seat@test.local');
   git('config', 'user.name', 'seat');
   git('config', 'commit.gpgsign', 'false');
+  write('.c8rc.cjs', "module.exports = { include: ['src/**'] };\n");
   write('src/old.js', 'export const old = 1;\n');
   git('add', '.');
   git('commit', '-qm', 'seed');
@@ -758,6 +767,7 @@ function coverageSeatRepo() {
   write('src/new.js', 'export const n = 1;\n');
   write('src/second.js', 'export const s = 1;\n');
   write('src/unmeasured.js', 'export const u = 1;\n');
+  write('docs/x.js', 'export const d = 1;\n');
   git('add', '.');
   git('commit', '-qm', 'feat: story files');
   git('checkout', '-q', 'main');
@@ -766,79 +776,85 @@ function coverageSeatRepo() {
   git('commit', '-qm', 'feat: base file');
   git('checkout', '-q', 'story');
   git('merge', '-q', '--no-edit', 'main');
+  const raw = {};
+  for (const rel of [
+    'src/old.js',
+    'src/new.js',
+    'src/second.js',
+    'src/from-base.js',
+  ]) {
+    raw[path.join(cwd, rel)] = coveredEntry();
+  }
+  write(COVERAGE_PATH, JSON.stringify(raw));
+  if (stamp) {
+    writeCaptureStamp({
+      cwd,
+      coveragePath: COVERAGE_PATH,
+      digest: computeContentDigest(cwd, ['src']),
+      treeDigest: computeTreeDigest(cwd, COVERAGE_PATH),
+    });
+  }
   return cwd;
 }
 
-/** Istanbul-shaped entry: `hit` of two statements covered. */
-const istanbulEntry = (hit) => ({
-  s: { 0: hit > 0 ? 1 : 0, 1: hit > 1 ? 1 : 0 },
-  b: {},
-  f: { 0: 1 },
-});
+const COVERAGE_PRIOR = [
+  { path: 'src/old.js', lines: 50, branches: 100, functions: 100 },
+  { path: 'src/zz.js', lines: 10, branches: 20, functions: 30 },
+];
 
-describe('seatMissingBaseline — coverage (Story #5960)', () => {
-  const COVERAGE_PRIOR = [
-    { path: 'src/old.js', lines: 50, branches: 100, functions: 100 },
-    { path: 'src/zz.js', lines: 10, branches: 20, functions: 30 },
-  ];
-
-  function coverageScorer(cwd, { fresh = true, logger = silentLogger() } = {}) {
-    const raw = {};
-    for (const rel of [
-      'src/old.js',
-      'src/new.js',
-      'src/second.js',
-      'src/from-base.js',
-    ]) {
-      raw[path.join(cwd, rel)] = istanbulEntry(2);
-    }
-    return buildCoverageSeatScorer(
-      { coveragePath: 'coverage/coverage-final.json', readCoverage: () => raw },
-      {
-        targetDirs: ['src'],
-        cwd,
-        isFresh: ({ requireScope }) => ({
-          fresh: fresh && requireScope === 'affected',
-        }),
-        loadScope: () => ({ include: ['src/**'], exclude: [] }),
-        score: scoreCoverageFinal,
-        logger,
-      },
-    );
-  }
-
-  it('seats exactly the two new measured files, keeps every prior row byte-identical and names the unmeasured one (AC-1, AC-3)', async () => {
-    const cwd = coverageSeatRepo();
-    const { writePath, bytes } = seedBaseline('coverage', COVERAGE_PRIOR);
-    const before = JSON.parse(bytes);
-    const logger = silentLogger();
-    const code = await runSeatMissing({
-      kind: 'coverage',
-      label: 'Coverage',
-      writePath,
-      diffScopeRef: 'main',
-      score: coverageScorer(cwd, { logger }),
+/** Seed the prior coverage baseline in `cwd` and seat against `ref`. */
+async function seatCoverage(cwd, ref = 'main') {
+  const writePath = path.join(cwd, 'baselines', 'coverage.json');
+  fs.mkdirSync(path.dirname(writePath), { recursive: true });
+  writeEnvelopeFile(
+    writePath,
+    writeEnvelope({ kind: 'coverage', rows: COVERAGE_PRIOR }),
+  );
+  const bytes = fs.readFileSync(writePath, 'utf8');
+  const logger = silentLogger();
+  const code = await seatCoverageBaseline(
+    ['--seat-missing', '--diff-scope', ref],
+    {
       cwd,
       logger,
-    });
-    assert.equal(code, 0);
-    assert.match(logger.lines.join('\n'), /seated: 2/);
-    assert.match(
-      logger.lines.join('\n'),
-      /did not measure: src\/unmeasured\.js/,
+      config: {
+        project: { baseBranch: 'main' },
+        delivery: {
+          quality: {
+            gates: {
+              coverage: { coveragePath: COVERAGE_PATH },
+              crap: { targetDirs: ['src'] },
+            },
+          },
+        },
+      },
+    },
+  );
+  return { code, writePath, bytes, log: logger.lines.join('\n') };
+}
+
+describe('seatCoverageBaseline (Story #5960)', () => {
+  it('seats exactly the two new measured files and keeps every prior row byte-identical (AC-1, AC-3)', async () => {
+    const { code, writePath, bytes, log } = await seatCoverage(
+      coverageSeatRepo(),
     );
+    assert.equal(code, 0);
+    assert.match(log, /\[Coverage\] seated: 2/);
+    assert.match(log, /did not measure: src\/unmeasured\.js/);
     const after = JSON.parse(fs.readFileSync(writePath, 'utf8'));
     assert.deepEqual(
       after.rows.map((r) => r.path),
       ['src/new.js', 'src/old.js', 'src/second.js', 'src/zz.js'],
     );
-    for (const row of before.rows) {
+    const text = fs.readFileSync(writePath, 'utf8');
+    for (const row of JSON.parse(bytes).rows) {
       assert.deepEqual(
         after.rows.find((r) => r.path === row.path),
         row,
         `${row.path} kept although its measured numbers moved`,
       );
     }
+    assert.ok(text.length > bytes.length);
     assert.ok(
       !after.rows.some((r) => r.path === 'src/from-base.js'),
       'a file only the base merge brought in is never seated',
@@ -846,41 +862,21 @@ describe('seatMissingBaseline — coverage (Story #5960)', () => {
   });
 
   it('refuses with the capture fix and writes nothing when no stamp is fresh (AC-2)', async () => {
-    const cwd = coverageSeatRepo();
-    const { writePath, bytes } = seedBaseline('coverage', COVERAGE_PRIOR);
-    const logger = silentLogger();
-    const code = await runSeatMissing({
-      kind: 'coverage',
-      label: 'Coverage',
-      writePath,
-      diffScopeRef: 'main',
-      score: coverageScorer(cwd, { fresh: false }),
-      cwd,
-      logger,
-    });
+    const cwd = coverageSeatRepo({ stamp: false });
+    const { code, writePath, bytes, log } = await seatCoverage(cwd);
     assert.equal(code, 1);
-    assert.match(
-      logger.lines.join('\n'),
-      new RegExp(
-        `coverage-capture\\.js --cwd ${cwd.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}`,
-      ),
-    );
+    assert.match(log, /--seat-missing refused: no coverage artifact/);
+    assert.ok(log.includes(`coverage-capture.js --cwd ${cwd}`));
     assert.equal(fs.readFileSync(writePath, 'utf8'), bytes);
   });
 
-  it('never consults coverage when no diff file is in the c8 scope', async () => {
-    const rows = await buildCoverageSeatScorer(
-      {
-        coveragePath: 'coverage/coverage-final.json',
-        readCoverage: () => assert.fail('coverage read'),
-      },
-      {
-        targetDirs: ['src'],
-        cwd: '/repo',
-        isFresh: () => assert.fail('freshness probed'),
-        loadScope: () => ({ include: ['src/**'] }),
-      },
-    )(['docs/x.js']);
-    assert.deepEqual(rows, []);
+  it('never consults coverage when no changed file is in the c8 scope', async () => {
+    const cwd = coverageSeatRepo({ stamp: false });
+    fs.writeFileSync(path.join(cwd, 'docs/y.js'), 'export const y = 1;\n');
+    execFileSync('git', ['add', '.'], { cwd });
+    execFileSync('git', ['commit', '-qm', 'docs: y'], { cwd });
+    const { code, log } = await seatCoverage(cwd, 'HEAD~1');
+    assert.equal(code, 0, 'no stale-artifact refusal for an out-of-scope diff');
+    assert.match(log, /seated: 0/);
   });
 });
