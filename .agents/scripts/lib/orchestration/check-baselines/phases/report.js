@@ -50,6 +50,11 @@ function appendGateText(lines, g) {
   }
 }
 
+/** A skipped gate gets a line of its own so it never reads as a PASS. */
+function formatSkipped(skipped = []) {
+  return skipped.map((s) => `  ~ SKIPPED (${s.kind}): ${s.message}`);
+}
+
 export function formatReport(report, format) {
   if (format === 'json') return JSON.stringify(report, null, 2);
   const lines = [formatHeader(report)];
@@ -57,5 +62,6 @@ export function formatReport(report, format) {
   for (const s of report.schemaErrors) {
     lines.push(`  ! schema error (${s.kind}): ${s.message}`);
   }
+  lines.push(...formatSkipped(report.skipped));
   return lines.join('\n');
 }

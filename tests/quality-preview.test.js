@@ -18,6 +18,10 @@ import {
   renderTable,
   runCli,
 } from '../.agents/scripts/quality-preview.js';
+import {
+  AHEAD_STAMP,
+  writeAheadCrapBaseline,
+} from './fixtures/baselines/crap-ahead.js';
 import { seedGitIdentity } from './fixtures/git-fixture.js';
 
 /**
@@ -870,6 +874,27 @@ describe('runCrapPreview — absent coverage is not zero coverage (#4871)', () =
     try {
       const { envelope } = await runCrapPreview({ cwd: dir });
       assert.equal(envelope.diagnostics, undefined);
+    } finally {
+      rmFixture(dir);
+    }
+  });
+});
+
+describe('runCrapPreview — a baseline stamped ahead (#5991 AC-5)', () => {
+  it('reports a skip, not a failure or schema error, on a rows-less envelope', async () => {
+    const dir = makeCrapFixture({
+      methodCount: 3,
+      baselineRows: baselineRowsFor(3, 0, 0),
+    });
+    try {
+      writeAheadCrapBaseline(path.join(dir, 'baselines', 'crap.json'));
+      const { exitCode, envelope } = await runCrapPreview({ cwd: dir });
+      assert.equal(exitCode, 0);
+      assert.deepEqual(envelope.violations, []);
+      assert.equal(envelope.diagnostics[0].name, 'crap-baseline-ahead');
+      assert.match(envelope.diagnostics[0].message, /skipped/);
+      assert.match(envelope.diagnostics[0].message, new RegExp(AHEAD_STAMP));
+      assert.equal(envelope.summary.total, 0);
     } finally {
       rmFixture(dir);
     }

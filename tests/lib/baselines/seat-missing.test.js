@@ -35,6 +35,11 @@ import {
 import { scanAndScore } from '../../../.agents/scripts/lib/crap-utils.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 import {
+  AHEAD_STAMP,
+  RUNNING_STAMP,
+  writeAheadCrapBaseline,
+} from '../../fixtures/baselines/crap-ahead.js';
+import {
   FOLDED_ARROW_SOURCE,
   foldedArrowCoverageEntry,
 } from '../../fixtures/v8-folded-arrow.js';
@@ -176,6 +181,35 @@ describe('seatMissingBaseline — nothing missing (AC-4)', () => {
     assert.equal(code, 0);
     assert.ok(logger.lines.includes('[Maintainability] seated: 0'));
     assert.equal(fs.readFileSync(writePath, 'utf8'), bytes);
+  });
+});
+
+describe('CRAP seat against a baseline stamped ahead (#5991 AC-2)', () => {
+  it('writes nothing, reports seated: 0, exits 0 and names both stamps', async () => {
+    const writePath = path.join(tempDir(), 'crap.json');
+    const bytes = writeAheadCrapBaseline(writePath);
+    const logger = silentLogger();
+    let scored = false;
+    const code = await runSeatMissing({
+      kind: 'crap',
+      label: 'CRAP',
+      writePath,
+      logger,
+      score: async () => {
+        scored = true;
+        return [{ file: 'src/a.js', method: 'fresh', startLine: 1, crap: 1 }];
+      },
+      seat: (opts) =>
+        seatMissingBaseline({ ...opts, gitDiff: async () => ['src/a.js'] }),
+    });
+    assert.equal(code, 0);
+    assert.equal(scored, false, 'an ahead baseline is never scored against');
+    assert.equal(fs.readFileSync(writePath, 'utf8'), bytes);
+    assert.ok(logger.lines.includes('[CRAP] seated: 0'));
+    const named = logger.lines.filter(
+      (l) => l.includes(AHEAD_STAMP) && l.includes(RUNNING_STAMP),
+    );
+    assert.equal(named.length, 1);
   });
 });
 
