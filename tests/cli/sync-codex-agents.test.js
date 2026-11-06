@@ -136,6 +136,22 @@ describe('codex agent projection — the agent entry point writes both hosts', (
     );
   });
 
+  it('turns the shell off only for a Bash-free tools allowlist, never sets sandbox_mode', () => {
+    run();
+    for (const role of ROLES) {
+      const text = readAgent(role);
+      assert.equal(text.includes('sandbox_mode'), false, role);
+      const parsed = parseToml(text);
+      if (role === 'plan-critic') {
+        assert.deepEqual({ ...parsed.features }, { shell_tool: false });
+        continue;
+      }
+      const keys = ['name', 'description', 'developer_instructions'];
+      if (effortOf(role)) keys.push('model_reasoning_effort');
+      assert.deepEqual(Object.keys(parsed).sort(), keys.sort(), role);
+    }
+  });
+
   it('inlines the security baseline in place of its @ import', () => {
     run();
     const baseline = fs.readFileSync(SECURITY_BASELINE, 'utf8').trim();

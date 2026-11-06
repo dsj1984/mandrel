@@ -166,6 +166,12 @@ function renderCodexAgent({ role, source, baseDir, sourceLabel }) {
     `description = ${tomlString(description)}`,
   ];
   if (effort) lines.push(`model_reasoning_effort = ${tomlString(effort)}`);
+  // A Bash-free `tools` allowlist turns the shell off; Codex agent files
+  // cannot set `sandbox_mode` (the parent turn's sandbox is inherited).
+  const tools = fm?.[1].match(/^tools:(.*)$/m)?.[1].split(',');
+  if (tools && !tools.some((t) => t.trim() === 'Bash')) {
+    lines.push('features.shell_tool = false');
+  }
   lines.push(
     `developer_instructions = ${tomlMultiline(inlineImports(body.replace(/^\n+/, ''), baseDir))}`,
   );

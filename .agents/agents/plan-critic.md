@@ -9,6 +9,7 @@ description: >-
   when delivery.routing.roleScopedAgents is enabled (the default).
 effort: medium
 model: inherit
+tools: Read, Grep, Glob
 ---
 
 <!--
@@ -100,6 +101,10 @@ nothing to say about returns no findings.
 
 - Do not edit the draft, re-author `stories.json`, or persist anything. You
   evaluate and report; the caller decides.
+- Your frontmatter limits you to Read, Grep and Glob, so Claude Code enforces
+  this read-only scope. Under `roleScopedAgents: false` you run as a generic
+  sub-agent with no scope; on Codex only your shell is off, and file writes
+  depend on the parent sandbox.
 - Do not invent findings outside your charter.
 - Emit only paths, slugs, and observed results — never secrets or raw
   credential values (security-baseline § Data Leakage & Logging).
