@@ -9176,9 +9176,23 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon sortRows/(a,b)#0>",
+      "startLine": 125,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon sortRows/sort(a,b)#0>",
       "startLine": 125,
       "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon (sorted)#0>",
+      "startLine": 139,
+      "crap": 2,
       "anonymous": true
     },
     {
@@ -9190,8 +9204,22 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon (sorted)#0/(c)#0>",
+      "startLine": 141,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon extras(sorted)#0/sorted.filter(c)#0>",
       "startLine": 141,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon (b)#0>",
+      "startLine": 159,
       "crap": 1,
       "anonymous": true
     },
@@ -9216,8 +9244,22 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon mergeRows/(row)#0>",
+      "startLine": 201,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon mergeRows/scopeKey(row)#0>",
       "startLine": 201,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon mergeRows/(row)#1>",
+      "startLine": 202,
       "crap": 1,
       "anonymous": true
     },
@@ -9233,6 +9275,13 @@
       "method": "filterRowsByFileScope",
       "startLine": 217,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon filterRowsByFileScope/(r)#0>",
+      "startLine": 219,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
@@ -9255,6 +9304,13 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon compareCrap/(c)#0>",
+      "startLine": 300,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon compareCrap/candidates.some(c)#0>",
       "startLine": 300,
       "crap": 1,
@@ -9262,8 +9318,22 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon compareCrap/(b)#0>",
+      "startLine": 316,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon compareCrap/filter(b)#0>",
       "startLine": 316,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon compareCrap/(v)#0>",
+      "startLine": 330,
       "crap": 1,
       "anonymous": true
     },
@@ -9312,6 +9382,13 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon pairNamedRow/(c)#0>",
+      "startLine": 385,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon pairNamedRow/candidates.filter(c)#0>",
       "startLine": 385,
       "crap": 1,
@@ -9325,8 +9402,22 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon pairAnonymousRows/(r)#0>",
+      "startLine": 402,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon pairAnonymousRows/bucketOf(r)#0>",
       "startLine": 402,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon pairAnonymousRows/(b)#0>",
+      "startLine": 418,
       "crap": 1,
       "anonymous": true
     },
@@ -9345,6 +9436,13 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(a,b)#0>",
+      "startLine": 435,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon alignAnonymousBucket/byLine(a,b)#0>",
       "startLine": 435,
       "crap": 1,
@@ -9352,8 +9450,29 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(a,b)#1>",
+      "startLine": 436,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon alignAnonymousBucket/sort(a,b)#0>",
       "startLine": 436,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(row)#0/(b)#0>",
+      "startLine": 439,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(row)#0>",
+      "startLine": 439,
       "crap": 1,
       "anonymous": true
     },
@@ -9373,6 +9492,20 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(row)#1/(b)#0>",
+      "startLine": 440,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(row)#1>",
+      "startLine": 440,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon alignAnonymousBucket/sameKey(row)#0/(b)#0>",
       "startLine": 440,
       "crap": 1,
@@ -9387,6 +9520,20 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(row)#2/(b)#0>",
+      "startLine": 441,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(row)#2>",
+      "startLine": 441,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon alignAnonymousBucket/sameLabel(row)#0/(b)#0>",
       "startLine": 441,
       "crap": 1,
@@ -9396,6 +9543,27 @@
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon alignAnonymousBucket/sameLabel(row)#0>",
       "startLine": 441,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(f,g)#0/(row)#0/(b)#0>",
+      "startLine": 442,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(f,g)#0/(row)#0>",
+      "startLine": 442,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/(f,g)#0>",
+      "startLine": 442,
       "crap": 1,
       "anonymous": true
     },
@@ -9422,6 +9590,20 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/()#0/()#0>",
+      "startLine": 450,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon alignAnonymousBucket/()#0>",
+      "startLine": 450,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon alignAnonymousBucket/passes()#0/()#0>",
       "startLine": 450,
       "crap": 1,
@@ -9436,9 +9618,22 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "reclaimOwnRows",
+      "startLine": 483,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "isUnscorableRow",
       "startLine": 484,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon reclaimOwnRows/(f)#0>",
+      "startLine": 487,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
@@ -9480,8 +9675,29 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon (baseline,captureScript)#0>",
+      "startLine": 629,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon (baseline,runningTsTranspilerVersion,captureScript)#0>",
+      "startLine": 644,
+      "crap": 6,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon check(baseline,captureScript)#1>",
       "startLine": 649,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon (baseline,captureScript)#1>",
+      "startLine": 667,
       "crap": 4,
       "anonymous": true
     },
@@ -9496,6 +9712,20 @@
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon check(baseline,captureScript)#2/filter(row)#0>",
       "startLine": 671,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon (baseline,captureScript)#2>",
+      "startLine": 686,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon (baseline,captureScript)#2/(row)#0>",
+      "startLine": 689,
       "crap": 2,
       "anonymous": true
     },
@@ -9526,6 +9756,13 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon hasTranspiledRows/(row)#0>",
+      "startLine": 723,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "assertBaselineCompatible",
       "startLine": 734,
       "crap": 3
@@ -9545,8 +9782,22 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon assertBaselineCompatible/(a)#0>",
+      "startLine": 757,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "<anon buildCrapReport/map(v)#0>",
       "startLine": 765,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon buildCrapReport/(v)#0>",
+      "startLine": 783,
       "crap": 4,
       "anonymous": true
     },
@@ -10609,8 +10860,22 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
+      "method": "<anon write/(row,idx)#0>",
+      "startLine": 53,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/writer.js",
       "method": "<anon write/rows.map(row,idx)#0>",
       "startLine": 53,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/writer.js",
+      "method": "<anon write/(row,idx)#1>",
+      "startLine": 65,
       "crap": 1.0016283329940974,
       "anonymous": true
     },
@@ -17523,8 +17788,22 @@
     },
     {
       "path": ".agents/scripts/lib/escomplex-anchor.js",
+      "method": "<anon (_parent,_child,ancestors,i)#0>",
+      "startLine": 93,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-anchor.js",
       "method": "<anon JSXExpressionContainer(_parent,_child,ancestors,i)#0>",
       "startLine": 93,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-anchor.js",
+      "method": "<anon (parent,_child,ancestors,i)#0>",
+      "startLine": 95,
       "crap": 1,
       "anonymous": true
     },
@@ -17537,9 +17816,23 @@
     },
     {
       "path": ".agents/scripts/lib/escomplex-anchor.js",
+      "method": "<anon (parent,child)#0>",
+      "startLine": 97,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-anchor.js",
       "method": "<anon VariableDeclarator(parent,child)#0>",
       "startLine": 97,
       "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-anchor.js",
+      "method": "<anon (parent,child)#1>",
+      "startLine": 101,
+      "crap": 2,
       "anonymous": true
     },
     {
@@ -17551,8 +17844,22 @@
     },
     {
       "path": ".agents/scripts/lib/escomplex-anchor.js",
+      "method": "<anon (parent,child)#2>",
+      "startLine": 106,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-anchor.js",
       "method": "<anon ANCHOR_BY_PARENT.set(parent,child)#0>",
       "startLine": 106,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-anchor.js",
+      "method": "<anon (parent,child)#3>",
+      "startLine": 111,
       "crap": 2,
       "anonymous": true
     },
