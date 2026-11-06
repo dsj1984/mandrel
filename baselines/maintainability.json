@@ -1423,6 +1423,10 @@
       "mi": 106.251
     },
     {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "mi": 99.725
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/handoff-state.js",
       "mi": 115.924
     },

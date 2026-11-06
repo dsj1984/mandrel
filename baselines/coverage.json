@@ -760,8 +760,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "lines": 97.88,
-      "branches": 77.72,
+      "lines": 98.41,
+      "branches": 80.65,
       "functions": 100
     },
     {
@@ -1798,8 +1798,8 @@
     },
     {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
-      "lines": 96.56,
-      "branches": 86.49,
+      "lines": 96.65,
+      "branches": 86.96,
       "functions": 100
     },
     {
@@ -1930,8 +1930,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/report.js",
-      "lines": 96.72,
-      "branches": 82.14,
+      "lines": 97.5,
+      "branches": 88.57,
       "functions": 100
     },
     {
@@ -2152,9 +2152,15 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "lines": 98.67,
-      "branches": 92.31,
+      "lines": 97.23,
+      "branches": 91.67,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "lines": 97.32,
+      "branches": 81.13,
+      "functions": 88.89
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-state.js",
@@ -2644,14 +2650,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
-      "lines": 96.15,
-      "branches": 87.5,
+      "lines": 96.4,
+      "branches": 89.29,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/gate-log.js",
-      "lines": 98.36,
-      "branches": 92.31,
+      "lines": 98.45,
+      "branches": 92.68,
       "functions": 100
     },
     {
@@ -2675,7 +2681,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "lines": 100,
-      "branches": 100,
+      "branches": 97.56,
       "functions": 100
     },
     {
@@ -2884,9 +2890,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
-      "lines": 100,
-      "branches": 90.91,
-      "functions": 100
+      "lines": 98.63,
+      "branches": 91.03,
+      "functions": 92.86
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
@@ -2926,9 +2932,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 97.75,
-      "branches": 86.72,
-      "functions": 97.92
+      "lines": 98.53,
+      "branches": 87.71,
+      "functions": 98.28
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
