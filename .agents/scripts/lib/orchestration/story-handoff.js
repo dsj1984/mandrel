@@ -35,6 +35,7 @@ import {
 } from '../close-validation/gates.js';
 import { isBiomeNoFilesProcessed } from '../close-validation/process.js';
 import { applyChangedFileScope } from '../close-validation/runner.js';
+import { skipBranchDeposit } from '../close-validation/skip-branch-test.js';
 import { getPostSeatChecks } from '../config/handoff.js';
 import {
   orchestrationLogDir,
@@ -68,7 +69,7 @@ import {
   coverageEnvelope,
   creditedPreflight,
   isCoverageDeferred,
-  isOverBudgetCapture,
+  isOverBudgetExit,
   postCaptureSettled,
   recordPreflightCredit,
   scorePostCapture,
@@ -531,7 +532,7 @@ async function stepBaseMerge(ctx) {
  * The depositor close will credit, from the one shared predicate.
  *
  * @param {{ config: object, scripts: Record<string, string>|null, cwd: string, getChangedFilesImpl?: Function }} args
- * @returns {'coverage-capture'|'test'}
+ * @returns {{ depositor: 'coverage-capture'|'test', skipBranch: boolean }}
  */
 function selectCreditedDepositor({ config, ...probe }) {
   const baseBranch = config?.project?.baseBranch ?? 'main';
@@ -539,12 +540,23 @@ function selectCreditedDepositor({ config, ...probe }) {
 }
 
 /**
- * @param {object|null|undefined} config
- * @returns {string[]}
+ * The `test` deposit's evidence-gate argv tail and step label: on the skip
+ * branch the scoped run (or the full suite, naming why), else close's argv.
  */
-function testGateArgv(config) {
-  const { cmd, args } = resolveTestGateArgv(config);
-  return [cmd, ...args];
+function testDeposit(ctx) {
+  if (!ctx.skipBranch) {
+    const { cmd, args } = resolveTestGateArgv(ctx.config);
+    return { argv: ['--', cmd, ...args], label: ctx.depositor };
+  }
+  const deposit = skipBranchDeposit({
+    config: ctx.config,
+    cwd: ctx.cwd,
+    baseBranch: ctx.baseBranch,
+    gitSpawnImpl: ctx.git,
+  });
+  if (deposit.fallback)
+    ctx.progress('credited-run', `full suite: ${deposit.fallback}`);
+  return deposit;
 }
 
 /** @param {object} ctx @param {AbortSignal} signal @returns {Promise<StepResult>} */
@@ -560,6 +572,9 @@ async function creditedRun(ctx, signal) {
   const ciOwned = settleSuiteOfRecord(ctx, name);
   if (ciOwned) return ciOwned;
   const capture = ctx.depositor === 'coverage-capture';
+  const deposit = capture
+    ? { argv: [], label: ctx.depositor }
+    : testDeposit(ctx);
   const args = capture
     ? [path.join(SCRIPTS_DIR, 'coverage-capture.js'), '--cwd', ctx.cwd]
     : [
@@ -571,9 +586,8 @@ async function creditedRun(ctx, signal) {
         'test',
         '--worktree',
         ctx.cwd,
-        '--',
-        // Close's `test` gate argv, so the deposit keys on its credit identity.
-        ...testGateArgv(ctx.config),
+        // Credited under close's `test` identity, whichever argv runs.
+        ...deposit.argv,
       ];
   const { result: run, timings } = await withLockProgress(ctx, (env) =>
     runLogged(ctx, 'credited-run', 'node', args, env, signal),
@@ -600,11 +614,11 @@ async function creditedRun(ctx, signal) {
   const credit = { head: ctx.head, lockWait, suiteTimings, spawns };
   if (ranSignal.test(run.output)) {
     recordCredit(ctx, credit);
-    return ran(name, `${ctx.depositor} deposited credit`, extra);
+    return ran(name, `${deposit.label} deposited credit`, extra);
   }
   if (freshSignal.test(run.output)) {
     recordCredit(ctx, credit);
-    return skipped(name, `${ctx.depositor} credit already fresh`, extra);
+    return skipped(name, `${deposit.label} credit already fresh`, extra);
   }
   return fixRequired(
     name,
@@ -710,9 +724,9 @@ function settleSuiteExit(ctx, name, { status, output }, extra) {
     : settleCodeExit(ctx, name, status, extra);
 }
 
-/** An over-budget capture settles by policy, anything else is a fix. */
+/** An over-budget depositor settles by policy, anything else is a fix. */
 function settleCodeExit(ctx, name, status, extra) {
-  return isOverBudgetCapture(ctx, status)
+  return isOverBudgetExit(status)
     ? settleOverBudget(ctx, name, extra)
     : fixRequired(name, suiteFailureDetail(ctx, status), extra);
 }
@@ -1557,12 +1571,14 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
       return file;
     },
   };
-  ctx.depositor = selectCreditedDepositor({
+  const plan = selectCreditedDepositor({
     config,
     scripts: ctx.scripts,
     cwd,
     getChangedFilesImpl: getChangedFilesFn,
   });
+  ctx.depositor = plan.depositor;
+  ctx.skipBranch = plan.skipBranch;
   ctx.head = headSha(ctx);
 
   const steps = [];

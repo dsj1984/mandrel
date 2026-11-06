@@ -75,12 +75,12 @@
           "scope": {
             "type": "string",
             "enum": ["full", "delta"],
-            "description": "Optional note on how the pass was earned. `delta` is close's `test` delta re-credit: after a base sync, only the tests affected by the commits since `since` ran (`project.commands.testChanged`), and the record credits the merged tree under the full-suite identity."
+            "description": "Optional note on how the pass was earned. `delta` is close's `test` delta re-credit: after a base sync, only the tests affected by the commits since `since` ran (`project.commands.testChanged`), and the record credits the merged tree under the full-suite identity. It also marks the skip-branch first credit: a Story with no change under `crap.targetDirs` ran `testChanged` keyed on the `origin/<baseBranch>` merge-base `since`, credited under the same identity."
           },
           "since": {
             "type": "string",
             "pattern": "^[0-9a-f]{7,64}$",
-            "description": "With `scope: delta`, the credited commit the affected-tests run was keyed on."
+            "description": "With `scope: delta`, the commit the affected-tests run was keyed on (the credited pre-sync head, or the skip-branch merge-base)."
           },
           "timestamp": {
             "type": "string",

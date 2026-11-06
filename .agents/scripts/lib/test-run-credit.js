@@ -33,7 +33,7 @@ const GATE_NAME = 'test';
  * @param {string} cwd
  * @returns {string}
  */
-function testGateConfigHash(config, cwd) {
+export function testGateConfigHash(config, cwd) {
   const { cmd, args } = resolveTestGateArgv(config);
   return hashCommandConfig({ cmd, args, cwd: path.resolve(cwd) });
 }

@@ -501,11 +501,10 @@ function isDeferredOverBudget(gate, status) {
   return status === COVERAGE_OVER_BUDGET_EXIT_CODE && gate.deferOnOverBudget;
 }
 
-/** A capture exit 76 the policy blocks. @param {Gate} gate @param {number} status */
+/** A suite gate's exit 76 the policy blocks. @param {Gate} gate @param {number} status */
 function isBlockedOverBudget(gate, status) {
   return (
-    status === COVERAGE_OVER_BUDGET_EXIT_CODE &&
-    gate.name === 'coverage-capture'
+    status === COVERAGE_OVER_BUDGET_EXIT_CODE && SUITE_GATES.has(gate.name)
   );
 }
 
@@ -519,7 +518,7 @@ const SUITE_GATES = new Set(['test', 'coverage-capture']);
 /**
  * A non-failure exit that carries its own hint in place of the gate's: a
  * killed suite (124), a suite that lost workers to host memory (77), or a
- * capture over budget the policy blocks (76).
+ * suite over budget the policy blocks (76).
  *
  * @param {Gate} gate @param {number} status
  * @returns {{ outcome: 'timeout'|'host-resources'|'over-budget', hint: string, line: string }|null}
@@ -536,7 +535,7 @@ function hintedExit(gate, status) {
 
 /** @param {Gate} gate @param {number} status */
 function overBudgetExit(gate, status) {
-  const line = `✖ ${gate.name} over budget (exit ${status}) — the capture ran no tests`;
+  const line = `✖ ${gate.name} over budget (exit ${status}) — no tests ran`;
   return { outcome: 'over-budget', hint: OVER_BUDGET_BLOCK_HINT, line };
 }
 

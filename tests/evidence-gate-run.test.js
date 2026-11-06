@@ -9,6 +9,7 @@ import {
 } from '../.agents/scripts/evidence-gate.js';
 import { createLockEventChannel } from '../.agents/scripts/lib/close-lock-events.js';
 import { acquireSweepLock } from '../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
+import { testGateConfigHash } from '../.agents/scripts/lib/test-run-credit.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /**
@@ -527,6 +528,124 @@ test('runLockedSuite: emits lock-progress on the claimed channel while it waits'
       ],
     );
     channel.dispose();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Story #5961 — the skip-branch scoped deposit.
+const SINCE = 'e'.repeat(40);
+const SCOPED_CONFIG = { project: { commands: { test: 'npm run test:all' } } };
+
+for (const [label, gate, since] of [
+  ['the gate is not test', 'lint', SINCE],
+  ['the value is not a hex sha', 'test', 'origin/main'],
+  ['the value is empty', 'test', ''],
+]) {
+  test(`runEvidenceGate: --changed-since refuses when ${label} and spawns nothing`, async () => {
+    const logger = makeLogger();
+    let spawned = 0;
+    const out = await runEvidenceGate(
+      {
+        scopeId: 5961,
+        standalone: true,
+        gate,
+        useEvidence: true,
+        cwd: '/repo',
+        runnerArgs: ['pnpm', 'vitest'],
+        changedSince: since,
+      },
+      {
+        gitSpawnFn: () => {
+          spawned += 1;
+          return { status: 0, stdout: SINCE };
+        },
+        spawnFn: () => {
+          spawned += 1;
+          return { status: 0 };
+        },
+        runSuiteFn: async () => {
+          spawned += 1;
+          return 0;
+        },
+        logger,
+      },
+    );
+    assert.deepEqual(out, { status: 1, skipped: false });
+    assert.equal(spawned, 0);
+    assert.match(logger.calls.fatal.join('\n'), /--changed-since/);
+  });
+}
+
+test('runEvidenceGate: --changed-since runs the substituted argv with the env and credits the full-suite identity', async () => {
+  const logger = makeLogger();
+  const runs = [];
+  const records = [];
+  const skips = [];
+  const out = await runEvidenceGate(
+    {
+      scopeId: 5961,
+      standalone: true,
+      gate: 'test',
+      useEvidence: true,
+      cwd: '/repo',
+      worktreePath: '/repo/.worktrees/story-5961',
+      runnerArgs: ['pnpm', 'vitest', '--changed', '$MANDREL_CHANGED_SINCE'],
+      changedSince: SINCE,
+    },
+    {
+      gitSpawnFn: fakeGitSpawnHead('f'.repeat(40)),
+      runSuiteFn: async (run) => {
+        runs.push(run);
+        return 0;
+      },
+      shouldSkipFn: (q) => {
+        skips.push(q);
+        return { skip: false };
+      },
+      recordPassFn: (rec) => records.push(rec),
+      loadConfigFn: () => SCOPED_CONFIG,
+      logger,
+    },
+  );
+  assert.deepEqual(out, { status: 0, skipped: false });
+  assert.deepEqual(runs[0].args, ['vitest', '--changed', SINCE]);
+  assert.deepEqual(runs[0].childEnv, { MANDREL_CHANGED_SINCE: SINCE });
+  const fullIdentity = testGateConfigHash(
+    SCOPED_CONFIG,
+    '/repo/.worktrees/story-5961',
+  );
+  assert.equal(skips[0].configHash, fullIdentity);
+  assert.equal(records[0].configHash, fullIdentity);
+  assert.equal(records[0].scope, 'delta');
+  assert.equal(records[0].since, SINCE);
+  assert.ok(logger.calls.info.some((m) => /✓ test passed/.test(m)));
+});
+
+test('runLockedSuite: a child env reaches the suite beside the lock env', async () => {
+  const dir = makeTempDir('mandrel-eg-childenv-');
+  try {
+    let seen = null;
+    const code = await runLockedSuite(
+      {
+        cmd: 'npm',
+        args: ['test'],
+        cwd: dir,
+        log: () => {},
+        childEnv: { MANDREL_CHANGED_SINCE: SINCE },
+      },
+      {
+        config: {},
+        env: {},
+        lockOptions: { lockPath: path.join(dir, 'full-suite.lock') },
+        runSuiteImpl: async (opts) => {
+          seen = opts.env;
+          return 0;
+        },
+      },
+    );
+    assert.equal(code, 0);
+    assert.equal(seen.MANDREL_CHANGED_SINCE, SINCE);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

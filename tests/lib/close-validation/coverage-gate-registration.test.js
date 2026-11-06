@@ -379,6 +379,132 @@ describe('buildDefaultGates — the test gate never vanishes (Story #5278)', () 
   });
 });
 
+// Story #5961 — the skip branch's `test` gate runs `testChanged` since the
+// origin/<baseBranch> merge-base, credited under the full-suite identity.
+describe('buildDefaultGates — the skip-branch scoped `test` gate (Story #5961)', () => {
+  const MERGE_BASE = '9'.repeat(40);
+  const TEST_CHANGED = 'pnpm vitest run --changed $MANDREL_CHANGED_SINCE';
+  const configWith = (testChanged, gates = {}) => ({
+    project: { commands: { test: 'npm test', testChanged } },
+    delivery: {
+      quality: {
+        gates: {
+          crap: {
+            enabled: true,
+            targetDirs: ['src'],
+            incrementalCoverage: { skipWhenUnchanged: true },
+          },
+          ...gates,
+        },
+      },
+    },
+  });
+  const mergeBaseGit = (stdout, status = 0) => {
+    const calls = [];
+    const git = (_cwd, ...args) => {
+      calls.push(args);
+      return args[0] === 'merge-base'
+        ? { status, stdout }
+        : { status: 1, stdout: '' };
+    };
+    git.calls = calls;
+    return git;
+  };
+  const build = ({
+    config,
+    changed = ['docs/a.md'],
+    git = mergeBaseGit(MERGE_BASE),
+    scripts = { 'test:coverage': 'c8 node --test' },
+  }) => {
+    const logs = [];
+    const gates = buildDefaultGates({
+      config,
+      packageScripts: scripts,
+      cwd: '/repo',
+      baseBranch: 'main',
+      presentBaselines: [],
+      resolveBaseRefImpl: (o) =>
+        resolveCaptureBaseRef({ ...o, gitSpawnFn: () => ({ status: 0 }) }),
+      getChangedFilesImpl: () => changed,
+      gitSpawnImpl: git,
+      log: (m) => logs.push(m),
+    });
+    return { gates, logs, test: gates.find((g) => g.name === 'test') };
+  };
+
+  it('AC-3: registers testChanged keyed on the merge-base, credited as the full suite', () => {
+    const git = mergeBaseGit(MERGE_BASE);
+    const { test, logs } = build({ config: configWith(TEST_CHANGED), git });
+    assert.deepEqual(git.calls, [['merge-base', 'origin/main', 'HEAD']]);
+    assert.equal(test.cmd, 'pnpm');
+    assert.deepEqual(test.args, ['vitest', 'run', '--changed', MERGE_BASE]);
+    assert.deepEqual(test.env, { MANDREL_CHANGED_SINCE: MERGE_BASE });
+    assert.equal(test.fullSuiteLock, true);
+    assert.deepEqual(test.evidenceIdentity, { cmd: 'npm', args: ['test'] });
+    assert.deepEqual(test.evidenceNote, { scope: 'delta', since: MERGE_BASE });
+    assert.ok(logs.some((l) => l.includes(`since ${MERGE_BASE.slice(0, 12)}`)));
+  });
+
+  it('AC-4: an unset testChanged or an unreadable merge-base registers the full suite, naming why', () => {
+    for (const [config, git, reason] of [
+      [
+        configWith(null),
+        mergeBaseGit(MERGE_BASE),
+        /no `project\.commands\.testChanged`/,
+      ],
+      [
+        configWith(TEST_CHANGED),
+        mergeBaseGit('', 128),
+        /merge-base unreadable/,
+      ],
+    ]) {
+      const { test, logs } = build({ config, git });
+      assert.deepEqual(
+        { cmd: test.cmd, args: test.args },
+        { cmd: 'npm', args: ['test'] },
+      );
+      assert.equal(test.evidenceNote, undefined);
+      assert.ok(
+        logs.some((l) => reason.test(l)),
+        logs.join('\n'),
+      );
+    }
+  });
+
+  it('AC-5: an app Story keeps the capture depositor and an inactive capture keeps the full suite', () => {
+    const app = build({
+      config: configWith(TEST_CHANGED),
+      changed: ['src/a.js'],
+    });
+    assert.equal(app.test, undefined);
+    const inactive = build({
+      config: configWith(TEST_CHANGED),
+      scripts: { test: 'x' },
+    });
+    assert.deepEqual(inactive.test.args, ['test']);
+    assert.equal(inactive.test.evidenceNote, undefined);
+  });
+
+  it('AC-8: every test gate form carries the over-budget flag under defer-to-ci, none under block', () => {
+    const defer = { coverage: { onOverBudget: 'defer-to-ci' } };
+    for (const config of [
+      configWith(TEST_CHANGED, defer),
+      configWith(null, defer),
+    ]) {
+      assert.equal(build({ config }).test.deferOnOverBudget, true);
+    }
+    const inactive = build({
+      config: configWith(TEST_CHANGED, defer),
+      scripts: { test: 'x' },
+    });
+    assert.equal(inactive.test.deferOnOverBudget, true);
+    assert.equal(
+      build({ config: configWith(TEST_CHANGED) }).test.deferOnOverBudget,
+      undefined,
+    );
+  });
+});
+
 describe('buildDefaultGates — the pre-push quality preview runs at close as two halves (Stories #5378, #5471)', () => {
   const CRAP_ON = {
     delivery: {
