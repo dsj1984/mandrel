@@ -36248,6 +36248,20 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon ref-behind(ctx,evidence)#0>",
+      "startLine": 787,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon ruleset-eval-failed(ctx,ev,range)#0>",
+      "startLine": 788,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "computeHeldReview",
       "startLine": 793,
       "crap": 3.017578125
@@ -36303,6 +36317,12 @@
       "startLine": 861,
       "crap": 2,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "pushOrStep",
+      "startLine": 866,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
