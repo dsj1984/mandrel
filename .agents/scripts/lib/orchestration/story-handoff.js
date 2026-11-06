@@ -1,10 +1,10 @@
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail as one
- * deterministic sequence: base merge → duplication re-score → blocking preflight (lint and format
- * deposited as close's credit, quality-preview, baselined ratchets) → the one
- * credited run with the held review beside it → baseline seating → close's
- * post-capture CRAP and baselines scoring → push + remote-ref check → review
- * awaited. It runs exactly what deliver-digest § 5 and deliver-reference
+ * deterministic sequence: base merge (starting the held review) → duplication
+ * re-score → blocking preflight (lint and format deposited as close's credit,
+ * quality-preview, baselined ratchets) → the one credited run, which a halted
+ * review skips or aborts → baseline seating → close's post-capture CRAP and
+ * baselines scoring → push + remote-ref check → review awaited. It runs exactly what deliver-digest § 5 and deliver-reference
  * define, with close's own gate identities, and settles one envelope:
  *
  * - `ready` (exit 0) — hand off.
@@ -495,7 +495,10 @@ function mergedDetail(sync, baseBranch) {
 async function stepBaseMerge(ctx) {
   const name = 'base-merge';
   const skip = await handoffRerunSkip(ctx);
-  if (skip) return skipped(name, skip);
+  if (skip) {
+    startReview(ctx);
+    return skipped(name, skip);
+  }
   const sync = await ctx.syncFromBase({
     cwd: ctx.cwd,
     baseBranch: ctx.baseBranch,
@@ -504,6 +507,7 @@ async function stepBaseMerge(ctx) {
   if (sync.synced) {
     ctx.state.baseMergeSettled = true;
     ctx.head = headSha(ctx) ?? ctx.head;
+    startReview(ctx);
     return sync.kind === 'noop-already-current'
       ? skipped(name, `origin/${ctx.baseBranch} already merged`)
       : ran(name, mergedDetail(sync, ctx.baseBranch));
@@ -1201,8 +1205,10 @@ function startReview(ctx) {
       outcome: 'error',
       detail: `held review failed (${err?.message ?? err}); close computes the review itself`,
     }))
-    .finally(() => {
+    .then((result) => {
       ctx.reviewMs = ctx.now() - startedAt;
+      ctx.reviewSettled = result;
+      return result;
     });
   return ctx.reviewPending;
 }
@@ -1211,7 +1217,7 @@ function startReview(ctx) {
 async function stepCreditedRun(ctx) {
   const abort = new AbortController();
   let halted = null;
-  startReview(ctx).then((result) => {
+  ctx.reviewPending?.then((result) => {
     if (!result.stop) return;
     halted = result;
     abort.abort();
@@ -1315,6 +1321,18 @@ function settledPostCapture(name, gates, post) {
     : skipped(name, 'no post-capture gate registered');
 }
 
+/** `step`, unless the review has already halted: then the halt is its result. */
+function beforeRun(step) {
+  const guarded = (ctx) =>
+    ctx.reviewSettled?.stop ? ctx.reviewSettled : step(ctx);
+  return Object.defineProperty(guarded, 'name', { value: step.name });
+}
+
+/** Append the settled review unless a step already recorded it. */
+function appendReview(steps, review) {
+  if (review && !steps.some((s) => s.name === 'review')) steps.push(review);
+}
+
 /**
  * The run's step order. The base merges first, so every check scores the
  * tree that is pushed. Static MI seats before preflight, so no check refuses
@@ -1329,8 +1347,8 @@ function settledPostCapture(name, gates, post) {
 function stepOrder(depositor) {
   const middle =
     depositor === 'test'
-      ? [stepSeat, stepCreditedRun]
-      : [stepCreditedRun, stepSeat];
+      ? [beforeRun(stepSeat), beforeRun(stepCreditedRun)]
+      : [beforeRun(stepCreditedRun), stepSeat];
   return [
     stepBaseMerge,
     stepDuplicationRescore,
@@ -1558,6 +1576,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     state: readState(statePath, progress),
     review: null,
     reviewPending: null,
+    reviewSettled: null,
     reviewMs: null,
     reviewPath: storyReviewDepositPath(storyId, config),
     scripts: readPackageScriptsFn(cwd),
@@ -1591,7 +1610,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   let stop = precheck(ctx);
   if (stop) steps.push(stop);
   else stop = await runSteps(ctx, steps);
-  await ctx.reviewPending;
+  appendReview(steps, await ctx.reviewPending);
 
   const status = stop?.stop ?? HANDOFF_STATUS.READY;
   const credited = steps.find((s) => s.name === 'credited-run');
