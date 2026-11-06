@@ -457,6 +457,7 @@ function alignAnonymousBucket(state, cur, base) {
       if (at >= 0) pairs.set(e, free.splice(at, 1)[0]);
     }
   }
+  reclaimOwnRows(pairs, free, tol);
   for (const e of curSorted) {
     const b = pairs.get(e);
     if (!b) {
@@ -471,6 +472,23 @@ function alignAnonymousBucket(state, cur, base) {
     state.drifted += 1;
     if (b.method !== e.row.method) state.rekeyed += 1;
     scorePair(state, e.idx, e.row, b, 'drifted-regression');
+  }
+}
+
+/**
+ * A re-keyed pair must not hide an increase: when a row's own exact-key
+ * baseline row went unpaired and scored lower, pair it with that row instead
+ * (a sibling removed alongside an increase would otherwise mask it).
+ */
+function reclaimOwnRows(pairs, free, tol) {
+  for (const [e, b] of pairs) {
+    if (b.method === e.row.method) continue;
+    const at = free.findIndex(
+      (f) => rowKey(f) === rowKey(e.row) && e.row.crap > f.crap + tol,
+    );
+    if (at < 0) continue;
+    pairs.set(e, free.splice(at, 1)[0]);
+    free.push(b);
   }
 }
 

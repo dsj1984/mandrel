@@ -475,6 +475,15 @@ describe('compareCrap — anonymous rows re-pair by stem and order', () => {
     }
   });
 
+  it('AC-6: a sibling removed alongside an increase still regresses against the own row', () => {
+    const grown =
+      '  useEffect(() => { if (p.a) return 1; if (p.z) return 2; return 3; });';
+    const r = compareSources(effects(EFFECT_A, EFFECT_B), effects(grown));
+    assert.strictEqual(r.regressions, 1);
+    assert.strictEqual(r.violations[0].baseline, 2);
+    assert.strictEqual(r.removed, 1);
+  });
+
   it('keeps an anonymous bucket in another coordinate system incomparable', () => {
     const r = compareCrap({
       currentRows: [
