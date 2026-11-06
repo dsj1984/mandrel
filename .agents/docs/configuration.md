@@ -602,6 +602,37 @@ say so.
 - **A timeout is not a deferral.** Exit 124 can hide a hang, so it keeps its
   current handling under either value.
 
+#### Exit `77` — a suite that lost workers to host memory
+
+A small host's OOM killer can take test workers mid-run, leaving a red
+suite with no failing assertion. Exit `77` lets the consumer say so, and it
+always blocks — `onOverBudget` never governs it and it is never deferred.
+
+- **The signal is the consumer's.** The `captureScript`,
+  `affectedCaptureScript`, `crap.captureScript` or `project.commands.test`
+  wrapper exits **77** only when all hold: the runner reports lost workers,
+  zero assertions failed, and OOM is confirmed — a worker ended by
+  `SIGKILL` **plus** an `oom_kill` delta in the cgroup's `memory.events` (or
+  an OOM line in `dmesg`). Otherwise it exits `1`; a non-OOM worker crash is
+  the consumer's to retry once. Mandrel never inspects runner output,
+  `dmesg` or cgroups.
+- **coverage-capture** passes 77 through: no artifact, no stamp, no later
+  pass, and a host-memory line instead of the failing-tests line.
+- **Handoff** settles `blocked` (`failedStep: credited-run`, `reason:
+  host-resources`), records no credit, posts the `friction` comment, flips
+  `agent::blocked` and appends a `host-resources` runtime-friction record.
+  The detail names the remedies: fewer workers, a larger host, or — when CI
+  runs the suite with a coverage floor — an exit-76 declaration under
+  `onOverBudget: "defer-to-ci"`.
+- **Counts (optional).** One stdout line such as
+  `{"hostResources":{"testsPassed":812,"testsFailed":0,"workersLost":2,"filesAffected":["a.test.js"],"peakWorkerRssMb":1900}}`
+  — the last such line wins — is copied unchanged into the envelope as
+  `hostResources`; its numeric counts join the step detail. A missing or
+  malformed line is ignored.
+- **Close** reports a `test` or `coverage-capture` gate's 77 as outcome
+  `host-resources` with its own hint; a 77 from any other gate is an
+  ordinary failure.
+
 #### `delivery.worktreeIsolation` — node_modules strategies
 
 When `enabled: true`, each Story runs in its own worktree under
