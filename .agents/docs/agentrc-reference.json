@@ -127,6 +127,8 @@
           "captureScope": "full",
           "timeoutMs": 600000,
           "onOverBudget": "block",
+          "suiteOfRecord": "local",
+          "ciRatchetCheck": null,
           "nonInputGlobs": [],
           "captureHandlesConfigChanges": false
         },
