@@ -11,12 +11,14 @@ import {
 } from '../.agents/scripts/boot-sweep.js';
 import { runPostLandTail as realRunPostLandTail } from '../.agents/scripts/lib/orchestration/single-story-close/phases/post-land.js';
 import { reconcileStrandedClosing } from '../.agents/scripts/lib/single-story-sweep/reconcile-closing.js';
+import { reportStalledExecuting } from '../.agents/scripts/lib/single-story-sweep/report-stalled-executing.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /** Keep the closed-Story worktree sweep (and its lockfile) out of these cases. */
 const NO_WORKTREE_SWEEP = {
   worktreeSweepFn: async () => ({ reaped: [], skipped: [] }),
   acquireLockFn: () => ({ acquired: true, release: () => {} }),
+  stalledExecutingFn: async () => ({ ok: true, stalled: [], skipped: [] }),
 };
 
 /**
@@ -105,6 +107,7 @@ describe('runBootSweepCli', () => {
       exclude: [],
       current: undefined,
       fastForward: true,
+      stalledAfterHours: undefined,
     });
   });
 
@@ -134,7 +137,14 @@ describe('runBootSweepCli', () => {
       exclude: ['story-9'],
       current: 'story-1',
       fastForward: true,
+      stalledAfterHours: undefined,
     });
+  });
+
+  it('threads --stalled-after-hours to the sweep', async () => {
+    const h = harness();
+    await runBootSweepCli(['--stalled-after-hours', '12'], h.deps);
+    assert.equal(h.calls[0].stalledAfterHours, '12');
   });
 
   it('turns the fast-forward off under --no-fast-forward', async () => {
@@ -766,5 +776,119 @@ describe('runBootSweep — stranded agent::closing reconcile (Story #5652)', () 
     assert.equal(result.ok, true, 'the branch sweep envelope survives');
     assert.equal(result.closingReconcile.ok, false);
     assert.equal(result.closingReconcile.error, 'rate limited');
+  });
+});
+
+describe('runBootSweep — stalled agent::executing report (Story #5980)', () => {
+  const NOW = Date.parse('2026-11-06T12:00:00Z');
+  const sweepArgs = {
+    cwd: '/repo',
+    worktreeSweepFn: async () => ({ reaped: [], skipped: [] }),
+    acquireLockFn: () => ({ acquired: true, release: () => {} }),
+    closingReconcileFn: async () => ({ ok: true, reconciled: [], skipped: [] }),
+    injectedConfig: { project: { baseBranch: 'main' } },
+    injectedSweep: async () => ({
+      ok: true,
+      localDeleted: 0,
+      remoteDeleted: 0,
+    }),
+    purgeFn: async () => ({ purged: [] }),
+    logger: { info: () => {}, warn: () => {} },
+  };
+
+  /** A real report over a fake gh: story-<id> heads `ageHours` old, no PRs. */
+  function realReport(ageHours) {
+    const gh = {
+      api: async () => ({
+        stdout: JSON.stringify({
+          commit: {
+            sha: 'abc',
+            commit: {
+              committer: {
+                date: new Date(NOW - ageHours * 3_600_000).toISOString(),
+              },
+            },
+          },
+        }),
+      }),
+      pr: { list: async () => [] },
+    };
+    return (args) => reportStalledExecuting({ ...args, gh, now: () => NOW });
+  }
+
+  const provider = {
+    listTicketsByLabel: async () =>
+      [7, 8].map((id) => ({
+        id,
+        state: 'open',
+        labels: ['type::story', 'agent::executing'],
+      })),
+  };
+
+  it('puts the report on the envelope and names each recover command in the summary', async () => {
+    const result = await runBootSweep({
+      ...sweepArgs,
+      injectedProvider: provider,
+      current: 'story-8',
+      stalledExecutingFn: realReport(9),
+    });
+    assert.deepEqual(
+      result.stalledExecuting.stalled.map((s) => s.storyId),
+      [7],
+      'the --current branch Story is excluded',
+    );
+    assert.equal(
+      result.stalledExecuting.stalled[0].command,
+      'node .agents/scripts/deliver-recover.js --story 7',
+    );
+    assert.match(
+      buildSummaryLine(result),
+      /; 1 agent::executing Story\(ies\) idle over 6h with no open PR — run deliver-recover\.js --story 7\./,
+    );
+  });
+
+  it('honours stalledAfterHours and falls back to 6h on a bad value', async () => {
+    const longer = await runBootSweep({
+      ...sweepArgs,
+      injectedProvider: provider,
+      stalledAfterHours: '12',
+      stalledExecutingFn: realReport(9),
+    });
+    assert.equal(longer.stalledExecuting.thresholdHours, 12);
+    assert.deepEqual(longer.stalledExecuting.stalled, []);
+    const bad = await runBootSweep({
+      ...sweepArgs,
+      injectedProvider: provider,
+      stalledAfterHours: '-1',
+      stalledExecutingFn: realReport(9),
+    });
+    assert.equal(bad.stalledExecuting.thresholdHours, 6);
+    assert.equal(bad.stalledExecuting.stalled.length, 2);
+  });
+
+  it('keeps the exit-0 envelope when the report listing fails', async () => {
+    const result = await runBootSweep({
+      ...sweepArgs,
+      injectedProvider: {
+        listTicketsByLabel: async () => {
+          throw new Error('rate limited');
+        },
+      },
+      stalledExecutingFn: realReport(9),
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.stalledExecuting.ok, false);
+    assert.equal(result.stalledExecuting.error, 'rate limited');
+  });
+
+  it('adds nothing to the summary when no Story is stalled', () => {
+    assert.equal(
+      buildSummaryLine({
+        localDeleted: 0,
+        remoteDeleted: 0,
+        stalledExecuting: { thresholdHours: 6, stalled: [] },
+      }),
+      '[boot-sweep] reaped 0 local + 0 remote; protected 0.',
+    );
   });
 });

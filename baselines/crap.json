@@ -870,113 +870,141 @@
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "storyIdsFromBranches",
-      "startLine": 48,
+      "startLine": 50,
       "crap": 2
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "runWorktreeSweep",
-      "startLine": 104,
+      "startLine": 112,
       "crap": 2
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runWorktreeSweep/info(m)#0>",
-      "startLine": 125,
+      "startLine": 133,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runWorktreeSweep/warn(m)#0>",
-      "startLine": 126,
+      "startLine": 134,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runWorktreeSweep/error(m)#0>",
-      "startLine": 127,
+      "startLine": 135,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "runBootSweep",
-      "startLine": 162,
+      "startLine": 172,
       "crap": 6
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runBootSweep/info(m)#0>",
-      "startLine": 208,
+      "startLine": 220,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runBootSweep/warn(m)#0>",
-      "startLine": 209,
+      "startLine": 221,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runBootSweep/info(m)#1>",
-      "startLine": 231,
+      "startLine": 243,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runBootSweep/warn(m)#1>",
-      "startLine": 232,
+      "startLine": 244,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
+      "method": "<anon runBootSweep/info(m)#2>",
+      "startLine": 254,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
+      "method": "<anon runBootSweep/warn(m)#2>",
+      "startLine": 255,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "countSuffix",
-      "startLine": 263,
+      "startLine": 292,
       "crap": 2
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "buildSummaryLine",
-      "startLine": 274,
+      "startLine": 303,
       "crap": 1
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon buildSummaryLine/countSuffix(n)#0>",
-      "startLine": 279,
+      "startLine": 308,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon buildSummaryLine/countSuffix(n)#1>",
-      "startLine": 283,
+      "startLine": 312,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon buildSummaryLine/countSuffix(n)#2>",
-      "startLine": 287,
+      "startLine": 316,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
+      "method": "<anon buildSummaryLine/countSuffix(n)#2/result.stalledExecuting.stalled.map(s)#0>",
+      "startLine": 318,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
+      "method": "<anon buildSummaryLine/countSuffix(n)#3>",
+      "startLine": 323,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "runBootSweepCli",
-      "startLine": 300,
+      "startLine": 336,
       "crap": 8
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "main",
-      "startLine": 341,
+      "startLine": 379,
       "crap": 2
     },
     {
@@ -39409,6 +39437,57 @@
       "crap": 4
     },
     {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "method": "resolveStalledAfterHours",
+      "startLine": 26,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "method": "isExecutingStory",
+      "startLine": 33,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "method": "readOriginHead",
+      "startLine": 42,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "method": "probeStory",
+      "startLine": 60,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "method": "<anon probeStory/prs.some(pr)#0>",
+      "startLine": 74,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "method": "reportStalledExecuting",
+      "startLine": 101,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "method": "<anon reportStalledExecuting/filter(t)#0>",
+      "startLine": 135,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
+      "method": "<anon reportStalledExecuting/sort(a,b)#0>",
+      "startLine": 136,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "resolveSweepLockPath",
       "startLine": 39,
@@ -45852,231 +45931,245 @@
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "assertDepsInstalled",
-      "startLine": 64,
+      "startLine": 69,
       "crap": 2
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "assertDeliverableStory",
-      "startLine": 82,
+      "startLine": 87,
       "crap": 5
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "assertNotForeignExecuting",
-      "startLine": 115,
+      "startLine": 120,
       "crap": 6.094468817909713
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "flipStoryToExecuting",
-      "startLine": 149,
+      "startLine": 154,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "rollUpContainerEpic",
-      "startLine": 178,
+      "startLine": 183,
       "crap": 5.31930879038317
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "rollbackClaimOnInitFailure",
-      "startLine": 199,
+      "startLine": 204,
       "crap": 1.048084147257701
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "decideStoryBranchSeed",
-      "startLine": 228,
+      "startLine": 233,
       "crap": 2
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "reapClosedStoryWorktrees",
-      "startLine": 241,
+      "startLine": 246,
       "crap": 4.017262597144254
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon reapClosedStoryWorktrees/info(m)#0>",
-      "startLine": 251,
+      "startLine": 256,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon reapClosedStoryWorktrees/warn(m)#0>",
-      "startLine": 252,
+      "startLine": 257,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "reapMergedStoryBranches",
-      "startLine": 290,
+      "startLine": 296,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon reapMergedStoryBranches/info(m)#0>",
-      "startLine": 335,
+      "startLine": 342,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon reapMergedStoryBranches/warn(m)#0>",
-      "startLine": 336,
+      "startLine": 343,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapMergedStoryBranches/info(m)#1>",
+      "startLine": 355,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapMergedStoryBranches/warn(m)#1>",
+      "startLine": 356,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "reapMergedBranches",
-      "startLine": 342,
+      "startLine": 362,
       "crap": 11.103271484375
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon reapMergedBranches/info(m)#0>",
-      "startLine": 357,
+      "startLine": 377,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon reapMergedBranches/warn(m)#0>",
-      "startLine": 358,
+      "startLine": 378,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon reapMergedBranches/sweep.protected.map(p)#0>",
-      "startLine": 375,
+      "startLine": 395,
       "crap": 1.083740234375,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "materializeBaseBranch",
-      "startLine": 409,
+      "startLine": 429,
       "crap": 8.105993671406264
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "fastForwardBase",
-      "startLine": 461,
+      "startLine": 481,
       "crap": 4.373177842565598
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon fastForwardBase/info(m)#0>",
-      "startLine": 468,
+      "startLine": 488,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon fastForwardBase/warn(m)#0>",
-      "startLine": 469,
+      "startLine": 489,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "seedStoryBranch",
-      "startLine": 500,
+      "startLine": 520,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon seedStoryBranch/spawn(args)#0>",
-      "startLine": 506,
+      "startLine": 526,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon seedStoryBranch/existsLocally(b)#0>",
-      "startLine": 507,
+      "startLine": 527,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon seedStoryBranch/existsRemotely(b)#0>",
-      "startLine": 508,
+      "startLine": 528,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon seedStoryBranch/reuse(b)#0>",
-      "startLine": 511,
+      "startLine": 531,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon seedStoryBranch/fetch(b)#0>",
-      "startLine": 512,
+      "startLine": 532,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon seedStoryBranch/create(b,ref)#0>",
-      "startLine": 513,
+      "startLine": 533,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon seedStoryBranch/createError(b,_ref,stderr)#0>",
-      "startLine": 514,
+      "startLine": 534,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon seedStoryBranch/fetchError(b,stderr)#0>",
-      "startLine": 516,
+      "startLine": 536,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "provisionWorktree",
-      "startLine": 533,
+      "startLine": 553,
       "crap": 3.947723765432099
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon provisionWorktree/info(m)#0>",
-      "startLine": 550,
+      "startLine": 570,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon provisionWorktree/warn(m)#0>",
-      "startLine": 551,
+      "startLine": 571,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "<anon provisionWorktree/error(m)#0>",
-      "startLine": 552,
+      "startLine": 572,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-init.js",
       "method": "runSingleStoryInit",
-      "startLine": 570,
+      "startLine": 590,
       "crap": 12.00158024691358
     },
     {
