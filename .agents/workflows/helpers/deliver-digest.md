@@ -43,10 +43,10 @@ the only sanctioned landing.
 
 ## 3. Change set — computed once, handed to everyone
 
-One enumeration per Story: a critic that re-runs its own `git diff` can
-score a different set than the routed one. **One script** derives
-the change set, the level and the ceremony (close and critic hand-offs call
-it; the worker gets it from § 4's `--init`):
+One enumeration per Story: a critic re-running `git diff` can score
+another set. **One script** derives the change set, the level and the
+ceremony (close and critic hand-offs call it; the worker gets it from § 4's
+`--init`):
 
 ```bash
 node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
@@ -55,9 +55,9 @@ node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <wor
 It prints one object: `files` — the one change set handed to the verdict
 owner (`null` when the diff is unenumerable) — plus `level` and
 `classes` from `review-depth.js`, and `mode`, `reason` and `verdictOwner`
-from `ceremony-routing.js`. Level rules: a sensitive path registered in
+from `ceremony-routing.js`. Level rules: a sensitive path in
 `audit-rules.json` → `high`, none → `low`, an unenumerable diff → `null`.
-The level drives **review depth** only (close reads the same level): a
+The level drives **review depth** only (close reads it too): a
 sensitive footprint buys a **deep review**, not a fresh acceptance critic.
 
 > **The ceremony rule, stated once.** The **profile alone** names the verdict
@@ -78,8 +78,8 @@ skeleton — it derives § 3's `files` and `verdictOwner` with the same function
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId> --init
 --cwd <workCwd>`
 
-It writes one empty record per `acceptance[]` item (plus the next round and
-HEAD) under `temp/scratch/story-<id>/`. The owner fills **every** record,
+It writes one empty record per `acceptance[]` item under
+`temp/scratch/story-<id>/`. The owner fills **every** record,
 scored against that change set with `verify[]` output as evidence, and scores
 it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 (default 2; `0` scores once with no redraft).
@@ -127,9 +127,10 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    - **Otherwise** → `node <main-repo>/.agents/scripts/evidence-gate.js
      --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`.
      Signal: `✓ test passed` — the `test` evidence close reads.
-4. **Seat.** CRAP or MI gate on → `--seat-missing` for each (signal
-   `seated: N`), committed as `chore(baselines): baseline-refresh: …`; then
-   post-capture checks: close's `quality-preview-crap` and `check-baselines`.
+4. **Seat.** `--seat-missing` (`seated: N`): MI before step 2, CRAP and
+   capture-path coverage here, committed `chore(baselines): baseline-refresh:
+   …`; then post-capture checks: close's `quality-preview-crap` and `check-baselines`,
+   then `delivery.handoff.postSeatChecks`. Children get `MANDREL_HANDOFF_STEP`.
 5. **Push** `story-<id>`; the remote ref must equal HEAD.
 6. **Held review** beside step 3, which a CRITICAL aborts —
    [`deliver-reference.md`](deliver-reference.md) § Held review.

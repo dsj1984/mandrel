@@ -747,6 +747,31 @@ always blocks — `onOverBudget` never governs it and it is never deferred.
   `host-resources` with its own hint; a 77 from any other gate is an
   ordinary failure.
 
+#### `delivery.handoff.postSeatChecks` — the seat order and the step env
+
+`story-handoff.js` seats the baseline rows a Story's own diff needs before
+any check refuses the change for missing them. MI is static, so its
+`--seat-missing` pass runs in `seat-static`, after the base merge and before
+preflight. CRAP and coverage need a fresh capture, so theirs run in `seat`,
+after the credited capture (coverage only on the capture path with the
+coverage gate on, never under a coverage deferral). Each seat writes only
+absent rows for files changed since the `origin/<baseBranch>` merge-base and
+commits them as a `baseline-refresh:`.
+
+Every child the handoff spawns gets `MANDREL_HANDOFF_STEP` set to the running
+step (`seat-static`, `preflight`, `credited-run`, `seat`, `post-capture`, …),
+over any inherited value. A consumer check that refuses a missing row may key
+on `MANDREL_HANDOFF_STEP=preflight` to downgrade that direction for change-set
+files, since the seat has not run yet; stale and extra rows stay fatal.
+
+That downgrade is sound only with `postSeatChecks` declared: list the check
+(`{ "cmd": "node", "args": ["scripts/check-rows.js"] }`) so the handoff
+re-runs it in `post-capture`, after the seat, and a row the seat did not
+write still settles `fix-required`. While any check is declared, preflight
+runs `lint` without depositing close's credit and records the one `lint` pass
+only after every post-seat check passed at that HEAD; under a coverage
+deferral the checks are skipped and close runs lint itself.
+
 #### `delivery.worktreeIsolation` — node_modules strategies
 
 When `enabled: true`, each Story runs in its own worktree under

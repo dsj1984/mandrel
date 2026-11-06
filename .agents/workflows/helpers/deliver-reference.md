@@ -455,22 +455,49 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   ([`parallel-tooling.md`](parallel-tooling.md) Rule 2).
 - **Redraft rounds.** Run the scoped projects for the roots you changed plus
   `verify[]`, not the whole suite; only the one run needs credit.
-- **Seating new methods (`--seat-missing`).** Close fails a Story whose own
-  new methods have no baseline row, so `story-handoff.js` runs, in
-  `<workCwd>`, for each enabled gate:
-  `node .agents/scripts/update-crap-baseline.js --seat-missing` (CRAP) and
+- **Seating new rows (`--seat-missing`).** Close fails a Story whose own
+  new files or methods have no baseline row, so `story-handoff.js` seats them
+  in `<workCwd>`, in two steps. `seat-static`, after the base merge and
+  before preflight, runs
   `node .agents/scripts/update-maintainability-baseline.js --seat-missing`
-  (MI). Each scores the files changed since the `origin/<baseBranch>`
-  merge-base and writes **only** rows whose (path, method) key is absent —
+  (MI is static, so it voids no credit) unless the MI gate is disabled.
+  `seat`, after the credited capture, runs
+  `node .agents/scripts/update-crap-baseline.js --seat-missing` (CRAP gate
+  on) and `node .agents/scripts/update-coverage-baseline.js --seat-missing`
+  (capture depositor with the coverage gate on; never on the `test` path or
+  under a coverage deferral). Each scores the files changed since the
+  `origin/<baseBranch>` merge-base — after the base merge that is the base
+  tip, so a file only the merge brought in is never seated — and writes
+  **only** rows whose key (path, or path and method for CRAP) is absent:
   every existing row stays byte-identical, including rows whose scores moved
   (re-scoring stays close's auto-refresh). It prints `seated: N`; `seated: 0`
-  writes nothing. The handoff commits a change as `chore(baselines):
-  baseline-refresh: seat rows for new methods (refs #<id>)`.
-- **Seat refusals.** The CRAP seat exits non-zero and writes nothing unless
-  the coverage-capture stamp is fresh for the tree **and** method resolution
-  over the in-scope files is exactly 100% — a lower rate means the artifact's
-  coordinates predate the tree. The refusal names the rate, the unresolved
-  files and the fix: re-run the digest § 5 capture, then seat.
+  writes nothing. Each step commits its rows as `chore(baselines):
+  baseline-refresh: seat rows for new methods (refs #<id>)` and skips at an
+  unchanged HEAD on a re-run.
+- **Seat refusals.** The CRAP and coverage seats exit non-zero and write
+  nothing unless a coverage-capture stamp is fresh for the tree; the CRAP
+  seat also needs method resolution over the in-scope files at exactly
+  100% — a lower rate means the artifact's coordinates predate the tree. The
+  refusal names the fix: re-run the digest § 5 capture, then seat. A changed
+  file the fresh artifact did not measure is named in the coverage seat's
+  log and never seated at 0%.
+- **Step env (`MANDREL_HANDOFF_STEP`).** Every child the handoff spawns gets
+  `MANDREL_HANDOFF_STEP` set to the running step (`base-merge`,
+  `seat-static`, `preflight`, `credited-run`, `seat`, `post-capture`,
+  `push`), layered over any inherited value. It is the one contract a
+  consumer check keys on to downgrade a missing baseline row for change-set
+  files during `preflight`, before the seat can write it; stale and extra
+  rows stay the consumer's to keep fatal.
+- **Post-seat checks (`delivery.handoff.postSeatChecks`).** After close's
+  post-capture gates pass, the handoff runs each declared `{ cmd, args }` in
+  `<workCwd>` without a shell, with `MANDREL_HANDOFF_STEP=post-capture`; a
+  non-zero exit is `fix-required` naming the check, and nothing is pushed.
+  While any is declared, preflight runs close's `lint` argv bare and holds
+  its credit: a baselines-only seat commit re-keys it, any other commit drops
+  it, and the one `lint` pass record is written only once every post-seat
+  check passed at HEAD. Under a coverage deferral the checks are skipped and
+  no `lint` record is written, so close runs lint itself. A preflight
+  downgrade is sound only with the re-asserting check declared here.
 - **Duplication re-score.** After the base merge and before preflight, the
   handoff runs close's own duplication re-score (`duplication-rescore` in
   `steps[]`) over the same scope close uses, and commits any moved row with
