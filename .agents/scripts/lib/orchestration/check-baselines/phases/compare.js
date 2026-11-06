@@ -5,6 +5,7 @@
  * @module lib/orchestration/check-baselines/phases/compare
  */
 
+import { decodeEnvelope } from '../../../baselines/codec.js';
 import { EXIT_CONFIG } from '../../../baselines/exit-codes.js';
 import { readBaseFromGit } from '../../../baselines/git-base.js';
 import { getKindModule } from '../../../baselines/kernel.js';
@@ -63,7 +64,7 @@ function readBaseBaselinePayload(scope, kind, gateBlock, cwd) {
   }
   if (raw === null) return null;
   try {
-    return JSON.parse(raw);
+    return decodeEnvelope(JSON.parse(raw));
   } catch (cause) {
     // An unparseable (e.g. text-merged) base blob is a failed read too.
     throw buildBaseReadError({ kind, ref: scope.ref, file: rel, cause });

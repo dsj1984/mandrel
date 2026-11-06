@@ -10,6 +10,7 @@ import {
 } from '../baseline-schema-registry.js';
 import { getBaselines } from '../config/baselines.js';
 import { resolveConfig } from '../config-resolver.js';
+import { decodeEnvelope } from './codec.js';
 
 // Overridden by `delivery.quality.gates.<kind>.baselinePath`.
 const DEFAULT_PATHS = Object.freeze({
@@ -130,24 +131,24 @@ function validate(kind, parsed, sourceHint) {
 /**
  * The one narrowing projection for every loaded envelope. It is an
  * allow-list: compat axes read stamps off the loaded object and fail closed
- * on `undefined`, so every envelope stamp must be carried through here. The
- * committed file carries no rollup; a consumer that needs one derives it from
- * `rows` through the kind module.
+ * on `undefined`, so every envelope stamp must be carried through here. Rows
+ * come out of the layout codec. The committed file carries no rollup; a
+ * consumer that needs one derives it from `rows` through the kind module.
  *
  * @param {string} kind
  * @param {object} parsed A validated baseline envelope.
  * @returns {{ rows: Array<object>, kernelVersion: string }}
  */
 function shapeEnvelope(kind, parsed) {
-  const rows = Array.isArray(parsed.rows)
-    ? parsed.rows.map((row) => canonicaliseRow(kind, row))
+  const decoded = decodeEnvelope(parsed);
+  const rows = Array.isArray(decoded.rows)
+    ? decoded.rows.map((row) => canonicaliseRow(kind, row))
     : [];
   return {
     rows,
-    kernelVersion: parsed.kernelVersion,
-    scoringSemantics: parsed.scoringSemantics,
-    tsTranspilerVersion: parsed.tsTranspilerVersion,
-    provenanceStamped: parsed.provenanceStamped,
+    kernelVersion: decoded.kernelVersion,
+    scoringSemantics: decoded.scoringSemantics,
+    tsTranspilerVersion: decoded.tsTranspilerVersion,
   };
 }
 

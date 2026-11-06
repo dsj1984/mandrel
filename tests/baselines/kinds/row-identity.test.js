@@ -68,10 +68,15 @@ describe('rowIdentity — kind-module protocol', () => {
     const crap = getKindModule('crap');
     assert.equal(crap.keyField, 'path');
 
-    const sibling = { path: 'a/b.js', method: 'two', startLine: 42, crap: 9 };
-    const row = { path: 'a/b.js', method: 'one', startLine: 7, crap: 3 };
+    const sibling = { path: 'a/b.js', method: 'two', crap: 9 };
+    const row = { path: 'a/b.js', method: 'one', crap: 3 };
 
-    assert.equal(crap.rowIdentity(row), 'a/b.js::one@7');
+    assert.equal(crap.rowIdentity(row), 'a/b.js::one');
+    assert.equal(
+      crap.rowIdentity({ ...row, startLine: 99 }),
+      crap.rowIdentity(row),
+      'startLine never reaches the persisted identity',
+    );
     assert.notEqual(
       crap.rowIdentity(row),
       crap.rowIdentity(sibling),

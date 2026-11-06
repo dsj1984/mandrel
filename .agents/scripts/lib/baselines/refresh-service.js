@@ -34,6 +34,7 @@ import {
 import { isScorableSourceFile } from '../source-extensions.js';
 import { toPosix } from '../util/paths.js';
 import { buildBundleSizeScorer } from './bundle-size-scorer.js';
+import { decodeEnvelope } from './codec.js';
 import {
   resolveDetectClones,
   resolveFormatExtensions,
@@ -638,7 +639,7 @@ export function readPriorEnvelope(writePath, fs) {
     return null;
   }
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = decodeEnvelope(JSON.parse(raw));
     if (isObject(parsed) && Array.isArray(parsed.rows)) {
       return parsed;
     }

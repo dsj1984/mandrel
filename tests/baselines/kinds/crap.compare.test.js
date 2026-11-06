@@ -22,11 +22,11 @@ function indexBaselineRowsByFile(baselineRows) {
 // ---------------------------------------------------------------------------
 // crap.compare.test.js — pure compare(head, base) for the CRAP kind
 // (Story #1961 / Task #1966). Higher CRAP is worse. Rows are keyed by
-// `path::method@startLine`.
+// `path::method` — no line number reaches the persisted identity.
 // ---------------------------------------------------------------------------
 
-function row(path, method, startLine, crap) {
-  return { path, method, startLine, crap };
+function row(path, method, _startLine, crap) {
+  return { path, method, crap };
 }
 
 describe('kinds/crap.compare()', () => {
@@ -35,7 +35,7 @@ describe('kinds/crap.compare()', () => {
     const base = { rows: [row('src/a.js', 'foo', 10, 18)] };
     const out = compare(head, base);
     assert.equal(out.regressions.length, 1);
-    assert.equal(out.regressions[0].key, 'src/a.js::foo@10');
+    assert.equal(out.regressions[0].key, 'src/a.js::foo');
   });
 
   it('classifies a decreased crap score as an improvement', () => {
@@ -58,7 +58,7 @@ describe('kinds/crap.compare()', () => {
     const out = compare(head, base);
     assert.equal(out.regressions.length, 0);
     assert.equal(out.additions.length, 1);
-    assert.equal(out.additions[0].key, 'src/new.js::bar@5');
+    assert.equal(out.additions[0].key, 'src/new.js::bar');
     assert.equal(out.additions[0].base, null);
   });
 
@@ -101,12 +101,12 @@ describe('kinds/crap.compare()', () => {
 });
 
 // Story #4981 — the incremental-coverage join reuses this method-identity
-// half-key (`crapRowKey` minus the file component) rather than reinventing
+// half-key (the row identity minus the file component) rather than reinventing
 // file diffing or a second identity scheme.
 describe('the per-file baseline index (Story #4981, folded by #5002)', () => {
-  it("keys each file's rows by the per-file half of crapRowKey", () => {
+  it("keys each file's rows by the per-file half of the row identity", () => {
     const idx = indexBaselineRowsByFile([row('src/a.js', 'foo', 10, 25)]);
-    assert.deepEqual([...idx.get('src/a.js').keys()], ['foo@10']);
+    assert.deepEqual([...idx.get('src/a.js').keys()], ['foo']);
   });
 
   it('indexes rows by file, then by method identity', () => {
@@ -117,23 +117,20 @@ describe('the per-file baseline index (Story #4981, folded by #5002)', () => {
     ];
     const idx = indexBaselineRowsByFile(rows);
     assert.equal(idx.size, 2);
-    assert.equal(idx.get('src/a.js').get('foo@10').crap, 25);
-    assert.equal(idx.get('src/a.js').get('bar@20').crap, 5);
-    assert.equal(idx.get('src/b.js').get('baz@1').crap, 3);
+    assert.equal(idx.get('src/a.js').get('foo').crap, 25);
+    assert.equal(idx.get('src/a.js').get('bar').crap, 5);
+    assert.equal(idx.get('src/b.js').get('baz').crap, 3);
   });
 
   it('accepts the legacy `file` key as well as `path`', () => {
     const idx = indexBaselineRowsByFile([
-      { file: 'src/a.js', method: 'foo', startLine: 10, crap: 25 },
+      { file: 'src/a.js', method: 'foo', crap: 25 },
     ]);
-    assert.equal(idx.get('src/a.js').get('foo@10').crap, 25);
+    assert.equal(idx.get('src/a.js').get('foo').crap, 25);
   });
 
   it('ignores rows with no resolvable file/path and tolerates a missing list', () => {
-    assert.equal(
-      indexBaselineRowsByFile([{ method: 'foo', startLine: 1 }]).size,
-      0,
-    );
+    assert.equal(indexBaselineRowsByFile([{ method: 'foo' }]).size, 0);
     assert.equal(indexBaselineRowsByFile(undefined).size, 0);
   });
 });

@@ -9,20 +9,20 @@ import {
 } from './crap-coordinates.js';
 
 /**
- * Per-file half of `crapRowKey` (`${path}::${method}@${startLine}`).
+ * Per-file half of the CRAP row identity (`${path}::${method}`).
  *
- * @param {{method: string, startLine: number}} row
+ * @param {{method: string}} row
  * @returns {string}
  */
 function methodIdentityKey(row) {
-  return `${row.method}@${row.startLine}`;
+  return row.method;
 }
 
 /**
  * Accepts both the in-memory `{file}` and on-disk `{path}` row shapes.
  *
- * @param {Array<{file?: string, path?: string, method: string, startLine: number, crap: number}>} baselineRows
- * @returns {Map<string, Map<string, {crap: number}>>} file → (method@startLine → row)
+ * @param {Array<{file?: string, path?: string, method: string, crap: number}>} baselineRows
+ * @returns {Map<string, Map<string, {crap: number}>>} file → (method → row)
  */
 function indexBaselineRowsByFile(baselineRows) {
   const byFile = new Map();

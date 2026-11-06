@@ -11,6 +11,7 @@ import {
   buildCrapSeatScorer,
   resolveCrapUpdaterOptions,
 } from '../../../.agents/scripts/lib/baselines/crap-updater-cli.js';
+import { loadFile } from '../../../.agents/scripts/lib/baselines/reader.js';
 import { refreshBaseline } from '../../../.agents/scripts/lib/baselines/refresh-service.js';
 import {
   checkSeatResolution,
@@ -61,15 +62,10 @@ function silentLogger() {
 }
 
 const CRAP_PRIOR = [
-  { path: 'src/a.js', method: 'keep', startLine: 1, crap: 2 },
-  { path: 'src/a.js', method: 'moves', startLine: 10, crap: 3 },
-  { path: 'src/other.js', method: 'untouched', startLine: 4, crap: 5 },
+  { path: 'src/a.js', method: 'keep', crap: 2 },
+  { path: 'src/a.js', method: 'moves', crap: 3 },
+  { path: 'src/other.js', method: 'untouched', crap: 5 },
 ];
-
-/** Each prior row's serialised form, in order. */
-function serialisedRows(rows) {
-  return rows.map((r) => JSON.stringify(r, null, 2));
-}
 
 describe('seatKeyFor / selectMissingRows', () => {
   it('keys CRAP on path::method, so a method that only moved is not missing', () => {
@@ -101,7 +97,7 @@ describe('seatKeyFor / selectMissingRows', () => {
 describe('seatMissingBaseline — CRAP (AC-1)', () => {
   it('writes exactly the two new methods; every prior row stays byte-identical', async () => {
     const { writePath } = seedBaseline('crap', CRAP_PRIOR);
-    const before = JSON.parse(fs.readFileSync(writePath, 'utf8'));
+    const before = loadFile(writePath, { kind: 'crap' });
 
     const result = await seatMissingBaseline({
       kind: 'crap',
@@ -121,20 +117,21 @@ describe('seatMissingBaseline — CRAP (AC-1)', () => {
 
     assert.equal(result.seated, 2);
     assert.equal(result.wrote, true);
-    const afterEnv = JSON.parse(fs.readFileSync(writePath, 'utf8'));
+    const afterEnv = loadFile(writePath, { kind: 'crap' });
     assert.equal(afterEnv.rows.length, CRAP_PRIOR.length + 2);
     const priorKept = afterEnv.rows.filter(
       (r) => !['addedOne', 'addedTwo'].includes(r.method),
     );
-    assert.deepEqual(serialisedRows(priorKept), serialisedRows(before.rows));
-    for (const key of ['$schema', 'kernelVersion', 'scoringSemantics']) {
+    assert.deepEqual(priorKept, before.rows);
+    for (const key of ['kernelVersion', 'scoringSemantics']) {
       assert.equal(afterEnv[key], before[key]);
     }
     const text = fs.readFileSync(writePath, 'utf8');
-    for (const chunk of serialisedRows(before.rows)) {
-      assert.ok(
-        text.includes(chunk.replaceAll('\n', '\n    ')),
-        'prior row bytes present verbatim',
+    for (const { method, crap } of before.rows) {
+      assert.match(
+        text,
+        new RegExp(`\\n {6}"${method}": ${crap},?\\n`),
+        'prior method line present verbatim',
       );
     }
   });
@@ -645,7 +642,7 @@ describe('a changed .jsx file seats a CRAP row (Story #5738 AC-2)', () => {
       score,
     });
     assert.equal(result.seated, 1);
-    const rows = JSON.parse(fs.readFileSync(writePath, 'utf8')).rows;
+    const { rows } = loadFile(writePath, { kind: 'crap' });
     assert.ok(
       rows.some((r) => r.path === 'src/App.jsx' && r.method === 'App'),
       'the .jsx method row is seated',

@@ -12,9 +12,8 @@ import {
   UNSCORABLE,
 } from '../../.agents/scripts/lib/crap-engine.js';
 import {
-  anonymousStem,
   deriveMethodIdentities,
-  isAnonymousMethodLabel,
+  methodStem,
 } from '../../.agents/scripts/lib/crap-method-identity.js';
 import {
   analyzeModule,
@@ -458,7 +457,7 @@ describe('finalizeMethodRowsWithBaseline — incremental join (Story #4981)', ()
   ];
 
   it('AC-5: touched=true (the default) delegates byte-identically to finalizeMethodRows', () => {
-    const baselineByKey = new Map([['stable@10', { crap: 3 }]]);
+    const baselineByKey = new Map([['stable', { crap: 3 }]]);
     const viaWrapper = finalizeMethodRowsWithBaseline(rawUntouched, {
       requireCoverage: true,
       touched: true,
@@ -481,7 +480,7 @@ describe('finalizeMethodRowsWithBaseline — incremental join (Story #4981)', ()
   });
 
   it('AC-2/AC-3: an untouched-file method with NO fresh coverage resolves from its baseline row', () => {
-    const baselineByKey = new Map([['stable@10', { crap: 7.5 }]]);
+    const baselineByKey = new Map([['stable', { crap: 7.5 }]]);
     const out = finalizeMethodRowsWithBaseline(rawUntouched, {
       requireCoverage: true,
       touched: false,
@@ -499,7 +498,7 @@ describe('finalizeMethodRowsWithBaseline — incremental join (Story #4981)', ()
   });
 
   it('AC-3: fail-closed — an untouched-file method with NO baseline row falls back to skip-and-count', () => {
-    const baselineByKey = new Map([['other-method@1', { crap: 1 }]]);
+    const baselineByKey = new Map([['other-method', { crap: 1 }]]);
     const out = finalizeMethodRowsWithBaseline(rawUntouched, {
       requireCoverage: true,
       touched: false,
@@ -526,7 +525,7 @@ describe('finalizeMethodRowsWithBaseline — incremental join (Story #4981)', ()
         coordinateSystem: COORDINATE_ORIGINAL,
       },
     ];
-    const baselineByKey = new Map([['stable@10', { crap: 7.5 }]]);
+    const baselineByKey = new Map([['stable', { crap: 7.5 }]]);
     const out = finalizeMethodRowsWithBaseline(touchedButUnresolved, {
       requireCoverage: true,
       touched: true,
@@ -547,7 +546,7 @@ describe('finalizeMethodRowsWithBaseline — incremental join (Story #4981)', ()
         coordinateSystem: COORDINATE_TRANSPILED,
       },
     ];
-    const baselineByKey = new Map([['stable@10', { crap: 7.5 }]]);
+    const baselineByKey = new Map([['stable', { crap: 7.5 }]]);
     const out = finalizeMethodRowsWithBaseline(raw, {
       requireCoverage: true,
       touched: false,
@@ -933,7 +932,7 @@ function host(k) {
 
   it('strips every ordinal to form the stem', () => {
     assert.equal(
-      anonymousStem('<anon host/useEffect()#3/map(x)#12>'),
+      methodStem('<anon host/useEffect()#3/map(x)#12>'),
       '<anon host/useEffect()/map(x)>',
     );
   });
@@ -948,6 +947,36 @@ function host(k) {
     );
     assert.equal(methodSiteOf(null), undefined);
     assert.equal(methodSiteOf(outer), undefined);
+  });
+});
+
+describe('deriveMethodIdentities — named scope paths and collision ordinals', () => {
+  const ids = (src) => identitiesFor(src).map((i) => i.method);
+
+  it('AC-3: a nested named function is keyed by its scope path; a body edit keeps it', () => {
+    const src = `
+export function outer(a) {
+  function helper(x) { return x + 1; }
+  return helper(a);
+}
+`;
+    assert.deepEqual(ids(src), ['outer', 'outer/helper']);
+    const edited = src.replace(
+      'return x + 1;',
+      'if (x > 1) { return x; }\n  return x + 1;',
+    );
+    assert.deepEqual(ids(edited), ['outer', 'outer/helper']);
+  });
+
+  it('AC-2: the first of two same-key methods stays bare, a later one gets #1', () => {
+    const src =
+      '[1].map(function cb(v) { return v; });\n' +
+      '[2].map(function cb(v) { return v * 2; });\n';
+    assert.deepEqual(ids(src), ['cb', 'cb#1']);
+    assert.deepEqual(
+      ids(`[0].map(function cb(v) { return v - 1; });\n${src}`),
+      ['cb', 'cb#1', 'cb#2'],
+    );
   });
 });
 
@@ -974,15 +1003,6 @@ describe('methodRowsFromReport — rows carry the identity marker (#4969)', () =
       },
     ]);
     assert.equal(out.rows[0].anonymous, true);
-  });
-});
-
-describe('isAnonymousMethodLabel', () => {
-  it('recognises both the derived identity and the superseded ordinal', () => {
-    assert.equal(isAnonymousMethodLabel('<anon host/(x)#0>'), true);
-    assert.equal(isAnonymousMethodLabel('<anon method-7>'), true);
-    assert.equal(isAnonymousMethodLabel('doWork'), false);
-    assert.equal(isAnonymousMethodLabel(undefined), false);
   });
 });
 

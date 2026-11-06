@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { decodeEnvelope } from '../../.agents/scripts/lib/baselines/codec.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const REPO_ROOT = path.resolve(
@@ -152,8 +153,10 @@ function run(args) {
 }
 
 function readBaseline(kind) {
-  return JSON.parse(
-    fs.readFileSync(path.join(root, 'baselines', `${kind}.json`), 'utf8'),
+  return decodeEnvelope(
+    JSON.parse(
+      fs.readFileSync(path.join(root, 'baselines', `${kind}.json`), 'utf8'),
+    ),
   );
 }
 

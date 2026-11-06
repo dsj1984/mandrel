@@ -15,11 +15,9 @@ import { CYCLOMATIC_CEILING } from '../cyclomatic-ceiling.js';
 import { resolveCrapPreviewIncremental } from './crap-preview-incremental.js';
 import { resolveCrapEnvOverrides } from './env-overrides.js';
 import {
-  assessComparisonBasis,
   buildCrapReport,
   compareCrap,
   filterRowsByFileScope,
-  suppressVerdicts,
 } from './kinds/crap.js';
 
 /**
@@ -123,17 +121,6 @@ export async function computeCrapPreviewScan({
     scopeInfo: { scope, diffRef },
   });
   envelope.cyclomaticAdvisories = listCyclomaticAdvisories(scan.rows);
-  // Above the drifted-row ratio every verdict is an artefact of a mis-keyed
-  // join: say so once and fail open.
-  const basis = assessComparisonBasis(result, {
-    captureScript: crap.captureScript,
-  });
-  if (!basis.sound) {
-    return {
-      exitCode: 0,
-      envelope: suppressVerdicts(envelope, basis.diagnostic),
-    };
-  }
   const exitCode = hasCrapRegressions(result) ? 1 : 0;
   return { exitCode, envelope };
 }

@@ -7,16 +7,6 @@
 const ESCOMPLEX_ANON_LABEL_RE = /^<anon method-\d+>$/;
 
 /**
- * True for a derived anonymous identity (ours or escomplex's).
- *
- * @param {unknown} method
- * @returns {boolean}
- */
-export function isAnonymousMethodLabel(method) {
-  return typeof method === 'string' && method.startsWith('<anon ');
-}
-
-/**
  * A missing bound collapses to a zero-width span, never a drop, so the
  * method keeps a deterministic place in the scope tree.
  *
@@ -43,13 +33,13 @@ function sanitizeAnchor(anchor) {
 }
 
 /**
- * A label with every `#<ordinal>` stripped: what an anonymous row's
- * identity is apart from its tie-break, for re-pairing on a key miss.
+ * A label with every `#<ordinal>` stripped: what a row's identity is apart
+ * from its tie-breaks, for re-pairing on a key miss.
  *
  * @param {string} label
  * @returns {string}
  */
-export function anonymousStem(label) {
+export function methodStem(label) {
   return String(label).replace(/#\d+/g, '');
 }
 
@@ -74,11 +64,42 @@ function anonymousSegment(m, site, parentPath, ordinals) {
 }
 
 /**
- * Named methods keep their name. An anonymous one becomes `<anon {scope
- * path}>`, e.g. `<anon build/arr.map(r)#0>`: each link is a name, or a
- * call-site anchor plus parameter list plus an ordinal among siblings
- * sharing parent, anchor and parameters. Never derived from the body — that
- * would re-key a method on the very edit the gate must catch.
+ * Close the spans that ended before `lineStart`; the innermost still open
+ * is the line-span parent.
+ *
+ * @param {Array<{lineEnd: number, scopePath: string}>} openAncestors
+ * @param {number} lineStart
+ * @returns {string}
+ */
+function innermostOpenPath(openAncestors, lineStart) {
+  while (openAncestors.length > 0 && openAncestors.at(-1).lineEnd < lineStart) {
+    openAncestors.pop();
+  }
+  return openAncestors.at(-1)?.scopePath ?? '';
+}
+
+/**
+ * The first holder of `scopePath` keeps it bare; each later one gets `#<n>`.
+ *
+ * @param {string} scopePath
+ * @param {Map<string, number>} seen
+ * @returns {string}
+ */
+function disambiguate(scopePath, seen) {
+  const n = seen.get(scopePath) ?? 0;
+  seen.set(scopePath, n + 1);
+  return n === 0 ? scopePath : `${scopePath}#${n}`;
+}
+
+/**
+ * A method's identity is its scope path: the enclosing method segments
+ * joined by `/`, ending in its own segment, so a top-level named function
+ * keeps its bare name. An anonymous one is wrapped as `<anon {scope path}>`,
+ * e.g. `<anon build/arr.map(r)#0>`: its segment is a call-site anchor plus
+ * parameter list plus an ordinal among siblings sharing parent, anchor and
+ * parameters. A scope path seen earlier in the file gets `#<n>` (n from 1).
+ * Never derived from the body — that would re-key a method on the very edit
+ * the gate must catch.
  *
  * `sites[i]` (from the kernel's `methodSiteOf`) gives the exact enclosing
  * method and anchor; without one, nesting falls back to line spans (relying
@@ -96,28 +117,26 @@ export function deriveMethodIdentities(methods, sites = []) {
   const pathOf = new Map();
   /** Sibling counts keyed by parent path + anchor + parameter list. */
   const ordinals = new Map();
+  /** Collision counts per scope path, for the `#<n>` suffix. */
+  const seen = new Map();
 
   for (const [i, m] of (methods ?? []).entries()) {
     const { lineStart, lineEnd } = spanOf(m);
-    while (
-      openAncestors.length > 0 &&
-      openAncestors[openAncestors.length - 1].lineEnd < lineStart
-    ) {
-      openAncestors.pop();
-    }
+    const spanParent = innermostOpenPath(openAncestors, lineStart);
     const site = sites?.[i];
-    const parentPath = site
-      ? (pathOf.get(site.parent) ?? '')
-      : (openAncestors.at(-1)?.scopePath ?? '');
+    const parentPath = site ? (pathOf.get(site.parent) ?? '') : spanParent;
     const name = typeof m?.name === 'string' ? m.name : '';
     const anonymous = name === '' || ESCOMPLEX_ANON_LABEL_RE.test(name);
     const segment = anonymous
       ? anonymousSegment(m, site, parentPath, ordinals)
       : name;
 
-    const scopePath = parentPath === '' ? segment : `${parentPath}/${segment}`;
+    const scopePath = disambiguate(
+      parentPath === '' ? segment : `${parentPath}/${segment}`,
+      seen,
+    );
     identities.push({
-      method: anonymous ? `<anon ${scopePath}>` : name,
+      method: anonymous ? `<anon ${scopePath}>` : scopePath,
       anonymous,
     });
     openAncestors.push({ lineEnd, scopePath });

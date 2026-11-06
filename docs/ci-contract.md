@@ -105,11 +105,11 @@ The same check remains available ad hoc, and a consumer materializing
 node scripts/check-baseline-drift.js --gate maintainability
 ```
 
-`crap` is the other `DRIFT_KIND` and is **not** in the nightly job yet: its
-drift identity is `path::method@startLine`, so any edit above a method re-keys
-its row. Measured against a real coverage artifact: 82 drifted but 1438 added
-and 898 removed, of which 853 removals are the same `path::method` reappearing
-at a new line. Coverage and duplication are not `DRIFT_KIND`s at all — coverage
+`crap` is the other `DRIFT_KIND` and is **not** in the nightly job yet. Its
+drift identity used to carry the start line, so any edit above a method re-keyed
+its row (measured: 82 drifted but 1438 added and 898 removed, 853 of those
+removals the same method at a new line); #5971 made it `path::method`, and
+scheduling the kind is now a separate decision. Coverage and duplication are not `DRIFT_KIND`s at all — coverage
 rows carry three metric axes (`lines`/`branches`/`functions`) rather than the
 single scalar `KIND_SPECS` assumes, and duplication rows exist only where
 clones do, so an appearing or vanishing row is ordinary churn rather than

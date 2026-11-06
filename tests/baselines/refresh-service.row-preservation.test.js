@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { loadFile } from '../../.agents/scripts/lib/baselines/reader.js';
 import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 import {
   write as writeEnvelope,
@@ -315,18 +316,15 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
       const env = writeEnvelope({
         kind: 'crap',
         rows: [
-          { path: 'src/existing.js', method: 'f', startLine: 1, crap: 5 },
-          { path: 'src/untouched.js', method: 'g', startLine: 9, crap: 7 },
+          { path: 'src/existing.js', method: 'f', crap: 5 },
+          { path: 'src/untouched.js', method: 'g', crap: 7 },
         ],
       });
       writeEnvelopeFile(writePath, env);
       return env;
     })();
     const priorByKey = new Map(
-      priorEnvelope.rows.map((r) => [
-        `${r.path}::${r.method}@${r.startLine}`,
-        r,
-      ]),
+      priorEnvelope.rows.map((r) => [`${r.path}::${r.method}`, r]),
     );
 
     await refreshBaseline({
@@ -339,7 +337,7 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
       ]),
     });
 
-    const parsed = JSON.parse(readFileSync(writePath, 'utf8'));
+    const parsed = loadFile(writePath, { kind: 'crap' });
     const paths = parsed.rows.map((r) => r.path);
     // The new file's method row is present.
     assert.ok(
@@ -351,7 +349,7 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
     assert.equal(newRow.method, 'h');
     // The out-of-scope row survives verbatim.
     const untouched = parsed.rows.find((r) => r.path === 'src/untouched.js');
-    assert.deepEqual(untouched, priorByKey.get('src/untouched.js::g@9'));
+    assert.deepEqual(untouched, priorByKey.get('src/untouched.js::g'));
   });
 
   it('AC-1+AC-4 (diff-scope, worktree-rooted): new file lands and out-of-scope rows are preserved', async () => {
@@ -431,22 +429,17 @@ describe('refreshBaseline — an in-scope file is re-scored, not preserved (#496
     rmSync(workDir, { recursive: true, force: true });
   });
 
-  it('replaces an in-scope file rows wholesale — coordinates and identities', async () => {
+  it('replaces an in-scope file rows wholesale — identities and scores', async () => {
     const writePath = path.join(workDir, 'baselines', 'crap.json');
     const priorEnvelope = seedPriorBaseline(
       writePath,
       [
-        // `edited.js` gained a function above these two, so both moved down
-        // AND the second one's derived identity changed with its scope.
-        {
-          path: 'src/edited.js',
-          method: '<anon host/(x)#0>',
-          anonymous: true,
-          startLine: 10,
-          crap: 4,
-        },
-        { path: 'src/edited.js', method: 'host', startLine: 8, crap: 3 },
-        { path: 'src/untouched.js', method: 'stable', startLine: 2, crap: 1 },
+        // `edited.js` gained a function above these two and `host` got
+        // worse; a stale method left with the edit.
+        { path: 'src/edited.js', method: '<anon host/(x)#0>', crap: 4 },
+        { path: 'src/edited.js', method: 'host', crap: 3 },
+        { path: 'src/edited.js', method: 'gone', crap: 9 },
+        { path: 'src/untouched.js', method: 'stable', crap: 1 },
       ],
       'crap',
     );
@@ -466,7 +459,7 @@ describe('refreshBaseline — an in-scope file is re-scored, not preserved (#496
           startLine: 24,
           crap: 4,
         },
-        { path: 'src/edited.js', method: 'host', startLine: 22, crap: 3 },
+        { path: 'src/edited.js', method: 'host', startLine: 22, crap: 5 },
         {
           path: 'src/edited.js',
           method: '<anon inserted/(y)#0>',
@@ -477,16 +470,15 @@ describe('refreshBaseline — an in-scope file is re-scored, not preserved (#496
       ]),
     });
 
-    const parsed = JSON.parse(readFileSync(writePath, 'utf8'));
+    const parsed = loadFile(writePath, { kind: 'crap' });
     const byKey = new Map(
       parsed.rows.map((r) => [`${r.path}::${r.method}`, r]),
     );
 
-    // The edited file's coordinates track the re-scan, NOT the prior bytes —
-    // even though the CRAP scores themselves did not move, which is exactly
-    // the case a value-only comparison would let slip through.
-    assert.equal(byKey.get('src/edited.js::<anon host/(x)#0>').startLine, 24);
-    assert.equal(byKey.get('src/edited.js::host').startLine, 22);
+    // The edited file's rows track the re-scan, NOT the prior bytes.
+    assert.equal(byKey.get('src/edited.js::<anon host/(x)#0>').crap, 4);
+    assert.equal(byKey.get('src/edited.js::host').crap, 5);
+    assert.ok(!byKey.has('src/edited.js::gone'));
     assert.ok(
       byKey.has('src/edited.js::<anon inserted/(y)#0>'),
       'a method the re-scan discovered must land in the baseline',

@@ -5,6 +5,7 @@
  * @module lib/orchestration/check-baselines/phases/refresh-ack
  */
 
+import { decodeEnvelope } from '../../../baselines/codec.js';
 import { resolveKindRefreshOverrides } from '../../../baselines/env-overrides.js';
 import {
   readBaseFromGit,
@@ -82,7 +83,7 @@ function readRowsAtRef(ref, baselinePath, cwd) {
   }
   if (raw === null) return { rows: [] };
   try {
-    const payload = JSON.parse(raw);
+    const payload = decodeEnvelope(JSON.parse(raw));
     return Array.isArray(payload?.rows) ? { rows: payload.rows } : null;
   } catch {
     return null;
@@ -114,7 +115,7 @@ function keysTouchedByCommit({ mod, rowsAtSha, rowsAtParent }) {
 /**
  * Classify head rows against a refresh commit's rows with the kind's own
  * `compare()` and tolerance. Keys always come out of `compare()`: `keyField`
- * is not the compare key (CRAP keys `path::method@startLine`). `ok` =
+ * is not the compare key (CRAP keys `path::method`). `ok` =
  * no worse since refresh; `drifted` = worse; additions are in neither.
  *
  * @returns {{ ok: string[], drifted: string[] } | null} null when the

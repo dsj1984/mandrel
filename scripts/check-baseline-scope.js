@@ -30,6 +30,7 @@
 import '../.agents/scripts/lib/runtime-deps/ensure-installed.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { decodeEnvelope } from '../.agents/scripts/lib/baselines/codec.js';
 import { _internals as readerInternals } from '../.agents/scripts/lib/baselines/reader.js';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import { getQuality } from '../.agents/scripts/lib/config/quality.js';
@@ -200,7 +201,7 @@ function baselinePathsFor({ cwd, kinds }) {
 function readRows({ cwd, kind }) {
   const abs = readerInternals.resolveBaselinePath(kind, { cwd });
   try {
-    const parsed = JSON.parse(fs.readFileSync(abs, 'utf8'));
+    const parsed = decodeEnvelope(JSON.parse(fs.readFileSync(abs, 'utf8')));
     return Array.isArray(parsed?.rows) ? parsed.rows : [];
   } catch {
     return null;

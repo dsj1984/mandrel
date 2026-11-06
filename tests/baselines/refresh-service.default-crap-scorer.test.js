@@ -62,7 +62,7 @@ function makeCoverageEntry(absPath) {
 }
 
 function rowKey(row) {
-  return `${row.file ?? row.path}::${row.method}@${row.startLine}`;
+  return `${row.file ?? row.path}::${row.method}`;
 }
 
 describe('refreshBaseline — default CRAP scorer honours config (Story #3694)', () => {
@@ -155,7 +155,7 @@ describe('refreshBaseline — default CRAP scorer honours config (Story #3694)',
       'fixture sanity: scanAndScore must produce at least one row',
     );
 
-    // Row sets must match by (file, method, startLine) — no silently dropped
+    // Row sets must match by (file, method) — no silently dropped
     // methods, no extra rows.
     const actualKeys = result.envelope.rows.map(rowKey).sort();
     const expectedKeys = expectedRows.map(rowKey).sort();

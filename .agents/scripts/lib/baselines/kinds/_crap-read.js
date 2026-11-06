@@ -40,30 +40,18 @@ function readCrapBaselineFromTree({ baselinePath, projectRoot } = {}) {
       typeof envelope.tsTranspilerVersion === 'string'
         ? envelope.tsTranspilerVersion
         : null,
-    provenanceStamped: envelope.provenanceStamped,
     rows: (envelope.rows ?? []).map(projectBaselineRow),
   };
 }
 
 /**
- * Re-key `path` to `file`, carrying `coordinateSystem` and `anonymous`
- * verbatim: dropping either breaks a compat axis or the comparator.
+ * Re-key `path` to `file`, the field the comparator matches on.
  *
- * @param {{path: string, method: string, startLine: number, crap: number,
- *   coordinateSystem?: string, anonymous?: boolean}} row
- * @returns {object}
+ * @param {{path: string, method: string, crap: number}} row
+ * @returns {{file: string, method: string, crap: number}}
  */
 function projectBaselineRow(row) {
-  return {
-    crap: row.crap,
-    file: row.path,
-    method: row.method,
-    startLine: row.startLine,
-    ...(row.coordinateSystem === undefined
-      ? {}
-      : { coordinateSystem: row.coordinateSystem }),
-    ...(row.anonymous === undefined ? {} : { anonymous: row.anonymous }),
-  };
+  return { crap: row.crap, file: row.path, method: row.method };
 }
 
 /**

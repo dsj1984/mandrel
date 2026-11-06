@@ -198,13 +198,8 @@ describe('mergeEnvelopes — CRAP sibling rows (AC-3)', () => {
   });
 
   // Two methods in ONE file: same `path` (the keyField), different identity.
-  const sibling = {
-    path: 'a/b.js',
-    method: 'sibling',
-    startLine: 40,
-    crap: 12,
-  };
-  const target = { path: 'a/b.js', method: 'target', startLine: 7, crap: 3 };
+  const sibling = { path: 'a/b.js', method: 'sibling', crap: 12 };
+  const target = { path: 'a/b.js', method: 'target', crap: 3 };
 
   const base = crapEnvelope([target, sibling]);
   const ours = crapEnvelope([{ ...target, crap: 9 }, sibling]);
@@ -216,8 +211,8 @@ describe('mergeEnvelopes — CRAP sibling rows (AC-3)', () => {
     const byIdentity = Object.fromEntries(
       envelope.rows.map((r) => [mod.rowIdentity(r), r]),
     );
-    assert.equal(byIdentity['a/b.js::target@7'].crap, 9);
-    assert.deepEqual(byIdentity['a/b.js::sibling@40'], sibling);
+    assert.equal(byIdentity['a/b.js::target'].crap, 9);
+    assert.deepEqual(byIdentity['a/b.js::sibling'], sibling);
   });
 
   it('rejects a side whose rows collide on identity', () => {
