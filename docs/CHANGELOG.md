@@ -15,6 +15,16 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.111.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.110.0...mandrel-v2.111.0) (2026-11-06)
+
+
+### Added
+
+* add /audit-state-machines: a read-only lens that finds implicit state machines and the impossible states they can reach ([#5952](https://github.com/dsj1984/mandrel/issues/5952)) ([#5953](https://github.com/dsj1984/mandrel/issues/5953)) ([8ef0489](https://github.com/dsj1984/mandrel/commit/8ef0489c4a464726439a4575bb25574baa79694d))
+* CI digest blames the failed run, not a same-name green one; add an audited governance-label recovery verdict ([#5945](https://github.com/dsj1984/mandrel/issues/5945)) ([#5946](https://github.com/dsj1984/mandrel/issues/5946)) ([1839f9d](https://github.com/dsj1984/mandrel/commit/1839f9df7d6d9482f9ad038ce6c11ea102508cf6))
+* coverage-capture: a consumer-declared over-budget slice defers to CI instead of timing out handoff and close ([#5949](https://github.com/dsj1984/mandrel/issues/5949)) ([#5951](https://github.com/dsj1984/mandrel/issues/5951)) ([7ee6b55](https://github.com/dsj1984/mandrel/commit/7ee6b556667e375d6272b91ffc94160f481dfcf8))
+* plan-persist: keep a source ticket's trailing HTML-comment marker line when rewriting it in place ([#5948](https://github.com/dsj1984/mandrel/issues/5948)) ([#5950](https://github.com/dsj1984/mandrel/issues/5950)) ([1afdfa3](https://github.com/dsj1984/mandrel/commit/1afdfa324452c36a44477c50228051e046fc225d))
+
 ## [2.110.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.109.0...mandrel-v2.110.0) (2026-11-05)
 
 
