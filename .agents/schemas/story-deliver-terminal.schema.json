@@ -173,7 +173,12 @@
       "description": "Present iff status === \"failed\".",
       "required": ["reason"],
       "properties": {
-        "reason": { "type": "string", "minLength": 1 }
+        "reason": { "type": "string", "minLength": 1 },
+        "baselinesKinds": {
+          "type": "array",
+          "description": "Story #5956 — the check-baselines kinds that reported FAIL when close failed on a baselines entry; omitted when no kind line parsed.",
+          "items": { "type": "string", "minLength": 1 }
+        }
       },
       "additionalProperties": false
     },

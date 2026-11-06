@@ -14,7 +14,10 @@ import {
   sourcedTimings,
   summarizeLockEvents,
 } from '../../../close-lock-events.js';
-import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
+import {
+  BASELINES_GATE_NAMES,
+  buildDefaultGates as defaultBuildDefaultGates,
+} from '../../../close-validation/gates.js';
 import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
 import { applyTestDelta as defaultApplyTestDelta } from '../../../close-validation/test-delta.js';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../../full-suite-lock.js';
@@ -192,6 +195,13 @@ async function runGateChain({
  * }} args
  * @returns {{ gates: null, lockWait: object, suiteTimings: null, pending: true }}
  */
+/** A failed check-baselines entry names the kinds its output reported FAIL. */
+function tagBaselinesKinds(err, gateName, gateLog) {
+  if (!Object.values(BASELINES_GATE_NAMES).includes(gateName)) return;
+  const kinds = gateLog.baselinesKinds();
+  if (kinds.length > 0) err.closeBaselinesKinds = kinds;
+}
+
 function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
   const [first] = validation.failed;
   const { gate, status, cwd: gateCwd } = first;
@@ -208,6 +218,7 @@ function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
       (gate.hint ? ` ${gate.hint}` : ''),
   );
   err.closeGate = gate.name;
+  tagBaselinesKinds(err, gate.name, gateLog);
   throw err;
 }
 
