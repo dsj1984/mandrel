@@ -7,9 +7,25 @@ import { resolveReviewHalt } from './review-halt.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
+/** What `ensurePullRequestWith` needs from the close context. */
+function pullRequestArgs(ctx, deps) {
+  const { options, story, storyId, storyBranch, baseBranch, prePush } = ctx;
+  return {
+    cwd: options.cwd,
+    storyId,
+    storyTitle: story.title,
+    storyBody: story.body,
+    storyBranch,
+    baseBranch,
+    config: deps.config,
+    gh: deps.gh,
+    progress,
+    coverageDeferred: prePush.coverageDeferred,
+  };
+}
+
 export async function openAndReviewPr(ctx, deps) {
-  const { options, worktreePath, story, storyId, storyBranch, baseBranch } =
-    ctx;
+  const { options, worktreePath, storyId, storyBranch, baseBranch } = ctx;
   const { cwd } = options;
   ctx.setPhase('push');
   // Push from the worktree so `pre-push` measures the tree being sent; the
@@ -22,17 +38,9 @@ export async function openAndReviewPr(ctx, deps) {
     progress,
   });
   ctx.setPhase('pull-request');
-  const { url: prUrl, alreadyMerged } = await ensurePullRequestWith({
-    cwd,
-    storyId,
-    storyTitle: story.title,
-    storyBody: story.body,
-    storyBranch,
-    baseBranch,
-    config: deps.config,
-    gh: deps.gh,
-    progress,
-  });
+  const { url: prUrl, alreadyMerged } = await ensurePullRequestWith(
+    pullRequestArgs(ctx, deps),
+  );
   const prNumber = parsePrNumber(prUrl);
   ctx.recordPrNumber(prNumber);
   // Already merged (landed between invocations): skip review and arm; confirm observes it.

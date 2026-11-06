@@ -4,7 +4,10 @@
  */
 
 import { getQuality } from '../config/quality.js';
-import { COVERAGE_TIMEOUT_EXIT_CODE } from '../coverage-capture.js';
+import {
+  COVERAGE_OVER_BUDGET_EXIT_CODE,
+  COVERAGE_TIMEOUT_EXIT_CODE,
+} from '../coverage-capture.js';
 import {
   fullSuiteLockPolicy,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -20,7 +23,13 @@ import {
   isFormatterEligible,
   listChangedFilesForFormatGate,
 } from './commands.js';
-import { DEFAULT_GATES, GATE_TIMEOUT_HINT, partitionGates } from './gates.js';
+import {
+  COVERAGE_DEFERRED_SKIP_REASON,
+  DEFAULT_GATES,
+  GATE_TIMEOUT_HINT,
+  OVER_BUDGET_BLOCK_HINT,
+  partitionGates,
+} from './gates.js';
 import { defaultGateRunner } from './process.js';
 import { runProjectionAdvisories as defaultRunProjections } from './projections/advisories.js';
 import { defaultGetHeadSha } from './projections/head-sha.js';
@@ -30,15 +39,19 @@ import { defaultGetHeadSha } from './projections/head-sha.js';
 /**
  * Classify a non-zero gate exit and log it as what it is: `75` is an expired
  * full-suite lock wait (nothing ran), `124` a killed suite (no verdict), and
- * anything else a real failure with the gate's own hint. Returns the
+ * `76` an over-budget capture the policy blocks (a deferring gate never gets
+ * here), and anything else a real failure with the gate's own hint. Returns the
  * `failed[]` entry, carrying `outcome` so callers never re-derive it; its
  * `gate.hint` is the one that fits the outcome (none when deferred), so a
  * caller replaying it never prints the failing-tests hint for a non-failure.
  *
  * @param {{ gate: Gate, status: number, cwd: string, log: (m: string) => void }} args
- * @returns {{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'failed' }}
+ * @returns {{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'failed' }}
  */
 function reportGateExit({ gate, status, cwd, log }) {
+  if (isBlockedOverBudget(gate, status)) {
+    return reportOverBudget({ gate, status, cwd, log });
+  }
   if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
     log(
       `[close-validation] ⏸ ${gate.name} deferred (exit ${status}) — the full-suite lock wait expired, so nothing ran in ${cwd}`,
@@ -138,8 +151,10 @@ export function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   shouldSkip?: typeof defaultShouldSkip,
  * }} opts An expired full-suite lock wait spawns nothing (here or in any gate
  *   child) and reports `LOCK_WAIT_EXPIRED_EXIT_CODE`.
- * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }> }}
- *   `outcome` classifies the exit: `deferred` (75), `timeout` (124), else `failed`.
+ * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }>, deferred: Array<{ gate: Gate, status: number, reason: 'over-budget' }> }}
+ *   `outcome` classifies the exit: `deferred` (75), `timeout` (124),
+ *   `over-budget` (76 under `block`), else `failed`. `deferred[]` holds a
+ *   `deferOnOverBudget` gate that exited 76: not a failure, no evidence.
  */
 export async function runCloseValidation({
   cwd,
@@ -164,6 +179,7 @@ export async function runCloseValidation({
   shouldSkip = defaultShouldSkip,
 } = {}) {
   const failed = [];
+  const deferred = [];
   const lockOpts = fullSuiteLockOptions({ config, lockEvents });
   const skipped = [];
   const evidenceActive = useEvidence && storyId != null && standalone;
@@ -327,7 +343,7 @@ export async function runCloseValidation({
   if (firstIndepFailure) {
     const { gate, status } = firstIndepFailure;
     failed.push(reportGateExit({ gate, status, cwd: spawnCwd, log }));
-    return { ok: false, failed, skipped };
+    return { ok: false, failed, skipped, deferred };
   }
 
   await runSerialGates(serial, {
@@ -335,6 +351,7 @@ export async function runCloseValidation({
     log,
     failed,
     skipped,
+    deferred,
     evidenceActive,
     evidenceClock,
     evidenceVerdict,
@@ -353,7 +370,7 @@ export async function runCloseValidation({
     });
   }
 
-  return { ok: failed.length === 0, failed, skipped };
+  return { ok: failed.length === 0, failed, skipped, deferred };
 }
 
 /** The gate's `evidenceIdentity` argv hash, else its spawned argv's. */
@@ -428,6 +445,7 @@ async function runSerialGates(
     log,
     failed,
     skipped,
+    deferred,
     evidenceActive,
     evidenceClock,
     evidenceVerdict,
@@ -439,6 +457,7 @@ async function runSerialGates(
     failed.push(reportGateExit({ gate, status, cwd: spawnCwd, log }));
   };
   for (const gate of serial) {
+    if (skipAfterDeferral(gate, { deferred, skipped, log })) continue;
     let execution;
     try {
       execution = applyChangedFileScope({ gate, spawnCwd, log });
@@ -473,6 +492,9 @@ async function runSerialGates(
       undefined,
       configHash,
     );
+    if (deferOverBudget(gate, result.status, { deferred, log, spawnCwd })) {
+      continue;
+    }
     if (result.status !== 0) {
       failGate(gate, result.status);
       return;
@@ -484,6 +506,61 @@ async function runSerialGates(
       evidenceActive ? evidenceClock() - startedAt : 0,
     );
   }
+}
+
+/** @param {Gate} gate @param {number} status */
+function isDeferredOverBudget(gate, status) {
+  return status === COVERAGE_OVER_BUDGET_EXIT_CODE && gate.deferOnOverBudget;
+}
+
+/** A capture exit 76 the policy blocks. @param {Gate} gate @param {number} status */
+function isBlockedOverBudget(gate, status) {
+  return (
+    status === COVERAGE_OVER_BUDGET_EXIT_CODE &&
+    gate.name === 'coverage-capture'
+  );
+}
+
+/** @param {{ gate: Gate, status: number, cwd: string, log: (m: string) => void }} args */
+function reportOverBudget({ gate, status, cwd, log }) {
+  log(
+    `[close-validation] ✖ ${gate.name} over budget (exit ${status}) — the capture ran no tests in ${cwd}`,
+  );
+  log(`[close-validation]   hint: ${OVER_BUDGET_BLOCK_HINT}`);
+  return {
+    gate: { ...gate, hint: OVER_BUDGET_BLOCK_HINT },
+    status,
+    cwd,
+    outcome: 'over-budget',
+  };
+}
+
+/**
+ * After a deferral, record a coverage-reading gate as skipped.
+ *
+ * @returns {boolean} `true` when the gate was skipped.
+ */
+function skipAfterDeferral(gate, { deferred, skipped, log }) {
+  if (deferred.length === 0 || !gate.readsCoverageArtifact) return false;
+  log(
+    `[close-validation] ⏭ ${gate.name} skipped (${COVERAGE_DEFERRED_SKIP_REASON})`,
+  );
+  skipped.push({ gate, reason: COVERAGE_DEFERRED_SKIP_REASON });
+  return true;
+}
+
+/**
+ * Record a flagged capture's exit 76 as deferred to CI.
+ *
+ * @returns {boolean} `true` when the exit was a deferral.
+ */
+function deferOverBudget(gate, status, { deferred, log, spawnCwd }) {
+  if (!isDeferredOverBudget(gate, status)) return false;
+  log(
+    `[close-validation] ⏭ ${gate.name} deferred to CI (exit ${status}, onOverBudget: defer-to-ci) — no suite ran in ${spawnCwd}`,
+  );
+  deferred.push({ gate, status, reason: 'over-budget' });
+  return true;
 }
 
 /**

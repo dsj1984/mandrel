@@ -363,6 +363,7 @@ function landedPrePush(ctx) {
     lockWait: null,
     suiteTimings: null,
     pending: false,
+    coverageDeferred: false,
   };
   return null;
 }

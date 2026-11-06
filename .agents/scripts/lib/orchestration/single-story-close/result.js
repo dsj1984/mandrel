@@ -164,6 +164,10 @@ function baselinesEnvelopeGates(validationGates) {
   for (const [name, outcome] of Object.entries(validationGates ?? {})) {
     if (registered.includes(name)) out[name] = outcome;
   }
+  // A capture deferred to CI is the one gate outcome a reviewer must see.
+  if (validationGates?.['coverage-capture'] === 'deferred') {
+    out['coverage-capture'] = 'deferred';
+  }
   return out;
 }
 
