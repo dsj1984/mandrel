@@ -407,35 +407,10 @@ async function stepPreflight(ctx) {
     );
   }
   const findings = [];
-  const covered = [];
-  let lint = null;
+  const pass = { checks, lint: null, covered: [] };
   for (const check of checks) {
-    const cover = lintCovers(check, checks, lint);
-    if (cover === 'covered') {
-      covered.push(check.key);
-      ctx.progress(
-        name,
-        `⏭ ${check.key} covered by lint (delivery.quality.ratchets.coveredByLint)`,
-      );
-    }
-    if (cover) continue;
-    const run = await runLogged(
-      ctx,
-      `preflight-${check.key}`,
-      check.cmd,
-      check.args,
-    );
-    const detail = preflightFinding(check, run);
-    if (check.key === 'lint') lint = detail ? 'failed' : 'passed';
-    if (detail) {
-      findings.push({
-        check: check.key,
-        detail,
-        evidencePath: run.evidencePath,
-      });
-    } else {
-      creditCheck(ctx, check);
-    }
+    const finding = await runPreflightCheck(ctx, check, pass);
+    if (finding) findings.push(finding);
   }
   if (findings.length > 0) {
     return fixRequired(name, findings.map((f) => f.detail).join('\n'), {
@@ -444,10 +419,38 @@ async function stepPreflight(ctx) {
     });
   }
   ctx.state.preflightHead = ctx.head;
-  const clean = checks.map((c) => c.key).filter((k) => !covered.includes(k));
-  const coveredNote =
-    covered.length > 0 ? `; covered by lint: ${covered.join(', ')}` : '';
-  return ran(name, `${clean.join(', ')} clean${coveredNote}`);
+  return ran(name, preflightSummary(pass));
+}
+
+/**
+ * Runs one check unless this pass's lint covers it; records the lint result
+ * and credits a passed check.
+ *
+ * @returns {Promise<{ check: string, detail: string, evidencePath?: string }|null>}
+ */
+async function runPreflightCheck(ctx, check, pass) {
+  const cover = lintCovers(check, pass);
+  if (cover === 'covered') {
+    pass.covered.push(check.key);
+    ctx.progress(
+      'preflight',
+      `⏭ ${check.key} covered by lint (delivery.quality.ratchets.coveredByLint)`,
+    );
+  }
+  if (cover) return null;
+  const run = await runLogged(
+    ctx,
+    `preflight-${check.key}`,
+    check.cmd,
+    check.args,
+  );
+  const detail = preflightFinding(check, run);
+  if (check.key === 'lint') pass.lint = detail ? 'failed' : 'passed';
+  if (!detail) {
+    creditCheck(ctx, check);
+    return null;
+  }
+  return { check: check.key, detail, evidencePath: run.evidencePath };
 }
 
 /**
@@ -456,14 +459,21 @@ async function stepPreflight(ctx) {
  * else — no such lint, or not yet reached — runs the ratchet.
  *
  * @param {{ key: string, coveredByLint?: boolean }} check
- * @param {Array<{ key: string, wholeTree?: boolean }>} checks
- * @param {'passed'|'failed'|null} lint this pass's recorded lint result.
+ * @param {{ checks: Array<{ key: string, wholeTree?: boolean }>, lint: 'passed'|'failed'|null }} pass
  * @returns {'covered'|'lint-failed'|null}
  */
-function lintCovers(check, checks, lint) {
+function lintCovers(check, { checks, lint }) {
   if (!check.coveredByLint || lint === null) return null;
   if (!checks.some((c) => c.key === 'lint' && c.wholeTree)) return null;
   return lint === 'passed' ? 'covered' : 'lint-failed';
+}
+
+/** The clean checks, then the ratchets lint covered, named apart. */
+function preflightSummary({ checks, covered }) {
+  const clean = checks.map((c) => c.key).filter((k) => !covered.includes(k));
+  const note =
+    covered.length > 0 ? `; covered by lint: ${covered.join(', ')}` : '';
+  return `${clean.join(', ')} clean${note}`;
 }
 
 /** A held `lint` waits for the post-seat checks; any other check credits now. */
