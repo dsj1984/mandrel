@@ -404,6 +404,8 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
       [[4561, 'story-4561', 'main', '/repo']],
       'the land tail runs on the sweep path (Story #5705)',
     );
+    // Story #5975: the sweep hands the tail the PR for its review record.
+    assert.equal(tail.ran[0].prNumber, 4573);
     assert.deepEqual(out, { ok: true, reconciled: [4561], skipped: [] });
     const labelWrites = provider.updates.filter((u) => u.patch.labels);
     assert.equal(labelWrites.length, 1);
@@ -607,6 +609,7 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
           }),
           reapWorktreePhaseFn: async () => ({ ok: true }),
           purgeStoryTempArtifactsFn: async () => ({ ok: true }),
+          recordLandReviewFn: async () => ({ ok: true, detail: 'stub' }),
           releaseStoryLeaseFn: async ({ storyId }) => {
             released.push(storyId);
             return { ok: true };
