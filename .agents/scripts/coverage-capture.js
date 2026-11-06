@@ -18,7 +18,7 @@
  * script declared its slice over this host's budget, nothing ran or was
  * stamped (callers settle it by `coverage.onOverBudget`); 124 suite timed out.
  */
-import { getChangedFiles } from './lib/changed-files.js';
+import { getChangedFiles, resolveCaptureBaseRef } from './lib/changed-files.js';
 import { isDirectInvocation } from './lib/cli-utils.js';
 import { claimLockEventSink, lockEventHooks } from './lib/close-lock-events.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
@@ -45,7 +45,7 @@ import { hasNpmScript, readPackageScripts } from './lib/npm-scripts.js';
 import { formatSuiteTimings } from './lib/supervised-suite.js';
 
 /**
- * A `null` ref defers the fallback to `resolveChangedFilesRef`.
+ * A `null` ref defers the fallback to `resolveCaptureBaseRef`.
  * @param {string[]} argv
  * @returns {{ skipWhenNoCrapFiles: boolean, requireCredited: boolean, ref: string | null, cwd: string }}
  */
@@ -72,6 +72,7 @@ export function parseArgs(argv) {
  *   resolveConfigImpl?: typeof resolveConfig,
  *   getQualityImpl?: typeof getQuality,
  *   getChangedFilesImpl?: typeof getChangedFiles,
+ *   resolveBaseRefImpl?: typeof resolveCaptureBaseRef,
  *   readPackageScriptsImpl?: typeof readPackageScripts,
  *   hasNpmScriptImpl?: typeof hasNpmScript,
  *   isCoverageFreshImpl?: typeof isCoverageFresh,
@@ -106,7 +107,6 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   const lockHooks = lockEventHooks(claimLockEventSink(env));
   const args = parseArgs(argv);
   const config = resolveConfigImpl({ cwd: args.cwd });
-  args.baseBranchRef = `origin/${config?.project?.baseBranch ?? 'main'}`;
   const { crap, coverage } = captureGates(getQualityImpl(config));
   const scripts = readPackageScriptsImpl(args.cwd);
   const refused = captureRefusal({
@@ -117,6 +117,7 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
     logger,
   });
   if (refused !== null) return refused;
+  resolveRunRefs({ crap, args, config, deps, logger });
 
   // Outermost first: the credit probe announces or refuses the run, and only
   // a surviving run reaches the host-level full-suite lock.
@@ -164,6 +165,37 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   if (timings) reportTimings(timings, logger, lockHooks);
   return code;
 }
+
+/**
+ * Resolves the changed-files ref once so every pass, and the affected
+ * script's `MANDREL_COVERAGE_BASE_REF`, measures against the same ref.
+ */
+function resolveRunRefs({ crap, args, config, deps, logger }) {
+  const baseBranch = config?.project?.baseBranch;
+  args.baseBranchRef = `origin/${baseBranch ?? 'main'}`;
+  const resolve = deps.resolveBaseRefImpl ?? resolveCaptureBaseRef;
+  const resolved = resolve({ crap, ref: args.ref, baseBranch, cwd: args.cwd });
+  args.ref = resolved.ref;
+  logRunRef(resolved, logger);
+}
+
+function logRunRef({ ref, source, unresolved }, logger) {
+  if (source === 'local-fallback') {
+    logger.warn(
+      `[coverage-capture] ⚠ ${unresolved} does not resolve in this clone — measuring changed files against the local ${ref} instead.`,
+    );
+    return;
+  }
+  logger.info(
+    `[coverage-capture] Changed files measured against ${ref} (${SOURCE_LABELS[source]}).`,
+  );
+}
+
+const SOURCE_LABELS = {
+  flag: '--ref',
+  config: 'incrementalCoverage.baseRef',
+  remote: 'default: origin/<baseBranch>',
+};
 
 /**
  * The credited runner, failing a green run that wrote no artifact at the

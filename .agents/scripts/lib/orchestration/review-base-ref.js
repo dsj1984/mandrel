@@ -5,19 +5,19 @@
  * review arm. Unresolvable fails safe: a degradation record, no findings.
  */
 
+import { remoteBaseRef as sharedRemoteBaseRef } from '../changed-files.js';
 import { gitSpawn } from '../git-utils.js';
 import { degradationEnvelope } from './review-providers/degraded-gates.js';
 
 /**
- * `main` → `origin/main`; already-qualified input passes through.
+ * Re-export of the shared spelling in `changed-files.js`, kept for review
+ * importers.
  *
  * @param {unknown} baseBranch
- * @returns {string|null} the remote-tracking ref, or `null` when unnameable.
+ * @returns {string|null}
  */
 export function remoteBaseRef(baseBranch) {
-  const base = typeof baseBranch === 'string' ? baseBranch.trim() : '';
-  if (base.length === 0) return null;
-  return base.startsWith('origin/') ? base : `origin/${base}`;
+  return sharedRemoteBaseRef(baseBranch);
 }
 
 /**

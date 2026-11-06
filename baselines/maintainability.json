@@ -424,11 +424,11 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
-      "mi": 110.76
+      "mi": 115.048
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
-      "mi": 100.874
+      "mi": 102.231
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
@@ -1180,7 +1180,7 @@
     },
     {
       "path": ".agents/scripts/lib/observability/review-dispositions.js",
-      "mi": 104.967
+      "mi": 105.509
     },
     {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
@@ -1292,7 +1292,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "mi": 95.065
+      "mi": 96.2
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
@@ -1632,7 +1632,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-base-ref.js",
-      "mi": 100.527
+      "mi": 103.447
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
@@ -1672,7 +1672,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/critical-verifier.js",
-      "mi": 98.465
+      "mi": 99.844
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/degraded-gates.js",
@@ -1680,11 +1680,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/finding-identity.js",
-      "mi": 110.2
+      "mi": 112.022
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
-      "mi": 103.835
+      "mi": 104.683
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/generated-diff.js",

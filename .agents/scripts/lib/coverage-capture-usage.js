@@ -26,7 +26,7 @@ const COVERAGE_CAPTURE_USAGE = {
     ],
     [
       '--ref <git-ref>',
-      'Git ref the changed-file set is computed against. Passing it wins over delivery.quality.gates.crap.incrementalCoverage.baseRef, so a caller that anchors another gate on the same ref gets one scope for both.',
+      'Git ref the changed-file set is computed against. Passing it wins over delivery.quality.gates.crap.incrementalCoverage.baseRef, so a caller that anchors another gate on the same ref gets one scope for both. Default: origin/<project.baseBranch> (local <project.baseBranch> with a warning when the remote ref does not resolve).',
     ],
     ['--cwd <path>', 'Repository root the capture runs in.'],
   ],

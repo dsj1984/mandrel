@@ -192,3 +192,46 @@ test('the ledger rotates to one .1 generation at 1 MB', async (t) => {
   assert.ok(fs.existsSync(`${ledger}.1`));
   assert.equal(fs.readFileSync(ledger, 'utf8').trim().split('\n').length, 1);
 });
+
+test('#5974 AC-8: re-check outcomes map to refuted-by-verifier and fixed-on-branch; a carried CRITICAL is open-at-merge', async (t) => {
+  const { config, ledger } = setup(t);
+  const refuted = finding('rechecked-refuted', { severity: 'critical' });
+  const fixed = finding('rechecked-fixed', { severity: 'critical' });
+  const carried = finding('carried', { severity: 'critical' });
+  appendReviewRun(
+    11,
+    { headSha: 'a', findings: [refuted, fixed, carried] },
+    { config },
+  );
+  appendReviewRun(
+    11,
+    {
+      headSha: 'b',
+      findings: [{ ...carried, carried: 'uncertain' }],
+      earlierCriticals: [
+        { id: findingId(refuted), status: 'refuted', reason: 'guarded' },
+        { id: findingId(fixed), status: 'fixed', reason: 'gone' },
+        { id: findingId(carried), status: 'still-open', reason: 'uncertain' },
+      ],
+    },
+    { config },
+  );
+  appendReviewRun(
+    11,
+    { headSha: 'c', findings: [{ ...carried, carried: 'uncertain' }] },
+    { config },
+  );
+  await recordStoryDispositions({ storyId: 11, config, now });
+  const text = fs.readFileSync(ledger, 'utf8');
+  const by = Object.fromEntries(
+    text
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l))
+      .map((r) => [r.findingId, r.disposition]),
+  );
+  assert.equal(by[findingId(refuted)], 'refuted-by-verifier');
+  assert.equal(by[findingId(fixed)], 'fixed-on-branch');
+  assert.equal(by[findingId(carried)], 'open-at-merge');
+  assert.doesNotMatch(text, /SECRET|secret-path|src\/|guarded|uncertain/);
+});
