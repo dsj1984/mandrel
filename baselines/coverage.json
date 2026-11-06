@@ -130,8 +130,8 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "lines": 98.33,
-      "branches": 96.88,
+      "lines": 98.41,
+      "branches": 97.06,
       "functions": 90
     },
     {
@@ -1030,8 +1030,8 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "lines": 98.85,
-      "branches": 94.7,
+      "lines": 98.95,
+      "branches": 95.27,
       "functions": 100
     },
     {
@@ -1084,8 +1084,8 @@
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
-      "lines": 96.48,
-      "branches": 90.16,
+      "lines": 96.52,
+      "branches": 90.77,
       "functions": 100
     },
     {
@@ -1276,8 +1276,8 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "lines": 99.79,
-      "branches": 95.69,
+      "lines": 99.8,
+      "branches": 95.83,
       "functions": 100
     },
     {
@@ -1349,7 +1349,7 @@
     {
       "path": ".agents/scripts/lib/coverage-capture-delta.js",
       "lines": 100,
-      "branches": 85.29,
+      "branches": 90.16,
       "functions": 100
     },
     {
@@ -1663,6 +1663,12 @@
       "lines": 96.96,
       "branches": 90,
       "functions": 95.45
+    },
+    {
+      "path": ".agents/scripts/lib/git/base-sync-probe.js",
+      "lines": 100,
+      "branches": 89.06,
+      "functions": 90.91
     },
     {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
@@ -2663,8 +2669,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
       "lines": 100,
-      "branches": 88,
-      "functions": 93.75
+      "branches": 88.46,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
@@ -2837,7 +2843,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "lines": 100,
-      "branches": 92.86,
+      "branches": 93.02,
       "functions": 92.59
     },
     {
@@ -2914,9 +2920,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 97.71,
-      "branches": 85.94,
-      "functions": 97.87
+      "lines": 97.75,
+      "branches": 86.72,
+      "functions": 97.92
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
@@ -3787,6 +3793,12 @@
       "lines": 96.69,
       "branches": 100,
       "functions": 80
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "lines": 100,
+      "branches": 92.08,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/single-story-close.js",

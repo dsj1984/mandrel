@@ -253,7 +253,10 @@ describe('tryScopedCapture — capture', () => {
     });
     assert.equal(await tryScopedCapture(h.opts), 0);
     assert.equal(h.calls.capture[0].env[COVERAGE_BASE_REF_ENV], 'main');
-    assert.match(h.log.info.join('\n'), /not eligible \(worktree is dirty\)/);
+    assert.match(
+      h.log.info.join('\n'),
+      /not eligible \(worktree is dirty; rule: precondition\)/,
+    );
   });
 
   it('fails closed when the scoped run wrote no artifact', async () => {

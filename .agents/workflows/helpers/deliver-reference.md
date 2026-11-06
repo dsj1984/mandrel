@@ -481,9 +481,13 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   provider chain) against `origin/<baseBranch>...story-<id>`, posts nothing,
   takes no full-suite lock, and writes
   `temp/orchestration/story-review-<id>.json` beside the terminal envelope,
-  keyed on the **diff digest** (sha256 of the three-dot diff with every
-  `linguist-generated` section removed; a failed attribute lookup hashes it
-  whole). It never stops the handoff on a provider throw — the step reports
+  keyed on the **diff digest**: sha256 of the three-dot diff with every
+  `linguist-generated` section removed (a failed attribute lookup keeps them),
+  every `index` line dropped and every hunk header reduced to a bare `@@`
+  (offsets and function-context trailer gone) — `git patch-id --stable`'s
+  sameness. Every `+`, `-`, context, path and mode line still counts, so a
+  change a reviewer could see moves it; the reviewer itself still gets the
+  raw diff. It never stops the handoff on a provider throw — the step reports
   `error` and close computes the review itself.
 - **A CRITICAL is the worker's to fix.** The handoff settles `fix-required`
   naming the deposit. One that lands while the credited run is in flight
@@ -495,13 +499,18 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   re-computes) — the acceptance loop's redraft discipline, bounded by
   `delivery.acceptanceEval.maxRounds`. Still CRITICAL at the cap → take the
   blocked path. Anything else goes in the hand-off as the severity tally.
-- **Close adopts, else computes.** When the deposit's digest equals the
-  digest of the diff at close's held-review start, close starts no review and
-  posts the deposit after PR-open. A clean base-sync merge or a seat commit
-  that writes only generated baselines keeps the deposit; a commit that
-  changes a reviewed path does not, and close reviews as it would without
-  one. The CRITICAL halt and `--override-review-block` apply to an adopted
-  result unchanged.
+- **Close adopts, else computes — and deposits.** When the deposit's digest
+  equals the digest of the diff at close's held-review start, close starts no
+  review and posts the deposit after PR-open. A base-sync merge that moves
+  only offsets or `index` lines, or a seat commit that writes only generated
+  baselines, keeps the deposit; a commit that changes a reviewed line does
+  not, and close reviews as it would without one. Close deposits every
+  non-degraded review it computes, keyed on the SHA it reviewed: the held
+  review when it settles (posted or discarded alike) and the serial post-PR
+  review before it posts — so a retry on the same diff adopts it. A degraded
+  result is never deposited, and a failed write is one `REVIEW` warning. The
+  CRITICAL halt and `--override-review-block` apply to an adopted result
+  unchanged.
 
 ## Gate output {#gate-output}
 

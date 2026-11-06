@@ -32,6 +32,7 @@ function closeGates(ctx) {
   return buildDefaultGates({
     config: ctx.config,
     baseBranch: ctx.baseBranch,
+    baselineRef: ctx.baselineRef,
     cwd: ctx.cwd,
     evidenceCwd: ctx.evidenceCwd,
     storyId: ctx.storyId,

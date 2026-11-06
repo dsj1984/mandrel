@@ -321,6 +321,7 @@ async function runAffectedCapture({
     ref,
     fsImpl,
     classifyDeltaRefreshImpl,
+    coverage: rest.coverage,
     logger,
   });
   return captureAndMerge({
