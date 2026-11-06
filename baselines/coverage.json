@@ -135,6 +135,12 @@
       "functions": 90
     },
     {
+      "path": ".agents/scripts/coverage-ratchet.js",
+      "lines": 72.64,
+      "branches": 40,
+      "functions": 50
+    },
+    {
       "path": ".agents/scripts/deliver-light.js",
       "lines": 95.44,
       "branches": 75,
@@ -1023,6 +1029,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/close-validation/ci-deferral.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "lines": 85.05,
       "branches": 90.91,
@@ -1030,8 +1042,8 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "lines": 98.95,
-      "branches": 95.27,
+      "lines": 99,
+      "branches": 97.33,
       "functions": 100
     },
     {
@@ -1072,9 +1084,9 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "lines": 93.05,
-      "branches": 86.78,
-      "functions": 89.47
+      "lines": 94.32,
+      "branches": 89.74,
+      "functions": 93.1
     },
     {
       "path": ".agents/scripts/lib/close-validation/test-delta.js",
@@ -1380,6 +1392,18 @@
       "path": ".agents/scripts/lib/coverage-capture.js",
       "lines": 99.23,
       "branches": 90.59,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-deferral.js",
+      "lines": 100,
+      "branches": 90,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "lines": 100,
+      "branches": 86.96,
       "functions": 100
     },
     {
@@ -2175,6 +2199,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/handoff-suite-of-record.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
       "lines": 100,
       "branches": 92.86,
@@ -2687,7 +2717,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "lines": 100,
-      "branches": 97.56,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2741,7 +2771,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "lines": 100,
-      "branches": 84.38,
+      "branches": 85.29,
       "functions": 100
     },
     {
@@ -2938,9 +2968,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 98.53,
-      "branches": 87.71,
-      "functions": 98.28
+      "lines": 98.64,
+      "branches": 88.38,
+      "functions": 98.48
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
@@ -3213,6 +3243,12 @@
       "functions": 97.5
     },
     {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "lines": 95.59,
+      "branches": 90.7,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/single-story/confirm-and-land.js",
       "lines": 100,
       "branches": 100,
@@ -3221,7 +3257,7 @@
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
       "lines": 100,
-      "branches": 95.83,
+      "branches": 96.23,
       "functions": 100
     },
     {
@@ -3838,9 +3874,9 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "lines": 96.2,
-      "branches": 84.71,
-      "functions": 95
+      "lines": 97.78,
+      "branches": 85.56,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/single-story-init.js",
@@ -3969,9 +4005,21 @@
       "functions": 100
     },
     {
+      "path": "lib/cli/doctor-checks/coverage-ratchet.js",
+      "lines": 100,
+      "branches": 93.33,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/effective-agentrc.js",
+      "lines": 91.3,
+      "branches": 75,
+      "functions": 100
+    },
+    {
       "path": "lib/cli/doctor-checks/llm-review.js",
-      "lines": 98.17,
-      "branches": 87.1,
+      "lines": 100,
+      "branches": 89.66,
       "functions": 100
     },
     {

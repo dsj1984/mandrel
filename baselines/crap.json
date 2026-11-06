@@ -2794,6 +2794,25 @@
       "crap": 2
     },
     {
+      "path": ".agents/scripts/coverage-ratchet.js",
+      "method": "runStep",
+      "startLine": 54,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/coverage-ratchet.js",
+      "method": "<anon runStep/(args,env)#0>",
+      "startLine": 55,
+      "crap": 6,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/coverage-ratchet.js",
+      "method": "main",
+      "startLine": 63,
+      "crap": 9.219365067794136
+    },
+    {
       "path": ".agents/scripts/deliver-light.js",
       "method": "parseCsvPaths",
       "startLine": 76,
@@ -14032,6 +14051,12 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/close-validation/ci-deferral.js",
+      "method": "presetCiDeferral",
+      "startLine": 17,
+      "crap": 3
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "method": "buildFormatHint",
       "startLine": 10,
@@ -14088,188 +14113,200 @@
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildChangedFileScope",
-      "startLine": 50,
+      "startLine": 55,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildBaselinesGateEnv",
-      "startLine": 66,
+      "startLine": 71,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "isCrapGateEnabled",
-      "startLine": 79,
+      "startLine": 84,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "captureQuality",
-      "startLine": 91,
+      "startLine": 96,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "overBudgetPolicy",
-      "startLine": 103,
+      "startLine": 108,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "overBudgetFlag",
-      "startLine": 108,
+      "startLine": 113,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "suiteOfRecord",
+      "startLine": 126,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "suiteOfRecordFlag",
+      "startLine": 133,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "isCoverageCaptureActive",
-      "startLine": 130,
+      "startLine": 158,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildTestGateEntry",
-      "startLine": 151,
+      "startLine": 179,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "enabledBaselineKinds",
-      "startLine": 185,
+      "startLine": 213,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "<anon enabledBaselineKinds/KNOWN_KINDS.filter(kind)#0>",
-      "startLine": 188,
+      "startLine": 216,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "baselinesRequiredByConfig",
-      "startLine": 203,
+      "startLine": 231,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "toKindSet",
-      "startLine": 207,
-      "crap": 3.072
+      "startLine": 235,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "probeBaselinesGate",
-      "startLine": 224,
+      "startLine": 252,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "<anon probeBaselinesGate/enabled.filter(kind)#0>",
-      "startLine": 236,
+      "startLine": 264,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "coverageReaderFlag",
-      "startLine": 273,
+      "startLine": 301,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "<anon coverageReaderFlag/gateKinds.some(k)#0>",
-      "startLine": 276,
+      "startLine": 304,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildBaselinesGateEntries",
-      "startLine": 280,
+      "startLine": 308,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "<anon buildBaselinesGateEntries/entry(name,gateKinds)#0>",
-      "startLine": 282,
+      "startLine": 310,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "<anon buildBaselinesGateEntries/kinds.filter(k)#0>",
-      "startLine": 299,
+      "startLine": 327,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "<anon buildBaselinesGateEntries/kinds.filter(k)#1>",
-      "startLine": 301,
+      "startLine": 329,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "disabledSkip",
-      "startLine": 319,
+      "startLine": 347,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "predictsIncrementalCaptureSkip",
-      "startLine": 337,
-      "crap": 8
+      "startLine": 367,
+      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "resolveCreditedDepositor",
-      "startLine": 373,
+      "startLine": 404,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "resolveTestCredited",
-      "startLine": 396,
+      "startLine": 429,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "coverageCaptureRunsSuite",
-      "startLine": 406,
+      "startLine": 439,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "coverageCaptureHint",
-      "startLine": 422,
+      "startLine": 455,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildQualityPreviewGateEntries",
-      "startLine": 467,
+      "startLine": 500,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "<anon buildQualityPreviewGateEntries/entry(half,only)#0>",
-      "startLine": 470,
+      "startLine": 503,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildDefaultGates",
-      "startLine": 509,
-      "crap": 9.000042483468162
+      "startLine": 542,
+      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "partitionGates",
-      "startLine": 659,
+      "startLine": 694,
       "crap": 2
     },
     {
@@ -14635,158 +14672,158 @@
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "reportGateExit",
-      "startLine": 51,
+      "startLine": 53,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "applyChangedFileScope",
-      "startLine": 66,
+      "startLine": 68,
       "crap": 5.990502911344854
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "runCloseValidation",
-      "startLine": 146,
+      "startLine": 150,
       "crap": 7.006471618115887
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "<anon runCloseValidation/evidenceVerdict(gate,configHash)#0>",
-      "startLine": 181,
+      "startLine": 185,
       "crap": 5,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "<anon runCloseValidation/recordIfActive(gate,configHash,durationMs)#0>",
-      "startLine": 204,
+      "startLine": 208,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "<anon runCloseValidation/dispatchGate(gate,signal,configHash)#0>",
-      "startLine": 232,
+      "startLine": 236,
       "crap": 7,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "<anon runCloseValidation/dispatchGate(gate,signal,configHash)#0/skipIfSatisfied()#0>",
-      "startLine": 248,
+      "startLine": 252,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "<anon runCloseValidation/independent.map(gate)#0>",
-      "startLine": 270,
+      "startLine": 274,
       "crap": 8.008452725702384,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "gateConfigHash",
-      "startLine": 364,
+      "startLine": 368,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "fullSuiteLockOptions",
-      "startLine": 377,
+      "startLine": 381,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "gateEnv",
-      "startLine": 394,
+      "startLine": 398,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "fullSuiteGateOptions",
-      "startLine": 408,
+      "startLine": 412,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "runSerialGates",
-      "startLine": 428,
-      "crap": 5.021595939963287
+      "startLine": 432,
+      "crap": 7.036814425244177
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "<anon runSerialGates/failGate(gate,status)#0>",
-      "startLine": 443,
+      "startLine": 447,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "<anon runSerialGates/recordPass()#0>",
-      "startLine": 481,
+      "startLine": 488,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "isDeferredOverBudget",
-      "startLine": 493,
+      "startLine": 500,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "isBlockedOverBudget",
-      "startLine": 498,
+      "startLine": 505,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "hintedExit",
-      "startLine": 512,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/runner.js",
-      "method": "reportHintedExit",
-      "startLine": 522,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/runner.js",
-      "method": "resolveSerialExecution",
-      "startLine": 532,
+      "startLine": 527,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "overBudgetExit",
-      "startLine": 533,
+      "startLine": 538,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "hostResourcesExit",
-      "startLine": 539,
+      "startLine": 544,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "reportHintedExit",
+      "startLine": 551,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "resolveSerialExecution",
+      "startLine": 561,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "settleSerialResult",
-      "startLine": 548,
+      "startLine": 577,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "deferOverBudget",
-      "startLine": 567,
+      "startLine": 596,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "runAdvisoryProjections",
-      "startLine": 589,
+      "startLine": 618,
       "crap": 3
     },
     {
@@ -15676,110 +15713,110 @@
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "toleranceScalar",
-      "startLine": 121,
+      "startLine": 123,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "warnUnknownKeys",
-      "startLine": 133,
+      "startLine": 135,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveResolutionRate",
-      "startLine": 148,
+      "startLine": 150,
       "crap": 5.2
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveIncrementalCoverage",
-      "startLine": 159,
+      "startLine": 161,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "<anon resolveIncrementalCoverage/pick(explicit,fallback)#0>",
-      "startLine": 161,
+      "startLine": 163,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "nonEmptyString",
-      "startLine": 173,
+      "startLine": 175,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "slashed",
-      "startLine": 180,
+      "startLine": 182,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveCrapCoverageSource",
-      "startLine": 198,
+      "startLine": 200,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveMaintainabilityCrap",
-      "startLine": 221,
+      "startLine": 223,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveMaintainabilityQuality",
-      "startLine": 281,
+      "startLine": 283,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveCoverageGate",
-      "startLine": 312,
+      "startLine": 314,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveAutoRefresh",
-      "startLine": 367,
+      "startLine": 360,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveBaselinesFromGates",
-      "startLine": 378,
+      "startLine": 371,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "mergeFloorsWithDefaults",
-      "startLine": 399,
+      "startLine": 392,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveGatesWithFloors",
-      "startLine": 425,
+      "startLine": 418,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "resolveQuality",
-      "startLine": 442,
+      "startLine": 435,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "getBaselineEpsilon",
-      "startLine": 479,
+      "startLine": 472,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "getQuality",
-      "startLine": 490,
+      "startLine": 483,
       "crap": 1
     },
     {
@@ -17098,6 +17135,92 @@
       "method": "reportCaptureFailure",
       "startLine": 792,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-deferral.js",
+      "method": "deferralLines",
+      "startLine": 36,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-deferral.js",
+      "method": "readDeferralMarker",
+      "startLine": 47,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-deferral.js",
+      "method": "deferCoverage",
+      "startLine": 61,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-deferral.js",
+      "method": "deferralEnvelope",
+      "startLine": 72,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "parseRatchetArgs",
+      "startLine": 27,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "argError",
+      "startLine": 49,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "dirtyTracked",
+      "startLine": 58,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "<anon dirtyTracked/filter(line)#0>",
+      "startLine": 61,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "unreadableArtifact",
+      "startLine": 65,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "adoptRefusal",
+      "startLine": 81,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "adoptArtifact",
+      "startLine": 102,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "ratchetSteps",
+      "startLine": 142,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "<anon ratchetSteps/script(name)#0>",
+      "startLine": 143,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-ratchet.js",
+      "method": "scoreRatchet",
+      "startLine": 181,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
@@ -22396,49 +22519,49 @@
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "toScanString",
-      "startLine": 110,
+      "startLine": 111,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "containsFrameworkPrefix",
-      "startLine": 121,
+      "startLine": 122,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "containsFrameworkScriptBasename",
-      "startLine": 135,
+      "startLine": 136,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "namesFrameworkSurface",
-      "startLine": 148,
+      "startLine": 149,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "classifyPathSource",
-      "startLine": 160,
+      "startLine": 161,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "isSupplied",
-      "startLine": 183,
+      "startLine": 184,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "detailsScanText",
-      "startLine": 191,
+      "startLine": 192,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "classifySignalSource",
-      "startLine": 211,
+      "startLine": 212,
       "crap": 11
     },
     {
@@ -26170,142 +26293,124 @@
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "closeGates",
-      "startLine": 31,
+      "startLine": 36,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "creditedPreflight",
-      "startLine": 50,
+      "startLine": 61,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "<anon creditedPreflight/log(m)#0>",
-      "startLine": 58,
+      "startLine": 69,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "method": "lintCredit",
-      "startLine": 87,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "recordPreflightCredit",
-      "startLine": 93,
+      "startLine": 98,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "method": "carryLintCredit",
-      "startLine": 99,
-      "crap": 2.004665403119988
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "carryCredit",
-      "startLine": 102,
+      "startLine": 107,
       "crap": 1.0233236151603498
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "carryPreflightCredits",
-      "startLine": 125,
+      "startLine": 130,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "isCoverageDeferred",
-      "startLine": 125,
+      "startLine": 145,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "isOverBudgetCapture",
-      "startLine": 135,
+      "startLine": 155,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "settleOverBudget",
-      "startLine": 149,
+      "startLine": 169,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "coverageEnvelope",
-      "startLine": 171,
+      "startLine": 191,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "clearCoverageDeferral",
-      "startLine": 188,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "method": "carryCoverageDeferral",
-      "startLine": 195,
-      "crap": 2.2560000000000002
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "method": "postCaptureSettled",
       "startLine": 202,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "method": "carryCoverageDeferral",
+      "startLine": 210,
+      "crap": 2.2560000000000002
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "method": "postCaptureSettled",
+      "startLine": 217,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "seatableKinds",
-      "startLine": 207,
+      "startLine": 222,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "<anon seatableKinds/kinds.filter(kind)#0>",
-      "startLine": 209,
+      "startLine": 224,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "postCaptureGates",
-      "startLine": 216,
+      "startLine": 231,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "postCaptureFilter",
-      "startLine": 226,
+      "startLine": 241,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "<anon postCaptureFilter/(g)#0>",
-      "startLine": 227,
+      "startLine": 242,
       "crap": 4,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "method": "describeGate",
-      "startLine": 232,
+      "method": "gateKinds",
+      "startLine": 247,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "method": "scorePostCapture",
-      "startLine": 238,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "method": "gateKinds",
-      "startLine": 247,
+      "method": "describeGate",
+      "startLine": 253,
       "crap": 2
     },
     {
@@ -26319,6 +26424,12 @@
       "method": "failure",
       "startLine": 265,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "method": "scorePostCapture",
+      "startLine": 276,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
@@ -26401,6 +26512,12 @@
       "method": "readCreditTimings",
       "startLine": 30,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-suite-of-record.js",
+      "method": "settleSuiteOfRecord",
+      "startLine": 24,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
@@ -33176,32 +33293,26 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "runCloseValidationPhase",
-      "startLine": 57,
+      "startLine": 60,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "reportGateLabels",
-      "startLine": 143,
+      "startLine": 146,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "prepareTree",
-      "startLine": 149,
+      "startLine": 152,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "runGateChain",
-      "startLine": 159,
+      "startLine": 162,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
-      "method": "settleFailedValidation",
-      "startLine": 195,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
@@ -33211,27 +33322,33 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
+      "method": "settleFailedValidation",
+      "startLine": 205,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "teeLockLines",
-      "startLine": 220,
+      "startLine": 231,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "<anon teeLockLines/(line)#0>",
-      "startLine": 221,
+      "startLine": 232,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "isDeferredLockWait",
-      "startLine": 234,
+      "startLine": 245,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "gateOutcomes",
-      "startLine": 248,
+      "startLine": 259,
       "crap": 1
     },
     {
@@ -33288,466 +33405,466 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "withGhTimeout",
-      "startLine": 114,
+      "startLine": 115,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon withGhTimeout/Promise(resolve,reject)#0>",
-      "startLine": 116,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "method": "<anon withGhTimeout/Promise(resolve,reject)#0/setTimeout()#0>",
       "startLine": 117,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "method": "<anon withGhTimeout/finally()#0>",
-      "startLine": 123,
+      "method": "<anon withGhTimeout/Promise(resolve,reject)#0/setTimeout()#0>",
+      "startLine": 118,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "method": "<anon withGhTimeout/promise.catch()#0>",
+      "method": "<anon withGhTimeout/finally()#0>",
       "startLine": 124,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "<anon withGhTimeout/promise.catch()#0>",
+      "startLine": 125,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "readString",
-      "startLine": 136,
+      "startLine": 137,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "readAutoMergeArmed",
-      "startLine": 147,
+      "startLine": 148,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "readAutoMergeEnabledAt",
-      "startLine": 159,
+      "startLine": 160,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "readInMergeQueue",
-      "startLine": 168,
+      "startLine": 169,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "deriveCheckStates",
-      "startLine": 200,
+      "startLine": 201,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "readPrWaitProbe",
-      "startLine": 224,
+      "startLine": 225,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "resolveMergeWaitConfig",
-      "startLine": 302,
+      "startLine": 303,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon resolveMergeWaitConfig/int(value,fallback)#0>",
-      "startLine": 308,
+      "startLine": 309,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "parseTimestampMs",
-      "startLine": 336,
+      "startLine": 337,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "resolveBudgetAnchorMs",
-      "startLine": 351,
+      "startLine": 352,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon resolveBudgetAnchorMs/filter(ms)#0>",
-      "startLine": 355,
+      "startLine": 356,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "advisoryGateRemedy",
-      "startLine": 367,
+      "startLine": 368,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "disarmedOn",
-      "startLine": 396,
+      "startLine": 397,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon disarmedOn/failures.map(f)#0>",
-      "startLine": 399,
+      "startLine": 400,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "unlandedRemedy",
-      "startLine": 407,
+      "startLine": 408,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "checksFailedRemedy",
-      "startLine": 431,
+      "startLine": 432,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "formatUnlandedFriction",
-      "startLine": 453,
+      "startLine": 454,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "formatFlipFailedFriction",
-      "startLine": 478,
+      "startLine": 479,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "postFriction",
-      "startLine": 510,
+      "startLine": 511,
       "crap": 2.1481481481481484
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "blockOnFlipFailed",
-      "startLine": 530,
+      "startLine": 531,
       "crap": 3.0327719617660445
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "resolveAdvisoryRerunAllowance",
-      "startLine": 604,
+      "startLine": 605,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "advisoryRunSignature",
-      "startLine": 616,
+      "startLine": 617,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "enrichRedRunsWithOutput",
-      "startLine": 627,
+      "startLine": 628,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon enrichRedRunsWithOutput/runs.map(run)#0>",
-      "startLine": 650,
+      "startLine": 651,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "rerunAdvisoryRuns",
-      "startLine": 670,
+      "startLine": 671,
       "crap": 2.019906849871592
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon rerunAdvisoryRuns/blockingRuns.map(run)#0>",
-      "startLine": 674,
+      "startLine": 675,
       "crap": 1.004976712467898,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon rerunAdvisoryRuns/filter(id)#0>",
-      "startLine": 675,
+      "startLine": 676,
       "crap": 2.019906849871592,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "advisoryRerunsLeft",
-      "startLine": 719,
+      "startLine": 720,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "maybeRerunAdvisory",
-      "startLine": 730,
+      "startLine": 731,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "resolveAdvisoryUnlanded",
-      "startLine": 757,
+      "startLine": 758,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon resolveAdvisoryUnlanded/advisory.blockingRuns.filter(run)#0>",
-      "startLine": 774,
+      "startLine": 775,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon resolveAdvisoryUnlanded/blockingRuns.map(run)#0>",
-      "startLine": 801,
+      "startLine": 802,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "failureOfRun",
-      "startLine": 816,
+      "startLine": 817,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "runIdField",
-      "startLine": 825,
+      "startLine": 826,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "describeFailures",
-      "startLine": 830,
+      "startLine": 831,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon describeFailures/failures.map(f)#0>",
-      "startLine": 831,
+      "startLine": 832,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "queuedExhaustionVerdict",
-      "startLine": 838,
+      "startLine": 839,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "recordRed",
-      "startLine": 853,
+      "startLine": 854,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon recordRed/disarmFn()#0>",
-      "startLine": 873,
+      "startLine": 874,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "blockOnUnlanded",
-      "startLine": 898,
+      "startLine": 899,
       "crap": 6.1373291015625
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "maybeUpdateBehindPr",
-      "startLine": 1001,
+      "startLine": 1002,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon maybeUpdateBehindPr/updateBranch()#0>",
-      "startLine": 1014,
+      "startLine": 1015,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon maybeUpdateBehindPr/onBudgetSpent()#0>",
-      "startLine": 1020,
+      "startLine": 1021,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon maybeUpdateBehindPr/onUpdated()#0>",
-      "startLine": 1025,
+      "startLine": 1026,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon maybeUpdateBehindPr/onUpdateFailed(detail)#0>",
-      "startLine": 1030,
+      "startLine": 1031,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "onMergeObserved",
-      "startLine": 1040,
-      "crap": 3
+      "startLine": 1041,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "createMergeWaitState",
-      "startLine": 1129,
+      "startLine": 1132,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "provisionalVerdict",
-      "startLine": 1140,
+      "startLine": 1143,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "singleProbeOrContinue",
-      "startLine": 1153,
+      "startLine": 1156,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "decideMergeWaitPoll",
-      "startLine": 1172,
+      "startLine": 1175,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "blockWith",
-      "startLine": 1229,
+      "startLine": 1232,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleMerged",
-      "startLine": 1242,
+      "startLine": 1245,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleClosed",
-      "startLine": 1250,
+      "startLine": 1253,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleChecksFailed",
-      "startLine": 1259,
+      "startLine": 1262,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "pendingAtWaitBound",
-      "startLine": 1293,
+      "startLine": 1296,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleProvisional",
-      "startLine": 1320,
+      "startLine": 1323,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "recoverOpenPr",
-      "startLine": 1338,
+      "startLine": 1341,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "closeOwnsMerge",
-      "startLine": 1372,
+      "startLine": 1375,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "isCleanAndGreen",
-      "startLine": 1381,
+      "startLine": 1384,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "maybeMergeOnGreen",
-      "startLine": 1399,
+      "startLine": 1402,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleVerdict",
-      "startLine": 1427,
+      "startLine": 1430,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "runMergePoll",
-      "startLine": 1445,
+      "startLine": 1448,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "blockNeverArmed",
-      "startLine": 1481,
+      "startLine": 1484,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "neverArmedOverride",
-      "startLine": 1511,
+      "startLine": 1514,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "runConfirmMergePhase",
-      "startLine": 1563,
+      "startLine": 1566,
       "crap": 3.0002581832399766
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon runConfirmMergePhase/fn()#0>",
-      "startLine": 1643,
+      "startLine": 1646,
       "crap": 1.027,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon runConfirmMergePhase/predicate(result)#0>",
-      "startLine": 1653,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "method": "<anon runConfirmMergePhase/sleepFn()#0>",
       "startLine": 1656,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "<anon runConfirmMergePhase/sleepFn()#0>",
+      "startLine": 1659,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "pollHeartbeat",
-      "startLine": 1662,
+      "startLine": 1665,
       "crap": 2
     },
     {
@@ -34135,70 +34252,70 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "readBranchCommits",
-      "startLine": 40,
+      "startLine": 41,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "<anon readBranchCommits/map(message)#0>",
-      "startLine": 68,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
-      "method": "<anon readBranchCommits/filter(message)#0>",
       "startLine": 69,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
+      "method": "<anon readBranchCommits/filter(message)#0>",
+      "startLine": 70,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "readOwnCommits",
-      "startLine": 80,
+      "startLine": 81,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "normalizePrTitle",
-      "startLine": 100,
+      "startLine": 101,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "synthesizeSubject",
-      "startLine": 130,
+      "startLine": 131,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "<anon synthesizeSubject/commitMessages.map(message)#0>",
-      "startLine": 131,
+      "startLine": 132,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "deferralLines",
-      "startLine": 151,
-      "crap": 2
+      "startLine": 139,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "buildPrBody",
-      "startLine": 155,
+      "startLine": 152,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "announceBreaking",
-      "startLine": 178,
+      "startLine": 175,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "buildPullRequestFields",
-      "startLine": 197,
+      "startLine": 194,
       "crap": 2
     },
     {
@@ -36557,592 +36674,592 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon ran(name,detail,extra)#0>",
-      "startLine": 154,
+      "startLine": 165,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon skipped(name,detail,extra)#0>",
-      "startLine": 160,
+      "startLine": 171,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon fixRequired(name,detail,extra)#0>",
-      "startLine": 166,
+      "startLine": 177,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon blocked(name,reason,detail,extra)#0>",
-      "startLine": 173,
+      "startLine": 184,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "gitLine",
-      "startLine": 188,
+      "startLine": 199,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "headSha",
-      "startLine": 195,
+      "startLine": 206,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "worktreeEnv",
-      "startLine": 208,
+      "startLine": 219,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "runLogged",
-      "startLine": 224,
+      "startLine": 235,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "describeLockProgress",
-      "startLine": 252,
+      "startLine": 263,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "durations",
-      "startLine": 270,
+      "startLine": 281,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon durations/seconds(ms)#0>",
-      "startLine": 271,
+      "startLine": 282,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "withLockProgress",
-      "startLine": 282,
+      "startLine": 293,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon withLockProgress/forward()#0>",
-      "startLine": 285,
+      "startLine": 296,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon withLockProgress/()#0>",
-      "startLine": 295,
+      "startLine": 306,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon withLockProgress/catch()#0>",
-      "startLine": 300,
+      "startLine": 311,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "describeSuiteFailure",
-      "startLine": 318,
+      "startLine": 329,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "preflightChecks",
-      "startLine": 338,
+      "startLine": 349,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon preflightChecks/RATCHETS.filter(r)#0>",
-      "startLine": 339,
+      "startLine": 350,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon preflightChecks/map(r)#0>",
-      "startLine": 341,
+      "startLine": 352,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "preflightFinding",
-      "startLine": 369,
+      "startLine": 380,
       "crap": 9
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon preflightFinding/filter(line)#0>",
-      "startLine": 379,
+      "startLine": 390,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepPreflight",
-      "startLine": 387,
+      "startLine": 403,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon stepPreflight/findings.map(f)#0>",
+      "startLine": 441,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon stepPreflight/checks.map(c)#0>",
-      "startLine": 419,
+      "startLine": 447,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "mergedDetail",
-      "startLine": 423,
+      "startLine": 451,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "<anon stepPreflight/findings.map(f)#0>",
-      "startLine": 430,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepBaseMerge",
-      "startLine": 433,
+      "startLine": 461,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "selectCreditedDepositor",
-      "startLine": 475,
+      "startLine": 503,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "testGateArgv",
-      "startLine": 484,
+      "startLine": 512,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "creditedRun",
-      "startLine": 490,
-      "crap": 8
+      "startLine": 518,
+      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon creditedRun/withLockProgress(env)#0>",
-      "startLine": 515,
+      "startLine": 545,
       "crap": 1,
       "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "settleSuiteExit",
-      "startLine": 554,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "recordCredit",
-      "startLine": 561,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "changedPaths",
-      "startLine": 572,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "<anon changedPaths/map(line)#0>",
-      "startLine": 580,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "<anon changedPaths/filter(p)#0>",
-      "startLine": 581,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "commitSeatedRows",
-      "startLine": 585,
-      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon isPlainObject(v)#0>",
-      "startLine": 587,
+      "startLine": 590,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "hostResourcesFromLine",
-      "startLine": 591,
+      "startLine": 594,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "parseHostResources",
-      "startLine": 609,
+      "startLine": 612,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "<anon commitSeatedRows/paths.every(p)#0>",
-      "startLine": 616,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "countsSuffix",
-      "startLine": 621,
+      "startLine": 624,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon countsSuffix/HOST_COUNT_KEYS.filter(k)#0>",
-      "startLine": 622,
+      "startLine": 625,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon countsSuffix/map(k)#0>",
-      "startLine": 623,
+      "startLine": 626,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "settleHostResources",
+      "startLine": 639,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "hostResourcesEnvelope",
+      "startLine": 669,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "settleSuiteExit",
+      "startLine": 674,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "settleCodeExit",
+      "startLine": 681,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "suiteFailureDetail",
+      "startLine": 688,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "recordCredit",
+      "startLine": 698,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "changedPaths",
+      "startLine": 709,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon changedPaths/map(line)#0>",
+      "startLine": 717,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon changedPaths/filter(p)#0>",
+      "startLine": 718,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "commitSeatedRows",
+      "startLine": 722,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon commitSeatedRows/paths.every(p)#0>",
+      "startLine": 753,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "seatKinds",
-      "startLine": 631,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "settleHostResources",
-      "startLine": 636,
+      "startLine": 768,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepSeat",
-      "startLine": 640,
+      "startLine": 777,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "hostResourcesEnvelope",
-      "startLine": 666,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "remoteBranchSha",
-      "startLine": 675,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "settleCodeExit",
-      "startLine": 678,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "suiteFailureDetail",
-      "startLine": 685,
+      "startLine": 812,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "classifyPushFailure",
-      "startLine": 713,
+      "startLine": 858,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "pushFailure",
-      "startLine": 725,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "stepPush",
-      "startLine": 745,
-      "crap": 5.351592931239494
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "refBehind",
-      "startLine": 746,
+      "startLine": 866,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon refPush(ctx,sha)#0>",
-      "startLine": 755,
+      "startLine": 875,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "rulesetFailure",
-      "startLine": 762,
+      "startLine": 882,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon rulesetFailure/shas.map(sha)#0>",
-      "startLine": 764,
+      "startLine": 884,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepTargets",
-      "startLine": 779,
+      "startLine": 899,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "reviewVerdict",
-      "startLine": 781,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon stepTargets/range.filter(_,i)#0>",
-      "startLine": 782,
+      "startLine": 902,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon ref-behind(ctx,evidence)#0>",
-      "startLine": 787,
+      "startLine": 907,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon ruleset-eval-failed(ctx,ev,range)#0>",
-      "startLine": 788,
+      "startLine": 908,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "computeHeldReview",
-      "startLine": 793,
-      "crap": 3.017578125
+      "method": "pushFailure",
+      "startLine": 917,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "firstParentRange",
-      "startLine": 816,
+      "startLine": 939,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "steppedPush",
-      "startLine": 839,
+      "startLine": 962,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "startReview",
-      "startLine": 843,
-      "crap": 1.0122894856622666
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "<anon startReview/catch(err)#0>",
-      "startLine": 846,
-      "crap": 1.0122894856622666,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon steppedPush/map(sha)#0>",
-      "startLine": 848,
+      "startLine": 971,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "pushOrStep",
+      "startLine": 986,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "stepPush",
+      "startLine": 997,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "reviewVerdict",
+      "startLine": 1027,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "computeHeldReview",
+      "startLine": 1039,
+      "crap": 3.017578125
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "startReview",
+      "startLine": 1089,
+      "crap": 1.0122894856622666
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon startReview/catch(err)#0>",
+      "startLine": 1092,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon startReview/finally()#0>",
-      "startLine": 851,
+      "startLine": 1097,
       "crap": 1.0122894856622666,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepCreditedRun",
-      "startLine": 858,
+      "startLine": 1104,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon stepCreditedRun/then(result)#0>",
-      "startLine": 861,
+      "startLine": 1107,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "pushOrStep",
-      "startLine": 866,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepReview",
-      "startLine": 870,
+      "startLine": 1116,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "stepDuplicationRescore",
+      "startLine": 1126,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon stepDuplicationRescore/rescoreDuplication()#0>",
+      "startLine": 1127,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepPostCapture",
-      "startLine": 880,
+      "startLine": 1137,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon stepPostCapture/scorePostCapture(a)#0>",
-      "startLine": 886,
+      "startLine": 1143,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon stepPostCapture/gates.map(g)#0>",
-      "startLine": 897,
+      "startLine": 1155,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "stepOrder",
-      "startLine": 911,
+      "startLine": 1169,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "runSteps",
-      "startLine": 931,
+      "startLine": 1190,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runSteps/results.find(r)#0>",
-      "startLine": 939,
+      "startLine": 1198,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "precheck",
-      "startLine": 952,
+      "startLine": 1211,
       "crap": 6.0718749999999995
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "readState",
-      "startLine": 980,
+      "startLine": 1239,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "defaultBlock",
-      "startLine": 1005,
+      "startLine": 1264,
       "crap": 1.004096
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "stepDuplicationRescore",
-      "startLine": 1011,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "method": "<anon stepDuplicationRescore/rescoreDuplication()#0>",
-      "startLine": 1012,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "runStoryHandoff",
-      "startLine": 1065,
+      "startLine": 1326,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runStoryHandoff/()#0>",
-      "startLine": 1075,
+      "startLine": 1336,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runStoryHandoff/(args)#0>",
-      "startLine": 1093,
+      "startLine": 1356,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runStoryHandoff/(args)#0/warn(m)#0>",
-      "startLine": 1097,
+      "startLine": 1360,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runStoryHandoff/evidencePathFor(name)#0>",
-      "startLine": 1102,
+      "startLine": 1365,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runStoryHandoff/writeEvidence(name,text)#0>",
-      "startLine": 1147,
+      "startLine": 1412,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runStoryHandoff/steps.find(s)#0>",
-      "startLine": 1168,
+      "startLine": 1433,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runStoryHandoff/steps.map(stop,_stop,rest)#0>",
-      "startLine": 1179,
+      "startLine": 1444,
       "crap": 1,
       "anonymous": true
     },
@@ -39771,6 +39888,50 @@
       "crap": 4
     },
     {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "method": "isGreen",
+      "startLine": 24,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "method": "ratchetVerdict",
+      "startLine": 36,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "method": "<anon ratchetVerdict/filter(run)#0>",
+      "startLine": 38,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "method": "<anon ratchetVerdict/runs.some(run)#0>",
+      "startLine": 42,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "method": "blockOnRedRatchet",
+      "startLine": 46,
+      "crap": 1.018962962962963
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "method": "holdForCiRatchet",
+      "startLine": 70,
+      "crap": 5.003125
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/ci-ratchet-gate.js",
+      "method": "ratchetWaitOutcome",
+      "startLine": 119,
+      "crap": 3
+    },
+    {
       "path": ".agents/scripts/lib/single-story/confirm-and-land.js",
       "method": "landTailArgs",
       "startLine": 5,
@@ -39785,37 +39946,43 @@
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
       "method": "readPrMergeState",
-      "startLine": 32,
+      "startLine": 33,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
       "method": "confirmStoryMerged",
-      "startLine": 63,
+      "startLine": 64,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
+      "method": "unconfirmedResult",
+      "startLine": 134,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/confirm-merge.js",
       "method": "pendingResult",
-      "startLine": 131,
+      "startLine": 140,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
       "method": "flipDoneWithRetry",
-      "startLine": 141,
+      "startLine": 150,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
       "method": "flipDone",
-      "startLine": 155,
+      "startLine": 164,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
       "method": "fireStoryMergedNotify",
-      "startLine": 173,
+      "startLine": 182,
       "crap": 2
     },
     {
@@ -45841,91 +46008,97 @@
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "confirmBlocked",
       "startLine": 178,
-      "crap": 2
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/single-story-confirm-merge.js",
+      "method": "ratchetBlocked",
+      "startLine": 188,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "confirmOutcomeFields",
-      "startLine": 191,
-      "crap": 9.583984375
+      "startLine": 201,
+      "crap": 10.579405247813412
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "buildConfirmTerminal",
-      "startLine": 224,
+      "startLine": 237,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "resolveConfirmPrNumber",
-      "startLine": 243,
+      "startLine": 256,
       "crap": 5
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "elapsedSeconds",
-      "startLine": 251,
+      "startLine": 264,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "confirmWithoutPr",
-      "startLine": 255,
+      "startLine": 268,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "lazyWaitWorktree",
-      "startLine": 283,
+      "startLine": 296,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "<anon lazyWaitWorktree/()#0>",
-      "startLine": 284,
+      "startLine": 297,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "readCloseArmEvidence",
-      "startLine": 294,
+      "startLine": 307,
       "crap": 2
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "resumeMergeWait",
-      "startLine": 307,
+      "startLine": 320,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "probeMergeOnce",
-      "startLine": 358,
+      "startLine": 371,
       "crap": 2
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "runConfirmMerge",
-      "startLine": 398,
+      "startLine": 411,
       "crap": 6
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "failWithEnvelope",
-      "startLine": 455,
+      "startLine": 468,
       "crap": 4
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "runConfirmMergeCli",
-      "startLine": 489,
+      "startLine": 502,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "main",
-      "startLine": 504,
+      "startLine": 517,
       "crap": 1
     },
     {
@@ -47347,34 +47520,59 @@
       "anonymous": true
     },
     {
+      "path": "lib/cli/doctor-checks/coverage-ratchet.js",
+      "method": "deferringSetting",
+      "startLine": 9,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/coverage-ratchet.js",
+      "method": "runCoverageRatchet",
+      "startLine": 25,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor-checks/coverage-ratchet.js",
+      "method": "<anon runCoverageRatchet/()#0>",
+      "startLine": 30,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/effective-agentrc.js",
+      "method": "readEffectiveAgentrc",
+      "startLine": 15,
+      "crap": 1.010973936899863
+    },
+    {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "readReviewChain",
-      "startLine": 22,
-      "crap": 3.0262390670553936
+      "startLine": 20,
+      "crap": 3
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "firstOnPath",
-      "startLine": 37,
+      "startLine": 28,
       "crap": 2
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "runLlmReviewProvider",
-      "startLine": 58,
+      "startLine": 49,
       "crap": 9
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "<anon runLlmReviewProvider/()#0>",
-      "startLine": 65,
+      "startLine": 56,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "<anon runLlmReviewProvider/onPath(cli)#0>",
-      "startLine": 68,
+      "startLine": 59,
       "crap": 2,
       "anonymous": true
     },
@@ -48033,140 +48231,147 @@
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#0>",
-      "startLine": 58,
+      "startLine": 59,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#1>",
-      "startLine": 62,
+      "startLine": 63,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#2>",
-      "startLine": 66,
+      "startLine": 67,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#3>",
-      "startLine": 70,
+      "startLine": 71,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#4>",
-      "startLine": 75,
+      "startLine": 76,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#5>",
-      "startLine": 81,
+      "startLine": 82,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#6>",
-      "startLine": 85,
+      "startLine": 86,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#7>",
-      "startLine": 89,
+      "startLine": 90,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#8>",
-      "startLine": 93,
+      "startLine": 94,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#9>",
-      "startLine": 97,
+      "startLine": 98,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#10>",
-      "startLine": 101,
+      "startLine": 102,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#11>",
-      "startLine": 105,
+      "startLine": 106,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#12>",
-      "startLine": 109,
+      "startLine": 110,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#13>",
-      "startLine": 113,
+      "startLine": 114,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#14>",
-      "startLine": 117,
+      "startLine": 118,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#15>",
-      "startLine": 121,
+      "startLine": 122,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#16>",
-      "startLine": 125,
+      "startLine": 126,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#17>",
-      "startLine": 129,
+      "startLine": 130,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#18>",
-      "startLine": 134,
+      "startLine": 135,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon run(opts)#19>",
-      "startLine": 139,
+      "startLine": 140,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon run(opts)#20>",
+      "startLine": 144,
       "crap": 1,
       "anonymous": true
     },
