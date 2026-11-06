@@ -11,11 +11,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import {
   buildCrapSeatScorer,
   resolveCrapUpdaterOptions,
 } from '../../.agents/scripts/lib/baselines/crap-updater-cli.js';
+import { loadFile } from '../../.agents/scripts/lib/baselines/reader.js';
 import { seatMissingBaseline } from '../../.agents/scripts/lib/baselines/seat-missing.js';
 import {
   write as writeEnvelope,
@@ -135,7 +135,7 @@ describe('coverage-ratchet — adopted artifact seats CRAP rows (AC-7)', () => {
     const writePath = path.join(r.cwd, 'baselines', 'crap.json');
     const prior = [{ path: 'src/a.js', method: 'a', startLine: 1, crap: 1 }];
     writeEnvelopeFile(writePath, writeEnvelope({ kind: 'crap', rows: prior }));
-    const before = JSON.parse(fs.readFileSync(writePath, 'utf8'));
+    const before = loadFile(writePath, { kind: 'crap' });
     const options = resolveCrapUpdaterOptions(
       { seatMissing: true },
       {
@@ -168,7 +168,7 @@ describe('coverage-ratchet — adopted artifact seats CRAP rows (AC-7)', () => {
       score,
     });
     assert.equal(result.seated, 1);
-    const after = JSON.parse(fs.readFileSync(writePath, 'utf8'));
+    const after = loadFile(writePath, { kind: 'crap' });
     assert.deepEqual(
       after.rows.filter((row) => row.method === 'a'),
       before.rows,
