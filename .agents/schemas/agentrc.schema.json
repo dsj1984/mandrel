@@ -878,7 +878,7 @@
                         "baseRef": {
                           "type": "string",
                           "minLength": 1,
-                          "description": "Default git ref the changed-file set is computed against, for a caller that passes no `--ref`. A `--ref` the caller named wins over this value, so a caller that anchors another gate on the same ref — `.husky/pre-push`, which passes `--ref origin/main` and then previews `--changed-since origin/main` — resolves ONE scope for both steps (Story #5365). Omitted and unpassed, the gate’s own default `main` applies."
+                          "description": "Default git ref the changed-file set is computed against, for a caller that passes no `--ref`. A `--ref` the caller named wins over this value, so a caller that anchors another gate on the same ref — `.husky/pre-push`, which passes `--ref origin/main` and then previews `--changed-since origin/main` — resolves ONE scope for both steps (Story #5365). Omitted and unpassed, the default is `origin/<project.baseBranch>` (`origin/main` by default), so a local base branch that trails the remote cannot widen the set; a clone where that remote ref does not resolve falls back to the local base branch with a warning."
                         }
                       },
                       "additionalProperties": false

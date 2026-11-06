@@ -237,5 +237,6 @@ export async function runCrapPreview({
     scope,
     diffRef,
     baseline,
+    baseBranch: config?.project?.baseBranch,
   });
 }

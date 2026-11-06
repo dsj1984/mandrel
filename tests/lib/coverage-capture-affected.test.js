@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { runCoverageCapture } from '../../.agents/scripts/coverage-capture.js';
+import { resolveCaptureBaseRef } from '../../.agents/scripts/lib/changed-files.js';
 import { getQuality } from '../../.agents/scripts/lib/config-resolver.js';
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-settings-schema.js';
 import { filterFilesUnderTargets } from '../../.agents/scripts/lib/coverage-capture.js';
@@ -121,7 +122,7 @@ describe('tryScopedCapture — capture', () => {
     assert.equal(h.calls.capture.length, 1);
     const call = h.calls.capture[0];
     assert.equal(call.script, AFFECTED_CAPTURE_SCRIPT);
-    assert.equal(call.env[COVERAGE_BASE_REF_ENV], 'main');
+    assert.equal(call.env[COVERAGE_BASE_REF_ENV], 'origin/main');
     assert.equal(call.coveragePath, CRAP.coveragePath);
     assert.equal(call.args, undefined);
     assert.equal(call.files, undefined);
@@ -252,7 +253,7 @@ describe('tryScopedCapture — capture', () => {
       stamp: null,
     });
     assert.equal(await tryScopedCapture(h.opts), 0);
-    assert.equal(h.calls.capture[0].env[COVERAGE_BASE_REF_ENV], 'main');
+    assert.equal(h.calls.capture[0].env[COVERAGE_BASE_REF_ENV], 'origin/main');
     assert.match(
       h.log.info.join('\n'),
       /not eligible \(worktree is dirty; rule: precondition\)/,
@@ -272,8 +273,11 @@ describe('coverage-capture CLI under captureScope', () => {
     const captures = [];
     const deps = {
       resolveConfigImpl: () => ({
+        project: { baseBranch: 'trunk' },
         delivery: { execution: { fullSuiteLock: false } },
       }),
+      resolveBaseRefImpl: (o) =>
+        resolveCaptureBaseRef({ ...o, gitSpawnFn: () => ({ status: 0 }) }),
       getQualityImpl: () => ({
         crap: CRAP,
         coverage: {
@@ -301,7 +305,7 @@ describe('coverage-capture CLI under captureScope', () => {
   }
   const argv = ['node', 'coverage-capture.js', '--cwd', '/nonexistent-5472'];
 
-  it('AC-1: runs the scoped script when present', async () => {
+  it('AC-1: runs the scoped script when present, handed the one logged ref (Story #5962)', async () => {
     const h = cli({
       captureScope: 'affected',
       scripts: { 'test:coverage': 'x', [AFFECTED_CAPTURE_SCRIPT]: 'y' },
@@ -311,7 +315,11 @@ describe('coverage-capture CLI under captureScope', () => {
     await runCoverageCapture(argv, h.deps);
     assert.equal(h.captures.length, 1);
     assert.equal(h.captures[0].script, AFFECTED_CAPTURE_SCRIPT);
-    assert.equal(typeof h.captures[0].env[COVERAGE_BASE_REF_ENV], 'string');
+    assert.equal(h.captures[0].env[COVERAGE_BASE_REF_ENV], 'origin/trunk');
+    assert.match(
+      h.log.info[0],
+      /Changed files measured against origin\/trunk \(default: origin\/<baseBranch>\)/,
+    );
   });
 
   it('AC-2: falls back to the full test:coverage when the script is absent', async () => {

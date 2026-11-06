@@ -3,7 +3,11 @@
 import { existsSync } from 'node:fs';
 
 import { _internals as baselineReaderInternals } from '../baselines/reader.js';
-import { getChangedFiles } from '../changed-files.js';
+import {
+  getChangedFiles,
+  remoteBaseRef,
+  resolveCaptureBaseRef,
+} from '../changed-files.js';
 import {
   COVERAGE_GATE_DEFAULTS,
   getQuality,
@@ -324,13 +328,15 @@ function disabledSkip(command, gateName) {
  * Will coverage-capture take its incremental skip (no changed file under
  * `crap.targetDirs`)? If so the close would otherwise have no test gate at all.
  * Every uncertainty resolves to `false`: a wrong `false` costs one redundant
- * capture, a wrong `true` runs the suite twice.
+ * capture, a wrong `true` runs the suite twice. The ref comes from the
+ * capture's own resolver, so the prediction and the capture score one set.
  *
  * @param {{
  *   config?: object,
  *   cwd?: string,
  *   baseBranch?: string,
  *   getChangedFilesImpl?: typeof getChangedFiles,
+ *   resolveBaseRefImpl?: typeof resolveCaptureBaseRef,
  * }} opts
  * @returns {boolean}
  */
@@ -339,14 +345,14 @@ function predictsIncrementalCaptureSkip({
   cwd,
   baseBranch,
   getChangedFilesImpl = getChangedFiles,
+  resolveBaseRefImpl = resolveCaptureBaseRef,
 }) {
   // No cwd is the module-load `DEFAULT_GATES` case: never spawn git at import.
   if (typeof cwd !== 'string' || cwd.length === 0) return false;
   const { crap } = getQuality(config);
   if (crap?.incrementalCoverage?.skipWhenUnchanged !== true) return false;
-  const ref = crap.incrementalCoverage.baseRef || baseBranch;
-  if (typeof ref !== 'string' || ref.length === 0) return false;
   try {
+    const { ref } = resolveBaseRefImpl({ crap, ref: null, baseBranch, cwd });
     const changed = getChangedFilesImpl({ ref, cwd });
     // Non-array is "unknown", which `filterFilesUnderTargets` would flatten to
     // `[]` and misread as a skip.
@@ -367,6 +373,7 @@ function predictsIncrementalCaptureSkip({
  *   cwd?: string,
  *   baseBranch?: string,
  *   getChangedFilesImpl?: typeof getChangedFiles,
+ *   resolveBaseRefImpl?: typeof resolveCaptureBaseRef,
  * }} opts
  * @returns {'coverage-capture'|'test'}
  */
@@ -376,6 +383,7 @@ export function resolveCreditedDepositor({
   cwd,
   baseBranch,
   getChangedFilesImpl,
+  resolveBaseRefImpl,
 }) {
   if (!isCoverageCaptureActive(config, scripts)) return 'test';
   const skip = predictsIncrementalCaptureSkip({
@@ -383,6 +391,7 @@ export function resolveCreditedDepositor({
     cwd,
     baseBranch,
     ...(getChangedFilesImpl ? { getChangedFilesImpl } : {}),
+    resolveBaseRefImpl,
   });
   return skip ? 'test' : 'coverage-capture';
 }
@@ -466,7 +475,7 @@ const QUALITY_PREVIEW_HINTS = Object.freeze({
  */
 function buildQualityPreviewGateEntries({ coverageCaptureActive, baseBranch }) {
   if (!coverageCaptureActive) return { maintainability: [], crap: [] };
-  const ref = `origin/${baseBranch || 'main'}`;
+  const ref = remoteBaseRef(baseBranch || 'main');
   const entry = (half, only) => [
     {
       name: QUALITY_PREVIEW_GATE_NAMES[half],
@@ -501,7 +510,7 @@ export const GATE_TIMEOUT_HINT = `The gate outran the suite timeout (\`delivery.
  * enabled AND its capture script (`gates.coverage.captureScript`) exists; it then carries test-failure signalling and
  * the plain `test` gate is dropped, so there is always exactly one test gate.
  *
- * @param {{ config?: object, baseBranch?: string, baselineRef?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void, getChangedFilesImpl?: typeof getChangedFiles }} [opts]
+ * @param {{ config?: object, baseBranch?: string, baselineRef?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void, getChangedFilesImpl?: typeof getChangedFiles, resolveBaseRefImpl?: typeof resolveCaptureBaseRef }} [opts]
  *   `cwd` is where the `package.json` and baseline-presence probes read;
  *   `packageScripts` / `presentBaselines` inject those probes (tests).
  * @returns {Gate[]}
@@ -515,6 +524,7 @@ export function buildDefaultGates({
   presentBaselines,
   log,
   getChangedFilesImpl,
+  resolveBaseRefImpl,
   storyId,
   evidenceCwd,
   gitSpawnImpl,
@@ -544,6 +554,7 @@ export function buildDefaultGates({
       cwd,
       baseBranch,
       getChangedFilesImpl,
+      resolveBaseRefImpl,
     }) === 'test';
   if (captureSkipPredicted) {
     log?.(

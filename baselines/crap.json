@@ -2719,9 +2719,21 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
+      "method": "resolveRunRefs",
+      "startLine": 173,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
       "method": "artifactCheckedCapture",
       "startLine": 176,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "logRunRef",
+      "startLine": 182,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
@@ -8383,6 +8395,12 @@
       "crap": 2
     },
     {
+      "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
+      "method": "readTouched",
+      "startLine": 34,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
       "method": "resolveBaselineRows",
       "startLine": 30,
@@ -8413,6 +8431,12 @@
       "startLine": 54,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
+      "method": "loadPreviewCoverage",
+      "startLine": 62,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
@@ -12386,9 +12410,21 @@
     },
     {
       "path": ".agents/scripts/lib/changed-files.js",
+      "method": "remoteBaseRef",
+      "startLine": 9,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
       "method": "resolveChangedFilesRef",
       "startLine": 12,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "trimmedName",
+      "startLine": 14,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/changed-files.js",
@@ -12422,6 +12458,30 @@
       "method": "diffNameOnly",
       "startLine": 44,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "resolveCaptureBaseRef",
+      "startLine": 44,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "localFallback",
+      "startLine": 59,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "namedRef",
+      "startLine": 64,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "refResolves",
+      "startLine": 71,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/changed-files.js",
