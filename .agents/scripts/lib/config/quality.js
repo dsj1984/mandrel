@@ -449,6 +449,11 @@ export function resolveQuality(userQuality) {
     baselines: resolveBaselinesFromGates(gates),
     codingGuardrails: { ...CODING_GUARDRAILS },
     autoRefresh: resolveAutoRefresh(block.autoRefresh),
+    ratchets: {
+      coveredByLint: Array.isArray(block.ratchets?.coveredByLint)
+        ? block.ratchets.coveredByLint.slice()
+        : [],
+    },
     baselineEpsilon: { ...BASELINE_EPSILON },
     gates: resolvedGates,
   };

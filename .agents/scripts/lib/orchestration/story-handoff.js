@@ -36,6 +36,7 @@ import {
 import { isBiomeNoFilesProcessed } from '../close-validation/process.js';
 import { applyChangedFileScope } from '../close-validation/runner.js';
 import { getPostSeatChecks } from '../config/handoff.js';
+import { getQuality } from '../config/quality.js';
 import {
   orchestrationLogDir,
   storyReviewDepositPath,
@@ -55,6 +56,7 @@ import {
 } from '../observability/runtime-friction.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
 import { PROJECT_ROOT } from '../project-root.js';
+import { STANDALONE_RATCHETS } from '../standalone-ratchets.js';
 import { describeBlocking } from '../suite-admission.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
 import { defaultSleep } from '../util/sleep.js';
@@ -120,34 +122,6 @@ const SIGNALS = Object.freeze({
   gateFail: /\(gate fail\)/,
   offending: /^[+!] /,
 });
-
-/** CI's standalone ratchets; each runs only when its baseline is committed. */
-const RATCHETS = Object.freeze([
-  {
-    key: 'dead-exports',
-    script: 'check-dead-exports.js',
-    args: [],
-    baseline: 'baselines/dead-exports.json',
-  },
-  {
-    key: 'dead-exports-production',
-    script: 'check-dead-exports.js',
-    args: ['--production'],
-    baseline: 'baselines/dead-exports-production.json',
-  },
-  {
-    key: 'arch-cycles',
-    script: 'check-arch-cycles.js',
-    args: [],
-    baseline: 'baselines/arch-cycles.json',
-  },
-  {
-    key: 'cyclomatic',
-    script: 'check-cyclomatic.js',
-    args: [],
-    baseline: 'baselines/cyclomatic.json',
-  },
-]);
 
 const MAX_OFFENDING_LINES = 10;
 
@@ -357,13 +331,15 @@ function describeSuiteFailure(status) {
  * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean, deposit?: object }>}
  */
 function preflightChecks(ctx) {
-  const ratchets = RATCHETS.filter((r) =>
+  const covered = new Set(getQuality(ctx.config).ratchets.coveredByLint);
+  const ratchets = STANDALONE_RATCHETS.filter((r) =>
     fs.existsSync(path.join(ctx.cwd, r.baseline)),
   ).map((r) => ({
     key: r.key,
     cmd: 'node',
     args: [path.join(SCRIPTS_DIR, r.script), ...r.args],
     gated: true,
+    coveredByLint: covered.has(r.key),
   }));
   return [
     ...creditedPreflight(ctx),
@@ -430,7 +406,18 @@ async function stepPreflight(ctx) {
     );
   }
   const findings = [];
+  const covered = [];
+  let lint = null;
   for (const check of checks) {
+    const cover = lintCovers(check, checks, lint);
+    if (cover === 'covered') {
+      covered.push(check.key);
+      ctx.progress(
+        name,
+        `⏭ ${check.key} covered by lint (delivery.quality.ratchets.coveredByLint)`,
+      );
+    }
+    if (cover) continue;
     const run = await runLogged(
       ctx,
       `preflight-${check.key}`,
@@ -438,6 +425,7 @@ async function stepPreflight(ctx) {
       check.args,
     );
     const detail = preflightFinding(check, run);
+    if (check.key === 'lint') lint = detail ? 'failed' : 'passed';
     if (detail) {
       findings.push({
         check: check.key,
@@ -455,7 +443,26 @@ async function stepPreflight(ctx) {
     });
   }
   ctx.state.preflightHead = ctx.head;
-  return ran(name, `${checks.map((c) => c.key).join(', ')} clean`);
+  const clean = checks.map((c) => c.key).filter((k) => !covered.includes(k));
+  const coveredNote =
+    covered.length > 0 ? `; covered by lint: ${covered.join(', ')}` : '';
+  return ran(name, `${clean.join(', ')} clean${coveredNote}`);
+}
+
+/**
+ * Why a covered ratchet does not spawn: `covered` once this pass's whole-tree
+ * lint exited 0, `lint-failed` once it failed (its finding stands). Anything
+ * else — no such lint, or not yet reached — runs the ratchet.
+ *
+ * @param {{ key: string, coveredByLint?: boolean }} check
+ * @param {Array<{ key: string, wholeTree?: boolean }>} checks
+ * @param {'passed'|'failed'|null} lint this pass's recorded lint result.
+ * @returns {'covered'|'lint-failed'|null}
+ */
+function lintCovers(check, checks, lint) {
+  if (!check.coveredByLint || lint === null) return null;
+  if (!checks.some((c) => c.key === 'lint' && c.wholeTree)) return null;
+  return lint === 'passed' ? 'covered' : 'lint-failed';
 }
 
 /** A held `lint` waits for the post-seat checks; any other check credits now. */

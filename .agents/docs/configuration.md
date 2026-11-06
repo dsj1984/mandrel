@@ -246,6 +246,8 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.duplication.ignoreGlobs` | No | `array<string>` | `[]` | Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from duplication discovery before scanning. Orthogonal to `components` (grouping). Absent or empty preserves the existing behaviour (Story #3664). This is the lever for scanning fewer files. |
 | `quality.autoRefresh` | No | `object` | — | Baseline-attribution auto-refresh: when a gate can prove a regression is a legitimate consequence of the diff, it rewrites the baseline instead of blocking. The single-row CRAP jump cap (5) and the rescore scope (`diff`) are fixed. |
 | `quality.autoRefresh.enabled` | No | `boolean` | `true` | Master switch for the auto-refresh path. When false, every baseline refresh is a deliberate operator action. |
+| `quality.ratchets` | No | `object` | — | CI's standalone ratchets as the handoff preflight runs them. |
+| `quality.ratchets.coveredByLint` | No | `array<enum>` | `[]` | Standalone ratchets the handoff preflight skips once the same pass's whole-tree `lint` check exited 0. Each listed ratchet MUST be run, with the same arguments and over the whole repository, by the command `project.commands.lint` resolves to; mandrel cannot inspect that command, so this is the consumer's declaration. A lint that is absent, disabled, failing or narrowed to changed files covers nothing, and CI stays the backstop. Default `[]` runs every ratchet whose baseline is committed. |
 | `quality.requireBaselines` | No | `boolean` | `false` | Story #4495. Fail-closed baseline-enforcement policy for the unified check-baselines close-validation gate. When false (default), a consumer that enables baseline gates (crap/maintainability/…) but has not committed the corresponding baseline artifacts under baselines/ gets a clean skip-with-reason instead of a deterministic first-try close failure. Set true to keep the gate registered so an absent baseline artifact fails close-validation with a preflight hint naming the fix (the fail-closed posture). |
 | `mergeWatch` | No | `object` | — | Knobs consumed by the close-and-land merge wait (Story #4543). `mode` (Story #4698) selects the close-time merge posture. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the later of the PR's createdAt and its latest auto-merge arm, so a `--wait` resume does not restart the clock while a re-close that re-arms gets a fresh budget) and exhausting it is the genuine give-up that classifies and blocks. The poll cadence is internal (at most 30s while checks run, at most 10s once they are green and the PR is unmerged); it and the cap of 3 behind-the-base updates are not configurable. |
 | `mergeWatch.mode` | No | `"sync"` \| `"async"` | — | Close-time merge-wait posture (Story #4698). `sync` (default) keeps the in-close foreground merge wait unchanged. `async` caps the per-invocation wait to a short ~60s probe window — long enough to catch an instant merge and, via the head-anchored required-check predicate, an instantly-red required check — then returns the resumable `pending` terminal (exit 3) with a `nextCommand`. Opt in when slow CI makes the foreground wait routinely expire: the worker launches `nextCommand` in the background instead of burning the host tool slot polling. `maxBudgetSeconds` (the cumulative give-up) is unchanged. |
@@ -771,6 +773,25 @@ write still settles `fix-required`. While any check is declared, preflight
 runs `lint` without depositing close's credit and records the one `lint` pass
 only after every post-seat check passed at that HEAD; under a coverage
 deferral the checks are skipped and close runs lint itself.
+
+#### `delivery.quality.ratchets.coveredByLint` — ratchets your lint already runs
+
+The handoff preflight runs each standalone ratchet whose baseline is committed
+(`dead-exports`, `dead-exports-production`, `arch-cycles`, `cyclomatic`). A
+consumer whose `project.commands.lint` already runs some of them over the whole
+tree lists those keys here, and the preflight skips each one, printing
+`⏭ <key> covered by lint (delivery.quality.ratchets.coveredByLint)`.
+
+The list is a declaration mandrel cannot check: each listed ratchet MUST be run
+by the `project.commands.lint` command with the same arguments and over the
+whole repository. A ratchet is skipped only when the same preflight pass
+contains a whole-tree `lint` check (close's lint gate with no changed-file
+scoping) and that check exited 0, whether it ran or `evidence-gate.js` credited
+it from fresh evidence for the same HEAD and tree. A failing lint settles
+`fix-required` with its own finding and no covered ratchet spawns; an absent,
+disabled or narrowed lint covers nothing, so every ratchet runs. CI's ratchet
+jobs stay the backstop. The preflight step's detail lists covered keys apart
+from the checks that ran clean.
 
 #### `delivery.worktreeIsolation` — node_modules strategies
 

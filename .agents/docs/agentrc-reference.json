@@ -217,6 +217,9 @@
       "autoRefresh": {
         "enabled": true
       },
+      "ratchets": {
+        "coveredByLint": []
+      },
       "requireBaselines": false
     },
     "mergeWatch": {
