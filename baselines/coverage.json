@@ -700,9 +700,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 94.61,
-      "branches": 85,
-      "functions": 90.63
+      "lines": 96.57,
+      "branches": 86.45,
+      "functions": 95.74
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -778,8 +778,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "lines": 95.24,
-      "branches": 90.91,
+      "lines": 95.77,
+      "branches": 92.75,
       "functions": 100
     },
     {
@@ -1415,7 +1415,7 @@
     {
       "path": ".agents/scripts/lib/crap-method-identity.js",
       "lines": 100,
-      "branches": 96,
+      "branches": 97.06,
       "functions": 100
     },
     {
@@ -1503,6 +1503,12 @@
       "functions": 66.67
     },
     {
+      "path": ".agents/scripts/lib/escomplex-anchor.js",
+      "lines": 97.04,
+      "branches": 84.75,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/escomplex-ast-compat.js",
       "lines": 92.95,
       "branches": 72,
@@ -1510,8 +1516,8 @@
     },
     {
       "path": ".agents/scripts/lib/escomplex-kernel.js",
-      "lines": 98.98,
-      "branches": 92.31,
+      "lines": 99.11,
+      "branches": 93.75,
       "functions": 100
     },
     {

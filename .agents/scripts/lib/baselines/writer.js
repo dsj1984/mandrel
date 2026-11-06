@@ -73,12 +73,18 @@ export function write({
     });
   }
 
+  const priorEnv = resolvePriorEnvelope(priorEnvelope, prior);
+  const extras =
+    typeof mod.envelopeExtras === 'function'
+      ? mod.envelopeExtras(extrasContext)
+      : null;
+  assertScopedSemantics(kind, scope, priorEnv, extras);
+
   const merged = scopeMergeRows(mod, projected, prior, scope);
   const stabilised = stabiliseRows(mod, merged, prior, epsilon);
 
   const sortedRows = mod.sortRows(stabilised);
 
-  const priorEnv = resolvePriorEnvelope(priorEnvelope, prior);
   if (priorEnv && deepEqual(sortedRows, priorEnv.rows)) {
     // No smuggling an invalid envelope through the short-circuit.
     assertEnvelope(priorEnv);
@@ -89,13 +95,28 @@ export function write({
     kind,
     rows: sortedRows,
     kernelVersion: kernelVersion ?? currentKernelVersion(kind),
-    extras:
-      typeof mod.envelopeExtras === 'function'
-        ? mod.envelopeExtras(extrasContext)
-        : null,
+    extras,
   });
   assertEnvelope(envelope);
   return envelope;
+}
+
+/**
+ * A scoped write keeps out-of-scope prior rows verbatim but stamps the
+ * running semantics, so across a semantics boundary it would hide a
+ * half-migrated baseline behind a current stamp. Refuse it.
+ */
+function assertScopedSemantics(kind, scope, priorEnv, extras) {
+  const running = extras?.scoringSemantics;
+  if (!scope || scope.mode === 'full' || !priorEnv || !running) return;
+  const stamped = priorEnv.scoringSemantics ?? null;
+  if (stamped === running) return;
+  throw new Error(
+    `writer.write: refusing a scoped ${kind} refresh across a scoring-semantics ` +
+      `change (baseline=${stamped ?? '<unstamped>'} running=${running}): ` +
+      'out-of-scope rows would keep the old semantics under the new stamp. ' +
+      'Re-seed the whole baseline with a --full-scope refresh.',
+  );
 }
 
 /** `priorEnvelope`, else `prior` when it is a whole envelope, else null. */
