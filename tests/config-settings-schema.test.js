@@ -376,6 +376,16 @@ describe('delivery.* shape', () => {
     );
   });
 
+  it('accepts coverage.onOverBudget values and rejects any other', () => {
+    const withPolicy = (onOverBudget) => ({
+      ...REQ,
+      delivery: { quality: { gates: { coverage: { onOverBudget } } } },
+    });
+    assert.equal(validate(withPolicy('block')), true);
+    assert.equal(validate(withPolicy('defer-to-ci')), true);
+    expectErrors(withPolicy('skip'), /allowed values/);
+  });
+
   it('keeps execution.fullSuiteLock, the operator opt-out', () => {
     assert.equal(
       validate({ ...REQ, delivery: { execution: { fullSuiteLock: false } } }),

@@ -829,6 +829,14 @@ defaults to a root `REVIEW.md`, so most projects never set it, and it can only
 add review prose under the framework's rules. `skipPaths` is config-only, so a
 guidance file can never silence a finding mechanically.
 
+**Raised to 146 (2026-11-06, Story #5949)** for
+`delivery.quality.gates.coverage.onOverBudget`. On a small host a hub change
+can select a capture slice that cannot finish inside `timeoutMs`, and the
+handoff could only end in a 124. Whether a slice fits the host, and whether CI
+already runs it with a coverage floor, are facts only the consumer knows: its
+capture script signals the first with exit 76, and this key records the second.
+It defaults to `block`, so nothing changes unless a consumer opts in.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

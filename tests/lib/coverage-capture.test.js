@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { getQuality } from '../../.agents/scripts/lib/config/quality.js';
 import {
   anyChangedUnderTargets,
+  COVERAGE_OVER_BUDGET_EXIT_CODE,
   COVERAGE_TIMEOUT_EXIT_CODE,
   captureStampPath,
   computeContentDigest,
@@ -813,6 +814,15 @@ describe('runCapture', () => {
     assert.equal(await runCapture({ cwd: '/repo', spawnImpl }), 1);
   });
 
+  it('passes a consumer over-budget exit (76) through unchanged', async () => {
+    const spawnImpl = fakeSpawn([], { code: COVERAGE_OVER_BUDGET_EXIT_CODE });
+    assert.equal(await runCapture({ cwd: '/repo', spawnImpl }), 76);
+  });
+
+  it('defaults coverage.onOverBudget to block', () => {
+    assert.equal(getQuality({}).coverage.onOverBudget, 'block');
+  });
+
   it('coerces a null exit code to 1 so callers fail closed', async () => {
     const spawnImpl = fakeSpawn([], { code: null });
     assert.equal(await runCapture({ cwd: '/repo', spawnImpl }), 1);
@@ -927,6 +937,17 @@ describe('reportCaptureFailure (Story #5377)', () => {
     assert.equal(lines.error.length, 1);
     assert.match(lines.error[0], /timed out/);
     assert.doesNotMatch(lines.error[0], /Fix failing tests/);
+  });
+
+  it('reports an over-budget exit as a declared deferral naming the policy key', () => {
+    const { lines, logger } = recorder();
+    assert.equal(
+      reportCaptureFailure(COVERAGE_OVER_BUDGET_EXIT_CODE, logger),
+      76,
+    );
+    assert.deepEqual(lines.error, []);
+    assert.match(lines.info[0], /no suite ran/);
+    assert.match(lines.info[0], /coverage\.onOverBudget/);
   });
 
   it('reports any other non-zero exit as a suite failure', () => {
