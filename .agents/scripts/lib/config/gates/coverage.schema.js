@@ -84,7 +84,7 @@ export const COVERAGE_GATE = {
       type: 'string',
       enum: ['block', 'defer-to-ci'],
       description:
-        "What handoff and close do when the capture script exits 76 — the consumer-declared signal that the selected slice is over this host's budget and no test ran. `block` (default) stops the handoff (`blocked`) and fails close, naming this key. `defer-to-ci` settles the coverage gate as deferred to CI: no artifact is written or stamped and no credit is recorded, the coverage-reading gates (CRAP preview, coverage and CRAP baselines) are skipped, and handoff and close proceed — the terminal envelope and the PR body say coverage was deferred. Set it only when the consumer's CI runs the deferred suite with a coverage floor. A timeout (124) blocks under either value.",
+        "What handoff and close do when the capture script exits 76 — the consumer-declared signal that the selected slice is over this host's budget and no test ran. `block` (default) stops the handoff (`blocked`) and fails close, naming this key. `defer-to-ci` settles the coverage gate as deferred to CI: no artifact is written or stamped and no credit is recorded, the coverage-reading gates (CRAP preview, coverage and CRAP baselines) are skipped, and handoff and close proceed — the terminal envelope and the PR body say coverage was deferred. Set it only when the consumer's CI runs the deferred suite with a coverage floor. A timeout (124) is never deferred, under either value.",
       default: COVERAGE_GATE_DEFAULTS.onOverBudget,
     },
   },
