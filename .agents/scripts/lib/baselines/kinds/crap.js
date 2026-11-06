@@ -43,11 +43,7 @@ import {
 export const name = 'crap';
 export const keyField = 'path';
 
-export {
-  aheadStampOf,
-  classifyScoringSemantics,
-  loadCrapBaseline,
-} from './_crap-read.js';
+export { aheadStampOf, loadCrapBaseline } from './_crap-read.js';
 
 const __filename = fileURLToPath(import.meta.url);
 

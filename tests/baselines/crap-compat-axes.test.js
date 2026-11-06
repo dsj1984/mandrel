@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { classifyScoringSemantics } from '../../.agents/scripts/lib/baselines/kinds/_crap-read.js';
 import {
   aheadStampOf,
   assertBaselineCompatible,
   CRAP_COMPAT_AXES,
-  classifyScoringSemantics,
   envelopeExtras,
   evaluateBaselineCompatibility,
   loadCrapBaseline,
