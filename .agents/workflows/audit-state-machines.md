@@ -1,10 +1,9 @@
 ---
 description: >-
-  Audit implicit state machines — co-varying flags, status fields with
-  dependent sidecar fields, transitions written from many sites, and one
-  logical state split across systems — and report only the impossible or
-  unhandled combinations the code can actually reach, each with a traced write
-  path and a sketch of the explicit form that rules it out.
+  Audit implicit state machines — co-varying flags, status sidecar fields,
+  scattered transitions, state split across systems — and report only the
+  impossible or unhandled combinations the code can reach, each with a traced
+  write path and a sketch of the explicit form.
 ---
 
 # State Machine Audit
@@ -76,11 +75,11 @@ Execution strategy. It never fans out on its own judgment.
 
 A candidate is an implicit state machine only when **both** parts hold:
 
-1. **Shape.** Two or more variables change together to encode one logical
-   state: a set of booleans, a status value plus fields whose validity depends
+1. **Shape: the variables move together.** Two or more variables change
+   together to encode one logical state: a set of booleans, a status value plus fields whose validity depends
    on it, or one logical state held in two systems (labels, files on disk, git
    refs, a database row plus a cache, a lease assignee).
-2. **Consequence.** At least one combination of those variables that the code
+2. **Consequence: a bad combination is reachable.** At least one combination of those variables that the code
    does not intend is reachable, or one reachable value is not handled by a
    consumer — shown with a traced path: the entry point, then each write by
    `path:line` in the order it executes, then the bad combination it leaves.
