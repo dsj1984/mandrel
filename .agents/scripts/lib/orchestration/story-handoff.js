@@ -814,12 +814,17 @@ function isCoverageGateEnabled(config) {
  * @returns {Array<keyof typeof SEAT_SCRIPTS>}
  */
 function seatKinds(ctx) {
-  const capture =
-    ctx.depositor === 'coverage-capture' && isCoverageGateEnabled(ctx.config);
   return [
     ...(isCrapGateEnabled(ctx.config) ? ['crap'] : []),
-    ...(capture ? ['coverage'] : []),
+    ...(seatsCoverage(ctx) ? ['coverage'] : []),
   ];
+}
+
+/** The capture deposits the artifact the coverage seat reads. */
+function seatsCoverage(ctx) {
+  return (
+    ctx.depositor === 'coverage-capture' && isCoverageGateEnabled(ctx.config)
+  );
 }
 
 /** Static MI needs no capture, so its seat runs before preflight. */
@@ -828,13 +833,7 @@ function staticSeatKinds(config) {
   return mi === false ? [] : ['maintainability'];
 }
 
-/**
- * Seat `kinds` and commit any rows under step `name`, keyed by `headKey`.
- *
- * @param {object} ctx @param {string[]} kinds
- * @param {{ name: string, headKey: string }} step
- * @returns {Promise<StepResult>}
- */
+/** Seat `kinds` and commit any rows under `step.name`, keyed by `step.headKey`. */
 async function seatAndCommit(ctx, kinds, step) {
   if (ctx.state[step.headKey] === ctx.head) {
     return skipped(step.name, `nothing to seat at ${ctx.head.slice(0, 12)}`);

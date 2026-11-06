@@ -327,15 +327,8 @@ function measuredRows(scores, inScope, logger) {
 }
 
 /**
- * The `--seat-missing` scorer. Refuses (throws {@link SeatRefusal}) unless a
- * capture stamp marks the artifact fresh for the current tree; a diff file
- * the artifact did not measure is never seated at 0%. A diff with no
- * c8-scoped file never consults coverage.
- *
- * @param {{ coveragePath: string, readCoverage: Function }} targets
- * @param {{ targetDirs: string[], cwd: string, logger: object }} deps
- *   `targetDirs` is the capture stamp's digest scope.
- * @returns {(files: string[]) => object[]}
+ * The coverage `--seat-missing` scorer: refuses unless a capture stamp is
+ * fresh (`targetDirs` is its digest scope); never seats an unmeasured file.
  */
 function buildCoverageSeatScorer(
   { coveragePath, readCoverage },
