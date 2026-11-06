@@ -35,6 +35,7 @@ import {
 } from '../close-validation/gates.js';
 import { isBiomeNoFilesProcessed } from '../close-validation/process.js';
 import { applyChangedFileScope } from '../close-validation/runner.js';
+import { getPostSeatChecks } from '../config/handoff.js';
 import {
   orchestrationLogDir,
   storyReviewDepositPath,
@@ -57,13 +58,16 @@ import { PROJECT_ROOT } from '../project-root.js';
 import { describeBlocking } from '../suite-admission.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
 import { defaultSleep } from '../util/sleep.js';
+import { hashCommandConfig } from '../validation-evidence.js';
 import { runStreamed } from './evidence-stream.js';
 import {
   carryCoverageDeferral,
+  carryCredit,
   carryPreflightCredits,
   clearCoverageDeferral,
   coverageEnvelope,
   creditedPreflight,
+  isCoverageDeferred,
   isOverBudgetCapture,
   postCaptureSettled,
   recordPreflightCredit,
@@ -150,6 +154,7 @@ const MAX_OFFENDING_LINES = 10;
 const LOCK_POLL_MS = 1_000;
 
 const SEAT_SCRIPTS = Object.freeze({
+  coverage: 'update-coverage-baseline.js',
   crap: 'update-crap-baseline.js',
   maintainability: 'update-maintainability-baseline.js',
 });
@@ -208,16 +213,21 @@ function headSha(ctx) {
 }
 
 /**
- * A child's env with `AP_AGENTRC_CWD` pinned to the Story worktree, layered
- * last so a stale inherited value cannot win: a gate judges the branch by
- * the branch's own `.agentrc.json`.
+ * A child's env with `AP_AGENTRC_CWD` pinned to the Story worktree and
+ * `MANDREL_HANDOFF_STEP` naming the running step, layered last so a stale
+ * inherited value cannot win: a gate judges the branch by the branch's own
+ * `.agentrc.json`, and a consumer check can key on the step.
  *
  * @param {object} ctx
  * @param {Record<string, string|undefined>} [env] defaults to `ctx.env`.
  * @returns {Record<string, string|undefined>}
  */
 function worktreeEnv(ctx, env) {
-  return { ...(env ?? ctx.env), AP_AGENTRC_CWD: ctx.cwd };
+  return {
+    ...(env ?? ctx.env),
+    AP_AGENTRC_CWD: ctx.cwd,
+    MANDREL_HANDOFF_STEP: ctx.stepName,
+  };
 }
 
 /**
@@ -409,6 +419,7 @@ async function stepPreflight(ctx) {
     );
   }
   ctx.state.preflightCredits = {};
+  delete ctx.state.heldLint;
   let checks;
   try {
     checks = preflightChecks(ctx);
@@ -434,7 +445,7 @@ async function stepPreflight(ctx) {
         evidencePath: run.evidencePath,
       });
     } else {
-      recordPreflightCredit(ctx, check);
+      creditCheck(ctx, check);
     }
   }
   if (findings.length > 0) {
@@ -445,6 +456,28 @@ async function stepPreflight(ctx) {
   }
   ctx.state.preflightHead = ctx.head;
   return ran(name, `${checks.map((c) => c.key).join(', ')} clean`);
+}
+
+/** A held `lint` waits for the post-seat checks; any other check credits now. */
+function creditCheck(ctx, check) {
+  if (!check.held) return recordPreflightCredit(ctx, check);
+  ctx.state.heldLint = {
+    head: ctx.head,
+    configHash: hashCommandConfig({ ...check.deposit, cwd: ctx.cwd }),
+  };
+}
+
+/** A baselines-only seat commit re-keys a held `lint`; any other commit drops it. */
+function carryHeldLint(state, priorHead, head) {
+  if (state.heldLint?.head === priorHead) state.heldLint.head = head;
+}
+
+/** Record a held `lint` once every post-seat check passed at HEAD. */
+function releaseHeldLint(ctx) {
+  const held = ctx.state.heldLint;
+  if (held?.head !== ctx.head) return;
+  ctx.state.preflightCredits.lint = carryCredit(ctx, 'lint', held);
+  delete ctx.state.heldLint;
 }
 
 /** A baseline-only conflict the shared sync resolved is named. */
@@ -718,9 +751,17 @@ function changedPaths(git, cwd) {
     .filter((p) => p.length > 0);
 }
 
-/** @param {object} ctx @returns {Promise<StepResult>} */
-async function commitSeatedRows(ctx, total, evidencePath) {
-  const name = 'seat';
+/**
+ * @param {object} ctx
+ * @param {{ total: number, evidencePath: string|null }} seated
+ * @param {{ name: string, headKey: string }} step whose idempotency key it sets.
+ * @returns {Promise<StepResult>}
+ */
+async function commitSeatedRows(
+  ctx,
+  { total, evidencePath },
+  { name, headKey },
+) {
   const paths = changedPaths(ctx.git, ctx.cwd);
   const add = ctx.git(ctx.cwd, 'add', '--', ...paths);
   const commit =
@@ -744,7 +785,7 @@ async function commitSeatedRows(ctx, total, evidencePath) {
   const creditedPrior = ctx.state.creditHead === priorHead;
   ctx.head = headSha(ctx) ?? ctx.head;
   carryCoverageDeferral(ctx.state, priorHead, ctx.head);
-  ctx.state.seatHead = ctx.head;
+  ctx.state[headKey] = ctx.head;
   // Both capture-stamp digests leave `baselines/` out, so a baseline-JSON-only
   // commit keeps the credit it already holds.
   if (creditedPrior && ctx.depositor === 'coverage-capture') {
@@ -752,34 +793,85 @@ async function commitSeatedRows(ctx, total, evidencePath) {
   }
   if (paths.every((p) => p.startsWith('baselines/'))) {
     carryPreflightCredits(ctx, priorHead);
+    carryHeldLint(ctx.state, priorHead, ctx.head);
   }
   return ran(name, `seated ${total} row(s) and committed them`, {
     evidencePath,
   });
 }
 
+/** A coverage gate block that is present and not disabled, as close reads it. */
+function isCoverageGateEnabled(config) {
+  const block = config?.delivery?.quality?.gates?.coverage;
+  return Boolean(block) && typeof block === 'object' && block.enabled !== false;
+}
+
 /**
- * The gates whose baselines take a `--seat-missing` pass: CRAP by close's own
- * predicate, MI unless explicitly disabled (both default on).
+ * The post-capture seat's kinds: CRAP by close's own predicate, coverage
+ * when the capture deposits the artifact and its gate is enabled.
  *
- * @param {object} config
+ * @param {object} ctx
  * @returns {Array<keyof typeof SEAT_SCRIPTS>}
  */
-function seatKinds(config) {
-  const mi = config?.delivery?.quality?.gates?.maintainability?.enabled;
+function seatKinds(ctx) {
+  const capture =
+    ctx.depositor === 'coverage-capture' && isCoverageGateEnabled(ctx.config);
   return [
-    ...(isCrapGateEnabled(config) ? ['crap'] : []),
-    ...(mi === false ? [] : ['maintainability']),
+    ...(isCrapGateEnabled(ctx.config) ? ['crap'] : []),
+    ...(capture ? ['coverage'] : []),
   ];
 }
 
-/** @param {object} ctx @returns {Promise<StepResult>} */
-async function stepSeat(ctx) {
-  const name = 'seat';
-  if (ctx.state.seatHead === ctx.head) {
-    return skipped(name, `nothing to seat at ${ctx.head.slice(0, 12)}`);
+/** Static MI needs no capture, so its seat runs before preflight. */
+function staticSeatKinds(config) {
+  const mi = config?.delivery?.quality?.gates?.maintainability?.enabled;
+  return mi === false ? [] : ['maintainability'];
+}
+
+/**
+ * Seat `kinds` and commit any rows under step `name`, keyed by `headKey`.
+ *
+ * @param {object} ctx @param {string[]} kinds
+ * @param {{ name: string, headKey: string }} step
+ * @returns {Promise<StepResult>}
+ */
+async function seatAndCommit(ctx, kinds, step) {
+  if (ctx.state[step.headKey] === ctx.head) {
+    return skipped(step.name, `nothing to seat at ${ctx.head.slice(0, 12)}`);
   }
-  const kinds = seatableKinds(ctx, seatKinds(ctx.config));
+  const seated = await runSeats(ctx, step.name, kinds);
+  if (seated.stop) return seated;
+  if (seated.total === 0) {
+    ctx.state[step.headKey] = ctx.head;
+    return skipped(step.name, 'seated: 0 — nothing to seat', {
+      evidencePath: seated.evidencePath,
+    });
+  }
+  return commitSeatedRows(ctx, seated, step);
+}
+
+/** @param {object} ctx @returns {Promise<StepResult>} */
+function stepSeatStatic(ctx) {
+  return seatAndCommit(ctx, staticSeatKinds(ctx.config), {
+    name: 'seat-static',
+    headKey: 'staticSeatHead',
+  });
+}
+
+/** @param {object} ctx @returns {Promise<StepResult>} */
+function stepSeat(ctx) {
+  return seatAndCommit(ctx, seatableKinds(ctx, seatKinds(ctx)), {
+    name: 'seat',
+    headKey: 'seatHead',
+  });
+}
+
+/**
+ * Each kind's `--seat-missing` pass; a refusal or a missing `seated: N` stops.
+ *
+ * @returns {Promise<StepResult|{ total: number, evidencePath: string|null }>}
+ */
+async function runSeats(ctx, name, kinds) {
   let total = 0;
   let evidencePath = null;
   for (const kind of kinds) {
@@ -798,11 +890,7 @@ async function stepSeat(ctx) {
     }
     total += Number(match[1]);
   }
-  if (total === 0) {
-    ctx.state.seatHead = ctx.head;
-    return skipped(name, 'seated: 0 — nothing to seat', { evidencePath });
-  }
-  return commitSeatedRows(ctx, total, evidencePath);
+  return { total, evidencePath };
 }
 
 /**
@@ -1150,18 +1238,71 @@ async function stepPostCapture(ctx) {
       gate: failed.gate,
     });
   }
+  const post = await runPostSeatChecks(ctx, (...a) => runLogged(ctx, ...a));
+  if (post.failed) return postSeatFixRequired(name, post.failed);
   ctx.state.postCaptureHead = ctx.head;
-  return gates.length > 0
-    ? ran(name, `${gates.map((g) => g.name).join(', ')} clean`)
+  return settledPostCapture(name, gates, post);
+}
+
+/**
+ * Run each `delivery.handoff.postSeatChecks` entry through `run`; the first
+ * non-zero exit is the finding. Skipped under a coverage deferral.
+ *
+ * @returns {Promise<{ checks: object[], skipped?: boolean, failed: object|null }>}
+ */
+async function runPostSeatChecks(ctx, run) {
+  const checks = getPostSeatChecks(ctx.config);
+  if (checks.length === 0) return { checks, failed: null };
+  if (isCoverageDeferred(ctx)) return { checks, skipped: true, failed: null };
+  for (const [i, check] of checks.entries()) {
+    const res = await run(`post-seat-${i + 1}`, check.cmd, check.args);
+    if (res.status !== 0)
+      return { checks, failed: postSeatFailure(check, res) };
+  }
+  releaseHeldLint(ctx);
+  return { checks, failed: null };
+}
+
+/** A failed post-seat check as the handoff's finding. */
+function postSeatFailure(check, res) {
+  const label = [check.cmd, ...check.args].join(' ');
+  return {
+    gate: 'post-seat',
+    finding: `post-seat check \`${label}\` failed (exit ${res.status}) — fix and commit, then re-run`,
+    evidencePath: res.evidencePath,
+  };
+}
+
+/** @param {string} name @param {{ finding: string, evidencePath: string, gate: string }} failed */
+function postSeatFixRequired(name, failed) {
+  return fixRequired(name, failed.finding, {
+    evidencePath: failed.evidencePath,
+    gate: failed.gate,
+  });
+}
+
+/** The clean post-capture result, naming the post-seat checks' outcome. */
+function settledPostCapture(name, gates, post) {
+  const names = gates.map((g) => g.name);
+  if (post.checks.length > 0) {
+    names.push(
+      post.skipped
+        ? 'post-seat checks skipped (coverage deferred)'
+        : `${post.checks.length} post-seat check(s)`,
+    );
+  }
+  return names.length > 0
+    ? ran(name, `${names.join(', ')} clean`)
     : skipped(name, 'no post-capture gate registered');
 }
 
 /**
  * The run's step order. The base merges first, so every check scores the
- * tree that is pushed. On the evidence-gate path the `test` credit is keyed
- * on the tree, so seating (static MI) goes first and cannot void it; the
- * capture stamp's digests leave `baselines/` out, so a baseline seat after it
- * keeps the stamp fresh.
+ * tree that is pushed. Static MI seats before preflight, so no check refuses
+ * a new file for a row the handoff can derive. On the evidence-gate path the
+ * `test` credit is keyed on the tree, so the seat goes first and cannot void
+ * it; the capture stamp's digests leave `baselines/` out, so the CRAP and
+ * coverage seat after the capture keeps the stamp fresh.
  *
  * @param {'coverage-capture'|'test'} depositor
  * @returns {Array<(ctx: object) => Promise<StepResult>>}
@@ -1174,6 +1315,7 @@ function stepOrder(depositor) {
   return [
     stepBaseMerge,
     stepDuplicationRescore,
+    stepSeatStatic,
     stepPreflight,
     ...middle,
     stepPostCapture,
@@ -1189,7 +1331,8 @@ function stepOrder(depositor) {
  */
 async function runSteps(ctx, steps) {
   for (const step of stepOrder(ctx.depositor)) {
-    ctx.storyProgress.phase(handoffStepName(step));
+    ctx.stepName = handoffStepName(step);
+    ctx.storyProgress.phase(ctx.stepName);
     const results = [await step(ctx)].flat();
     for (const result of results) {
       steps.push(result);
@@ -1234,7 +1377,7 @@ function precheck(ctx) {
  *
  * @param {string} statePath
  * @param {(tag: string, msg: string) => void} progress
- * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, preflightCredits?: Record<string, { head: string, configHash: string }>, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string, duplicationRescore?: { head: string, partners: Record<string, string[]> } }}
+ * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, preflightCredits?: Record<string, { head: string, configHash: string }>, creditHead?: string, creditTimings?: object, seatHead?: string, staticSeatHead?: string, postCaptureHead?: string, duplicationRescore?: { head: string, partners: Record<string, string[]> } }}
  */
 function readState(statePath, progress) {
   let raw;

@@ -345,6 +345,30 @@ const PULL_REQUEST_DELIVERY_SCHEMA = {
   additionalProperties: false,
 };
 
+const HANDOFF_SCHEMA = {
+  type: 'object',
+  description:
+    "Story #5960. What `story-handoff.js` runs beyond close's own gates.",
+  properties: {
+    postSeatChecks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          cmd: { type: 'string', minLength: 1 },
+          args: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['cmd'],
+        additionalProperties: false,
+      },
+      description:
+        "Story #5960. Consumer checks the handoff re-runs in its post-capture step, after the seat commits the Story's new baseline rows: each `{ cmd, args? }` runs in the worktree without a shell, with `MANDREL_HANDOFF_STEP=post-capture`, and a non-zero exit settles `fix-required`. Declare the check a consumer downgrades during `preflight` (keyed on `MANDREL_HANDOFF_STEP`) here, so a row the seat did not write still fails the handoff; while any is declared the preflight `lint` credit is withheld until they pass at HEAD. Skipped under a coverage deferral. Default [] runs nothing extra.",
+      default: [],
+    },
+  },
+  additionalProperties: false,
+};
+
 const REFACTOR_STAGE_SCHEMA = {
   type: 'object',
   description:
@@ -485,6 +509,7 @@ export const DELIVERY_SCHEMA = {
     feedbackLoop: FEEDBACK_LOOP_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     pullRequest: PULL_REQUEST_DELIVERY_SCHEMA,
+    handoff: HANDOFF_SCHEMA,
     routing: ROUTING_SCHEMA,
   },
   additionalProperties: false,

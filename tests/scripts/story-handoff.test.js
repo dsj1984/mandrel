@@ -150,6 +150,7 @@ function commandDouble(world, outputs = {}) {
     },
     'evidence-gate.js': { status: 0, stdout: '[evidence-gate] ✓ test passed' },
     'update-crap-baseline.js': { status: 0, stdout: 'seated: 0' },
+    'update-coverage-baseline.js': { status: 0, stdout: 'seated: 0' },
     'update-maintainability-baseline.js': { status: 0, stdout: 'seated: 0' },
     git: { status: 0, stdout: '' },
   };
@@ -247,6 +248,7 @@ describe('story-handoff — the happy path (AC-1)', () => {
     assert.deepEqual(stepNames(envelope), [
       'base-merge',
       'duplication-rescore',
+      'seat-static',
       'preflight',
       'credited-run',
       'seat',
@@ -263,12 +265,12 @@ describe('story-handoff — the happy path (AC-1)', () => {
       suggestion: 2,
     });
     assert.deepEqual(spawned(h.runCommand), [
+      'update-maintainability-baseline.js',
       'typecheck',
       'lint',
       'quality-preview.js',
       'coverage-capture.js',
       'update-crap-baseline.js',
-      'update-maintainability-baseline.js',
       'quality-preview.js --only crap',
       'check-baselines.js',
       'git',
@@ -329,7 +331,7 @@ describe('story-handoff — the happy path (AC-1)', () => {
   test('on the evidence-gate path the seat runs before the suite so its commit cannot void the tree-keyed credit', async () => {
     const h = harness({ scripts: { test: 'x' } });
     const { envelope } = await h.run();
-    assert.deepEqual(stepNames(envelope).slice(3, 5), ['seat', 'credited-run']);
+    assert.deepEqual(stepNames(envelope).slice(4, 6), ['seat', 'credited-run']);
     const gate = h.runCommand.calls.find((c) => c.key === 'evidence-gate.js');
     assert.deepEqual(gate.args.slice(1), [
       '--standalone',
@@ -468,7 +470,7 @@ describe('story-handoff — the preflight runs the standalone ratchets (#5528)',
     const h = harness({ cwd: seededWorktree() });
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 0);
-    assert.deepEqual(spawned(h.runCommand).slice(0, 7), [
+    assert.deepEqual(spawned(h.runCommand).slice(1, 8), [
       'typecheck',
       'lint',
       'quality-preview.js',
@@ -1978,6 +1980,7 @@ describe('story-handoff — the review runs beside the credited run (Story #5905
     assert.deepEqual(stepNames(envelope), [
       'base-merge',
       'duplication-rescore',
+      'seat-static',
       'preflight',
       'credited-run',
       'seat',
@@ -1985,7 +1988,7 @@ describe('story-handoff — the review runs beside the credited run (Story #5905
       'push',
       'review',
     ]);
-    assert.equal(envelope.steps[2].outcome, 'ran');
+    assert.equal(envelope.steps[3].outcome, 'ran');
     assert.equal(
       readState().creditHead,
       HEAD,
@@ -2079,7 +2082,7 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
   test('AC-3: typecheck deposits first, with close typecheck argv and command hash', async () => {
     const h = harness();
     await h.run();
-    assert.equal(spawned(h.runCommand)[0], 'typecheck');
+    assert.equal(spawned(h.runCommand)[1], 'typecheck');
     const closeTypecheck = buildDefaultGates({
       config: configFor(),
       baseBranch: 'main',
@@ -2195,7 +2198,9 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
       envelope.steps.at(-1).detail,
       /typecheck\/lint\/format gates: bad ref/,
     );
-    assert.deepEqual(spawned(h.runCommand), []);
+    assert.deepEqual(spawned(h.runCommand), [
+      'update-maintainability-baseline.js',
+    ]);
   });
 
   test('AC-5: a baselines-only seat commit carries the lint and typecheck credits to the seated head', async () => {
@@ -2312,15 +2317,12 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     const post = envelope.steps.find((s) => s.name === 'post-capture');
     assert.equal(post.outcome, 'ran');
     const keys = spawned(h.runCommand);
-    assert.deepEqual(
-      keys.slice(keys.indexOf('update-maintainability-baseline.js') + 1),
-      [
-        'quality-preview.js --only crap',
-        'check-baselines.js maintainability',
-        'check-baselines.js crap',
-        'git',
-      ],
-    );
+    assert.deepEqual(keys.slice(keys.indexOf('update-crap-baseline.js') + 1), [
+      'quality-preview.js --only crap',
+      'check-baselines.js maintainability',
+      'check-baselines.js crap',
+      'git',
+    ]);
     const baselines = callFor(h, 'check-baselines.js crap');
     assert.equal(baselines.opts.env.BASELINE_REF, 'origin/main');
     for (const call of h.runCommand.calls.slice(-4, -1)) {
@@ -2799,9 +2801,10 @@ describe('story-handoff — the duplication re-score (Story #5956)', () => {
       return commit();
     };
     const { envelope } = await h.run();
-    assert.deepEqual(stepNames(envelope).slice(0, 3), [
+    assert.deepEqual(stepNames(envelope).slice(0, 4), [
       'base-merge',
       'duplication-rescore',
+      'seat-static',
       'preflight',
     ]);
     const step = envelope.steps[1];
@@ -2873,5 +2876,204 @@ describe('story-handoff — the duplication re-score (Story #5956)', () => {
     assert.equal(exitCode, 0);
     assert.equal(envelope.steps[1].outcome, 'error');
     assert.match(envelope.steps[1].detail, /boom/);
+  });
+});
+
+describe('story-handoff — seat order, step env and post-seat checks (Story #5960)', () => {
+  const lintHash = hashCommandConfig({
+    cmd: 'npm',
+    args: ['run', 'lint'],
+    cwd: '/work',
+  });
+  const lintSkip = (sha) =>
+    shouldSkip(
+      {
+        storyId: STORY,
+        gateName: 'lint',
+        currentSha: sha,
+        configHash: lintHash,
+      },
+      { cwd: tempRoot, standalone: true },
+    );
+  const readState = () =>
+    JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+  const gatesConfig = (gates, handoff) =>
+    configFor({
+      delivery: {
+        quality: { gates },
+        ...(handoff ? { handoff } : {}),
+      },
+    });
+  const coverageConfig = (coverage = {}) =>
+    gatesConfig({ crap: { enabled: true }, coverage });
+  const checksConfig = (overBudget) =>
+    gatesConfig(
+      { coverage: overBudget ? { onOverBudget: 'defer-to-ci' } : {} },
+      { postSeatChecks: [{ cmd: 'consumer-check', args: ['--rows'] }] },
+    );
+
+  test('AC-5: on the capture path missing coverage rows seat beside CRAP after the capture and the credit moves to the seat commit', async () => {
+    const h = harness({
+      config: coverageConfig(),
+      outputs: {
+        'update-coverage-baseline.js': { status: 0, stdout: 'seated: 2' },
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    const keys = spawned(h.runCommand);
+    assert.deepEqual(
+      keys.slice(keys.indexOf('coverage-capture.js') + 1).slice(0, 2),
+      ['update-crap-baseline.js', 'update-coverage-baseline.js'],
+    );
+    const seat = h.runCommand.calls.find(
+      (c) => c.key === 'update-coverage-baseline.js',
+    );
+    assert.deepEqual(seat.args.slice(1), ['--seat-missing']);
+    assert.equal(envelope.headSha, SEATED_HEAD);
+    assert.equal(readState().creditHead, SEATED_HEAD);
+  });
+
+  test('AC-5: no coverage seat on the test path, with the gate disabled, or under a coverage deferral', async () => {
+    const runs = [
+      harness({ config: coverageConfig(), scripts: { test: 'x' } }),
+      harness({ config: coverageConfig({ enabled: false }) }),
+      harness({
+        config: coverageConfig({ onOverBudget: 'defer-to-ci' }),
+        outputs: { 'coverage-capture.js': { status: 76, stdout: '' } },
+      }),
+    ];
+    for (const h of runs) {
+      const { envelope } = await h.run();
+      assert.equal(envelope.status, 'ready');
+      assert.ok(!spawned(h.runCommand).includes('update-coverage-baseline.js'));
+    }
+  });
+
+  test('AC-6: the MI seat runs after the base merge and before preflight, commits, and skips at the same HEAD', async () => {
+    const h = harness({
+      outputs: {
+        'update-maintainability-baseline.js': {
+          status: 0,
+          stdout: '[Maintainability] seated: 1',
+        },
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    const staticSeat = envelope.steps.find((s) => s.name === 'seat-static');
+    assert.equal(staticSeat.outcome, 'ran');
+    assert.deepEqual(spawned(h.runCommand).slice(0, 2), [
+      'update-maintainability-baseline.js',
+      'typecheck',
+    ]);
+    assert.equal(readState().staticSeatHead, SEATED_HEAD);
+    assert.equal(readState().preflightHead, SEATED_HEAD);
+    h.runCommand.calls.length = 0;
+    const again = await h.run();
+    const rerun = again.envelope.steps.find((s) => s.name === 'seat-static');
+    assert.equal(rerun.outcome, 'skipped');
+    assert.ok(
+      !spawned(h.runCommand).includes('update-maintainability-baseline.js'),
+    );
+  });
+
+  test('AC-6: a disabled maintainability gate spawns no MI seat', async () => {
+    const h = harness({
+      config: gatesConfig({ maintainability: { enabled: false } }),
+    });
+    await h.run();
+    assert.ok(
+      !spawned(h.runCommand).includes('update-maintainability-baseline.js'),
+    );
+  });
+
+  test('AC-7: every child gets MANDREL_HANDOFF_STEP for its step, over an inherited value', async () => {
+    const h = harness({ config: checksConfig() });
+    h.deps.env = { MANDREL_HANDOFF_STEP: 'stale', KEEP: '1' };
+    await h.run();
+    const stepOf = (key) =>
+      h.runCommand.calls.find((c) => c.key === key).opts.env;
+    assert.equal(
+      stepOf('update-maintainability-baseline.js').MANDREL_HANDOFF_STEP,
+      'seat-static',
+    );
+    assert.equal(stepOf('npm').MANDREL_HANDOFF_STEP, 'preflight');
+    assert.equal(
+      stepOf('coverage-capture.js').MANDREL_HANDOFF_STEP,
+      'credited-run',
+    );
+    assert.equal(
+      stepOf('update-crap-baseline.js').MANDREL_HANDOFF_STEP,
+      'seat',
+    );
+    assert.equal(stepOf('consumer-check').MANDREL_HANDOFF_STEP, 'post-capture');
+    assert.equal(stepOf('git').MANDREL_HANDOFF_STEP, 'push');
+    assert.equal(stepOf('git').KEEP, '1');
+  });
+
+  test('AC-8: a failing post-seat check is fix-required at post-capture, naming it, and nothing is pushed', async () => {
+    const h = harness({
+      config: checksConfig(),
+      outputs: { 'consumer-check': { status: 1, stdout: 'missing row' } },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'post-capture');
+    assert.match(envelope.steps.at(-1).detail, /consumer-check --rows/);
+    assert.match(envelope.evidencePath, /post-seat-1/);
+    const check = h.runCommand.calls.find((c) => c.key === 'consumer-check');
+    assert.deepEqual(check.args, ['--rows']);
+    assert.ok(!spawned(h.runCommand).includes('git'), 'nothing was pushed');
+    assert.equal(lintSkip(HEAD).skip, false, 'no lint credit');
+  });
+
+  test('AC-9: with post-seat checks declared, lint runs bare and is credited only once they pass at HEAD', async () => {
+    const h = harness({ config: checksConfig() });
+    const run = h.deps.runCommand;
+    let creditedBeforeChecks = null;
+    h.deps.runCommand = async (cmd, args, opts) => {
+      if (cmd === 'consumer-check') creditedBeforeChecks = lintSkip(HEAD).skip;
+      return run(cmd, args, opts);
+    };
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.ok(!spawned(h.runCommand).includes('lint'), 'no evidence-gate lint');
+    const lint = h.runCommand.calls.find((c) => c.key === 'npm');
+    assert.deepEqual(lint.args, ['run', 'lint']);
+    assert.equal(creditedBeforeChecks, false);
+    assert.equal(lintSkip(HEAD).skip, true);
+    assert.equal(readState().preflightCredits.lint.pending, undefined);
+  });
+
+  test('AC-9: a held lint credit re-keys across a baselines-only seat commit and is recorded at the seated HEAD', async () => {
+    const h = harness({
+      config: checksConfig(),
+      outputs: {
+        'update-crap-baseline.js': { status: 0, stdout: 'seated: 1' },
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.headSha, SEATED_HEAD);
+    assert.equal(lintSkip(SEATED_HEAD).skip, true);
+    assert.equal(lintSkip(HEAD).skip, false);
+  });
+
+  test('AC-9: under a coverage deferral the post-seat checks are skipped and no lint credit is written', async () => {
+    const h = harness({
+      config: checksConfig(true),
+      outputs: { 'coverage-capture.js': { status: 76, stdout: '' } },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.ok(!spawned(h.runCommand).includes('consumer-check'));
+    const post = envelope.steps.find((s) => s.name === 'post-capture');
+    assert.match(post.detail, /post-seat checks skipped/);
+    assert.equal(lintSkip(HEAD).skip, false);
   });
 });

@@ -257,6 +257,9 @@
     "pullRequest": {
       "bodyTrailers": []
     },
+    "handoff": {
+      "postSeatChecks": []
+    },
     "routing": {
       "roleScopedAgents": true,
       "ceremonyProfile": "standard",
