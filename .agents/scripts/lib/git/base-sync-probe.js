@@ -81,7 +81,7 @@ export async function probeBaseSync({
 }
 
 /** One human line for a probe answer, naming the decision and its reason. */
-export function describeProbe(probe) {
+function describeProbe(probe) {
   if (probe.skip) {
     return `skipped — merge is conflict-free and shares no path (${probe.incoming} incoming path(s))`;
   }

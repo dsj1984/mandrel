@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
 
 import {
-  describeProbe,
   probeBaseSync,
   syncFromBaseByMode,
 } from '../../../.agents/scripts/lib/git/base-sync-probe.js';
@@ -87,7 +86,6 @@ describe('probeBaseSync (Story #5954)', () => {
     assert.equal(probe.skip, true);
     assert.equal(probe.incoming, 2);
     assert.match(probe.mergeBase, /^[0-9a-f]{40}$/);
-    assert.match(describeProbe(probe), /skipped .*2 incoming path\(s\)/);
   });
 
   it('answers already-current when origin is an ancestor of HEAD', async () => {
@@ -107,7 +105,6 @@ describe('probeBaseSync (Story #5954)', () => {
       reason: 'intersects',
       path: 'src/a.js',
     });
-    assert.match(describeProbe(probe), /intersects \(src\/a\.js\)/);
   });
 
   it('a shared baselines/ file intersects', async () => {
