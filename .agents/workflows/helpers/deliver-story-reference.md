@@ -277,7 +277,9 @@ judgment that help text cannot carry.
   **critical** blocker is one you have read and judged wrong (a false positive,
   or a finding the ratchet correctly exempts). It is the only sanctioned way
   past that halt: reach for it instead of merging the PR by hand, because a
-  hand-merge bypasses the gate and records nothing. The reason is mandatory and
+  hand-merge bypasses the gate and records no override — the land then posts
+  the held deposit (a merged CRITICAL raises `review-critical-merged`) or an
+  `Unreviewed` marker. The reason is mandatory and
   is written to three places (Story comment, PR comment, a
   `review-block-overridden` friction signal), and the terminal envelope reports
   `gates.codeReview: "overridden"` rather than `"passed"`. If you find yourself
@@ -545,7 +547,10 @@ state, flips `agent::closing → agent::done` on a confirmed merge (closing the
 issue) and runs the **same** post-land tail — so the two surfaces cannot
 diverge. It is idempotent, emits the same terminal envelope, and is safe to
 re-run while the PR is still open (returns `pending`). The issue closes exactly
-when the work has merged, never at PR-open.
+when the work has merged, never at PR-open. It also guarantees a review record:
+a PR landed without close gets the handoff deposit matching its merged head, or
+an `Unreviewed` marker, as its `verification-results` comment
+(`tail.reviewRecord`).
 
 ---
 
