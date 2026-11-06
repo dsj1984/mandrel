@@ -1321,6 +1321,18 @@ function settledPostCapture(name, gates, post) {
     : skipped(name, 'no post-capture gate registered');
 }
 
+/** `step`, unless the review has already halted: then the halt is its result. */
+function beforeRun(step) {
+  const guarded = (ctx) =>
+    ctx.reviewSettled?.stop ? ctx.reviewSettled : step(ctx);
+  return Object.defineProperty(guarded, 'name', { value: step.name });
+}
+
+/** Append the settled review unless a step already recorded it. */
+function appendReview(steps, review) {
+  if (review && !steps.some((s) => s.name === 'review')) steps.push(review);
+}
+
 /**
  * The run's step order. The base merges first, so every check scores the
  * tree that is pushed. Static MI seats before preflight, so no check refuses
@@ -1335,8 +1347,8 @@ function settledPostCapture(name, gates, post) {
 function stepOrder(depositor) {
   const middle =
     depositor === 'test'
-      ? [stepSeat, stepCreditedRun]
-      : [stepCreditedRun, stepSeat];
+      ? [beforeRun(stepSeat), beforeRun(stepCreditedRun)]
+      : [beforeRun(stepCreditedRun), stepSeat];
   return [
     stepBaseMerge,
     stepDuplicationRescore,
@@ -1349,10 +1361,6 @@ function stepOrder(depositor) {
   ];
 }
 
-/** The run and any seat before it: what a halted review keeps from starting. */
-const beforeRun = (ctx, step) =>
-  step === stepCreditedRun || (step === stepSeat && ctx.depositor === 'test');
-
 /**
  * Run the steps in order into `steps`; a step may settle several results.
  *
@@ -1360,12 +1368,6 @@ const beforeRun = (ctx, step) =>
  */
 async function runSteps(ctx, steps) {
   for (const step of stepOrder(ctx.depositor)) {
-    const halted = ctx.reviewSettled;
-    if (halted?.stop && beforeRun(ctx, step)) {
-      steps.push(halted);
-      ctx.progress(halted.name, `${halted.outcome} — ${halted.detail}`);
-      return halted;
-    }
     ctx.stepName = handoffStepName(step);
     ctx.storyProgress.phase(ctx.stepName);
     const results = [await step(ctx)].flat();
@@ -1608,8 +1610,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   let stop = precheck(ctx);
   if (stop) steps.push(stop);
   else stop = await runSteps(ctx, steps);
-  const review = await ctx.reviewPending;
-  if (review && !steps.some((s) => s.name === 'review')) steps.push(review);
+  appendReview(steps, await ctx.reviewPending);
 
   const status = stop?.stop ?? HANDOFF_STATUS.READY;
   const credited = steps.find((s) => s.name === 'credited-run');
