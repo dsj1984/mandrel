@@ -8,13 +8,23 @@ import {
   parseArgs,
   runCoverageCapture,
 } from '../.agents/scripts/coverage-capture.js';
-import { resolveChangedFilesRef } from '../.agents/scripts/lib/changed-files.js';
+import {
+  getChangedFiles,
+  resolveCaptureBaseRef,
+  resolveChangedFilesRef,
+} from '../.agents/scripts/lib/changed-files.js';
 import { createLockEventChannel } from '../.agents/scripts/lib/close-lock-events.js';
 import { getQuality } from '../.agents/scripts/lib/config-resolver.js';
 import { COVERAGE_TIMEOUT_EXIT_CODE } from '../.agents/scripts/lib/coverage-capture.js';
 import { handleCoverageCaptureHelp } from '../.agents/scripts/lib/coverage-capture-usage.js';
 import { acquireSweepLock } from '../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+import {
+  makeGitRepo,
+  runGit,
+  seedGitIdentity,
+  writeFiles,
+} from './fixtures/git-fixture.js';
 
 const CLOSE_LOCK_EVENTS_FILE_ENV = 'MANDREL_CLOSE_LOCK_EVENTS_FILE';
 
@@ -54,6 +64,7 @@ function harness({
   lockEnabled = false,
   requireCredited = undefined,
   artifactExists = true,
+  remoteResolves = true,
 } = {}) {
   const log = { info: [], warn: [], error: [] };
   // `order` interleaves the announcement with the spawn so a test can assert
@@ -88,6 +99,13 @@ function harness({
         },
       }),
       getQualityImpl: () => ({ crap, coverage }),
+      // Never probe git against the test cwd: the remote ref's presence is
+      // the harness's to decide.
+      resolveBaseRefImpl: (opts) =>
+        resolveCaptureBaseRef({
+          ...opts,
+          gitSpawnFn: () => ({ status: remoteResolves ? 0 : 1 }),
+        }),
       readPackageScriptsImpl: () => ({ 'test:coverage': 'node --test' }),
       hasNpmScriptImpl: () => hasScript,
       getChangedFilesImpl: (args) => {
@@ -133,15 +151,16 @@ function harness({
 const argv = (...flags) => ['node', 'coverage-capture.js', ...flags];
 
 describe('coverage-capture parseArgs', () => {
-  it('defaults to a non-skipping capture against main in the cwd', async () => {
+  it('defaults to a non-skipping capture against origin/main in the cwd', async () => {
     const parsed = parseArgs(argv());
     assert.equal(parsed.skipWhenNoCrapFiles, false);
     // Story #5365 — `null` is "the caller named no ref", which is what lets
-    // `resolveChangedFilesRef` apply the configured baseRef and then `main`.
+    // `resolveChangedFilesRef` apply the configured baseRef and then
+    // `origin/<baseBranch>` (Story #5962).
     assert.equal(parsed.ref, null);
     assert.equal(
       resolveChangedFilesRef({ crap: {}, ref: parsed.ref }),
-      'main',
+      'origin/main',
       'the gate default still applies when nothing names a ref',
     );
     assert.equal(parsed.cwd, process.cwd());
@@ -275,7 +294,7 @@ describe('runCoverageCapture', () => {
     );
     assert.equal(h.calls.fresh.length, 0);
     assert.match(
-      h.log.info[0],
+      h.log.info[1],
       /No changed files under \[\.agents\/scripts, lib\]/,
     );
   });
@@ -313,7 +332,7 @@ describe('runCoverageCapture', () => {
     assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
     assert.equal(h.calls.capture.length, 0);
     assert.match(
-      h.log.info[0],
+      h.log.info[1],
       new RegExp(
         `Coverage at ${path.resolve('/repo', CRAP.coveragePath).replace(/\\/g, '\\\\')} is content-identical`,
       ),
@@ -423,7 +442,7 @@ describe('runCoverageCapture', () => {
       const h = harness({ crap: SKIP_ON, changed: ['README.md'] });
       assert.equal(await runCoverageCapture(argv(), h.deps), 0);
       assert.equal(h.calls.capture.length, 0);
-      assert.match(h.log.info[0], /Incremental mode: no changed files/);
+      assert.match(h.log.info[1], /Incremental mode: no changed files/);
     });
 
     it('falls back to full-scope capture on a bad ref (fail-closed, not skipped)', async () => {
@@ -1101,5 +1120,85 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
       h.calls.capture.map((c) => [c.coveragePath, c.script]),
       [[COVERAGE_PATH, 'cov']],
     );
+  });
+});
+
+// Story #5962 — the changed-file set is measured against origin/<baseBranch>,
+// so a local `main` that trails it cannot widen a Story's slice.
+describe('coverage-capture — base ref (Story #5962)', () => {
+  const INCREMENTAL = {
+    ...CRAP,
+    incrementalCoverage: { skipWhenUnchanged: true, baselineJoin: false },
+  };
+  const commit = (dir, files, msg) => {
+    writeFiles(dir, files);
+    runGit(dir, 'add', '-A');
+    runGit(dir, 'commit', '-q', '-m', msg);
+  };
+
+  /** origin/main one commit ahead of local main; the Story merged it in. */
+  function staleBaseRepo({ withRemote = true } = {}) {
+    const dir = makeGitRepo({ prefix: 'mandrel-cc-baseref-' });
+    seedGitIdentity(dir);
+    const seed = runGit(dir, 'rev-parse', 'HEAD');
+    commit(dir, { '.agents/scripts/landed.js': 'x\n' }, 'landed');
+    if (withRemote) {
+      runGit(dir, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    }
+    const landed = runGit(dir, 'rev-parse', 'HEAD');
+    runGit(dir, 'reset', '-q', '--hard', seed);
+    runGit(dir, 'checkout', '-q', '-b', 'story-1');
+    commit(dir, { '.agents/scripts/story.js': 'y\n' }, 'story');
+    if (withRemote) runGit(dir, 'merge', '-q', '--no-edit', landed);
+    return dir;
+  }
+
+  function realGitHarness(dir) {
+    const h = harness({
+      crap: INCREMENTAL,
+      fresh: { fresh: false, reason: 'missing' },
+    });
+    h.deps.resolveBaseRefImpl = resolveCaptureBaseRef;
+    h.deps.getChangedFilesImpl = (a) => {
+      h.calls.changed.push(a);
+      return getChangedFiles(a);
+    };
+    return { h, run: () => runCoverageCapture(argv('--cwd', dir), h.deps) };
+  }
+
+  it('AC-3/AC-5: measures only the Story change when local main trails origin/main', async () => {
+    const dir = staleBaseRepo();
+    try {
+      const { h, run } = realGitHarness(dir);
+      assert.equal(await run(), 0);
+      assert.equal(h.calls.changed[0].ref, 'origin/main');
+      assert.deepEqual(h.calls.stamp[0].files, ['.agents/scripts/story.js']);
+      assert.match(
+        h.log.info[0],
+        /Changed files measured against origin\/main \(default: origin\/<baseBranch>\)/,
+      );
+      assert.doesNotMatch(h.log.warn.join('\n'), /does not resolve/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('AC-4: warns once and still captures against the local base when origin/main is missing', async () => {
+    const dir = staleBaseRepo({ withRemote: false });
+    try {
+      const { h, run } = realGitHarness(dir);
+      assert.equal(await run(), 0);
+      assert.equal(h.calls.changed[0].ref, 'main');
+      assert.equal(h.calls.capture.length, 1);
+      assert.deepEqual(h.calls.stamp[0].files, ['.agents/scripts/story.js']);
+      const fallback = h.log.warn.filter((m) => /does not resolve/.test(m));
+      assert.equal(fallback.length, 1);
+      assert.match(
+        fallback[0],
+        /origin\/main does not resolve in this clone — measuring changed files against the local main instead/,
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

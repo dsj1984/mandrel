@@ -1423,7 +1423,10 @@ describe('suite reservation marker (Story #5929)', () => {
       assert.equal(code, 0);
       assert.deepEqual(nested, {
         lockWaitMs: 0,
-        env: { [SUITE_RESERVATION_ENV]: parent.marker },
+        env: {
+          [SUITE_RESERVATION_ENV]: parent.marker,
+          MANDREL_SUITE_WEIGHT: '8',
+        },
       });
     } finally {
       parent.release();

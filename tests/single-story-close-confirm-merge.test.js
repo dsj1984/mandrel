@@ -253,6 +253,8 @@ describe('merge wait — the confirmed path', () => {
     assert.equal(outcome.tail.followUps, true);
     assert.equal(tailArgs.storyBranch, 'story-4428');
     assert.equal(tailArgs.baseBranch, 'main');
+    // Story #5975: the tail needs the PR to supply its review record.
+    assert.equal(tailArgs.prNumber, 99);
   });
 
   it('does NOT re-read the ticket on every poll (the ~240-reads-per-hour fix)', async () => {

@@ -1083,6 +1083,46 @@ describe('AGENTRC_SCHEMA — delivery.execution capacity/workloads (Story #5668)
       /must NOT be valid/,
     );
   });
+
+  // Story #5963 — size tiers, their sizing command and the backfill opt-in.
+  const sized = (extra) => ({
+    command: 'pnpm run test:coverage:affected',
+    weight: 8,
+    tiers: [
+      { maxFiles: 20, weight: 2 },
+      { maxFiles: 80, weight: 4 },
+    ],
+    sizeCommand: 'node scripts/count-slice.js',
+    backfill: true,
+    ...extra,
+  });
+
+  it('accepts tiers with a sizing command and a backfill flag', () => {
+    assert.equal(validate(execution({ workloads: [sized()] })), true);
+  });
+
+  it('requires tiers and sizeCommand together and rejects shell metacharacters', () => {
+    expectErrors(
+      execution({ workloads: [sized({ sizeCommand: undefined })] }),
+      /must have property sizeCommand when property tiers is present/,
+    );
+    expectErrors(
+      execution({ workloads: [sized({ tiers: undefined })] }),
+      /must have property tiers when property sizeCommand is present/,
+    );
+    expectErrors(
+      execution({ workloads: [sized({ sizeCommand: 'git diff | wc -l' })] }),
+      /must NOT be valid/,
+    );
+    expectErrors(
+      execution({ workloads: [sized({ tiers: [] })] }),
+      /must NOT have fewer than 1 items/,
+    );
+    expectErrors(
+      execution({ workloads: [sized({ tiers: [{ maxFiles: 5 }] })] }),
+      /must have required property 'weight'/,
+    );
+  });
 });
 
 describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () => {

@@ -31,6 +31,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
+import { failedTerminalFor } from '../.agents/scripts/lib/orchestration/single-story-close/failed-terminal.js';
+import { validateTerminalEnvelope } from '../.agents/scripts/lib/orchestration/story-deliver-terminal-schema.js';
 import { gatesForFailedPhase } from '../.agents/scripts/single-story-close.js';
 
 const PHASE_GATES = ['validation', 'baseSync', 'codeReview'];
@@ -185,5 +187,26 @@ describe('gatesForFailedPhase — baselines entries are reported, not invented (
         [],
       );
     }
+  });
+});
+
+describe('failedTerminalFor — failing baselines kinds (Story #5956)', () => {
+  const failed = (kinds) => {
+    const err = new Error('Gate failed: check-baselines-independent (exit 1).');
+    err.closePhase = 'close-validation';
+    if (kinds) err.closeBaselinesKinds = kinds;
+    return failedTerminalFor(err, { storyId: 5956 });
+  };
+
+  it('carries the tagged kinds as failure.baselinesKinds and validates', () => {
+    const env = failed(['duplication', 'crap']);
+    assert.deepEqual(env.failure.baselinesKinds, ['duplication', 'crap']);
+    assert.equal(validateTerminalEnvelope(env).valid, true);
+  });
+
+  it('omits the field when no kind was tagged, and still validates', () => {
+    const env = failed(null);
+    assert.ok(!('baselinesKinds' in env.failure));
+    assert.equal(validateTerminalEnvelope(env).valid, true);
   });
 });

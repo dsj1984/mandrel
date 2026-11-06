@@ -1,6 +1,6 @@
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail as one
- * deterministic sequence: base merge → blocking preflight (lint and format
+ * deterministic sequence: base merge → duplication re-score → blocking preflight (lint and format
  * deposited as close's credit, quality-preview, baselined ratchets) → the one
  * credited run with the held review beside it → baseline seating → close's
  * post-capture CRAP and baselines scoring → push + remote-ref check → review
@@ -55,19 +55,24 @@ import { defaultSleep } from '../util/sleep.js';
 import { runStreamed } from './evidence-stream.js';
 import {
   carryCoverageDeferral,
-  carryLintCredit,
+  carryPreflightCredits,
   clearCoverageDeferral,
   coverageEnvelope,
   creditedPreflight,
   isOverBudgetCapture,
-  lintCredit,
   postCaptureSettled,
+  recordPreflightCredit,
   scorePostCapture,
   seatableKinds,
   settleOverBudget,
 } from './handoff-gates.js';
+import {
+  raisedDuplicationSuffix,
+  rescoreDuplication,
+} from './handoff-rescore.js';
 import { handoffStatePath } from './handoff-state.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
+import { runDuplicationCloseRescore } from './story-close/duplication-close-rescore.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
 import {
   STATE_LABELS,
@@ -329,7 +334,7 @@ function describeSuiteFailure(status) {
 }
 
 /**
- * Lint and format (deposited), quality-preview, then each ratchet whose
+ * Typecheck, lint and format (deposited), quality-preview, then each ratchet whose
  * baseline is committed.
  *
  * @param {object} ctx
@@ -383,7 +388,12 @@ function preflightFinding(check, run) {
   return `${check.key}${check.gated ? ' ratchet' : ''} finding${rows} — fix and commit, then re-run`;
 }
 
-/** @param {object} ctx @returns {Promise<StepResult>} */
+/**
+ * Runs every check, serially, then settles one `fix-required` listing each
+ * finding; a passed carryable check keeps its credit either way.
+ *
+ * @param {object} ctx @returns {Promise<StepResult>}
+ */
 async function stepPreflight(ctx) {
   const name = 'preflight';
   if (ctx.state.preflightHead === ctx.head) {
@@ -392,16 +402,17 @@ async function stepPreflight(ctx) {
       `preflight already passed at ${ctx.head.slice(0, 12)}`,
     );
   }
-  ctx.state.lintCredit = null;
+  ctx.state.preflightCredits = {};
   let checks;
   try {
     checks = preflightChecks(ctx);
   } catch (err) {
     return fixRequired(
       name,
-      `could not resolve close's lint/format gates: ${err?.message ?? err}`,
+      `could not resolve close's typecheck/lint/format gates: ${err?.message ?? err}`,
     );
   }
+  const findings = [];
   for (const check of checks) {
     const run = await runLogged(
       ctx,
@@ -409,11 +420,22 @@ async function stepPreflight(ctx) {
       check.cmd,
       check.args,
     );
-    const finding = preflightFinding(check, run);
-    if (finding) {
-      return fixRequired(name, finding, { evidencePath: run.evidencePath });
+    const detail = preflightFinding(check, run);
+    if (detail) {
+      findings.push({
+        check: check.key,
+        detail,
+        evidencePath: run.evidencePath,
+      });
+    } else {
+      recordPreflightCredit(ctx, check);
     }
-    if (check.key === 'lint') ctx.state.lintCredit = lintCredit(ctx, check);
+  }
+  if (findings.length > 0) {
+    return fixRequired(name, findings.map((f) => f.detail).join('\n'), {
+      evidencePath: findings[0].evidencePath,
+      findings,
+    });
   }
   ctx.state.preflightHead = ctx.head;
   return ran(name, `${checks.map((c) => c.key).join(', ')} clean`);
@@ -614,7 +636,7 @@ async function commitSeatedRows(ctx, total, evidencePath) {
     recordCredit(ctx, { ...ctx.state.creditTimings, head: ctx.head });
   }
   if (paths.every((p) => p.startsWith('baselines/'))) {
-    carryLintCredit(ctx, priorHead);
+    carryPreflightCredits(ctx, priorHead);
   }
   return ran(name, `seated ${total} row(s) and committed them`, {
     evidencePath,
@@ -692,23 +714,31 @@ function remoteBranchSha(ctx) {
 
 const PORCELAIN_STATUS = /^\s*[ MADRCUT?!]{1,2}\s/;
 
+// GitHub's ruleset engine failing mid-evaluation; it prints a `[remote
+// rejected]` line too, so it must match first.
+const RULESET_EVAL_FAILED = /fatal error in commit_refs_rules/i;
 const REMOTE_REJECTED =
   /\[remote rejected\]|permission to \S+ denied|returned error: 403/i;
 const REF_BEHIND = /\[rejected\].*\((non-fast-forward|fetch first)\)/;
 const REMOTE_UNREACHABLE =
   /could not resolve host|unable to access|could not read from remote|connection (refused|timed out|reset)|network is unreachable/i;
 const PUSH_FAILURES = [
+  [RULESET_EVAL_FAILED, 'ruleset-eval-failed'],
   [REMOTE_REJECTED, 'push-rejected'],
   [REMOTE_UNREACHABLE, 'remote-unreachable'],
   [REF_BEHIND, 'ref-behind'],
 ];
+// shortcut: a fixed stride (every 3-4 first-parent commits passed in the
+// field); make it configurable only if a consumer needs a different one.
+const PUSH_STRIDE = 3;
 
 /**
  * A push the remote refused or could not be reached is blocked; a branch
- * behind its remote or a failing `pre-push` hook is the worker's to fix.
+ * behind its remote, a ruleset-evaluation failure or a failing `pre-push`
+ * hook is the worker's to fix.
  *
  * @param {string} output
- * @returns {'push-rejected'|'remote-unreachable'|'ref-behind'|null}
+ * @returns {'ruleset-eval-failed'|'push-rejected'|'remote-unreachable'|'ref-behind'|null}
  */
 function classifyPushFailure(output) {
   for (const [pattern, reason] of PUSH_FAILURES) {
@@ -717,21 +747,63 @@ function classifyPushFailure(output) {
   return null;
 }
 
+/** @param {object} ctx @param {object} evidence @returns {StepResult} */
+function refBehind(ctx, evidence) {
+  return fixRequired(
+    'push',
+    `origin/${ctx.branch} has commits HEAD lacks — git fetch origin ${ctx.branch}, git merge origin/${ctx.branch}, re-run`,
+    evidence,
+  );
+}
+
+/** @param {object} ctx @param {string} sha */
+const refPush = (ctx, sha) => [
+  'push',
+  'origin',
+  `${sha}:refs/heads/${ctx.branch}`,
+];
+
+/** @param {object} ctx @param {string[]} range @param {object} evidence */
+function rulesetFailure(ctx, range, evidence) {
+  const shas = range.length > 0 ? range : ['<sha>'];
+  const recipe = shas.map((sha) => `git ${refPush(ctx, sha).join(' ')}`);
+  return fixRequired(
+    'push',
+    `GitHub ruleset evaluation failed (commit_refs_rules) even when stepped — push each first-parent commit oldest first: ${recipe.join('; ')}; then re-run`,
+    { ...evidence, reason: 'ruleset-eval-failed' },
+  );
+}
+
+/**
+ * Every PUSH_STRIDE-th commit of the range before HEAD (each one in a short
+ * range).
+ *
+ * @param {string[]} range
+ * @returns {string[]}
+ */
+function stepTargets(range) {
+  const last = range.length - 1;
+  return range.filter(
+    (_, i) => i < last && (last < PUSH_STRIDE || (i + 1) % PUSH_STRIDE === 0),
+  );
+}
+
+const FIXABLE_PUSH = Object.freeze({
+  'ref-behind': (ctx, evidence) => refBehind(ctx, evidence),
+  'ruleset-eval-failed': (ctx, ev, range) => rulesetFailure(ctx, range, ev),
+});
+
 /**
  * @param {object} ctx
  * @param {{ output: string, evidencePath: string|null }} push
+ * @param {string[]} [range] first-parent commits, oldest first.
  * @returns {StepResult}
  */
-function pushFailure(ctx, push) {
+function pushFailure(ctx, push, range = []) {
   const reason = classifyPushFailure(push.output);
   const evidence = { evidencePath: push.evidencePath };
-  if (reason === 'ref-behind') {
-    return fixRequired(
-      'push',
-      `origin/${ctx.branch} has commits HEAD lacks — git fetch origin ${ctx.branch}, git merge origin/${ctx.branch}, re-run`,
-      evidence,
-    );
-  }
+  const fixable = FIXABLE_PUSH[reason];
+  if (fixable) return fixable(ctx, evidence, range);
   return reason
     ? blocked('push', reason, `git push failed (${reason})`, evidence)
     : fixRequired(
@@ -739,6 +811,71 @@ function pushFailure(ctx, push) {
         'git push failed locally (a pre-push hook?) — fix the cause with a NEW commit, re-run',
         evidence,
       );
+}
+
+/**
+ * HEAD's first-parent commits, oldest first, on neither the base nor the
+ * remote Story branch tip.
+ *
+ * @param {object} ctx
+ * @param {string|null} tip
+ * @returns {string[]}
+ */
+function firstParentRange(ctx, tip) {
+  const res = ctx.git(
+    ctx.cwd,
+    'rev-list',
+    '--first-parent',
+    '--reverse',
+    'HEAD',
+    `^origin/${ctx.baseBranch}`,
+    ...(tip ? [`^${tip}`] : []),
+  );
+  if (res?.status !== 0) return [];
+  return `${res.stdout ?? ''}`.split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Retry a ruleset-evaluation failure as a stepped push: the step targets,
+ * then the branch itself.
+ *
+ * @param {object} ctx
+ * @param {string|null} tip the remote Story branch sha before the push.
+ * @param {{ evidencePath: string|null }} first the failed first push.
+ * @returns {Promise<{ failure: StepResult }|{ evidencePath: string, how: string }>}
+ */
+async function steppedPush(ctx, tip, first) {
+  if (
+    tip &&
+    ctx.git(ctx.cwd, 'merge-base', '--is-ancestor', tip, 'HEAD')?.status !== 0
+  ) {
+    return { failure: refBehind(ctx, { evidencePath: first.evidencePath }) };
+  }
+  const range = firstParentRange(ctx, tip);
+  const pushes = [
+    ...stepTargets(range).map((sha) => refPush(ctx, sha)),
+    ['push', '-u', 'origin', ctx.branch],
+  ];
+  let push;
+  for (const [i, args] of pushes.entries()) {
+    push = await runLogged(ctx, `push-step-${i + 1}`, 'git', args);
+    if (push.status !== 0) return { failure: pushFailure(ctx, push, range) };
+  }
+  return {
+    evidencePath: push.evidencePath,
+    how: ` in a stepped push of ${pushes.length} step(s) after a ruleset-evaluation failure`,
+  };
+}
+
+/** The branch push, retried stepped on a ruleset-evaluation failure. */
+async function pushOrStep(ctx, tip) {
+  const args = ['push', '-u', 'origin', ctx.branch];
+  const push = await runLogged(ctx, 'push', 'git', args);
+  if (push.status === 0) return { evidencePath: push.evidencePath, how: '' };
+  if (classifyPushFailure(push.output) !== 'ruleset-eval-failed') {
+    return { failure: pushFailure(ctx, push) };
+  }
+  return steppedPush(ctx, tip, push);
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */
@@ -751,13 +888,8 @@ async function stepPush(ctx) {
   if (before.sha === ctx.head) {
     return skipped(name, `origin/${ctx.branch} already at HEAD`);
   }
-  const push = await runLogged(ctx, 'push', 'git', [
-    'push',
-    '-u',
-    'origin',
-    ctx.branch,
-  ]);
-  if (push.status !== 0) return pushFailure(ctx, push);
+  const push = await pushOrStep(ctx, before.sha);
+  if (push.failure) return push.failure;
   const after = remoteBranchSha(ctx);
   if (after.sha !== ctx.head) {
     return blocked(
@@ -767,9 +899,8 @@ async function stepPush(ctx) {
       { evidencePath: push.evidencePath },
     );
   }
-  return ran(name, `pushed ${ctx.branch} → ${ctx.head.slice(0, 12)}`, {
-    evidencePath: push.evidencePath,
-  });
+  const detail = `pushed ${ctx.branch} → ${ctx.head.slice(0, 12)}${push.how}`;
+  return ran(name, detail, { evidencePath: push.evidencePath });
 }
 
 /**
@@ -872,6 +1003,17 @@ function stepReview(ctx) {
 }
 
 /**
+ * Close's own duplication re-score, before any credit is minted, so close's
+ * re-score no-ops on the handed-off tree. Best-effort: never stops the run.
+ *
+ * @param {object} ctx @returns {Promise<StepResult>}
+ */
+async function stepDuplicationRescore(ctx) {
+  const settled = await rescoreDuplication(ctx, () => headSha(ctx));
+  return { name: 'duplication-rescore', ...settled };
+}
+
+/**
  * Pure scoring after depositor and seat: no lock, no suite, no evidence, so
  * close re-scores them and stays authoritative.
  *
@@ -887,7 +1029,8 @@ async function stepPostCapture(ctx) {
     runLogged(ctx, ...a),
   );
   if (failed) {
-    return fixRequired(name, failed.finding, {
+    const rows = raisedDuplicationSuffix(ctx, failed, MAX_OFFENDING_LINES);
+    return fixRequired(name, `${failed.finding}${rows}`, {
       evidencePath: failed.evidencePath,
       gate: failed.gate,
     });
@@ -915,6 +1058,7 @@ function stepOrder(depositor) {
       : [stepCreditedRun, stepSeat];
   return [
     stepBaseMerge,
+    stepDuplicationRescore,
     stepPreflight,
     ...middle,
     stepPostCapture,
@@ -975,7 +1119,7 @@ function precheck(ctx) {
  *
  * @param {string} statePath
  * @param {(tag: string, msg: string) => void} progress
- * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, lintCredit?: { head: string, configHash: string }|null, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string }}
+ * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, preflightCredits?: Record<string, { head: string, configHash: string }>, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string, duplicationRescore?: { head: string, partners: Record<string, string[]> } }}
  */
 function readState(statePath, progress) {
   let raw;
@@ -1056,6 +1200,7 @@ async function defaultBlock({
  *   evidenceCwd?: string,
  *   scopeGate?: typeof applyChangedFileScope,
  *   presentBaselines?: string[],
+ *   runDuplicationRescore?: typeof runDuplicationCloseRescore,
  * }} deps `evidenceCwd` anchors close's evidence store (the main checkout);
  *   `runCommand` receives `onChunk`, `signal` and (when set)
  *   `timeoutMs` beside `cwd`/`env`; a runner that never calls `onChunk`
@@ -1087,6 +1232,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     evidenceCwd = PROJECT_ROOT,
     scopeGate = applyChangedFileScope,
     presentBaselines,
+    runDuplicationRescore = runDuplicationCloseRescore,
   } = deps;
   const block =
     deps.block ??
@@ -1128,6 +1274,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     scopeGate,
     presentBaselines,
     getChangedFilesFn,
+    runDuplicationRescore,
     state: readState(statePath, progress),
     review: null,
     reviewPending: null,

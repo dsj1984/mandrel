@@ -65,7 +65,7 @@ Everything outside them is prose or a centralized constant.
    Codex custom agent `<role>`" on Codex, and `general-purpose` as the host's
    default agent. No workflow file's dispatch prose changed.
 3. **`claude` CLI shell-outs (review providers)** — the `code-review` (in
-   the default chain, `claude --print --effort low`), `security-review`,
+   the default chain, `claude --print --effort <depth's effort>`), `security-review`,
    `codex`, and `ultrareview` providers spawn or probe the `claude` binary.
    **Already mitigated, and the pattern to copy elsewhere:** all four sit
    behind `review-provider-factory.js` with `optional: true` skip semantics and

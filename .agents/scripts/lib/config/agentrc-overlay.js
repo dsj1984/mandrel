@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import { isObject } from '../json-utils.js';
+import { overlayRoot } from './git-roots.js';
 
 const LOCAL_AGENTRC = '.agentrc.local.json';
 
@@ -34,14 +35,17 @@ function mergeValue(baseVal, overrideVal) {
 }
 
 /**
- * Merge the project's overlay, when present, over the committed config.
- * Throws a parse error naming `.agentrc.local.json`.
+ * Merge the project's overlay (located by `overlayRoot`), when present, over
+ * the committed config. Throws a parse error naming `.agentrc.local.json`.
  *
- * @param {{ fsImpl: typeof import('node:fs'), projectRoot: string, committed: object }} opts
+ * @param {{ fsImpl: typeof import('node:fs'), projectRoot: string, committed: object, exec?: Function }} opts
  * @returns {{ effective: object, localPath: string|null }}
  */
-export function applyLocalOverlay({ fsImpl, projectRoot, committed }) {
-  const localPath = path.join(projectRoot, LOCAL_AGENTRC);
+export function applyLocalOverlay({ fsImpl, projectRoot, committed, exec }) {
+  const localPath = path.join(
+    overlayRoot(projectRoot, exec, fsImpl),
+    LOCAL_AGENTRC,
+  );
   if (!fsImpl.existsSync(localPath)) {
     return { effective: committed, localPath: null };
   }

@@ -368,29 +368,39 @@ sibling to unblock, and the foreground wait is the cheapest path to `landed`.
 ## Preflight (before close) {#preflight}
 
 Digest § 5 states the rule: `story-handoff.js` runs, after the base merge
-and before the credited suite run, close's own `lint` and `format` gates,
-`quality-preview.js --changed-since origin/<baseBranch>`, then the shipped
-standalone ratchets CI's `baselines` job runs — `check-dead-exports.js`
-(default and `--production`), `check-arch-cycles.js` and
-`check-cyclomatic.js` — in the worktree; a finding is `fix-required` — fix,
-commit, re-run it. It runs **before** the credited run because a fix commit
-afterwards would void that run's credit.
+and before the credited suite run, close's own `typecheck`, `lint` and
+`format` gates, `quality-preview.js --changed-since origin/<baseBranch>`,
+then the shipped standalone ratchets CI's `baselines` job runs —
+`check-dead-exports.js` (default and `--production`), `check-arch-cycles.js`
+and `check-cyclomatic.js` — in the worktree. It runs **before** the credited
+run because a fix commit afterwards would void that run's credit.
 
-- **Lint and format are close's credit.** The handoff takes both entries from
-  close's `buildDefaultGates` (same config, base branch, worktree and
-  evidence root) and runs them through `evidence-gate.js --standalone
-  --gate <name>`, so the pass lands in close's evidence store keyed to the
-  post-merge HEAD and tree, with close's command hash. `format` runs the argv
-  close's runner scopes to the changed files, and deposits nothing when that
-  scoping skips it or `project.commands.formatCheck` is `null`. Close on the
-  handed-off HEAD skips both as `evidence-match`. A baselines-only seat commit
-  re-keys the `lint` record to the seated HEAD; `format` is not carried (its
-  argv names the changed files). Any other commit, or a close-time base move,
-  re-runs them.
-- **Why.** Close runs lint and the maintainability half of the preview
-  (`quality-preview-mi`) in its parallel phase, but a regression found there
-  still costs a close round-trip. Seconds of preflight in the worktree is
-  cheaper than any close.
+- **One pass, every finding.** The checks run serially (lint and typecheck
+  are unadmitted CPU fan-outs) and all run even after a finding. Any finding
+  settles one `fix-required` whose `detail` lists each finding on its own
+  line and whose `findings[]` carries `{ check, detail, evidencePath }` per
+  failing check; the envelope's `evidencePath` is the first one's. No suite
+  lock is taken and no suite spawns. Only a fully clean preflight is skipped
+  on a re-run at the same HEAD.
+- **Typecheck, lint and format are close's credit.** The handoff takes the
+  entries from close's `buildDefaultGates` (same config, base branch,
+  worktree and evidence root) and runs them through `evidence-gate.js
+  --standalone --gate <name>`, so each pass lands in close's evidence store
+  keyed to the post-merge HEAD and tree, with close's command hash. A
+  disabled gate (`project.commands.typecheck: null`, or `formatCheck`)
+  deposits nothing; `format` runs the argv close's runner scopes to the
+  changed files and deposits nothing when that scoping skips it. Close on
+  the handed-off HEAD skips each as `evidence-match`, and a consumer
+  `pre-push` hook running the same argv through `evidence-gate.js --gate
+  typecheck` replays the deposit. A baselines-only seat commit re-keys the
+  `lint` and `typecheck` records to the seated HEAD (handoff state
+  `preflightCredits`); `format` is not carried (its argv names the changed
+  files). Any other commit, or a close-time base move, re-runs them.
+- **Why.** Close runs typecheck, lint and the maintainability half of the
+  preview (`quality-preview-mi`), but a regression found there still costs a
+  close round-trip, and a type error found after the suite costs the whole
+  lock-plus-suite phase. Seconds of preflight in the worktree is cheaper than
+  either.
 - **The CRAP half never captures.** It scores whatever coverage artifact is
   on disk — the worker's credited capture when one exists — and triggers no
   capture of its own. With no artifact its methods report unscorable; a stale
@@ -449,13 +459,23 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   over the in-scope files is exactly 100% — a lower rate means the artifact's
   coordinates predate the tree. The refusal names the rate, the unresolved
   files and the fix: re-run the digest § 5 capture, then seat.
+- **Duplication re-score.** After the base merge and before preflight, the
+  handoff runs close's own duplication re-score (`duplication-rescore` in
+  `steps[]`) over the same scope close uses, and commits any moved row with
+  close's **untagged** subject — never `baseline-refresh:`, which would let
+  refresh-ack launder the rise. It precedes every credit, so its commit voids
+  no lint/format credit, `test` credit or capture stamp, and close's re-score
+  over the same tree and base reports `unchanged`. Best-effort: a failed scan
+  or refused commit settles `error` and the run continues; close's re-score
+  stays authoritative. A re-run at the HEAD it settled skips it.
 - **Post-capture checks.** After depositor and seat, the handoff runs close's
   `quality-preview-crap` entry — only when the depositor is
   `coverage-capture`, so a project with no capture keeps its CRAP behaviour —
   and every registered `check-baselines` entry (`single`, or `independent`
   plus `coverage`), each with close's argv and env (`BASELINE_REF`). A
   non-zero exit is `fix-required` naming the gate and its kinds, with the log
-  as evidence; nothing is pushed. They are pure scoring: no lock, no suite,
+  as evidence (a duplication-scoring entry also lists each row raised over
+  `BASELINE_REF`, base → head, with the re-score's clone partners); nothing is pushed. They are pure scoring: no lock, no suite,
   no evidence, so close re-scores them. A re-run at a credited, unchanged
   HEAD skips them.
 - **Seat order vs credit.** Neither capture-stamp digest reads
@@ -511,6 +531,11 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   result is never deposited, and a failed write is one `REVIEW` warning. The
   CRITICAL halt and `--override-review-block` apply to an adopted result
   unchanged.
+- **A deposit close never adopts is posted at land.** A Story landed without
+  close (push plus confirm-merge, or the boot sweep) gets the deposit matching
+  its merged head posted by the land tail before the temp purge, else an
+  `Unreviewed` marker naming `no-deposit` or `stale-deposit`, and a
+  `review-recorded-at-land` friction signal.
 
 ## Gate output {#gate-output}
 

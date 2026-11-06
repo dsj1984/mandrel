@@ -40,7 +40,7 @@ import {
   resolveFormatExtensions,
   scanDuplication,
 } from './duplication-scanner.js';
-import { getKindModule } from './kernel.js';
+import { checkBaselineAhead, getKindModule } from './kernel.js';
 import { filterExcludedRows } from './kinds/maintainability.js';
 import { canonicalizeBaselinePath } from './path-canon.js';
 import {
@@ -289,6 +289,32 @@ function defaultExtrasContext(kind, cwd) {
 }
 
 /**
+ * A full scope is the operator's explicit re-seed: it overwrites even an
+ * ahead baseline. Any narrower scope hands off before scoring.
+ */
+function aheadHandOff({ prior, fullScope, kind, writePath, scopeFiles }) {
+  if (!prior.ahead || fullScope) return null;
+  return {
+    kind,
+    writePath,
+    scope: { mode: scopeFiles ? 'explicit' : 'diff', files: [] },
+    envelope: null,
+    wrote: false,
+    ahead: prior.ahead,
+  };
+}
+
+function requireScorer(kind, scorer, cwd) {
+  const resolved = scorer ?? resolveDefaultScorer(kind, { cwd });
+  if (typeof resolved !== 'function') {
+    throw new Error(
+      `refreshBaseline: no scorer registered for kind "${kind}" (inject one via opts.scorer)`,
+    );
+  }
+  return resolved;
+}
+
+/**
  * Refresh the on-disk baseline for `kind`. `scopeFiles: null` without
  * `fullScope` derives scope from `git diff baseRef..headRef`; `fullScope`
  * requires `scopeFiles: null`. `requireRowsForScopeFiles` fails loud when a
@@ -314,9 +340,12 @@ function defaultExtrasContext(kind, cwd) {
  *   kind: string,
  *   writePath: string,
  *   scope: { mode: 'full' | 'diff' | 'explicit', ref?: string, files: string[] },
- *   envelope: object,
+ *   envelope: object | null,
  *   wrote: boolean,
- * }>}
+ *   partners?: Record<string, string[]>,
+ *   ahead?: object,
+ * }>} `partners`: each write-scope file's scored clone partners. `ahead` (with a null `envelope`): a narrower-than-full refresh left a
+ *   baseline stamped newer than this code untouched.
  */
 export async function refreshBaseline(opts = {}) {
   const {
@@ -338,12 +367,17 @@ export async function refreshBaseline(opts = {}) {
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
 
-  const resolvedScorer = scorer ?? resolveDefaultScorer(kind, { cwd });
-  if (typeof resolvedScorer !== 'function') {
-    throw new Error(
-      `refreshBaseline: no scorer registered for kind "${kind}" (inject one via opts.scorer)`,
-    );
-  }
+  const prior = readPriorState(writePath, fs, kind);
+  const handedOff = aheadHandOff({
+    prior,
+    fullScope,
+    kind,
+    writePath,
+    scopeFiles,
+  });
+  if (handedOff) return handedOff;
+
+  const resolvedScorer = requireScorer(kind, scorer, cwd);
 
   const scope = await resolveScope({
     kind,
@@ -379,7 +413,7 @@ export async function refreshBaseline(opts = {}) {
     requiredScopeFilePredicate,
   });
 
-  const priorEnvelope = readPriorEnvelope(writePath, fs);
+  const priorEnvelope = prior.envelope;
   const writeFiles = resolveWriteScopeFiles({
     kind,
     scope,
@@ -418,7 +452,19 @@ export async function refreshBaseline(opts = {}) {
     },
     envelope,
     wrote,
+    partners: partnersOf(canonicalRows, writeFiles),
   };
+}
+
+/** Each listed file's scored clone partners; the envelope never stores them. */
+function partnersOf(rows, files) {
+  const byPath = new Map(rows.map((row) => [row.path, row.partners]));
+  const out = {};
+  for (const file of files) {
+    const partners = byPath.get(file);
+    if (partners?.length) out[file] = partners.map(canonicalizeBaselinePath);
+  }
+  return out;
 }
 
 /**
@@ -632,20 +678,34 @@ async function resolveScope({
  * @returns {object | null}
  */
 export function readPriorEnvelope(writePath, fs) {
+  return readPriorState(writePath, fs).envelope;
+}
+
+/**
+ * The prior envelope (as {@link readPriorEnvelope}), or `ahead` when its stamp
+ * is newer than this code: then `envelope` is null and nothing may write it
+ * short of a full-scope re-seed.
+ *
+ * @param {string} writePath
+ * @param {typeof nodeFs} fs
+ * @param {string} [kind]
+ * @returns {{envelope: object|null, ahead: object|null}}
+ */
+export function readPriorState(writePath, fs, kind) {
   let raw;
   try {
-    raw = fs.readFileSync(writePath, 'utf8');
+    raw = JSON.parse(fs.readFileSync(writePath, 'utf8'));
   } catch {
-    return null;
+    return { envelope: null, ahead: null };
   }
+  const ahead = kind ? checkBaselineAhead(kind, raw) : null;
+  if (ahead) return { envelope: null, ahead };
   try {
-    const parsed = decodeEnvelope(JSON.parse(raw));
-    if (isObject(parsed) && Array.isArray(parsed.rows)) {
-      return parsed;
-    }
-    return null;
+    const parsed = decodeEnvelope(raw);
+    const valid = isObject(parsed) && Array.isArray(parsed.rows);
+    return { envelope: valid ? parsed : null, ahead: null };
   } catch {
-    return null;
+    return { envelope: null, ahead: null };
   }
 }
 

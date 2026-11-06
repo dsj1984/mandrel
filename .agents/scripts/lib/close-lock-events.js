@@ -91,7 +91,7 @@ export function claimLockEventSink(env = process.env, { fsImpl = fs } = {}) {
 }
 
 /**
- * Waits sum, an expiry sticks, the last holder wins; `spawns` keeps every
+ * Waits sum, an expiry sticks, the last holder and admission win; `spawns` keeps every
  * suite's timings in order and `suiteTimings` is the last of them.
  *
  * @param {object[]} events
@@ -120,12 +120,17 @@ export function sourcedTimings({ suiteTimings, spawns }, source) {
 }
 
 function mergeLockWait(tally, event) {
-  const holder = event.holder ?? tally?.holder;
   return {
     waitedSeconds: (tally?.waitedSeconds ?? 0) + Number(event.waitedSeconds),
     expired: Boolean(tally?.expired) || event.expired === true,
-    ...(holder ? { holder } : {}),
+    ...latest('holder', tally, event),
+    ...latest('admission', tally, event),
   };
+}
+
+function latest(key, tally, event) {
+  const value = event[key] ?? tally?.[key];
+  return value ? { [key]: value } : {};
 }
 
 function timingsOf({ lockWaitMs, hostWaitMs, testRunMs }) {

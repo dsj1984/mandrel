@@ -7,11 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { applyLocalOverlay } from './config/agentrc-overlay.js';
 import { applyGhConfigDir } from './config/gh-config-dir.js';
-import {
-  overlayRoot,
-  resolveAgentrcRoot,
-  storeRoot,
-} from './config/git-roots.js';
+import { resolveAgentrcRoot, storeRoot } from './config/git-roots.js';
 
 /** Applied dir (or null) per anchor root. */
 const _ensuredByRoot = new Map();
@@ -40,8 +36,9 @@ export function ensureGhEnv(deps = {}) {
   if (memoize && _ensuredByRoot.has(root)) return _ensuredByRoot.get(root);
   const { effective } = applyLocalOverlay({
     fsImpl,
-    projectRoot: overlayRoot(root, exec),
+    projectRoot: root,
     committed: readCommittedAgentrc(fsImpl, root),
+    exec,
   });
   const dir = applyGhConfigDir(effective?.github, storeRoot(root, exec), {
     env,

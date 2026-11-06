@@ -104,6 +104,10 @@
         "epicRollup"
       ],
       "properties": {
+        "reviewRecord": {
+          "type": "boolean",
+          "description": "The merged PR carries a verification-results review record: close's own post (details.reviewRecord already-recorded), the handoff deposit matching the merged head posted at land (posted-from-deposit), or an Unreviewed marker (unreviewed-no-deposit | unreviewed-stale-deposit). A tail run without a PR number reports true with no-pr. Only a failed read or post reports false, and like every tail step that degrades the report, never the land."
+        },
         "followUps": { "type": "boolean" },
         "statusResync": { "type": "boolean" },
         "worktreeReap": {
@@ -169,7 +173,12 @@
       "description": "Present iff status === \"failed\".",
       "required": ["reason"],
       "properties": {
-        "reason": { "type": "string", "minLength": 1 }
+        "reason": { "type": "string", "minLength": 1 },
+        "baselinesKinds": {
+          "type": "array",
+          "description": "Story #5956 — the check-baselines kinds that reported FAIL when close failed on a baselines entry; omitted when no kind line parsed.",
+          "items": { "type": "string", "minLength": 1 }
+        }
       },
       "additionalProperties": false
     },
@@ -230,6 +239,18 @@
             "ownerId": { "type": ["string", "null"] },
             "pid": { "type": ["integer", "null"], "minimum": 1 },
             "ageSeconds": { "type": ["number", "null"], "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "admission": {
+          "type": "object",
+          "description": "Story #5963 — what the last declared run that waited was admitted at: its booked weight, the entry's declared weight, the sized slice's test-file count (null when unsized) and whether it backfilled ahead of an earlier waiter.",
+          "required": ["weight", "declaredWeight", "sliceFiles", "backfilled"],
+          "properties": {
+            "weight": { "type": "integer", "minimum": 1 },
+            "declaredWeight": { "type": "integer", "minimum": 1 },
+            "sliceFiles": { "type": ["integer", "null"], "minimum": 0 },
+            "backfilled": { "type": "boolean" }
           },
           "additionalProperties": false
         }

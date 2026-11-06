@@ -280,8 +280,8 @@ test('resolveChangedFilesRef states the rule once: a named ref wins, config is t
   );
   assert.equal(
     resolveChangedFilesRef({ crap: {}, ref: null }),
-    'main',
-    'no config and no named ref falls back to the gate default',
+    'origin/main',
+    'no config and no named ref falls back to origin/<baseBranch> (Story #5962)',
   );
 });
 

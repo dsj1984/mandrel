@@ -224,6 +224,88 @@ describe('suite admission across processes (Story #5668)', () => {
     });
   });
 
+  describe('backfill (Story #5963)', () => {
+    const SMALL = 'npm run test:small';
+    const backfilling = config(
+      { command: LONG, weight: 6 },
+      { command: FOCUSED, weight: 6 },
+      { command: SMALL, weight: 3, backfill: true },
+    );
+
+    async function longHoldsBigQueues() {
+      const long = contend('long', {
+        config: backfilling,
+        command: LONG,
+        holdUntil: releaseFile('long'),
+      });
+      await until(() => at('long', 'start'), 'the long suite to start');
+      const big = contend('big', {
+        config: backfilling,
+        command: FOCUSED,
+        holdMs: 0,
+        backfillWindowMs: 1_500,
+      });
+      await until(() => at('big', 'blocked'), 'the larger waiter to queue');
+      return { long, big };
+    }
+
+    it('AC-5: a small marked waiter starts ahead of a queued larger one', async () => {
+      const { long, big } = await longHoldsBigQueues();
+      const small = contend('small', {
+        config: backfilling,
+        command: SMALL,
+        holdMs: 0,
+      });
+      assert.equal(await small.exited, 0);
+      assert.equal(at('big', 'start'), undefined, '6 + 6 still exceeds 10');
+      fs.writeFileSync(releaseFile('long'), '');
+      assert.equal(await long.exited, 0);
+      assert.equal(await big.exited, 0);
+      assert.ok(at('small', 'end') <= at('big', 'start'));
+    });
+
+    it('AC-6: the head waiter is admitted once the window closes despite a stream of small waiters', async () => {
+      const small = (name) =>
+        contend(name, {
+          config: backfilling,
+          command: SMALL,
+          holdMs: 1_000,
+          backfillWindowMs: 1_500,
+        });
+      const smalls = [small('small-a'), small('small-b')];
+      await until(
+        () => at('small-a', 'start') && at('small-b', 'start'),
+        'two small runs to hold 6 of 10',
+      );
+      const big = contend('big', {
+        config: backfilling,
+        command: FOCUSED,
+        holdMs: 0,
+      });
+      await until(() => at('big', 'blocked'), 'the larger waiter to queue');
+      // Each small run fits beside the head (3 + 6 <= 10), so the stream
+      // refills capacity the head needs until the window closes.
+      for (let i = 0; !at('big', 'start') && i < 60; i += 1) {
+        smalls.push(small(`small-${i}`));
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      assert.equal(await big.exited, 0, 'the head waiter was not starved');
+      for (const run of smalls) assert.equal(await run.exited, 0);
+      const bigStart = at('big', 'start');
+      const closes = at('big', 'waiting') + 1_500;
+      const ahead = events().filter(
+        (e) =>
+          /^small-\d/.test(e.name) && e.event === 'start' && e.at < bigStart,
+      );
+      assert.ok(ahead.length > 0, 'small waiters backfilled meanwhile');
+      // A poll that passed the gate just inside the window may start a few
+      // ms after it closes; none starts a full poll interval later.
+      for (const e of ahead) {
+        assert.ok(e.at < closes + 250, `${e.name} overtook after the window`);
+      }
+    });
+  });
+
   it('two runs sharing a resource never overlap', async () => {
     const workloads = config(
       { command: LONG, weight: 2, resources: ['db'] },

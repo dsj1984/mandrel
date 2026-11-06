@@ -2,17 +2,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { WORKTREE_ISOLATION_DEFAULTS } from '../../.agents/scripts/lib/config/worktree-isolation.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   DEFAULT_WORKSPACE_FILES,
   provision,
 } from '../../.agents/scripts/lib/workspace-provisioner.js';
 
-// Worktree-isolated delivery must inherit the operator's gitignored
-// local-override files so the config resolver sees the real
-// `github.operatorHandle` (and local instruction overrides) inside the
-// worktree, not the committed `.agentrc.json` `@[USERNAME]` placeholder. The
-// missing override previously broke single-story Story-lease release at close.
+// Worktree-isolated delivery inherits the operator's gitignored files. The
+// `.agentrc.local.json` overlay is not among them: a worktree reads the main
+// checkout's live copy, so an init-time snapshot would only go stale.
 
 function makeRoots() {
   const src = makeTempDir('wsp-lo-src-');
@@ -20,13 +19,16 @@ function makeRoots() {
   return { src, dst };
 }
 
-test('DEFAULT_WORKSPACE_FILES carries the local-override files', () => {
+test('DEFAULT_WORKSPACE_FILES carries the local files but no overlay snapshot', () => {
   assert.deepEqual(DEFAULT_WORKSPACE_FILES, [
     '.env',
     '.mcp.json',
-    '.agentrc.local.json',
     '.agents/instructions.local.md',
   ]);
+  assert.deepEqual(
+    [...WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles],
+    DEFAULT_WORKSPACE_FILES,
+  );
 });
 
 test('provision: copies the default workspace files into a fresh worktree', () => {
@@ -50,7 +52,7 @@ test('provision: copies the default workspace files into a fresh worktree', () =
   );
 });
 
-test('provision: copies local-override files into the worktree when present at source', () => {
+test('provision: copies the overlay only when the workspace files list it explicitly', () => {
   const { src, dst } = makeRoots();
   fs.writeFileSync(
     path.join(src, '.agentrc.local.json'),
@@ -59,16 +61,24 @@ test('provision: copies local-override files into the worktree when present at s
   fs.mkdirSync(path.join(src, '.agents'), { recursive: true });
   fs.writeFileSync(path.join(src, '.agents', 'instructions.local.md'), '# x\n');
 
-  const result = provision({
+  const defaults = provision({
     sourceRoot: src,
     targetWorktree: dst,
     files: DEFAULT_WORKSPACE_FILES,
   });
+  assert.ok(!defaults.copied.includes('.agentrc.local.json'));
+  assert.equal(fs.existsSync(path.join(dst, '.agentrc.local.json')), false);
+  assert.ok(
+    defaults.copied.includes(path.normalize('.agents/instructions.local.md')),
+  );
+
+  const result = provision({
+    sourceRoot: src,
+    targetWorktree: dst,
+    files: [...DEFAULT_WORKSPACE_FILES, '.agentrc.local.json'],
+  });
 
   assert.ok(result.copied.includes('.agentrc.local.json'));
-  assert.ok(
-    result.copied.includes(path.normalize('.agents/instructions.local.md')),
-  );
   assert.equal(
     fs.readFileSync(path.join(dst, '.agentrc.local.json'), 'utf8'),
     '{"github":{"operatorHandle":"@dsj1984"}}\n',
@@ -87,7 +97,6 @@ test('provision: absent local-override files are reported missing, never fatal',
 
   assert.deepEqual(result.copied, ['.env']);
   assert.deepEqual(result.missing.sort(), [
-    '.agentrc.local.json',
     path.normalize('.agents/instructions.local.md'),
     '.mcp.json',
   ]);

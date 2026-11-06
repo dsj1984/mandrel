@@ -1099,6 +1099,9 @@ async function onMergeObserved({
   progress?.('CONFIRM', `✅ Story #${storyId} merge confirmed — agent::done.`);
   const tail = await runPostLandTailFn({
     storyId,
+    prNumber,
+    prUrl,
+    gh: injectedGh,
     storyBranch,
     baseBranch,
     cwd,

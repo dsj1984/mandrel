@@ -31,6 +31,11 @@ import {
   resolveSuiteCapacity,
   SUITE_RESERVATION_ENV,
 } from './suite-admission.js';
+import {
+  admissionRecord,
+  runSizeCommand,
+  sizeWorkload,
+} from './suite-sizing.js';
 import { defaultSleep } from './util/sleep.js';
 
 export { ADMISSION_REFUSED_EXIT_CODE, SUITE_RESERVATION_ENV };
@@ -49,6 +54,9 @@ const MIN_WAIT_MS = 300_000;
 
 const DEFAULT_POLL_MS = 2_000;
 
+/** A `backfill` waiter passes no earlier waiter that has waited this long. */
+const BACKFILL_WINDOW_MS = 300_000;
+
 /** More than one poll under 30 s, so jitter never stretches a gap past 30 s. */
 const DEFAULT_REPORT_MS = 25_000;
 
@@ -62,6 +70,8 @@ const LOCK_DEFAULTS = Object.freeze({
   ...resolveFullSuiteLockBudget(),
   pollMs: DEFAULT_POLL_MS,
   reportMs: DEFAULT_REPORT_MS,
+  backfillWindowMs: BACKFILL_WINDOW_MS,
+  runSizeFn: runSizeCommand,
   fsImpl: fs,
   env: process.env,
   nowFn: Date.now,
@@ -201,7 +211,10 @@ function consult(probe, applies) {
  *   onLockOutcome?: (outcome: object) => void,
  *   onLockProgress?: (progress: import('./full-suite-queue.js').LockProgress) => void,
  *   rerunCommand?: string,
+ *   spawnEnv?: Record<string, string|undefined>,
+ *   backfillWindowMs?: number,
  * }} opts A non-`undefined` `skipIfSatisfied` return stands in for the spawn.
+ *   `spawnEnv` (the child's own env) joins `env` for a sizing command.
  *   `env` naming a live holder in this lock home spawns at once, inside it.
  * @param {(lock: { lockWaitMs: number, env: Record<string, string> }) => Promise<T>} spawn
  *   `env` carries {@link SUITE_RESERVATION_ENV} for the child; merge it in.
@@ -220,15 +233,37 @@ function admitAndSpawn(opts, spawn) {
     : spawnInside(opts, inherited, spawn);
 }
 
-async function lockAndSpawn(opts, spawn) {
+/** Unsized spawns stay synchronous up to the spawn, as before sizing existed. */
+function lockAndSpawn(opts, spawn) {
+  return needsSizing(opts)
+    ? sizedOpts(opts).then((sized) => reserveAndSpawn(sized, spawn))
+    : reserveAndSpawn(opts, spawn);
+}
+
+async function reserveAndSpawn(opts, spawn) {
   const begun = beginLock(opts);
   try {
     const wait = await awaitTurn(opts, begun);
-    reportOutcome(opts.onLockOutcome, wait);
+    reportOutcome(opts, wait);
     return await spawnOrStandIn(opts, wait, spawn, begun.attempt);
   } finally {
     begun.attempt?.release();
   }
+}
+
+/** Sizing runs only on the path about to reserve, never without a lock home. */
+function needsSizing(opts) {
+  return Boolean(opts.workload?.tiers) && lockHome(opts) !== null;
+}
+
+async function sizedOpts(opts) {
+  const workload = await sizeWorkload(opts.workload, {
+    cwd: opts.cwd,
+    env: { ...opts.env, ...opts.spawnEnv },
+    log: opts.log,
+    runSizeFn: opts.runSizeFn,
+  });
+  return { ...opts, workload };
 }
 
 function inheritedMarker(opts) {
@@ -259,10 +294,14 @@ function awaitTurn(opts, { attempt, lock, lockPath, blocking }) {
 }
 
 /** An I/O-error wait is no outcome; a throwing callback never costs the spawn. */
-function reportOutcome(onLockOutcome, wait) {
+function reportOutcome({ onLockOutcome, workload }, wait) {
   if (!isFinishedWait(wait)) return;
+  const admission = admissionRecord(workload, wait.backfilled);
   try {
-    onLockOutcome(lockOutcome(wait));
+    onLockOutcome({
+      ...lockOutcome(wait),
+      ...(admission ? { admission } : {}),
+    });
   } catch {}
 }
 
@@ -375,6 +414,7 @@ export function lockedCapture(
         ...lockOptions,
         cwd: captureOpts.cwd,
         log: captureOpts.log,
+        spawnEnv: captureOpts.env,
         skipIfSatisfied: freshnessProbe(captureOpts),
       },
       captureInLock(runCaptureFn, captureOpts),

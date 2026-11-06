@@ -290,11 +290,14 @@ filter metadata, never a resolution input — Stories deliver across plan runs.
    review. It prints one envelope with one of three statuses:
    - **`ready`** (exit 0) — hand off to close.
    - **`fix-required`** (exit 2) — a preflight finding, a red or deferred
-     suite, a base-merge conflict or a CRITICAL review, with its evidence
-     path; labels untouched. The worker fixes, commits and re-runs it. A
-     merge that conflicts only on `baselines/*.json` is not one of these: it
+     suite, a base-merge conflict, a non-fast-forward push, a push GitHub's
+     ruleset engine refused (`fatal error in commit_refs_rules`) that the
+     handoff's own first-parent stepped push could not get past either, or a
+     CRITICAL review, with its evidence path; labels untouched. The worker
+     fixes, commits and re-runs it. A merge that conflicts only on `baselines/*.json` is not one of these: it
      resolves to the base side (see [§ Concurrent close](#concurrent-close)).
-   - **`blocked`** (exit 1) — a rejected push, an unreachable remote, an
+   - **`blocked`** (exit 1) — a rejected push (never a `commit_refs_rules`
+     failure, which is retried stepped), an unreachable remote, an
      unconfirmed base branch or an unregistered baseline merge driver; it
      flips `agent::blocked` and posts a `friction` comment.
 
@@ -550,7 +553,7 @@ the maker's reasoning context:
   audited escape).
 
 The provider chain (default: `native` maintainability scoring, then an optional
-low-effort `claude --print` bug review) is owned by
+`claude --print` bug review whose effort follows review depth) is owned by
 [`README.md` § Code review providers](../.agents/README.md#code-review-providers-pluggable-chain);
 the walk-through is in [`helpers/code-review.md`](../.agents/workflows/helpers/code-review.md).
 

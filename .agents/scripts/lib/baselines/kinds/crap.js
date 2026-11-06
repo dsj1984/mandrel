@@ -26,6 +26,7 @@ import {
   formatNewViolationMeasure,
   newMethodGateScore,
 } from './_crap-new-method-gate.js';
+import { classifyScoringSemantics, SCORING_SEMANTICS } from './_crap-read.js';
 import {
   makeAggregate,
   makeCompare,
@@ -37,7 +38,7 @@ import {
 export const name = 'crap';
 export const keyField = 'path';
 
-export { loadCrapBaseline } from './_crap-read.js';
+export { aheadStampOf, loadCrapBaseline } from './_crap-read.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -52,16 +53,6 @@ const __filename = fileURLToPath(import.meta.url);
 export function kernelVersion() {
   return resolveEscomplexVersion(path.dirname(__filename));
 }
-
-/**
- * Scoring-semantics stamp. The scorer version does not move when this repo's
- * coverage join changes, yet rows scored under different joins are not
- * comparable (phantom regressions and phantom passes), so the stamp fails
- * closed across that boundary. Bump it whenever the coverage join, the line
- * coordinate system, the unresolved-method policy, or the method identity
- * rule changes. Module-local: read it via `envelopeExtras().scoringSemantics`.
- */
-const SCORING_SEMANTICS = 'method-identity-v5';
 
 /**
  * Envelope stamps this kind adds, consumed by `writer.write`. A transpiler
@@ -390,6 +381,8 @@ function isUnscorableRow(row) {
 
 export const INCOMPATIBLE_BASELINE_DIAGNOSTIC = 'crap-baseline-incompatible';
 
+export const AHEAD_BASELINE_DIAGNOSTIC = 'crap-baseline-ahead';
+
 /**
  * The CRAP capture script an operator hint names — the resolved
  * `gates.crap.captureScript` when the caller passes it, else the coverage
@@ -429,7 +422,8 @@ export const CRAP_COMPAT_AXES = [
     check: ({ baseline, captureScript }) => {
       if (!baseline) return null;
       const stamped = baseline.scoringSemantics ?? null;
-      if (stamped === SCORING_SEMANTICS) return null;
+      // `ahead` is a skip, not a failure: see `aheadStampOf`.
+      if (classifyScoringSemantics(stamped) !== 'behind') return null;
       return (
         `[CRAP] scoring semantics changed: baseline=${stamped ?? '<unstamped>'} ` +
         `running=${SCORING_SEMANTICS}. Rows keyed or scored under other ` +

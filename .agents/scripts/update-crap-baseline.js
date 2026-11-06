@@ -78,9 +78,17 @@ async function main() {
       epsilon: getBaselineEpsilon('crap'),
     }),
   );
+  logRefresh(result, options.absBaselinePath);
+}
 
+/** An ahead baseline was left untouched; otherwise report the write. */
+function logRefresh(result, baselinePath) {
+  if (result.ahead) {
+    Logger.info(result.ahead.message);
+    return;
+  }
   Logger.info(
-    `[CRAP] ✅ Baseline updated (kernelVersion=${result.envelope.kernelVersion}, escomplexVersion=${resolveEscomplexVersion()}, tsTranspilerVersion=${result.envelope.tsTranspilerVersion}). Wrote to ${options.absBaselinePath}.`,
+    `[CRAP] ✅ Baseline updated (kernelVersion=${result.envelope.kernelVersion}, escomplexVersion=${resolveEscomplexVersion()}, tsTranspilerVersion=${result.envelope.tsTranspilerVersion}). Wrote to ${baselinePath}.`,
   );
   Logger.info(
     `[CRAP] Wrote ${result.envelope.rows.length} row(s). scope=${result.scope.mode}, wrote=${result.wrote}.`,

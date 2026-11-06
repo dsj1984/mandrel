@@ -92,6 +92,15 @@ function nextCommandFor(err, storyId) {
   return typeof tagged === 'string' ? tagged : NEXT_COMMANDS.recover(storyId);
 }
 
+/** `baselinesKinds` only when close-validation tagged the failing kinds. */
+function failureFor(err) {
+  const kinds = err?.closeBaselinesKinds;
+  return {
+    reason: String(err?.message ?? err),
+    ...(kinds?.length ? { baselinesKinds: kinds } : {}),
+  };
+}
+
 /**
  * Never throws: a build failure here must not replace the original error as
  * the run's reported cause, so it returns null and the caller rethrows.
@@ -116,7 +125,7 @@ export function failedTerminalFor(err, args = {}) {
         ...args,
         observedGates: err?.closeGates ?? null,
       }),
-      failure: { reason: String(err?.message ?? err) },
+      failure: failureFor(err),
       nextCommand: nextCommandFor(err, storyId),
       elapsedSeconds: 0,
       phaseDurations: err?.closePhaseDurations ?? undefined,

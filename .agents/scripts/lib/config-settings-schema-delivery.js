@@ -41,12 +41,12 @@ const EXECUTION_SCHEMA = {
       type: 'integer',
       minimum: 1,
       description:
-        "Story #5668. The admission budget, in weight units (CPU workers), shared by every suite spawn across this repository's worktrees and sessions — runs in other repositories on the host are not counted. Unset → the host's `os.availableParallelism()`. A declared workload is admitted while the live weights plus its own fit, strictly first-in-first-out: nothing overtakes an earlier live waiter, so a queued full suite is never starved.",
+        "Story #5668. The admission budget, in weight units (CPU workers), shared by every suite spawn across this repository's worktrees and sessions — runs in other repositories on the host are not counted. Unset → the host's `os.availableParallelism()`. A declared workload is admitted while the live weights plus its own fit, first-in-first-out: nothing overtakes an earlier live waiter, so a queued full suite is never starved — except a `workloads[].backfill` run, which may pass earlier declared waiters it fits beside, only while the oldest has waited under 300 s.",
     },
     workloads: {
       type: 'array',
       description:
-        "Story #5668. Suite commands declared safe to run alongside others. A spawn whose argv (whitespace-normalized) EXACTLY equals `command` takes that `weight` and `resources`; anything else — and every spawn when this list is empty, the default — runs exclusively (full capacity, today's serialization). Isolation is never inferred from a flag, prefix or diff size. `weight` must count the run's nested worker pool (`--workers 4` → 4), and a full suite needs its own entry before anything can overlap it. Two runs naming a common `resources` entry (a database fixture, a shared coverage file) never overlap; worktree-local outputs need none. A weight above `capacity` refuses the run with exit 78 — nothing spawns, no credit is recorded. An expired wait still exits 75, resumably. Scheduling never changes a run's credit identity. `MANDREL_FULL_SUITE_LOCK=0` (one invocation) or `fullSuiteLock: false` turns admission off entirely; reach for the env hatch only when you have checked the runs share nothing.",
+        "Story #5668. Suite commands declared safe to run alongside others. A spawn whose argv (whitespace-normalized) EXACTLY equals `command` takes that `weight` and `resources`; anything else — and every spawn when this list is empty, the default — runs exclusively (full capacity, today's serialization). Isolation is never inferred from a flag or prefix; a weight comes from the entry, or from its `tiers` as sized by its own `sizeCommand`. `weight` must count the run's nested worker pool (`--workers 4` → 4), and a full suite needs its own entry before anything can overlap it. Two runs naming a common `resources` entry (a database fixture, a shared coverage file) never overlap; worktree-local outputs need none. A weight above `capacity` refuses the run with exit 78 — nothing spawns, no credit is recorded. An expired wait still exits 75, resumably. Scheduling never changes a run's credit identity. `MANDREL_FULL_SUITE_LOCK=0` (one invocation) or `fullSuiteLock: false` turns admission off entirely; reach for the env hatch only when you have checked the runs share nothing.",
       items: {
         type: 'object',
         required: ['command', 'weight'],
@@ -70,7 +70,35 @@ const EXECUTION_SCHEMA = {
             description:
               'Names of shared resources this run needs exclusively.',
           },
+          tiers: {
+            type: 'array',
+            minItems: 1,
+            items: {
+              type: 'object',
+              required: ['maxFiles', 'weight'],
+              properties: {
+                maxFiles: { type: 'integer', minimum: 0 },
+                weight: { type: 'integer', minimum: 1 },
+              },
+              additionalProperties: false,
+            },
+            description:
+              'Story #5963. Slice-size tiers: the run books the weight of the first tier (ascending `maxFiles`) whose `maxFiles` covers the count `sizeCommand` prints; none, a sizing failure or a tier weight above `weight` books the full `weight`. Requires `sizeCommand`.',
+          },
+          sizeCommand: {
+            ...SAFE_STRING,
+            minLength: 1,
+            description:
+              "Story #5963. Argv (no shell, 60 s bound) printing the slice's test-file count as its last stdout line; run in the spawn's cwd and env just before reserving. Requires `tiers`.",
+          },
+          backfill: {
+            type: 'boolean',
+            default: false,
+            description:
+              'Story #5963. Let this run be admitted ahead of earlier waiters when every one is declared, fits beside it within `capacity` and shares no resource with it, and the oldest has waited under 300 s.',
+          },
         },
+        dependencies: { tiers: ['sizeCommand'], sizeCommand: ['tiers'] },
         additionalProperties: false,
       },
       default: [],
@@ -167,7 +195,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
       type: 'array',
       items: { type: 'string', minLength: 1 },
       description:
-        'Gitignored files copied from the main checkout into every new worktree. A worktree checks out tracked files only, so local secrets and overrides would otherwise be missing.',
+        "Gitignored files copied from the main checkout into every new worktree. A worktree checks out tracked files only, so local secrets would otherwise be missing. `.agentrc.local.json` is not copied by default: a worktree reads the main checkout's live overlay.",
       default: [...WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles],
     },
   },

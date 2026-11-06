@@ -851,6 +851,14 @@ need not be merged locally, is a fact about the consumer's GitHub ruleset and
 CI that no manifest or existing key records. All three default to today's
 behaviour.
 
+**Raised to 150 (2026-11-06, Story #5976)** for
+`delivery.codeReview.effortByDepth`. Review depth changed only the prompt
+prose, so a `deep` review of a sensitive or wide diff ran at the same `low`
+reasoning effort as a two-file docs tweak. How much reasoning a review is worth
+is a cost/quality trade-off set by the consumer's host quota, which no tool
+config, gate key or package manifest records. Unset depths keep the shipped
+`light: low`, `standard: low`, `deep: high`.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

@@ -28,6 +28,11 @@ import {
   writeFile as writeEnvelopeFile,
 } from '../../.agents/scripts/lib/baselines/writer.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import {
+  AHEAD_STAMP,
+  RUNNING_STAMP,
+  writeAheadCrapBaseline,
+} from '../fixtures/baselines/crap-ahead.js';
 
 // 10-row prior baseline; scope of 3 in-scope (a, b, c); 7 untouched.
 const TEN_ROW_PRIOR_ROWS = [
@@ -489,5 +494,57 @@ describe('refreshBaseline — an in-scope file is re-scored, not preserved (#496
       byKey.get('src/untouched.js::stable'),
       priorByKey.get('src/untouched.js::stable'),
     );
+  });
+});
+
+describe('refreshBaseline — a CRAP baseline stamped ahead (#5991 AC-3)', () => {
+  let workDir;
+  let writePath;
+  let bytes;
+  const scorer = () => [
+    { path: 'src/a.js', method: 'run', startLine: 1, crap: 2 },
+  ];
+
+  beforeEach(() => {
+    workDir = makeTempDir('mandrel-refresh-ahead-');
+    writePath = path.join(workDir, 'crap.json');
+    bytes = writeAheadCrapBaseline(writePath);
+  });
+
+  afterEach(() => {
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it('a diff-scoped refresh writes nothing and reports ahead', async () => {
+    let scored = false;
+    const result = await refreshBaseline({
+      kind: 'crap',
+      writePath,
+      cwd: workDir,
+      gitDiff: async () => ['src/a.js'],
+      scorer: () => {
+        scored = true;
+        return scorer();
+      },
+    });
+    assert.equal(result.wrote, false);
+    assert.equal(scored, false);
+    assert.equal(result.ahead.baseline, AHEAD_STAMP);
+    assert.equal(result.ahead.running, RUNNING_STAMP);
+    assert.equal(readFileSync(writePath, 'utf8'), bytes);
+  });
+
+  it('a full-scope update still overwrites it at the running stamp', async () => {
+    const result = await refreshBaseline({
+      kind: 'crap',
+      writePath,
+      cwd: workDir,
+      fullScope: true,
+      scorer,
+    });
+    assert.equal(result.wrote, true);
+    const written = JSON.parse(readFileSync(writePath, 'utf8'));
+    assert.equal(written.scoringSemantics, RUNNING_STAMP);
+    assert.deepEqual(written.files, { 'src/a.js': { run: 2 } });
   });
 });

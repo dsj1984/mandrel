@@ -452,3 +452,48 @@ describe('runPreGateSteps — the two new close steps', () => {
     assert.ok(lines.some((l) => l.startsWith('RATCHET ⏭')));
   });
 });
+
+describe('runDuplicationCloseRescore — handoff then close (Story #5956)', () => {
+  const withPartners = (r, partners) => ({ ...r, partners });
+  const rescore = (root, scorer) =>
+    runDuplicationCloseRescore({
+      cwd: root,
+      worktreePath: root,
+      storyId: 7,
+      baseBranch: 'main',
+      storyBranch: 'story-7',
+      config: {},
+      logger: QUIET,
+      scorer,
+    });
+
+  test('AC-2/AC-5: the handoff commit is untagged with moved rows and partners; close over the same tree is unchanged and commits nothing', async () => {
+    const { root, git } = realRepo([row('src/a.js', 5), row('src/b.js', 8)]);
+    const scorer = () => [
+      withPartners(row('src/a.js', 20), ['src/b.js']),
+      withPartners(row('src/b.js', 8), ['src/a.js']),
+    ];
+    const handoff = await rescore(root, scorer);
+    assert.equal(handoff.committed, true, JSON.stringify(handoff));
+    assert.doesNotMatch(git('log', '-1', '--format=%s'), /baseline-refresh:/);
+    assert.deepEqual(handoff.moved, [
+      { path: 'src/a.js', before: 5, after: 20 },
+    ]);
+    assert.deepEqual(handoff.partners, {
+      'src/a.js': ['src/b.js'],
+      'src/b.js': ['src/a.js'],
+    });
+    assert.ok(
+      !readRows(root).some((r) => 'partners' in r),
+      'the committed baseline never stores partners',
+    );
+
+    const handedOff = git('rev-parse', 'HEAD');
+    const close = await rescore(root, scorer);
+    assert.equal(close.committed, false);
+    assert.equal(close.reason, 'unchanged');
+    assert.deepEqual(close.moved, []);
+    assert.deepEqual(close.partners['src/a.js'], ['src/b.js']);
+    assert.equal(git('rev-parse', 'HEAD'), handedOff, 'HEAD is unmoved');
+  });
+});

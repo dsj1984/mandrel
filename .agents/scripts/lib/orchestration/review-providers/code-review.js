@@ -1,6 +1,6 @@
 /**
- * review-providers/code-review.js — a low-effort model bug review of the
- * Story diff through `claude --print --effort low`. It asks only for
+ * review-providers/code-review.js — a model bug review of the Story diff
+ * through `claude --print --effort <input.effort ?? low>`. It asks only for
  * merge-blocking problems, so every parsed finding is `critical` and halts
  * close before auto-merge. The reviewer is handed the diff range, the Story
  * id and the diff text — never `acceptance[]` or the self-eval verdict: this
@@ -43,10 +43,11 @@ import { renderDepthDirective } from './review-depth.js';
 import { renderGuidanceBlock } from './review-guidance.js';
 import { probeClaudeCli } from './security-review.js';
 
-const CLAUDE_ARGS = Object.freeze([
+/** @param {string} effort */
+const claudeArgs = (effort) => [
   '--print',
   '--effort',
-  'low',
+  effort,
   '--output-format',
   'json',
   '--json-schema',
@@ -56,7 +57,7 @@ const CLAUDE_ARGS = Object.freeze([
   '--strict-mcp-config',
   '--tools',
   '',
-]);
+];
 const AUTH_ARGS = Object.freeze(['auth', 'status', '--json']);
 const INVOKE_TIMEOUT_MS = 10 * 60 * 1000;
 const AUTH_TIMEOUT_MS = 15 * 1000;
@@ -280,8 +281,8 @@ function runAuthStatus(runDir, deps) {
   });
 }
 
-function runReviewer(runDir, prompt, deps) {
-  return runClaude(CLAUDE_ARGS, {
+function runReviewer(runDir, prompt, effort, deps) {
+  return runClaude(claudeArgs(effort), {
     cwd: runDir,
     input: prompt,
     timeout: INVOKE_TIMEOUT_MS,
@@ -295,19 +296,22 @@ function runReviewer(runDir, prompt, deps) {
  *
  * @returns {Promise<{ findings: Finding[] } | { reason: string }>}
  */
-async function reviewInTempDir(prompt, deps) {
+async function reviewInTempDir(prompt, effort, deps) {
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-code-review-'));
   try {
     const auth = readAuthStatus(await runAuthStatus(runDir, deps));
     if (!auth.ok) return auth;
     deps.logger?.info?.(
-      `[code-review] Invoking claude --print --effort low (${auth.detail})...`,
+      `[code-review] Invoking claude --print --effort ${effort} (${auth.detail})...`,
     );
-    return resolveVerdict(await runReviewer(runDir, prompt, deps));
+    return resolveVerdict(await runReviewer(runDir, prompt, effort, deps));
   } finally {
     fs.rmSync(runDir, { recursive: true, force: true });
   }
 }
+
+/** @param {ReviewInput} input */
+const effortOf = (input) => input.effort ?? 'low';
 
 function assertCliPresent(probeFn) {
   if (probeFn()) return;
@@ -394,7 +398,7 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
         budget,
         sliceNote(index + 1, chunks.length) + manifest,
       );
-      const verdict = await reviewInTempDir(prompt, runDeps);
+      const verdict = await reviewInTempDir(prompt, effortOf(input), runDeps);
       if ('reason' in verdict) {
         noteDegradation(`no verdict for ${files}: ${verdict.reason}`);
       } else {
@@ -424,6 +428,7 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
       return settle(
         await reviewInTempDir(
           buildPrompt(input, diff.text, callers.text),
+          effortOf(input),
           runDeps,
         ),
       );

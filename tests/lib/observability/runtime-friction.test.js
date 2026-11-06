@@ -90,6 +90,23 @@ describe('terminal-envelope friction policy', () => {
     assert.match(row.details.reason, /lint gate exploded/);
   });
 
+  it('copies failure.baselinesKinds onto a close-failed signal, and omits it when absent (Story #5956)', async () => {
+    const row = await emitAndRead({
+      storyId: 5956,
+      status: 'failed',
+      phase: 'close-validation',
+      failure: { reason: 'Gate failed', baselinesKinds: ['duplication'] },
+    });
+    assert.deepEqual(row.details.baselinesKinds, ['duplication']);
+    const plain = await emitAndRead({
+      storyId: 5957,
+      status: 'failed',
+      phase: 'close-validation',
+      failure: { reason: 'Gate failed' },
+    });
+    assert.ok(!('baselinesKinds' in plain.details));
+  });
+
   it('flags a pending terminal whose CUMULATIVE budget is exhausted (the parked worker)', async () => {
     // AC-4 — genuine exhaustion (cumulativeSeconds >= maxBudgetSeconds) still
     // routes, so the residual case the source-side guard cannot suppress (a

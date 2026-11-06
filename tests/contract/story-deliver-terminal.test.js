@@ -367,6 +367,31 @@ describe('story-deliver-terminal — landed', () => {
     assert.match(env.tail.details.statusResync, /drifted/);
   });
 
+  it('Story #5975 AC-8: carries the review-record outcome with its detail', () => {
+    for (const [ok, detail] of [
+      [true, 'posted-from-deposit'],
+      [true, 'unreviewed-stale-deposit'],
+      [false, 'post-failed'],
+    ]) {
+      const env = buildTerminalEnvelope({
+        storyId: 5975,
+        status: 'landed',
+        phase: 'post-land',
+        pr: { number: 99, state: 'MERGED' },
+        tail: {
+          ...CLEAN_TAIL,
+          reviewRecord: ok,
+          details: { reviewRecord: detail },
+        },
+        nextCommand: null,
+        elapsedSeconds: 10,
+      });
+      assert.equal(validateTerminalEnvelope(env).valid, true);
+      assert.equal(exitCodeForTerminal(env), 0);
+      assert.equal(env.tail.details.reviewRecord, detail);
+    }
+  });
+
   it('requires every tail step to be reported — no aggregate success bit', () => {
     assert.throws(
       () =>
@@ -661,6 +686,34 @@ describe('story-deliver-terminal — blocked / failed', () => {
     assert.equal(exitCodeForTerminal(env), 1);
     assert.equal(env.phase, 'close-validation');
     assert.match(env.failure.reason, /lint gate threw/);
+  });
+});
+
+describe('story-deliver-terminal — failure.baselinesKinds (Story #5956)', () => {
+  const failedWith = (failure) => ({
+    ...buildTerminalEnvelope({
+      storyId: 5956,
+      status: 'failed',
+      phase: 'close-validation',
+      failure: { reason: 'Gate failed' },
+      nextCommand: NEXT_COMMANDS.close(5956),
+      elapsedSeconds: 1,
+    }),
+    failure,
+  });
+
+  it('accepts a failure with and without baselinesKinds', () => {
+    const kinds = { reason: 'Gate failed', baselinesKinds: ['duplication'] };
+    assert.equal(validateTerminalEnvelope(failedWith(kinds)).valid, true);
+    assert.equal(
+      validateTerminalEnvelope(failedWith({ reason: 'Gate failed' })).valid,
+      true,
+    );
+  });
+
+  it('rejects an empty kind string', () => {
+    const bad = { reason: 'Gate failed', baselinesKinds: [''] };
+    assert.equal(validateTerminalEnvelope(failedWith(bad)).valid, false);
   });
 });
 

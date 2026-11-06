@@ -249,6 +249,32 @@ export function loadFile(absolutePath, opts = {}) {
   return shapeEnvelope(kind, parsed);
 }
 
+/**
+ * Parsed JSON with no schema check, or null on any read/parse failure: lets a
+ * caller read a stamp off an envelope whose layout this code predates.
+ *
+ * @param {string} absolutePath
+ * @returns {unknown}
+ */
+export function peekFile(absolutePath) {
+  try {
+    return JSON.parse(readFileSync(absolutePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * {@link peekFile} at the path `load(kind, opts)` would read.
+ *
+ * @param {string} kind
+ * @param {{ configPath?: string, cwd?: string }} [opts]
+ * @returns {unknown}
+ */
+export function peek(kind, opts = {}) {
+  return peekFile(resolveBaselinePath(kind, opts));
+}
+
 export const _internals = Object.freeze({
   DEFAULT_PATHS,
   KIND_TO_SCHEMA_FILE,

@@ -38,6 +38,8 @@
  * @property {string}      headRef
  * @property {ReviewDepth=} depth    - Diff-derived thoroughness lever; LLM-backed
  *   providers MUST render it into their prompt. Absent → `standard`.
+ * @property {string=} effort      - `claude --effort` level resolved from `depth`;
+ *   absent → `low`.
  * @property {(string|null)=} guidance - Project review guidance; LLM-backed
  *   providers render it via `renderGuidanceBlock`.
  *

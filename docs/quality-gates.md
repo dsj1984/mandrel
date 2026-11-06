@@ -637,8 +637,23 @@ the key, per-row `coordinateSystem` / `anonymous` markers, the
 compat axes are gone; `tsTranspilerVersion` stays, because a transpiler change
 can rename or re-nest emitted methods. The file is grouped by path (see
 [Envelope](#envelope)); a baseline in the previous `rows[]` layout or under any
-other stamp fails closed naming the full-scope re-seed — no JSON-only migration
+older stamp fails closed naming the full-scope re-seed — no JSON-only migration
 can derive scope-path keys, so the re-seed is the migration.
+
+**A stamp newer than the running code is skipped, not failed.** The stamp is
+ordered: `current` when it equals the running stamp, `ahead` only when both are
+`method-identity-v<N>` and the baseline's N is higher, and `behind` otherwise
+(a lower N, an unstamped envelope, or another stamp family). `behind` fails
+closed as above. `ahead` means the code reading the baseline predates it, as
+when a Story that moves the stamp runs its handoff seat and close on the main
+checkout's older scripts: seat-missing and a diff-scoped `crap:update` leave
+the file untouched (`seated: 0`, exit 0), and `check-baselines`, `crap:check`
+and the `quality:preview` CRAP leg report the CRAP gate **skipped** and name
+both stamps, without reading the envelope's layout. Every other kind is still
+checked. For that Story, CI is the CRAP check of record: its `baselines` job
+runs `check-baselines.js` from the branch's own checkout. A full-scope
+`crap:update` is the operator's explicit re-seed and overwrites an `ahead`
+baseline.
 
 ---
 

@@ -472,9 +472,11 @@
       "artifactCheckedCapture": 1,
       "exitOnUnexpectedError": 2,
       "exitWith": 1,
+      "logRunRef": 2,
       "parseArgs": 6,
       "reportTimings": 1,
       "rerunCommandFor": 1,
+      "resolveRunRefs": 1,
       "runCaptureScopes": 2,
       "runCoverageCapture": 3
     },
@@ -1510,6 +1512,7 @@
       "resolveCoverageUpdaterScope": 3
     },
     ".agents/scripts/lib/baselines/crap-preview-incremental.js": {
+      "readTouched": 1,
       "resolveCrapPreviewIncremental": 2
     },
     ".agents/scripts/lib/baselines/crap-preview-scan.js": {
@@ -1518,6 +1521,7 @@
       "computeCrapPreviewScan": 4,
       "hasCrapRegressions": 2,
       "listCyclomaticAdvisories": 2,
+      "loadPreviewCoverage": 1,
       "resolveBaselineRows": 2
     },
     ".agents/scripts/lib/baselines/crap-updater-cli.js": {
@@ -1607,6 +1611,7 @@
     },
     ".agents/scripts/lib/baselines/kernel.js": {
       "bindKindModule": 1,
+      "checkBaselineAhead": 2,
       "checkBaselineSemantics": 2,
       "checkKernelVersion": 1,
       "currentKernelVersion": 1,
@@ -1630,9 +1635,12 @@
       "newMethodGateScore": 3
     },
     ".agents/scripts/lib/baselines/kinds/_crap-read.js": {
-      "loadCrapBaseline": 9.03292181069959,
+      "aheadStampOf": 2,
+      "classifyScoringSemantics": 5,
+      "loadCrapBaseline": 6.027047332832457,
       "projectBaselineRow": 1,
-      "readCrapBaselineFromTree": 4
+      "readCrapBaselineFromTree": 4,
+      "shapeCheckedAtRef": 5
     },
     ".agents/scripts/lib/baselines/kinds/_shared-metric.js": {
       "<anon makeAggregate/aggregate/map(r)#0>": 1,
@@ -1812,11 +1820,13 @@
     ".agents/scripts/lib/baselines/preview-gates.js": {
       "<anon applyDiffScopeMi/files.filter(abs)#0>": 1.003641329085116,
       "<anon applyDiffScopeMi/filter(file)#0>": 1.003641329085116,
+      "aheadSkip": 2,
       "applyDiffScopeMi": 2.116522530723714,
       "compareScores": 4.113791533909877,
+      "crapPreviewSkip": 2,
       "emptyCrapEnvelope": 1,
       "resolvePreviewTolerance": 3,
-      "runCrapPreview": 5,
+      "runCrapPreview": 4,
       "runMaintainabilityPreview": 6.074217881292261
     },
     ".agents/scripts/lib/baselines/reader.js": {
@@ -1828,6 +1838,8 @@
       "inferKindFromSchema": 3,
       "load": 2,
       "loadFile": 5,
+      "peek": 1,
+      "peekFile": 1,
       "readAndShape": 1.064,
       "resolveBaselinePath": 5.0164379058107995,
       "shapeEnvelope": 2,
@@ -1857,11 +1869,13 @@
       "<anon defaultGitDiff/map(line)#0>": 1,
       "<anon duplicationFileFilter/(p)#0>": 2,
       "<anon maintainability()#0>": 1,
+      "<anon partnersOf/rows.map(row)#0>": 1,
       "<anon resolveScope/scopeFiles.map(p)#0>": 1,
       "<anon resolveWriteScopeFiles/filter(prior)#0>": 1,
       "<anon resolveWriteScopeFiles/map(prior)#0>": 1,
       "<anon resolveWriteScopeFiles/rows.map(row)#0>": 1,
       "<anon resolveWriteScopeFiles/scope.files.flatMap(file)#0>": 1,
+      "aheadHandOff": 4,
       "assertRequiredScopeRows": 6,
       "buildDefaultCoverageScorer": 1,
       "buildDefaultCrapScorer": 3,
@@ -1875,9 +1889,12 @@
       "duplicationFileFilter": 2,
       "fileFilterFor": 2,
       "isShrunk": 2,
-      "readPriorEnvelope": 3.1172399755750053,
+      "partnersOf": 2,
+      "readPriorEnvelope": 1,
+      "readPriorState": 5.0407083248524325,
       "refreshBaseline": 6.017368885270371,
       "refuseMissingArtifact": 1,
+      "requireScorer": 2.3511659807956105,
       "resolveDefaultScorer": 2,
       "resolveQualityBlock": 5,
       "resolveScope": 3,
@@ -1899,15 +1916,18 @@
       "<anon maintainability(row)#0>": 1,
       "<anon mergeBaseGitDiff/filter(line)#0>": 2,
       "<anon runSeatMissing/(files)#0>": 1,
-      "<anon seatMissingBaseline/map(row)#0>": 1,
+      "<anon seatScoped/map(row)#0>": 1,
       "<anon selectMissingRows/filter(row)#0>": 1,
       "buildSeatedEnvelope": 2,
       "checkSeatResolution": 3,
+      "handOff": 1,
+      "logSeated": 2,
       "mergeBaseGitDiff": 2,
       "runSeatMissing": 3,
       "seatKeyFor": 2,
       "seatMaintainabilityBaseline": 1,
-      "seatMissingBaseline": 3,
+      "seatMissingBaseline": 2,
+      "seatScoped": 3,
       "selectMissingRows": 1
     },
     ".agents/scripts/lib/baselines/writer.js": {
@@ -2205,11 +2225,17 @@
       "diffNameOnly": 5,
       "getChangedFiles": 4,
       "getStagedFiles": 1,
+      "localFallback": 1,
+      "namedRef": 3,
       "parseNameOnlyStdout": 2,
+      "refResolves": 1,
+      "remoteBaseRef": 2,
+      "resolveCaptureBaseRef": 3,
       "resolveChangedFilesRef": 1,
       "resolveMergeHead": 3,
       "resolvePreviewScope": 3,
-      "stagedFilesAgainst": 5
+      "stagedFilesAgainst": 5,
+      "trimmedName": 2
     },
     ".agents/scripts/lib/checks/index.js": {
       "<anon getCheck/registry.find(c)#0>": 1,
@@ -2299,7 +2325,7 @@
       "<anon agentFilesIn/filter(e)#0>": 2,
       "<anon agentFilesIn/map(e)#0>": 1,
       "<anon listGeneratedClaudeAgents/filter(f)#0>": 1,
-      "<anon readAgentModels/modelsIn(file)#0>": 1,
+      "<anon readAgentModels/modelsIn(dir,file)#0>": 1,
       "agentFilesIn": 2,
       "expectedClaudeAgents": 3,
       "listGeneratedClaudeAgents": 1,
@@ -2444,8 +2470,9 @@
       "claimLockEventSink": 2,
       "createDrain": 1,
       "createLockEventChannel": 1,
+      "latest": 2,
       "lockEventHooks": 1,
-      "mergeLockWait": 3,
+      "mergeLockWait": 2,
       "parseEventLine": 2,
       "parseEvents": 1,
       "readEvents": 1,
@@ -2491,7 +2518,7 @@
       "overBudgetFlag": 2,
       "overBudgetPolicy": 1,
       "partitionGates": 2,
-      "predictsIncrementalCaptureSkip": 8,
+      "predictsIncrementalCaptureSkip": 5,
       "probeBaselinesGate": 5,
       "resolveCreditedDepositor": 4,
       "resolveTestCredited": 2,
@@ -2649,6 +2676,7 @@
       "isCommandExcluded": 2
     },
     ".agents/scripts/lib/config-resolver.js": {
+      "<anon divergenceLine(worktreePath,mainPath)#0>": 1,
       "applyCommandsDefaults": 1,
       "applyDefaults": 4,
       "applyDeliveryDefaults": 1,
@@ -2658,7 +2686,8 @@
       "finalizeConfig": 4,
       "readJsonConfigFile": 1,
       "readRawConfig": 4,
-      "resolveConfig": 5
+      "resolveConfig": 5,
+      "warnOverlayDivergence": 3
     },
     ".agents/scripts/lib/config/acceptance-eval.js": {
       "getAcceptanceEval": 1,
@@ -2734,6 +2763,8 @@
     },
     ".agents/scripts/lib/config/git-roots.js": {
       "_clearGitRootCaches": 1,
+      "<anon hasOverlay(dir,fsImpl)#0>": 1,
+      "<anon sameDir(a,b)#0>": 1,
       "canonical": 3,
       "checkoutOf": 4,
       "cwdRoot": 2,
@@ -2741,9 +2772,11 @@
       "mainCheckoutRoot": 3,
       "nativeReal": 1,
       "nearestConfig": 4,
+      "overlayDivergence": 4,
       "overlayRoot": 2,
       "resolveAgentrcRoot": 3,
       "revParse": 6,
+      "sameOverlay": 2,
       "storeRoot": 1
     },
     ".agents/scripts/lib/config/github.js": {
@@ -3480,6 +3513,7 @@
       "<anon freshnessProbe/()#0>": 2,
       "<anon fullSuiteLockPolicy/onWaitExpired()#0>": 1,
       "<anon inheritedMarker/lockHomeFn()#0>": 1,
+      "<anon lockAndSpawn/then(sized)#0>": 1,
       "<anon lockedCapture/(captureOpts)#0>": 1,
       "<anon log()#0>": 1,
       "<anon onAdmissionRefused()#0>": 1,
@@ -3501,15 +3535,18 @@
       "isFinishedWait": 3,
       "isFullSuiteLockEnabled": 3,
       "isRefused": 2,
-      "lockAndSpawn": 1,
+      "lockAndSpawn": 2,
       "lockedCapture": 1,
       "lockHome": 2,
       "lockOutcome": 3,
+      "needsSizing": 2,
       "refuse": 1,
       "reportCompleted": 1,
-      "reportOutcome": 2,
+      "reportOutcome": 3,
+      "reserveAndSpawn": 1,
       "resolveFullSuiteLockBudget": 2,
       "resolveFullSuiteLockPath": 5,
+      "sizedOpts": 1,
       "spawnInside": 1,
       "spawnOrStandIn": 3,
       "timedSpawn": 2,
@@ -3518,12 +3555,16 @@
       "withSuiteAdmission": 1
     },
     ".agents/scripts/lib/full-suite-queue.js": {
-      "<anon countAhead/filter(name)#0>": 1,
+      "<anon backfillGate/ahead.every(name)#0/e.resources.some(r)#0>": 1,
+      "<anon backfillGate/ahead.every(name)#0>": 3,
+      "<anon liveAhead/filter(name)#0>": 1,
+      "<anon tryBackfill/opts.attempt.tryOnce()#0>": 1,
       "<anon waitClock/waited()#0>": 1,
       "<anon waitClock/waitedMs()#0>": 1,
       "acquiredLine": 1,
       "announceWait": 1,
-      "countAhead": 3,
+      "backfillGate": 4,
+      "countAhead": 1,
       "dequeueWaiter": 2.0625,
       "describeHolder": 1,
       "enqueueWaiter": 1,
@@ -3532,11 +3573,15 @@
       "holderLabel": 1,
       "isFirstInLine": 1,
       "isLiveEntry": 3.072,
+      "liveAhead": 3,
       "pollForTurn": 5,
       "readLockHolder": 3,
+      "readTicketWorkload": 4,
       "refreshTicket": 2.0438957475994513,
       "reportProgress": 2,
       "reportStillWaiting": 2,
+      "ticketBody": 2,
+      "tryBackfill": 2,
       "waitClock": 1,
       "waitContext": 4,
       "waitHolder": 1,
@@ -3952,6 +3997,7 @@
     },
     ".agents/scripts/lib/observability/runtime-friction.js": {
       "<anon emitRecoveredFrictionMarker/forEachLine(parsed)#0>": 5.077537254050926,
+      "closeFailedDetails": 2,
       "emitBlockRecoveredFriction": 1,
       "emitCloseRecoveredFriction": 1,
       "emitInvalidTransitionFriction": 3,
@@ -4090,10 +4136,12 @@
     },
     ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js": {
       "<anon floorRollupOf/rows.filter(row)#0>": 2,
+      "aheadSkipOf": 2,
       "buildGateReport": 1,
       "evaluateKind": 3.006406022230321,
       "floorRollupOf": 5,
       "loadHeadBaseline": 2,
+      "loadValidated": 2,
       "withComponentRollups": 3
     },
     ".agents/scripts/lib/orchestration/check-baselines/phases/floors.js": {
@@ -4138,7 +4186,9 @@
       "<anon pickWantedKinds/allKinds.filter(k)#0>": 1,
       "accumulateGateResult": 2,
       "accumulateSchemaError": 1,
-      "consumePerKindResults": 2,
+      "accumulateSkipped": 1,
+      "accumulatorFor": 3,
+      "consumePerKindResults": 1,
       "dispatchPerKind": 1,
       "emptyReport": 1,
       "exitCodeForGate": 4,
@@ -4164,12 +4214,15 @@
       "resolveRefreshTrigger": 6
     },
     ".agents/scripts/lib/orchestration/check-baselines/phases/report.js": {
+      "<anon formatSkipped/skipped.map(s)#0>": 1,
       "appendGateText": 2,
       "formatGateLine": 6,
       "formatGateStatus": 3,
       "formatHeader": 1,
       "formatReport": 2.0438957475994513,
-      "formatViolationLine": 2
+      "formatSkipped": 1,
+      "formatViolationLine": 2,
+      "parseGateFailLine": 1
     },
     ".agents/scripts/lib/orchestration/check-state.js": {
       "checkVerdict": 3,
@@ -4270,7 +4323,6 @@
       "earlierSection": 1,
       "executeReviewPipeline": 3.000671818049278,
       "instanceFilesChanged": 3.0123456790123457,
-      "markAgainstHistory": 2,
       "postReviewComment": 3.000302104662482,
       "postUnlessDeferred": 2,
       "recordRun": 2.2560000000000002,
@@ -4671,21 +4723,38 @@
       "<anon postCaptureFilter/(g)#0>": 4,
       "<anon seatableKinds/kinds.filter(kind)#0>": 2,
       "carryCoverageDeferral": 2.2560000000000002,
-      "carryLintCredit": 2.004665403119988,
+      "carryCredit": 1.0233236151603498,
+      "carryPreflightCredits": 2,
       "clearCoverageDeferral": 2,
       "closeGates": 1,
       "coverageEnvelope": 2,
       "creditedPreflight": 2,
       "describeGate": 2,
+      "failure": 1,
+      "gateKinds": 2,
       "isCoverageDeferred": 2,
       "isOverBudgetCapture": 2,
-      "lintCredit": 1,
       "postCaptureFilter": 1,
       "postCaptureGates": 2,
       "postCaptureSettled": 2,
+      "recordPreflightCredit": 2,
       "scorePostCapture": 3,
+      "scoresDuplication": 2,
       "seatableKinds": 1,
       "settleOverBudget": 2
+    },
+    ".agents/scripts/lib/orchestration/handoff-rescore.js": {
+      "<anon describeMoved/moved.map(m)#0>": 1,
+      "<anon pct(v)#0>": 3,
+      "<anon rescoreDuplication/log(m)#0>": 1,
+      "<anon rowsOf/rows.map(r)#0>": 1.010973936899863,
+      "baselineRelPath": 1.008,
+      "describeMoved": 1,
+      "raisedDuplicationRows": 8,
+      "raisedDuplicationSuffix": 3,
+      "rescoreDuplication": 3,
+      "rowsOf": 2.0438957475994513,
+      "settle": 4
     },
     ".agents/scripts/lib/orchestration/handoff-state.js": {
       "handoffStatePath": 1,
@@ -5450,7 +5519,7 @@
       "windowSpan": 4
     },
     ".agents/scripts/lib/orchestration/review-base-ref.js": {
-      "remoteBaseRef": 4,
+      "remoteBaseRef": 1,
       "resolveSharedBaseRef": 3,
       "unresolvedBaseReviewOutcome": 1
     },
@@ -5472,7 +5541,8 @@
     ".agents/scripts/lib/orchestration/review-depth.js": {
       "deriveChangeLevel": 7,
       "normalizeChangedFileCount": 4,
-      "resolveDepth": 13
+      "resolveDepth": 13,
+      "resolveReviewEffort": 1
     },
     ".agents/scripts/lib/orchestration/review-history.js": {
       "<anon appendReviewRun/updateReviewHistory(h)#0>": 1,
@@ -5482,7 +5552,7 @@
       "<anon flags(f)#0>": 1,
       "<anon list(v)#0>": 2,
       "<anon markOverridden/entries.map(e)#0>": 2,
-      "<anon markRepeats/findings.map(f)#0/earlier.some(e)#0>": 2,
+      "<anon markRepeats/findings.map(f)#0/earlier.some(e)#0>": 1,
       "<anon markRepeats/findings.map(f)#0>": 4,
       "<anon markRepeats/history.runs.flatMap(r)#0>": 2,
       "<anon overlaps/now.some(a)#0/before.some(b)#0>": 1,
@@ -5505,7 +5575,7 @@
       "recordOverriddenIds": 1,
       "resolveEntry": 3,
       "sameLocation": 5,
-      "toHistoryFinding": 3,
+      "toHistoryFinding": 1,
       "toHistoryRun": 2,
       "updateReviewHistory": 1
     },
@@ -5578,6 +5648,7 @@
     },
     ".agents/scripts/lib/orchestration/review-providers/code-review.js": {
       "<anon buildPrompt/replace:_guidance_()#0>": 1,
+      "<anon claudeArgs(effort)#0>": 1,
       "<anon compareText(a,b)#0>": 3,
       "<anon createCodeReviewProviderForRegistry/degradations.map(d)#0>": 1,
       "<anon createCodeReviewProviderForRegistry/reviewInChunks/chunk.sections.map(s)#0>": 1,
@@ -5588,6 +5659,7 @@
       "<anon createCodeReviewProviderForRegistry/reviewInChunks/flatMap(c)#0>": 1,
       "<anon createCodeReviewProviderForRegistry/reviewInChunks/sections.map(s)#0>": 1,
       "<anon dedupeFindings/findings.filter(f)#0>": 2,
+      "<anon effortOf(input)#0>": 1,
       "<anon openChunk/chunks.findLastIndex(c)#0>": 1,
       "<anon openChunk/find(c)#0>": 1,
       "<anon packChunks/sections.map(s)#0>": 1,
@@ -5657,7 +5729,7 @@
       "tryParseJson": 1,
       "verdictPayload": 8,
       "verifyCriticals": 3.0001214771622933,
-      "vetFindings": 3,
+      "vetFindings": 2,
       "voteDegradations": 1,
       "voterContext": 1
     },
@@ -5675,7 +5747,6 @@
     ".agents/scripts/lib/orchestration/review-providers/finding-identity.js": {
       "<anon findingId(finding)#0>": 1,
       "contentId": 4,
-      "findingId": 4,
       "findingInstances": 5,
       "normalizeTitle": 1
     },
@@ -5685,10 +5756,7 @@
       "<anon isRepeat(f)#0>": 2,
       "<anon renderBody/earlier.some(e)#0>": 1,
       "<anon renderEarlier/e.instances.map(i)#0>": 1,
-      "<anon renderFindings/earlier.some(e)#0>": 1,
       "<anon renderFindings/SEVERITY_ORDER.map(sev)#0>": 1,
-      "<anon renderFindingSections/findings.filter(f)#0>": 2,
-      "<anon renderFindingSections/findings.filter(f)#1>": 1,
       "<anon renderFindingSections/fresh.filter(f)#0>": 1,
       "<anon renderInstances/instances.map(i)#0>": 1,
       "<anon renderManualPromptsSection/messages.filter(m)#0>": 2,
@@ -5699,7 +5767,7 @@
       "renderEarlier": 3,
       "renderEarlierSection": 3,
       "renderFinding": 4,
-      "renderFindings": 5,
+      "renderFindings": 4,
       "renderFindingSections": 2,
       "renderInstances": 2,
       "renderManualPromptsSection": 3,
@@ -5845,6 +5913,7 @@
     ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js": {
       "baselinesGatesObserved": 2,
       "failedTerminalFor": 3.072,
+      "failureFor": 2,
       "gatesForFailedPhase": 5,
       "nextCommandFor": 2
     },
@@ -5926,6 +5995,7 @@
       "runCloseValidationPhase": 3,
       "runGateChain": 1,
       "settleFailedValidation": 4,
+      "tagBaselinesKinds": 3,
       "teeLockLines": 1
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js": {
@@ -6051,6 +6121,18 @@
       "readVerdict": 2,
       "runGraphqlPreflight": 3
     },
+    ".agents/scripts/lib/orchestration/single-story-close/phases/land-review-record.js": {
+      "<anon matchDeposit/readDepositFn()#0>": 1,
+      "<anon postDeposit/postReportFn(post)#0>": 1,
+      "<anon postDeposit/progress(tag,msg)#0>": 1,
+      "buildUnreviewedMarker": 1,
+      "emit": 1,
+      "matchDeposit": 4,
+      "postDeposit": 3,
+      "postUnreviewed": 1,
+      "readPrHead": 4,
+      "recordLandReview": 6
+    },
     ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js": {
       "describeHolder": 2,
       "lockWaitPending": 1
@@ -6116,6 +6198,7 @@
       "<anon runPostLandTail/step()#4>": 1,
       "<anon runPostLandTail/step()#5>": 1,
       "<anon runPostLandTail/step()#6>": 1,
+      "<anon runPostLandTail/step()#7>": 1,
       "<anon stepBaseFastForward/info(m)#0>": 1,
       "<anon stepBaseFastForward/warn(m)#0>": 1,
       "<anon stepEpicRollup/failures.map(e)#0>": 1,
@@ -6126,6 +6209,8 @@
       "<anon stepStatusResync/info(m)#0>": 1,
       "<anon stepStatusResync/warn(m)#0>": 1,
       "<anon stepWorktreeReap/progress(tag,msg)#0>": 1,
+      "<anon toTailReport/entries.map(k,o)#0>": 1,
+      "<anon toTailReport/entries.map(k,o)#1>": 1,
       "postLandLockPath": 1,
       "reapTrackingRef": 2,
       "runLockedLocalSteps": 3,
@@ -6139,7 +6224,8 @@
       "stepRefCleanup": 3,
       "stepStatusResync": 3,
       "stepTempPurge": 2,
-      "stepWorktreeReap": 3
+      "stepWorktreeReap": 3,
+      "toTailReport": 1
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/pr-body-trailers.js": {
       "<anon liftTrailers/parsed.findLast(t)#0>": 1,
@@ -6370,6 +6456,7 @@
     ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js": {
       "<anon buildCommitBody/fmt(v)#0>": 2,
       "<anon buildCommitBody/moved.map(m)#0>": 1,
+      "<anon committedResult/moved.map(m)#0>": 2,
       "<anon diffScopedRows/byPath(rows)#0/map(r)#0>": 1,
       "<anon diffScopedRows/byPath(rows)#0>": 1,
       "<anon resolveScope/filter(f)#0>": 1,
@@ -6383,11 +6470,13 @@
       "buildCommitBody": 1,
       "buildCommitSubject": 1,
       "commitBaseline": 1,
+      "committedResult": 2,
       "diffScopedRows": 2,
       "resolveScope": 4,
       "resolveScopeBase": 1,
       "runDuplicationCloseRescore": 12,
-      "skip": 1
+      "skip": 1,
+      "unchanged": 1
     },
     ".agents/scripts/lib/orchestration/story-close/format-autofix.js": {
       "<anon listChangedFiles/gitSpawn(_cwd,args)#0>": 1,
@@ -6525,6 +6614,10 @@
       "<anon preflightChecks/RATCHETS.filter(r)#0>": 1,
       "<anon preflightFinding/filter(line)#0>": 1,
       "<anon ran(name,detail,extra)#0>": 1,
+      "<anon ref-behind(ctx,evidence)#0>": 1,
+      "<anon refPush(ctx,sha)#0>": 1,
+      "<anon ruleset-eval-failed(ctx,ev,range)#0>": 1,
+      "<anon rulesetFailure/shas.map(sha)#0>": 1,
       "<anon runSteps/results.find(r)#0>": 1,
       "<anon runStoryHandoff/()#0>": 1,
       "<anon runStoryHandoff/(args)#0/warn(m)#0>": 1,
@@ -6537,9 +6630,13 @@
       "<anon startReview/catch(err)#0>": 1.0122894856622666,
       "<anon startReview/finally()#0>": 1.0122894856622666,
       "<anon stepCreditedRun/then(result)#0>": 2,
+      "<anon stepDuplicationRescore/rescoreDuplication()#0>": 1,
+      "<anon steppedPush/map(sha)#0>": 1,
       "<anon stepPostCapture/gates.map(g)#0>": 1,
       "<anon stepPostCapture/scorePostCapture(a)#0>": 1,
       "<anon stepPreflight/checks.map(c)#0>": 1,
+      "<anon stepPreflight/findings.map(f)#0>": 1,
+      "<anon stepTargets/range.filter(_,i)#0>": 3,
       "<anon withLockProgress/()#0>": 3,
       "<anon withLockProgress/catch()#0>": 1,
       "<anon withLockProgress/forward()#0>": 2,
@@ -6552,6 +6649,7 @@
       "describeLockProgress": 5,
       "describeSuiteFailure": 4,
       "durations": 1,
+      "firstParentRange": 3,
       "gitLine": 2,
       "headSha": 1,
       "mergedDetail": 2,
@@ -6559,10 +6657,13 @@
       "preflightChecks": 1,
       "preflightFinding": 9,
       "pushFailure": 3,
+      "pushOrStep": 3,
       "readState": 1,
       "recordCredit": 1,
+      "refBehind": 1,
       "remoteBranchSha": 3,
       "reviewVerdict": 2,
+      "rulesetFailure": 2,
       "runLogged": 1,
       "runSteps": 2,
       "runStoryHandoff": 6,
@@ -6572,12 +6673,15 @@
       "startReview": 1.0122894856622666,
       "stepBaseMerge": 7,
       "stepCreditedRun": 2,
+      "stepDuplicationRescore": 1,
       "stepOrder": 2,
+      "steppedPush": 4,
       "stepPostCapture": 5,
       "stepPreflight": 4,
       "stepPush": 5.351592931239494,
       "stepReview": 1,
       "stepSeat": 6,
+      "stepTargets": 1,
       "testGateArgv": 1,
       "withLockProgress": 1,
       "worktreeEnv": 1
@@ -7050,7 +7154,7 @@
       "reclaimStaleMutex": 2,
       "refreshLockSync": 2,
       "releaseOwned": 2,
-      "releaseUnderMutex": 3.7084548104956268,
+      "releaseUnderMutex": 3.0262390670553936,
       "reportLockEvent": 1,
       "resolveSweepLockPath": 1,
       "sameLockIdentity": 5,
@@ -7066,7 +7170,8 @@
       "withBreakMutex": 2
     },
     ".agents/scripts/lib/single-story/confirm-and-land.js": {
-      "confirmAndLand": 2
+      "confirmAndLand": 2,
+      "landTailArgs": 1
     },
     ".agents/scripts/lib/single-story/confirm-merge.js": {
       "confirmStoryMerged": 5,
@@ -7205,7 +7310,8 @@
       "<anon createDeclaredAttempt/heldPath()#0>": 1,
       "<anon createDeclaredAttempt/release()#0>": 1,
       "<anon createDeclaredAttempt/reserve()#0>": 2.004665403119988,
-      "<anon createDeclaredAttempt/tryOnce()#0>": 1,
+      "<anon createDeclaredAttempt/tryOnce(gate)#0/underAdmissionMutex()#0>": 1,
+      "<anon createDeclaredAttempt/tryOnce(gate)#0>": 1,
       "<anon createExclusiveAttempt/drained()#0/live.reduce(sum,r)#0>": 1,
       "<anon createExclusiveAttempt/drained()#0>": 3,
       "<anon createExclusiveAttempt/heldPath()#0>": 1,
@@ -7214,7 +7320,6 @@
       "<anon readLiveReservations/names.flatMap(name)#0>": 1,
       "<anon sharedResource/reservation.resources.find(r)#0>": 1,
       "admissionWaitLine": 2,
-      "admittedLine": 2,
       "ageOf": 1,
       "blocked": 1,
       "blockingLabel": 3,
@@ -7225,6 +7330,7 @@
       "createExclusiveAttempt": 1,
       "describeBlocking": 6,
       "describeRefusal": 1,
+      "gated": 2,
       "holderOf": 1,
       "holderState": 3,
       "inheritedReservation": 8,
@@ -7240,7 +7346,21 @@
       "resolveSuiteCapacity": 4,
       "sharedResource": 2,
       "underAdmissionMutex": 3,
-      "unlinkQuietly": 1
+      "unlinkQuietly": 1,
+      "weightEnv": 2
+    },
+    ".agents/scripts/lib/suite-sizing.js": {
+      "<anon parseCount/filter(l)#0>": 1,
+      "<anon selectTierWeight/find(t)#0>": 1,
+      "<anon selectTierWeight/sort(a,b)#0>": 1,
+      "admissionRecord": 2,
+      "admittedLine": 4,
+      "failureReason": 3,
+      "parseCount": 2,
+      "runSizeCommand": 1,
+      "selectTierWeight": 4,
+      "sizeWorkload": 5,
+      "sizingFields": 3
     },
     ".agents/scripts/lib/supervised-suite.js": {
       "<anon gateSupervision/supervise(child,output)#0/reportOnRelease(timings)#0>": 1,
@@ -8362,6 +8482,7 @@
     },
     ".agents/scripts/update-crap-baseline.js": {
       "<anon onError(err)#0>": 1,
+      "logRefresh": 2.0625,
       "main": 2,
       "seat": 2
     },

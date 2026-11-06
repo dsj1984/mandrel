@@ -1,16 +1,80 @@
 import { createGitInterface } from './git-utils.js';
 
 /**
- * The single rule for the ref a pre-push step diffs against: a named ref
- * wins, then `crap.incrementalCoverage.baseRef`, then `main`. The named ref
- * must win so coverage capture and the CRAP preview score the same change
- * set. Every consumer routes through here rather than reading `baseRef`.
+ * `main` → `origin/main`; already-qualified input passes through.
  *
- * @param {{ crap: object, ref: string | null | undefined }} opts
+ * @param {unknown} baseBranch
+ * @returns {string|null} the remote-tracking ref, or `null` when unnameable.
+ */
+export function remoteBaseRef(baseBranch) {
+  const base = trimmedName(baseBranch);
+  return base ? base.replace(/^(?!origin\/)/, 'origin/') : null;
+}
+
+function trimmedName(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
+ * The single rule for the ref a pre-push step diffs against: a named ref
+ * wins, then `crap.incrementalCoverage.baseRef`, then `origin/<baseBranch>`
+ * (never the bare local base, which may trail the remote and widen the set).
+ * Pure: no git call. Every consumer routes through here.
+ *
+ * @param {{ crap: object, ref: string | null | undefined, baseBranch?: string }} opts
  * @returns {string}
  */
-export function resolveChangedFilesRef({ crap, ref }) {
-  return ref ?? crap?.incrementalCoverage?.baseRef ?? 'main';
+export function resolveChangedFilesRef({ crap, ref, baseBranch }) {
+  return (
+    ref ??
+    crap?.incrementalCoverage?.baseRef ??
+    remoteBaseRef(baseBranch) ??
+    'origin/main'
+  );
+}
+
+/**
+ * {@link resolveChangedFilesRef} plus a probe of the default only. An
+ * unresolvable `origin/<base>` falls back to the local base: its three-dot
+ * diff is never narrower than the Story's, so no gate is lost.
+ *
+ * @param {{ crap: object, ref?: string | null, baseBranch?: string, cwd?: string, gitSpawnFn?: Function }} opts
+ * @returns {{ ref: string, source: 'flag' | 'config' | 'remote' | 'local-fallback', unresolved?: string }}
+ */
+export function resolveCaptureBaseRef({
+  crap,
+  ref,
+  baseBranch,
+  cwd = process.cwd(),
+  gitSpawnFn = createGitInterface({}).gitSpawn,
+}) {
+  const named = namedRef(crap, ref);
+  if (named) return named;
+  const remote = resolveChangedFilesRef({ crap: null, ref: null, baseBranch });
+  return refResolves(gitSpawnFn, cwd, remote)
+    ? { ref: remote, source: 'remote' }
+    : localFallback(remote);
+}
+
+function localFallback(remote) {
+  const ref = remote.slice('origin/'.length);
+  return { ref, source: 'local-fallback', unresolved: remote };
+}
+
+function namedRef(crap, ref) {
+  if (ref != null) return { ref, source: 'flag' };
+  const configured = crap?.incrementalCoverage?.baseRef;
+  return configured == null ? null : { ref: configured, source: 'config' };
+}
+
+/** A spawn failure means the same as a missing ref. */
+function refResolves(spawnFn, cwd, ref) {
+  try {
+    const args = ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`];
+    return spawnFn(cwd, ...args)?.status === 0;
+  } catch {
+    return false;
+  }
 }
 
 /**

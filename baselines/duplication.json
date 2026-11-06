@@ -95,8 +95,8 @@
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
       "duplicatedLines": 34,
-      "totalLines": 258,
-      "percentage": 13.18
+      "totalLines": 284,
+      "percentage": 11.97
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
