@@ -9,8 +9,8 @@ description: >-
 
 > **Bundle, not a procedure.** [`deliver-story.md`](deliver-story.md) is still
 > the steps; this file is the material they reference, bundled so one read
-> covers the happy path. Situational material (lease, recovery, merge waits,
-> CI remediation) stays on demand in
+> covers the happy path. Situational material (lease, recovery, CI
+> remediation) stays on demand in
 > [`deliver-story-reference.md`](deliver-story-reference.md) and
 > [`deliver-reference.md`](deliver-reference.md); read those only when routed.
 
@@ -73,7 +73,7 @@ sensitive footprint buys a **deep review**, not a fresh acceptance critic.
 
 **One verdict owner per Story** — named by `verdictOwner`: the inline
 self-eval under `minimal` / `standard` (the default), a fresh maker-blind
-critic under `strict`. Never both, and never a warm-up pass. Start from the
+critic under `strict`. Never both, never a warm-up pass. Start from the
 skeleton — it derives § 3's `files` and `verdictOwner` with the same function:
 
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId> --init
@@ -113,7 +113,7 @@ or an unregistered merge driver: it flips `agent::blocked` and posts
 close, opens a PR or writes another label. Outruns the sync Bash ceiling → run
 it in the **background**.
 
-1. **Base merge.** It merges `origin/<baseBranch>` into the Story branch
+1. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops (or skips
    if `on-conflict`).
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
@@ -141,8 +141,9 @@ reads the **output**, not the exit code: a run that prints no signal
 deposits nothing. Seat order, runner shapes, redraft rounds:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
-`verify[]` is scoped entries **plus** this one run: a full-suite entry
-is reported credited against the same record, never respawned.
+`verify[]` is scoped entries **plus** this one run: an entry that is a
+full-suite command is reported credited against the same record, never
+respawned.
 
 ## 6. Terminal envelope — the return contract
 
