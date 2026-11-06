@@ -21,7 +21,7 @@ rule produces it:
 
 1. **Run topology.** A one-Story run is `inline` (the router's own session)
    whatever its shape — isolation only matters against a *concurrent*
-   sibling, and a one-Story run has none.
+   sibling.
 2. **Every other run is `subagent`**, however trivial each Story's shape.
 
 `inline` drops only the `story-worker` boot — not the verdict owner, which
@@ -114,7 +114,8 @@ close, opens a PR or writes another label. Outruns the sync Bash ceiling → run
 it in the **background**.
 
 1. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
-   **first**, ahead of every check: close's base-sync then no-ops.
+   **first**, ahead of every check: close's base-sync then no-ops or skips
+   (`on-conflict`).
 2. **Preflight — blocking.** `lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
    baselined ratchet — [`deliver-reference.md`](deliver-reference.md) § Preflight.

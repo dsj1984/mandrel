@@ -86,7 +86,7 @@ Project identity, filesystem roots, planner docs context, and the commands the c
 | `docsContextFiles` | No | `array<string>` | `["architecture.md","data-dictionary.md","decisions.md","patterns.md"]` | Files under `paths.docsRoot` the planner treats as standing context. Read digest-first — the docs digest names the file and the line range, and only the named section is pulled. |
 | `commands` | No | `object` | — | Shell commands the close-validation chain spawns, each run from the repo root. One tri-state per key: absent uses the default shown; an explicit `null` disables an optional gate (`typecheck`, `lint`, `formatCheck`) — close reports it as skipped (`<gate>-disabled`) and runs nothing; a string is that command. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution), so wrap a multi-tool pair in one script and name that. |
 | `commands.test` | No | `string` | `"npm test"` | Full test-suite command close's `test` gate spawns, and the identity its `test` credit is hashed under — the deposit `run-tests.js` makes, close's credit probe and `verify[]` credit all key on it, as does `mandrel doctor`'s `test-credit-path` check. Set it for a non-npm project (e.g. `python3 scripts/validation.py`). Mandatory: `null` is rejected. |
-| `commands.testChanged` | No | `string` \| `null` | — | Optional changed-tests command for the delta re-credit: when close's base sync merged sibling landings into a branch whose pre-sync head holds `test` credit, close's `test` gate runs this instead of the full suite, with the credited commit in the `MANDREL_CHANGED_SINCE` environment variable and in place of a literal `$MANDREL_CHANGED_SINCE` argument (e.g. `pnpm vitest run --changed $MANDREL_CHANGED_SINCE`; no shell runs it), and a green run re-credits the merged tree. Ineligible when coverage-capture runs the suite, an incoming path is a coverage-config file or one of the Story's own files, or no incoming path is a suite input. The overlap rule ignores baseline (`baselines/`) and coverage-directory paths. Absent or `null` keeps the full re-run. |
+| `commands.testChanged` | No | `string` \| `null` | — | Optional changed-tests command for the delta re-credit: when close's base sync merged sibling landings into a branch whose pre-sync head holds `test` credit, close's `test` gate runs this instead of the full suite, with the credited commit in the `MANDREL_CHANGED_SINCE` environment variable and in place of a literal `$MANDREL_CHANGED_SINCE` argument (e.g. `pnpm vitest run --changed $MANDREL_CHANGED_SINCE`; no shell runs it), and a green run re-credits the merged tree. Ineligible when coverage-capture runs the suite, an incoming path is a coverage-config file or one of the Story's own files, or no incoming path is a suite input. The overlap rule ignores baseline (`baselines/`) and coverage-directory paths, and paths matching `delivery.quality.gates.coverage.nonInputGlobs`; those globs never change the incoming count or the emptiness rule, and a config file refuses under either value of `captureHandlesConfigChanges`. Absent or `null` keeps the full re-run. |
 | `commands.typecheck` | No | `string` \| `null` | `"npm run typecheck"` | Static type-check command run as a close-validation gate. An explicit `null` disables the gate for projects with no type layer (skip reason `typecheck-disabled`). The empty string is rejected so a typo cannot silently disable it. |
 | `commands.lint` | No | `string` \| `null` | `"npm run lint"` | Lint command run as a close-validation gate and by the handoff preflight. An explicit `null` disables both (skip reason `lint-disabled`). Point it at the scoped command your hooks already run to stop paying for a third whole-repo lint at close — the gate still lints the diff, and CI still owns whole-repo drift. |
 | `commands.formatCheck` | No | `string` \| `null` | `"npx biome format ."` | Non-mutating format verification run as a close-validation gate. An explicit `null` disables the gate (skip reason `format-disabled`). |
@@ -468,16 +468,82 @@ suite when the script is absent):
 - `captureScope` is `affected` and the `test:coverage:affected` script
   exists;
 - the worktree is clean, and the delta (`git diff --name-only <commit> HEAD`)
-  is non-empty and shares no path with the Story's change set;
+  is non-empty;
+- the delta shares no path with the Story's change set, **or** every commit
+  since the stamp came from the base: `git rev-list --no-merges
+  <commit>..HEAD ^origin/<baseBranch>` is empty. A shared file is then in the
+  delta, so its prior row is dropped and re-measured keyed on the stamped
+  commit. A Story commit since the stamp, or an unresolvable base ref, keeps
+  the refusal, and the reason names the Story's own commits;
 - the delta touches no coverage-determining config: `package.json`, a
-  lockfile, `tsconfig*.json`, or a vitest / jest / c8 / nyc config;
+  lockfile, `tsconfig*.json`, or a vitest / jest / c8 / nyc config — unless
+  `captureHandlesConfigChanges` is `true`;
 - a prior artifact exists to merge over.
+
+Baseline and coverage-directory paths never count, and neither do paths
+matching **`nonInputGlobs`** (repo-relative picomatch globs, default `[]`).
+Those globs are dropped from both sides of the overlap check and from the
+re-measured set, so a delta made only of matching, baseline and
+coverage-directory paths restamps without running a test. Nothing is built
+in: a consumer test may read a doc by path, so Markdown counts as an input
+until a consumer declares it. The globs never change the suite-input filter,
+the tree digest or stamp freshness. Close's `test` delta re-credit
+(`commands.testChanged`) drops them from its overlap comparison only; its
+incoming count and emptiness rule are unchanged, and it refuses a config file
+under either value of **`captureHandlesConfigChanges`**. That key declares
+that the affected capture script, given `MANDREL_COVERAGE_BASE_REF`, widens
+its own selection when a config file changes; it covers only the capture
+script.
 
 Any git error or unresolvable input fails closed to the ordinary capture.
 Every freshness log line names the stamp's scope, the required scope and the
 verdict (`fresh`, `stale`, `scope-mismatch`, `missing`, or `delta-refresh`
 with the delta's file count), so an unexpected full re-run is explainable
-from the log alone. `captureScope: "full"` is unaffected.
+from the log alone. Every delta-refresh and not-eligible line also names the
+rule that decided (`disjoint`, `overlap`, `own-commits`, `config`, `empty`,
+`restamp`, or `precondition` before any delta was read), the delta's file
+count, the paths dropped as baseline/coverage-directory and as
+`nonInputGlobs`, and, for an overlap, how many Story files overlapped.
+`captureScope: "full"` is unaffected.
+
+#### `delivery.close.baseSync` — conflict-only base sync
+
+`always` (the default) merges `origin/<baseBranch>` into the Story branch on
+every close, as before. `on-conflict` first asks a probe whether the merge is
+needed, and skips it only when all of these hold:
+
+- `origin/<baseBranch>` was fetched and is not already an ancestor of `HEAD`;
+- `git merge-tree --write-tree --no-messages origin/<baseBranch> HEAD` exits
+  0 (exit 1 is a conflict; any other exit, such as git older than 2.38, is
+  unsupported);
+- the paths the base changed since the merge-base and the paths the Story
+  changed are disjoint — raw lists with `--no-renames`, so `baselines/`, the
+  coverage directory and a rename's old path all count.
+
+Any other answer, or any git failure, merges exactly as `always` does. With
+no path changed on both sides, git never runs a merge driver, so a skip cannot
+depend on the `mandrel-baseline` driver.
+
+After a skip, close validates and pushes the tree it has: no merge commit, no
+spent credit, so the handoff's lint, format, typecheck and coverage credit
+holds. `check-baselines` compares against the **merge-base** instead of
+`origin/<baseBranch>`, so a row the base improved since is not a phantom
+regression. Close logs one `SYNC` line naming the decision, and the terminal
+envelope carries `baseSync: { mode, outcome, reason, incoming }` (`null`
+when no sync ran). A handoff applies the same probe on a **re-run** only;
+its first invocation always merges, and a skip records `baseMerge: {
+skipped: "conflict-free", incoming }` in its envelope. The merge-wait
+recovery and the DIRTY-PR sync always merge.
+
+**The trade-off, and why it is opt-in.** A semantic conflict `merge-tree`
+cannot see — a sibling's API change, a dead-export or dependency-graph rule
+over the combined tree — surfaces only in PR CI or as a merge-queue ejection,
+and coverage rows are measured on the pre-merge tree. Nothing local checks
+coverage baselines on the merged tree before landing. Set `on-conflict` only
+when the repository **requires a merge queue** (or an equivalent) that
+re-tests the merged tree, and does **not** require PR branches to be up to
+date — otherwise the PR shows BEHIND and confirm-merge's `gh pr update-branch`
+merges the base anyway.
 
 #### `delivery.quality.gates.coverage.onOverBudget` — deferring to CI
 
