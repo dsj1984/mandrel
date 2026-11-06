@@ -236,6 +236,39 @@ describe('suiteOfRecord: "ci" (Story #5955)', () => {
     assert.equal(byName(local, 'coverage-capture').suiteOfRecordCi, undefined);
   });
 
+  it('changes nothing when an incremental skip is predicted', () => {
+    const lines = [];
+    const gates = buildDefaultGates({
+      config: {
+        delivery: {
+          quality: {
+            gates: {
+              crap: {
+                enabled: true,
+                incrementalCoverage: { skipWhenUnchanged: true },
+              },
+              coverage: { suiteOfRecord: 'ci' },
+            },
+          },
+        },
+      },
+      packageScripts: CAPTURE_SCRIPTS,
+      presentBaselines: 'none',
+      cwd: '/repo',
+      baseBranch: 'main',
+      log: (m) => lines.push(m),
+      getChangedFilesImpl: () => [],
+      resolveBaseRefImpl: () => ({ ref: 'origin/main' }),
+      gitSpawnImpl: () => ({ status: 1, stdout: '' }),
+      shouldSkipImpl: () => ({ skip: false }),
+    });
+    const capture = byName(gates, 'coverage-capture');
+    assert.equal(capture.skip.reason, 'incremental-no-crap-changes');
+    assert.equal(capture.suiteOfRecordCi, undefined);
+    assert.ok(byName(gates, 'test'), 'the plain test gate comes back');
+    assert.ok(lines.some((l) => /incremental skip/.test(l)));
+  });
+
   async function runPosture(ciRatchetCheck) {
     const spawned = [];
     const validation = await runCloseValidation({
