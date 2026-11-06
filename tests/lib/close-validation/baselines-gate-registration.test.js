@@ -300,6 +300,24 @@ describe('buildDefaultGates — baselines gate partition (Story #5172)', () => {
     }
   });
 
+  // Story #5954 AC-11 — a skipped base sync compares against the merge-base,
+  // so a row main improved after it is no phantom regression.
+  it('pins BASELINE_REF to the merge-base when the sync was skipped', () => {
+    const mergeBase = 'm'.repeat(40);
+    const entries = baselinesEntries(
+      buildDefaultGates({
+        config: configForKinds(allKinds),
+        presentBaselines: present,
+        baseBranch: 'main',
+        baselineRef: mergeBase,
+      }),
+    );
+    assert.equal(entries.length, 2);
+    for (const gate of entries) {
+      assert.deepEqual(gate.env, { BASELINE_REF: mergeBase });
+    }
+  });
+
   it('omits the overlay from both entries when no integration branch is supplied', () => {
     const entries = baselinesEntries(
       buildDefaultGates({

@@ -91,7 +91,7 @@
                 "type": "string",
                 "pattern": "([;&|`]|\\$\\()"
               },
-              "description": "Optional changed-tests command for the delta re-credit: when close's base sync merged sibling landings into a branch whose pre-sync head holds `test` credit, close's `test` gate runs this instead of the full suite, with the credited commit in the `MANDREL_CHANGED_SINCE` environment variable and in place of a literal `$MANDREL_CHANGED_SINCE` argument (e.g. `pnpm vitest run --changed $MANDREL_CHANGED_SINCE`; no shell runs it), and a green run re-credits the merged tree. Ineligible when coverage-capture runs the suite, an incoming path is a coverage-config file or one of the Story's own files, or no incoming path is a suite input. The overlap rule ignores baseline (`baselines/`) and coverage-directory paths. Absent or `null` keeps the full re-run."
+              "description": "Optional changed-tests command for the delta re-credit: when close's base sync merged sibling landings into a branch whose pre-sync head holds `test` credit, close's `test` gate runs this instead of the full suite, with the credited commit in the `MANDREL_CHANGED_SINCE` environment variable and in place of a literal `$MANDREL_CHANGED_SINCE` argument (e.g. `pnpm vitest run --changed $MANDREL_CHANGED_SINCE`; no shell runs it), and a green run re-credits the merged tree. Ineligible when coverage-capture runs the suite, an incoming path is a coverage-config file or one of the Story's own files, or no incoming path is a suite input. The overlap rule ignores baseline (`baselines/`) and coverage-directory paths, and paths matching `delivery.quality.gates.coverage.nonInputGlobs`; those globs never change the incoming count or the emptiness rule, and a config file refuses under either value of `captureHandlesConfigChanges`. Absent or `null` keeps the full re-run."
             },
             "typecheck": {
               "type": ["string", "null"],
@@ -716,6 +716,23 @@
                       "enum": ["block", "defer-to-ci"],
                       "description": "What handoff and close do when the capture script exits 76 — the consumer-declared signal that the selected slice is over this host's budget and no test ran. `block` (default) stops the handoff (`blocked`) and fails close, naming this key. `defer-to-ci` settles the coverage gate as deferred to CI: no artifact is written or stamped and no credit is recorded, the coverage-reading gates (CRAP preview, coverage and CRAP baselines) are skipped, and handoff and close proceed — the terminal envelope and the PR body say coverage was deferred. Set it only when the consumer's CI runs the deferred suite with a coverage floor. A timeout (124) is never deferred, under either value.",
                       "default": "block"
+                    },
+                    "nonInputGlobs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "not": {
+                          "pattern": "([;&|`]|\\$\\()"
+                        },
+                        "minLength": 1
+                      },
+                      "description": "Repo-relative picomatch globs naming paths no test reads. A matching path is dropped from both sides of the coverage delta-refresh overlap check and from the re-measured set — a delta of only matching, baseline and coverage-directory paths restamps without a run — and from the overlap check of close's `test` delta re-credit (its incoming count and emptiness test are unchanged). It never changes the suite-input filter, the tree digest or stamp freshness. Default `[]`: nothing is built in, so Markdown counts as an input unless declared here.",
+                      "default": []
+                    },
+                    "captureHandlesConfigChanges": {
+                      "type": "boolean",
+                      "description": "Declares that the affected capture script, given `MANDREL_COVERAGE_BASE_REF`, widens its own selection when a coverage-determining config file (`package.json`, a lockfile, `tsconfig*.json`, a test-runner config) changes. When `true`, such a file in the coverage delta no longer refuses the delta refresh. Close's `test` delta re-credit refuses on a config file under either value. Default `false`.",
+                      "default": false
                     }
                   },
                   "additionalProperties": false
@@ -1315,6 +1332,19 @@
               "minimum": 1,
               "description": "Cumulative wall-clock budget (seconds) across merge-wait resumes, anchored at the later of the PR's createdAt and its latest auto-merge arm (`autoMergeRequest.enabledAt`), so a re-close that re-arms starts a fresh budget; without an arm time it falls back to createdAt, then to the invocation start. Default 3600 (60 minutes). Exhausting this classifies the block and transitions the Story to agent::blocked.",
               "default": 3600
+            }
+          },
+          "additionalProperties": false
+        },
+        "close": {
+          "type": "object",
+          "description": "Close-time posture (Story #5954). `baseSync` decides whether close and a handoff re-run merge `origin/<baseBranch>` before validating.",
+          "properties": {
+            "baseSync": {
+              "type": "string",
+              "enum": ["always", "on-conflict"],
+              "description": "`always` (default) merges `origin/<baseBranch>` on every close, as before. `on-conflict` first runs a conflict-only probe and skips the merge when it is conflict-free (`git merge-tree --write-tree`) and the incoming and Story paths are disjoint (raw paths, `baselines/` and renames included); `check-baselines` then compares against the merge-base and the terminal envelope's `baseSync` says why. Any other probe answer merges as today. A handoff applies the probe only on a re-run. Opt in only behind a merge queue that re-tests the merged tree and with no up-to-date-branch requirement: a semantic conflict the probe cannot see surfaces in CI, and coverage is measured on the pre-merge tree.",
+              "default": "always"
             }
           },
           "additionalProperties": false

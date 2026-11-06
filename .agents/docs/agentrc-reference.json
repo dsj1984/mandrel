@@ -131,7 +131,9 @@
           "captureScript": "test:coverage",
           "captureScope": "full",
           "timeoutMs": 600000,
-          "onOverBudget": "block"
+          "onOverBudget": "block",
+          "nonInputGlobs": [],
+          "captureHandlesConfigChanges": false
         },
         "crap": {
           "enabled": true,
@@ -221,6 +223,9 @@
     },
     "mergeWatch": {
       "maxBudgetSeconds": 3600
+    },
+    "close": {
+      "baseSync": "always"
     },
     "codeReview": {
       "providers": [

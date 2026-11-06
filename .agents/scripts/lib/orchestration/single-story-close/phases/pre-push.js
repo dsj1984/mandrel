@@ -57,7 +57,8 @@ export async function runPrePushPhases(ctx, deps) {
     progress,
     gitSpawn: deps.gitSpawn,
   });
-  const baseSync = await runSyncStep(ctx, deps);
+  // biome-ignore lint/suspicious/noAssignInExpressions: the runner's envelope reads ctx.baseSync
+  const baseSync = (ctx.baseSync = await runSyncStep(ctx, deps));
   if (options.skipValidation) {
     progress('VALIDATE', '⏭ Skipped (--skip-validation).');
     return {

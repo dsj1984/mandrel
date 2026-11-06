@@ -184,6 +184,22 @@ const WORKTREE_ISOLATION_SCHEMA = {
   ],
 };
 
+const CLOSE_SCHEMA = {
+  type: 'object',
+  description:
+    'Close-time posture (Story #5954). `baseSync` decides whether close and a handoff re-run merge `origin/<baseBranch>` before validating.',
+  properties: {
+    baseSync: {
+      type: 'string',
+      enum: ['always', 'on-conflict'],
+      description:
+        "`always` (default) merges `origin/<baseBranch>` on every close, as before. `on-conflict` first runs a conflict-only probe and skips the merge when it is conflict-free (`git merge-tree --write-tree`) and the incoming and Story paths are disjoint (raw paths, `baselines/` and renames included); `check-baselines` then compares against the merge-base and the terminal envelope's `baseSync` says why. Any other probe answer merges as today. A handoff applies the probe only on a re-run. Opt in only behind a merge queue that re-tests the merged tree and with no up-to-date-branch requirement: a semantic conflict the probe cannot see surfaces in CI, and coverage is measured on the pre-merge tree.",
+      default: 'always',
+    },
+  },
+  additionalProperties: false,
+};
+
 const MERGE_WATCH_SCHEMA = {
   type: 'object',
   description:
@@ -428,6 +444,7 @@ export const DELIVERY_SCHEMA = {
     // Gate-level schemas (`config/gates/*.schema.js`) compose in here.
     quality: QUALITY_SCHEMA,
     mergeWatch: MERGE_WATCH_SCHEMA,
+    close: CLOSE_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
     refactorStage: REFACTOR_STAGE_SCHEMA,
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
