@@ -477,3 +477,40 @@ describe('every projected role file carries its model default (#5519)', () => {
     });
   }
 });
+
+// Story #5978 — the reviewer roles' tool scope rides in frontmatter.
+describe('reviewer roles declare their tool scope in frontmatter (#5978)', () => {
+  const frontmatterOf = (file) => {
+    const body = materialized.get(file);
+    assert.ok(body, `${file} was not materialized`);
+    return body.match(/^---\n([\s\S]*?)\n---\n/)[1];
+  };
+  const SCOPE_KEY = /^(tools|disallowedTools|hooks):/m;
+
+  test('plan-critic is limited to Read, Grep and Glob, with no hook', () => {
+    const fm = frontmatterOf('plan-critic.md');
+    assert.deepEqual(fm.match(/^tools:.*$/gm), ['tools: Read, Grep, Glob']);
+    assert.doesNotMatch(fm, /^(disallowedTools|hooks):/m);
+  });
+
+  for (const role of ['acceptance-critic', 'auditor']) {
+    test(`${role} denies NotebookEdit and runs the guard on writes and Bash`, () => {
+      const fm = frontmatterOf(`${role}.md`);
+      assert.match(fm, /^disallowedTools: NotebookEdit$/m);
+      assert.doesNotMatch(fm, /^tools:/m);
+      assert.match(
+        fm,
+        /^hooks:\n {2}PreToolUse:\n {4}- matcher: "Write\|Edit\|MultiEdit\|NotebookEdit\|Bash"\n {6}hooks:\n {8}- type: command\n/m,
+      );
+      assert.ok(
+        fm.includes(
+          `command: 'node "$CLAUDE_PROJECT_DIR/.agents/scripts/role-scope-guard.js" --role ${role}'`,
+        ),
+      );
+    });
+  }
+
+  test('story-worker declares no allowlist, denylist or hooks', () => {
+    assert.doesNotMatch(frontmatterOf('story-worker.md'), SCOPE_KEY);
+  });
+});

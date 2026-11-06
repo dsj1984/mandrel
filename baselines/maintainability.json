@@ -2527,6 +2527,10 @@
       "mi": 105.673
     },
     {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "mi": 94.685
+    },
+    {
       "path": ".agents/scripts/run-tests.js",
       "mi": 97.024
     },

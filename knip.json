@@ -62,6 +62,7 @@
     ".agents/scripts/single-story-init.js!",
     ".agents/scripts/story-handoff.js!",
     ".agents/scripts/review-dispositions-report.js!",
+    ".agents/scripts/role-scope-guard.js!",
     ".agents/scripts/story-review-compute.js!",
     ".agents/scripts/stories-wave-tick.js!",
     ".agents/scripts/sync-agentrc.js!",

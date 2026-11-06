@@ -1084,8 +1084,8 @@
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
-      "lines": 96.48,
-      "branches": 90.16,
+      "lines": 96.52,
+      "branches": 90.77,
       "functions": 100
     },
     {
@@ -3793,6 +3793,12 @@
       "lines": 96.69,
       "branches": 100,
       "functions": 80
+    },
+    {
+      "path": ".agents/scripts/role-scope-guard.js",
+      "lines": 100,
+      "branches": 92.08,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/single-story-close.js",
