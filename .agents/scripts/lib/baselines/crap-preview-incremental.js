@@ -27,13 +27,12 @@ export function resolveCrapPreviewIncremental({
 }) {
   if (crap.incrementalCoverage?.baselineJoin !== true) return null;
   const ref = resolveChangedFilesRef({ crap, ref: diffRef, baseBranch });
-  const touchedFiles = readTouched(getChangedFilesImpl, ref, cwd);
-  return touchedFiles && { touchedFiles, baselineRows };
+  return readTouched(getChangedFilesImpl, { ref, cwd }, baselineRows);
 }
 
-function readTouched(getChangedFilesImpl, ref, cwd) {
+function readTouched(getChangedFilesImpl, query, baselineRows) {
   try {
-    return new Set(getChangedFilesImpl({ ref, cwd }));
+    return { touchedFiles: new Set(getChangedFilesImpl(query)), baselineRows };
   } catch {
     return null;
   }
