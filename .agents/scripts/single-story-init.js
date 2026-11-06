@@ -27,7 +27,12 @@ import {
   classifyBranchSeed,
   seedStoryBranchRef,
 } from './lib/git-branch-lifecycle.js';
-import { getStoryBranch, gitSpawn, gitSync } from './lib/git-utils.js';
+import {
+  getStoryBranch,
+  gitSpawn,
+  gitSync,
+  parseStoryBranch,
+} from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { emitTerseResult } from './lib/observability/terse-result.js';
@@ -280,12 +285,13 @@ export async function reapClosedStoryWorktrees({
 
 /**
  * Reap merged `story-*` branches (excluding the current one), then the
- * closed-Story worktrees, then stranded `agent::closing` Stories. Never
+ * closed-Story worktrees, then stranded `agent::closing` Stories, then reports
+ * stalled `agent::executing` Stories (never this one). Never
  * blocks init. Protected candidates (unpushed work, dirty worktree, open
  * Story) are skipped; the lockfile is shared with `boot-sweep.js` via
  * `resolveSweepLockPath` so concurrent reaps cannot race.
  *
- * @returns {Promise<{ worktreeSweep: object, closingReconcile: object }>}
+ * @returns {Promise<{ worktreeSweep: object, closingReconcile: object, stalledExecuting: object }>}
  */
 export async function reapMergedStoryBranches({
   cwd,
@@ -297,6 +303,7 @@ export async function reapMergedStoryBranches({
   worktreeSweepFn,
   acquireLockFn,
   closingReconcileFn,
+  stalledExecutingFn,
 }) {
   const sweepFn =
     injectedSweep ??
@@ -336,7 +343,20 @@ export async function reapMergedStoryBranches({
       warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
     },
   });
-  return { worktreeSweep, closingReconcile };
+  const report =
+    stalledExecutingFn ??
+    (await import('./lib/single-story-sweep/report-stalled-executing.js'))
+      .reportStalledExecuting;
+  const stalledExecuting = await report({
+    provider,
+    config,
+    excludeStoryIds: [parseStoryBranch(storyBranch)],
+    logger: {
+      info: (m) => progress('CLEANUP', m),
+      warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
+    },
+  });
+  return { worktreeSweep, closingReconcile, stalledExecuting };
 }
 
 async function reapMergedBranches({
