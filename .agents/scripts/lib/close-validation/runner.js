@@ -505,7 +505,7 @@ function isBlockedOverBudget(gate, status) {
 }
 
 /** Replaces a suite gate's own hint on exit 77: lost workers, no failing test. */
-export const GATE_HOST_RESOURCES_HINT =
+const GATE_HOST_RESOURCES_HINT =
   'The suite lost workers to host memory (exit 77) and no test failed — do not re-run it unchanged on this host. Use fewer workers or a larger host, or — when CI runs the suite with a coverage floor — have the capture script declare the slice over budget (exit 76) under `delivery.quality.gates.coverage.onOverBudget: "defer-to-ci"`.';
 
 /** The gates that run the suite, the only ones whose 77 means lost workers. */
