@@ -121,7 +121,7 @@ export function carryLintCredit(ctx, priorHead) {
  * @param {{ head: string, state: { coverageDeferredHead?: string } }} ctx
  * @returns {boolean}
  */
-export function isCoverageDeferred(ctx) {
+function isCoverageDeferred(ctx) {
   return Boolean(ctx.head) && ctx.state.coverageDeferredHead === ctx.head;
 }
 

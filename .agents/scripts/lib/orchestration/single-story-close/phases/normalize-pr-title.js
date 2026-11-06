@@ -144,7 +144,7 @@ function synthesizeSubject({ description, storyId, commitMessages }) {
  * @returns {string}
  */
 /** The PR-body line a capture deferred to CI adds beneath `Closes #<id>`. */
-export const COVERAGE_DEFERRED_PR_LINE =
+const COVERAGE_DEFERRED_PR_LINE =
   "Coverage deferred to CI: the capture slice was over this host's budget (exit 76, onOverBudget: defer-to-ci).";
 
 function buildPrBody({

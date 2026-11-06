@@ -14,10 +14,7 @@ import {
   COVERAGE_DEFERRED_SKIP_REASON,
 } from '../../../.agents/scripts/lib/close-validation/gates.js';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
-import {
-  buildPullRequestFields,
-  COVERAGE_DEFERRED_PR_LINE,
-} from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js';
+import { buildPullRequestFields } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js';
 import { closeEnvelopeGates } from '../../../.agents/scripts/lib/orchestration/single-story-close/result.js';
 
 const CAPTURE_SCRIPTS = { 'test:coverage': 'c8 node --test' };
@@ -202,7 +199,10 @@ describe('close envelope and PR body', () => {
       }).body;
     const deferred = fields(true).split('\n');
     assert.equal(deferred[0], 'Closes #5949');
-    assert.equal(deferred[2], COVERAGE_DEFERRED_PR_LINE);
-    assert.ok(!fields(false).includes(COVERAGE_DEFERRED_PR_LINE));
+    assert.match(
+      deferred[2],
+      /^Coverage deferred to CI: .*onOverBudget: defer-to-ci/,
+    );
+    assert.doesNotMatch(fields(false), /Coverage deferred to CI/);
   });
 });
