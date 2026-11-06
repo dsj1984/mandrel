@@ -1791,6 +1791,10 @@
       "mi": 105.391
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/land-review-record.js",
+      "mi": 94.994
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
       "mi": 110.238
     },
@@ -1812,7 +1816,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/post-land.js",
-      "mi": 99.603
+      "mi": 100.194
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pr-body-trailers.js",
@@ -2112,7 +2116,7 @@
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-and-land.js",
-      "mi": 102.26
+      "mi": 106.201
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
