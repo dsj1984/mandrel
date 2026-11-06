@@ -155,3 +155,28 @@ export async function syncFromBaseByMode({
   const result = await syncImpl({ cwd, baseBranch, log });
   return { ...result, decision: baseSyncDecision({ mode, probe, ...result }) };
 }
+
+/**
+ * A handoff re-run's base-merge skip under `on-conflict`. Only a re-run (an
+ * earlier invocation settled the step, `state.baseMergeSettled`) probes; a
+ * skip pins the handoff's close gates to the merge-base, sets the envelope's
+ * `baseMerge` and returns the step detail; anything else returns `null` and the step merges as usual.
+ *
+ * @param {{ config: object, state: object, cwd: string, baseBranch: string, probeBaseSync?: typeof probeBaseSync, progress: Function }} ctx
+ * @returns {Promise<string|null>}
+ */
+export async function handoffRerunSkip(ctx) {
+  const mode = ctx.config?.delivery?.close?.baseSync;
+  if (mode !== 'on-conflict' || !ctx.state.baseMergeSettled) return null;
+  const probe = await (ctx.probeBaseSync ?? probeBaseSync)({
+    cwd: ctx.cwd,
+    baseBranch: ctx.baseBranch,
+  });
+  ctx.progress('base-merge', `baseSync on-conflict: ${describeProbe(probe)}`);
+  if (!probe.skip) return null;
+  ctx.baselineRef = probe.mergeBase;
+  ctx.baseMergeEnvelope = {
+    baseMerge: { skipped: 'conflict-free', incoming: probe.incoming },
+  };
+  return `conflict-free and disjoint: ${probe.incoming} incoming path(s) from origin/${ctx.baseBranch} not merged`;
+}

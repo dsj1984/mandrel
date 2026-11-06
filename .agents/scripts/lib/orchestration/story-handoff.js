@@ -43,6 +43,7 @@ import {
   ADMISSION_REFUSED_EXIT_CODE,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
 } from '../full-suite-lock.js';
+import { handoffRerunSkip } from '../git/base-sync-probe.js';
 import { syncBranchFromBase } from '../git/sync-from-base.js';
 import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
@@ -431,12 +432,15 @@ function mergedDetail(sync, baseBranch) {
 /** @param {object} ctx @returns {Promise<StepResult>} */
 async function stepBaseMerge(ctx) {
   const name = 'base-merge';
+  const skip = await handoffRerunSkip(ctx);
+  if (skip) return skipped(name, skip);
   const sync = await ctx.syncFromBase({
     cwd: ctx.cwd,
     baseBranch: ctx.baseBranch,
     log: ctx.progress,
   });
   if (sync.synced) {
+    ctx.state.baseMergeSettled = true;
     ctx.head = headSha(ctx) ?? ctx.head;
     return sync.kind === 'noop-already-current'
       ? skipped(name, `origin/${ctx.baseBranch} already merged`)
@@ -971,7 +975,7 @@ function precheck(ctx) {
  *
  * @param {string} statePath
  * @param {(tag: string, msg: string) => void} progress
- * @returns {{ preflightHead?: string, lintCredit?: { head: string, configHash: string }|null, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string }}
+ * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, lintCredit?: { head: string, configHash: string }|null, creditHead?: string, creditTimings?: object, seatHead?: string, postCaptureHead?: string }}
  */
 function readState(statePath, progress) {
   let raw;
@@ -1030,6 +1034,7 @@ async function defaultBlock({
  *   git?: typeof gitSpawn,
  *   runCommand?: (cmd: string, args: string[], opts: { cwd: string }) => Promise<{ status: number, stdout: string, stderr: string, timedOut?: boolean }>,
  *   syncFromBase?: typeof syncBranchFromBase,
+ *   probeBaseSync?: typeof import('../git/base-sync-probe.js').probeBaseSync,
  *   probeReview?: typeof probeHeldReviewDiff,
  *   computeReview: (input: { storyId: number, cwd: string, config: object }) => Promise<{ written: boolean, path?: string, reason?: string, deposit?: object }>,
  *   readPackageScriptsFn?: typeof readPackageScripts,
@@ -1110,6 +1115,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     git,
     runCommand,
     syncFromBase,
+    probeBaseSync: deps.probeBaseSync,
     probeReview,
     computeReview,
     progress,
@@ -1176,6 +1182,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     suiteTimings: credited?.suiteTimings ?? null,
     reviewMs: ctx.reviewMs,
     ...coverageEnvelope(ctx),
+    ...ctx.baseMergeEnvelope,
     ...(stop
       ? {
           failedStep: stop.name,
