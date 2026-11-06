@@ -380,12 +380,18 @@ const ACCEPTANCE_EVAL_SCHEMA = {
 const FEEDBACK_LOOP_SCHEMA = {
   type: 'object',
   description:
-    'Opt-in toggle for the close-time retro auto-file graduator. Auto-filing defaults to OFF (Story #5341).',
+    'Opt-in toggles for anything posted to the tracker unasked: the retro auto-file graduator and the per-Story outcome record. Both default to OFF (Story #5341).',
   properties: {
     retroProposals: {
       type: 'boolean',
       description:
         'When true, the retro auto-files its actionable routed proposals as meta::<framework-gap|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Defaults to false (Story #5341), which renders the command stanzas instead.',
+      default: false,
+    },
+    outcomeRecord: {
+      type: 'boolean',
+      description:
+        'When true, every close and confirm-merge attempt upserts one `story-outcome` structured comment on the Story issue: a JSON record of each attempt (status, cause, failed gates, mandrel version) plus a carried-forward summary, read back by story-outcomes-report.js. Defaults to false, which makes no extra GitHub call.',
       default: false,
     },
   },

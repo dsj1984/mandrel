@@ -1,7 +1,7 @@
 import { BASELINES_GATE_NAMES } from '../../close-validation/gates.js';
 import { Logger } from '../../Logger.js';
 import { recordCloseTelemetry } from '../../observability/close-telemetry.js';
-import { emitTerminalFriction } from '../../observability/runtime-friction.js';
+import { finishCloseTerminal } from '../../observability/story-outcome.js';
 import { emitTerseResult } from '../../observability/terse-result.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from '../lifecycle/emit-merge-flip-failed.js';
 import {
@@ -34,6 +34,7 @@ export async function emitTerminal({
   config,
   phaseTimer = UNTIMED,
   worker = NO_WORKER,
+  provider,
 }) {
   phaseTimer.stamp(terminal);
   await recordCloseTelemetry({ terminal, result, config, ...worker });
@@ -52,7 +53,7 @@ export async function emitTerminal({
     });
   }
   emitTerminalEnvelope(terminal, { config });
-  await emitTerminalFriction({ envelope: terminal, config });
+  await finishCloseTerminal({ terminal, result, config, worker, provider });
 }
 
 /**

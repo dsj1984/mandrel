@@ -43,7 +43,7 @@ const FAILED_PHASE_CAUSES = Object.freeze({
  * @param {object|null|undefined} envelope
  * @returns {string|null} `null` for a landed or pending close.
  */
-function retryCauseForTerminal(envelope) {
+export function retryCauseForTerminal(envelope) {
   const status = envelope?.status;
   if (status === 'blocked') {
     return (
@@ -186,7 +186,7 @@ const RECORD_TALLIERS = Object.freeze({
  * @param {Iterable<unknown>} records
  * @returns {ReturnType<typeof emptyTelemetryTally>}
  */
-function tallyStoryTelemetry(records) {
+export function tallyStoryTelemetry(records) {
   const tally = emptyTelemetryTally();
   for (const record of records ?? []) {
     if (!record || typeof record !== 'object') continue;

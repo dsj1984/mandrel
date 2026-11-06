@@ -71,6 +71,7 @@ describe('ticketing/reads — constants and validators', () => {
       'notification',
       'story-plan-state',
       'verification-results',
+      'story-outcome',
     ]) {
       assert.ok(STRUCTURED_COMMENT_TYPES.includes(t), `expected ${t} in enum`);
     }
