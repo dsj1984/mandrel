@@ -130,9 +130,9 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "lines": 98.41,
-      "branches": 97.06,
-      "functions": 90
+      "lines": 98.59,
+      "branches": 97.44,
+      "functions": 91.67
     },
     {
       "path": ".agents/scripts/deliver-light.js",
@@ -677,7 +677,7 @@
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-codec.js",
       "lines": 100,
-      "branches": 66.67,
+      "branches": 74.19,
       "functions": 100
     },
     {
@@ -712,8 +712,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 99.22,
-      "branches": 88.2,
+      "lines": 99.23,
+      "branches": 88.55,
       "functions": 100
     },
     {
@@ -1084,9 +1084,9 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "lines": 93.05,
-      "branches": 86.78,
-      "functions": 89.47
+      "lines": 93.72,
+      "branches": 88.89,
+      "functions": 92.59
     },
     {
       "path": ".agents/scripts/lib/close-validation/test-delta.js",
@@ -1390,8 +1390,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "lines": 99.23,
-      "branches": 90.59,
+      "lines": 99.25,
+      "branches": 90.23,
       "functions": 100
     },
     {
@@ -2944,8 +2944,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 98.53,
-      "branches": 87.71,
+      "lines": 98.52,
+      "branches": 87.54,
       "functions": 98.28
     },
     {
@@ -3022,8 +3022,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "lines": 99.63,
-      "branches": 91.67,
+      "lines": 99.64,
+      "branches": 91.8,
       "functions": 100
     },
     {
@@ -3820,7 +3820,7 @@
     },
     {
       "path": ".agents/scripts/review-dispositions-report.js",
-      "lines": 96.69,
+      "lines": 96.9,
       "branches": 100,
       "functions": 80
     },
