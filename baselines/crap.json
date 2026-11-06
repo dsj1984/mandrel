@@ -8928,6 +8928,12 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kernel.js",
+      "method": "checkBaselineAhead",
+      "startLine": 257,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kernel.js",
       "method": "listKinds",
       "startLine": 261,
       "crap": 1
@@ -8961,6 +8967,18 @@
       "method": "readCrapBaselineFromTree",
       "startLine": 21,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
+      "method": "classifyScoringSemantics",
+      "startLine": 33,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
+      "method": "aheadStampOf",
+      "startLine": 47,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
@@ -9638,6 +9656,13 @@
       "method": "<anon alignAnonymousBucket/passes()#0>",
       "startLine": 450,
       "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "<anon reclaimOwnRows/free.findIndex(f)#0>",
+      "startLine": 478,
+      "crap": 2,
       "anonymous": true
     },
     {
@@ -10339,6 +10364,18 @@
       "crap": 5
     },
     {
+      "path": ".agents/scripts/lib/baselines/preview-gates.js",
+      "method": "crapPreviewSkip",
+      "startLine": 196,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/preview-gates.js",
+      "method": "aheadSkip",
+      "startLine": 202,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/baselines/reader.js",
       "method": "ajv",
       "startLine": 35,
@@ -10411,6 +10448,18 @@
       "method": "loadFile",
       "startLine": 219,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/reader.js",
+      "method": "peekFile",
+      "startLine": 258,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/reader.js",
+      "method": "peek",
+      "startLine": 273,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
@@ -10723,6 +10772,12 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "readPriorState",
+      "startLine": 663,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "buildDefaultDuplicationScorer",
       "startLine": 683,
       "crap": 3
@@ -10842,6 +10897,18 @@
       "path": ".agents/scripts/lib/baselines/seat-missing.js",
       "method": "buildSeatedEnvelope",
       "startLine": 109,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "handOff",
+      "startLine": 121,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "logSeated",
+      "startLine": 126,
       "crap": 2
     },
     {
@@ -22672,6 +22739,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
+      "method": "aheadSkipOf",
+      "startLine": 72,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
       "method": "buildGateReport",
       "startLine": 80,
       "crap": 1
@@ -22940,6 +23013,18 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/pipeline.js",
+      "method": "accumulateSkipped",
+      "startLine": 101,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/pipeline.js",
+      "method": "accumulatorFor",
+      "startLine": 106,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/pipeline.js",
       "method": "runCheckBaselines",
       "startLine": 114,
       "crap": 2
@@ -23075,6 +23160,19 @@
       "method": "formatReport",
       "startLine": 53,
       "crap": 2.0438957475994513
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/report.js",
+      "method": "formatSkipped",
+      "startLine": 54,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/report.js",
+      "method": "<anon formatSkipped/skipped.map(s)#0>",
+      "startLine": 55,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-state.js",
@@ -45879,6 +45977,12 @@
       "method": "main",
       "startLine": 62,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/update-crap-baseline.js",
+      "method": "logRefresh",
+      "startLine": 85,
+      "crap": 2.0625
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
