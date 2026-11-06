@@ -10680,6 +10680,19 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "partnersOf",
+      "startLine": 459,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon partnersOf/rows.map(row)#0>",
+      "startLine": 460,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "canonicalizeRows",
       "startLine": 465,
       "crap": 2
@@ -22214,6 +22227,12 @@
     },
     {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
+      "method": "closeFailedDetails",
+      "startLine": 338,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/observability/runtime-friction.js",
       "method": "frictionForTerminal",
       "startLine": 347,
       "crap": 9
@@ -23225,6 +23244,12 @@
       "method": "formatGateLine",
       "startLine": 20,
       "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/report.js",
+      "method": "parseGateFailLine",
+      "startLine": 29,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/report.js",
@@ -26075,6 +26100,94 @@
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "method": "scorePostCapture",
       "startLine": 238,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "method": "gateKinds",
+      "startLine": 247,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "method": "scoresDuplication",
+      "startLine": 259,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "method": "failure",
+      "startLine": 265,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "<anon pct(v)#0>",
+      "startLine": 16,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "describeMoved",
+      "startLine": 22,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "<anon describeMoved/moved.map(m)#0>",
+      "startLine": 24,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "settle",
+      "startLine": 29,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "rescoreDuplication",
+      "startLine": 55,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "<anon rescoreDuplication/log(m)#0>",
+      "startLine": 63,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "baselineRelPath",
+      "startLine": 89,
+      "crap": 1.008
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "rowsOf",
+      "startLine": 101,
+      "crap": 2.0438957475994513
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "<anon rowsOf/rows.map(r)#0>",
+      "startLine": 105,
+      "crap": 1.010973936899863,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "raisedDuplicationRows",
+      "startLine": 120,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-rescore.js",
+      "method": "raisedDuplicationSuffix",
+      "startLine": 160,
       "crap": 3
     },
     {
@@ -32465,6 +32578,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
+      "method": "failureFor",
+      "startLine": 96,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
       "method": "failedTerminalFor",
       "startLine": 106,
       "crap": 3.072
@@ -32883,6 +33002,12 @@
       "method": "settleFailedValidation",
       "startLine": 195,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
+      "method": "tagBaselinesKinds",
+      "startLine": 199,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
@@ -35386,9 +35511,28 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
+      "method": "unchanged",
+      "startLine": 72,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
+      "method": "committedResult",
+      "startLine": 77,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
       "method": "resolveScopeBase",
       "startLine": 77,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
+      "method": "<anon committedResult/moved.map(m)#0>",
+      "startLine": 78,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
@@ -36670,6 +36814,19 @@
       "method": "defaultBlock",
       "startLine": 1005,
       "crap": 1.004096
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "stepDuplicationRescore",
+      "startLine": 1011,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon stepDuplicationRescore/rescoreDuplication()#0>",
+      "startLine": 1012,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
