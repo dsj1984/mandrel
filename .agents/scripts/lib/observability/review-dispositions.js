@@ -10,7 +10,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { anchorTempRoot, tempRootFrom } from '../config/temp-paths.js';
-import { readReviewHistory } from '../orchestration/review-history.js';
+import {
+  earlierCriticals,
+  readReviewHistory,
+} from '../orchestration/review-history.js';
 import { MAX_LEDGER_BYTES, rotateIfNeeded } from './metrics-ledger.js';
 
 export const DISPOSITIONS = [
@@ -28,14 +31,23 @@ function ledgerPath(config) {
   return path.join(anchorTempRoot(tempRootFrom(config)), LEDGER_BASENAME);
 }
 
-/** Precedence: overridden, then the final run's flags, then presence. */
-function dispositionOf(id, final, overridden) {
+const RESOLVED = { fixed: 'fixed-on-branch', refuted: 'refuted-by-verifier' };
+
+/**
+ * Precedence: overridden, the final run's flags, how an earlier CRITICAL was
+ * last resolved, then presence.
+ */
+function dispositionOf(id, final, overridden, resolved) {
   if (overridden.has(id)) return 'overridden';
-  if (!final) return 'fixed-on-branch';
+  if (!final) return resolvedOr(id, resolved, 'fixed-on-branch');
   if (final.ungrounded) return 'downgraded-ungrounded';
   if (final.unverified) return 'refuted-by-verifier';
-  return 'open-at-merge';
+  return resolvedOr(id, resolved, 'open-at-merge');
 }
+
+/** How an earlier CRITICAL was last resolved, else `fallback`. */
+const resolvedOr = (id, resolved, fallback) =>
+  RESOLVED[resolved.get(id)] ?? fallback;
 
 /** @param {object} run @returns {object[]} */
 const runFindings = (run) => (Array.isArray(run?.findings) ? run.findings : []);
@@ -70,12 +82,17 @@ function deriveDispositions(history) {
   const runs = history.runs.map(runFindings);
   const finalRun = new Map((runs.at(-1) ?? []).map((f) => [f.id, f]));
   const overridden = new Set(history.overridden);
+  const resolved = new Map(
+    earlierCriticals(history)
+      .filter((e) => e.status in RESOLVED)
+      .map((e) => [e.id, e.status]),
+  );
   return [...firstSeen(runs)].map(([id, entry]) => ({
     findingId: id,
     provider: entry.first.provider ?? null,
     severity: entry.first.severity ?? null,
     class: entry.first.class ?? null,
-    disposition: dispositionOf(id, finalRun.get(id), overridden),
+    disposition: dispositionOf(id, finalRun.get(id), overridden, resolved),
     runs: entry.runs,
   }));
 }
