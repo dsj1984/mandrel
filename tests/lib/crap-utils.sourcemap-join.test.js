@@ -3,14 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, test } from 'node:test';
 import {
-  assessComparisonBasis,
   compareCrap,
   projectRow,
 } from '../../.agents/scripts/lib/baselines/kinds/crap.js';
 import { coverageForMethodInEntry } from '../../.agents/scripts/lib/coverage-utils.js';
+import { COORDINATE_TRANSPILED } from '../../.agents/scripts/lib/crap-coordinates.js';
 import {
   COORDINATE_ORIGINAL,
-  COORDINATE_TRANSPILED,
   calculateCrapForSource,
   finalizeMethodRows,
 } from '../../.agents/scripts/lib/crap-engine.js';
@@ -480,173 +479,7 @@ test('scanAndScore — a pure-JS scan reports original coordinates (AC-8 invaria
   }
 });
 
-describe('compareCrap — refuses to drift-resolve across coordinate systems (AC-4)', () => {
-  const baselineRows = [
-    { file: 'src/a.ts', method: 'run', startLine: 8, crap: 2 },
-    { file: 'src/a.ts', method: 'other', startLine: 20, crap: 2 },
-  ];
-
-  it('does not resolve a transpiled row against an original-coordinate baseline', () => {
-    // The exact phantom: same file, same method, a startLine in the OTHER
-    // coordinate system, and a crap of c²+c because the coverage join read
-    // the wrong coordinate and filled 0%. The old drift heuristic paired
-    // these two rows on line distance and reported a regression.
-    const result = compareCrap({
-      currentRows: [
-        {
-          file: 'src/a.ts',
-          method: 'run',
-          startLine: 3,
-          cyclomatic: 2,
-          coverage: 0,
-          crap: 6,
-          coordinateSystem: COORDINATE_TRANSPILED,
-        },
-      ],
-      baselineRows,
-      newMethodCeiling: 30,
-      tolerance: 0.001,
-    });
-    assert.equal(result.regressions, 0, 'a phantom regression must not fire');
-    assert.equal(result.drifted, 0, 'the drift heuristic must not claim it');
-    assert.equal(result.incomparable, 1);
-    assert.deepEqual(result.violations, []);
-    const [row] = result.incomparableRows;
-    assert.equal(row.kind, 'incomparable');
-    assert.equal(row.coordinateSystem, COORDINATE_TRANSPILED);
-    assert.equal(row.baselineCoordinateSystem, COORDINATE_ORIGINAL);
-  });
-
-  it('does not fall through to the new-method ceiling arm either', () => {
-    // An incomparable row is not new — it is unmeasurable against THIS
-    // baseline. Charging it the new-method ceiling would swap one phantom
-    // for another.
-    const result = compareCrap({
-      currentRows: [
-        {
-          file: 'src/a.ts',
-          method: 'run',
-          startLine: 3,
-          cyclomatic: 9,
-          coverage: 0,
-          crap: 90,
-          coordinateSystem: COORDINATE_TRANSPILED,
-        },
-      ],
-      baselineRows,
-      newMethodCeiling: 30,
-      tolerance: 0.001,
-    });
-    assert.equal(result.newViolations, 0);
-    assert.equal(result.incomparable, 1);
-  });
-
-  it('still drift-resolves rows that DO share the baseline coordinate system', () => {
-    // The refusal is scoped to a provenance mismatch — an ordinary line shift
-    // inside one coordinate system keeps its existing behaviour.
-    const result = compareCrap({
-      currentRows: [
-        {
-          file: 'src/a.ts',
-          method: 'run',
-          startLine: 11,
-          cyclomatic: 2,
-          coverage: 1,
-          crap: 2,
-          coordinateSystem: COORDINATE_ORIGINAL,
-        },
-      ],
-      baselineRows,
-      newMethodCeiling: 30,
-      tolerance: 0.001,
-    });
-    assert.equal(result.drifted, 1);
-    assert.equal(result.incomparable, 0);
-    assert.equal(result.regressions, 0);
-  });
-
-  it('treats an unstamped baseline row as original — legacy rows compare as before', () => {
-    const result = compareCrap({
-      currentRows: [
-        {
-          file: 'src/a.js',
-          method: 'run',
-          startLine: 8,
-          cyclomatic: 2,
-          coverage: 1,
-          crap: 2,
-          coordinateSystem: COORDINATE_ORIGINAL,
-        },
-      ],
-      baselineRows: [
-        { file: 'src/a.js', method: 'run', startLine: 8, crap: 2 },
-      ],
-      newMethodCeiling: 30,
-      tolerance: 0.001,
-    });
-    assert.equal(result.incomparable, 0);
-    assert.equal(result.drifted, 0);
-    assert.equal(result.regressions, 0);
-  });
-});
-
-describe('compareCrap — provenance evidence survives the filter (#4871 AC-2)', () => {
-  it('counts a mismatched candidate even when another candidate agrees', () => {
-    // Two baseline rows for the same method, one of them in the other
-    // coordinate system. The provenance filter keeps the agreeing one, so the
-    // row scores normally and `incomparable` stays 0 — but the disagreement
-    // happened, and the backstop's numerator is the only place it can be seen.
-    const result = compareCrap({
-      currentRows: [
-        {
-          file: 'src/a.ts',
-          method: 'run',
-          startLine: 8,
-          cyclomatic: 2,
-          coverage: 1,
-          crap: 2,
-          coordinateSystem: COORDINATE_ORIGINAL,
-        },
-      ],
-      baselineRows: [
-        { file: 'src/a.ts', method: 'run', startLine: 8, crap: 2 },
-        {
-          file: 'src/a.ts',
-          method: 'run',
-          startLine: 3,
-          crap: 2,
-          coordinateSystem: COORDINATE_TRANSPILED,
-        },
-      ],
-      newMethodCeiling: 30,
-      tolerance: 0.001,
-    });
-    assert.equal(result.incomparable, 0, 'the filter resolved it');
-    assert.equal(result.provenanceMismatched, 1, 'the evidence survived');
-  });
-
-  it('reports zero mismatch for a uniform pure-JavaScript scan', () => {
-    const result = compareCrap({
-      currentRows: [
-        {
-          file: 'src/a.js',
-          method: 'run',
-          startLine: 40,
-          cyclomatic: 2,
-          coverage: 1,
-          crap: 2,
-        },
-      ],
-      baselineRows: [
-        { file: 'src/a.js', method: 'run', startLine: 8, crap: 2 },
-      ],
-      newMethodCeiling: 30,
-      tolerance: 0.001,
-    });
-    assert.equal(result.drifted, 1, 'an ordinary line shift');
-    assert.equal(result.provenanceMismatched, 0, 'and no coordinate mixing');
-  });
-
+describe('compareCrap — unscorable rows', () => {
   it('buckets an unscorable row out of the comparable denominator (AC-6)', () => {
     const result = compareCrap({
       currentRows: [
@@ -682,137 +515,24 @@ describe('compareCrap — provenance evidence survives the filter (#4871 AC-2)',
   });
 });
 
-describe('assessComparisonBasis — the unsound-basis backstop (#4871)', () => {
-  it('accepts a compare where every row drifted but none mismatched (AC-4)', () => {
-    // The regression tell. Ordinary insertions re-key every method below the
-    // edit, so a 100%-drift scan is the normal operating state of a
-    // pure-JavaScript repository — never evidence of coordinate mixing.
-    const verdict = assessComparisonBasis({
-      comparable: 133,
-      drifted: 133,
-      provenanceMismatched: 0,
-      incomparable: 0,
-    });
-    assert.equal(verdict.sound, true);
-  });
-
-  it('refuses a basis where most comparable rows hit a provenance mismatch', () => {
-    const verdict = assessComparisonBasis({
-      comparable: 133,
-      drifted: 4,
-      provenanceMismatched: 101,
-      incomparable: 0,
-    });
-    assert.equal(verdict.sound, false);
-    assert.equal(verdict.diagnostic.name, 'crap-unsound-comparison-basis');
-  });
-
-  it('Story #5717 AC-7: the re-seed remedy names the configured capture script', () => {
-    const verdict = assessComparisonBasis(
-      { comparable: 133, provenanceMismatched: 101, incomparable: 0 },
-      { captureScript: 'test:coverage:py' },
-    );
-    assert.match(verdict.diagnostic.message, /'npm run test:coverage:py'/);
-  });
-
-  it('names the coordinate mismatch and the re-seed remedy exactly once', () => {
-    const { diagnostic } = assessComparisonBasis({
-      comparable: 133,
-      provenanceMismatched: 101,
-      incomparable: 0,
-    });
-    assert.match(diagnostic.message, /101\/133/);
-    assert.match(diagnostic.message, /line coordinates/);
-    assert.match(diagnostic.message, /crap:update -- --full-scope/);
-    assert.match(diagnostic.message, /baseline-refresh:/);
-    assert.match(diagnostic.message, /check-baselines gate still gates/);
-  });
-
-  it('counts incomparable rows even when the caller reports no mismatch', () => {
-    const verdict = assessComparisonBasis({
-      comparable: 40,
-      drifted: 0,
-      incomparable: 30,
-    });
-    assert.equal(verdict.sound, false);
-  });
-
-  it('measures against comparable rows, not the unscorable-inflated total (AC-6)', () => {
-    // 21 comparable rows, 20 of them mismatched, plus 100 unscorable ones.
-    // Against `total` the ratio is 17% and the basis passes; against the rows
-    // that could actually be compared it is 95% and must not.
-    const verdict = assessComparisonBasis({
-      total: 121,
-      comparable: 21,
-      unscorable: 100,
-      provenanceMismatched: 20,
-    });
-    assert.equal(verdict.sound, false);
-  });
-
-  it('does not fire below the minimum sample — a small diff is not evidence', () => {
-    assert.equal(
-      assessComparisonBasis({ comparable: 3, provenanceMismatched: 2 }).sound,
-      true,
-    );
-  });
-
-  it('passes exactly at the threshold — the ratio is a ceiling, not a bound', () => {
-    assert.equal(
-      assessComparisonBasis({ comparable: 100, provenanceMismatched: 50 })
-        .sound,
-      true,
-    );
-    assert.equal(
-      assessComparisonBasis({ comparable: 100, provenanceMismatched: 51 })
-        .sound,
-      false,
-    );
-  });
-});
-
-describe('projectRow — what reaches disk (AC-1, AC-8)', () => {
-  it('writes the unchanged four-key row for original coordinates', () => {
-    // The invariant that keeps the committed baseline green without a
-    // refresh: a JavaScript row is byte-identical to what it always was.
-    assert.deepEqual(
-      projectRow({
-        file: 'src/a.js',
-        method: 'run',
-        startLine: 8,
-        crap: 2,
-        coordinateSystem: COORDINATE_ORIGINAL,
-      }),
-      { path: 'src/a.js', method: 'run', startLine: 8, crap: 2 },
-    );
-  });
-
-  it('writes the same four keys for a row that never carried a stamp', () => {
-    assert.deepEqual(
-      Object.keys(
-        projectRow({ file: 'a.js', method: 'r', startLine: 1, crap: 1 }),
-      ),
-      ['path', 'method', 'startLine', 'crap'],
-    );
-  });
-
-  it('records transpiled provenance so the two are distinguishable on disk', () => {
-    assert.deepEqual(
-      projectRow({
-        file: 'src/a.ts',
-        method: 'run',
-        startLine: 8,
-        crap: 2,
-        coordinateSystem: COORDINATE_TRANSPILED,
-      }),
-      {
-        path: 'src/a.ts',
-        method: 'run',
-        startLine: 8,
-        crap: 2,
-        coordinateSystem: 'transpiled',
-      },
-    );
+describe('projectRow — what reaches disk', () => {
+  it('persists path, method and crap only — no line, no provenance', () => {
+    for (const coordinateSystem of [
+      COORDINATE_ORIGINAL,
+      COORDINATE_TRANSPILED,
+    ]) {
+      assert.deepEqual(
+        projectRow({
+          file: 'src/a.ts',
+          method: 'run',
+          startLine: 8,
+          crap: 2,
+          anonymous: false,
+          coordinateSystem,
+        }),
+        { path: 'src/a.ts', method: 'run', crap: 2 },
+      );
+    }
   });
 });
 

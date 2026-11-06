@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { decodeEnvelope } from '../../.agents/scripts/lib/baselines/codec.js';
 import { write } from '../../.agents/scripts/lib/baselines/writer.js';
 import { execFileCapture } from '../../.agents/scripts/lib/child-exec.js';
 
@@ -14,7 +15,8 @@ import { execFileCapture } from '../../.agents/scripts/lib/child-exec.js';
  * structural no-op.
  *
  * Contract:
- *   1. Every shipped baseline parses, schema-validates, and round-trips
+ *   1. Every shipped baseline parses, decodes through the layout codec,
+ *      schema-validates, and round-trips
  *      through the writer to a STRUCTURALLY identical envelope.
  *      "Structural" intentionally ignores object key insertion order in
  *      the JSON: prior baselines on
@@ -68,7 +70,7 @@ function loadShipped(file) {
     ['show', `HEAD:${file.replace(/\\/g, '/')}`],
     { cwd: REPO_ROOT, encoding: 'utf8' },
   );
-  return { raw, parsed: JSON.parse(raw), abs };
+  return { raw, parsed: decodeEnvelope(JSON.parse(raw)), abs };
 }
 
 describe('shipped baselines — writer-idempotent and canonical', () => {

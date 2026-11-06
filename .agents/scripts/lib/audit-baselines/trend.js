@@ -6,6 +6,7 @@
  * @module lib/audit-baselines/trend
  */
 
+import { decodeEnvelope } from '../baselines/codec.js';
 import { execFileCapture } from '../child-exec.js';
 import { trendRollupOf } from './kinds.js';
 
@@ -52,7 +53,7 @@ function rollupAt({ cwd, kind, sha, relPath, run }) {
     return null;
   }
   try {
-    return trendRollupOf(kind, JSON.parse(stdout));
+    return trendRollupOf(kind, decodeEnvelope(JSON.parse(stdout)));
   } catch {
     return null;
   }

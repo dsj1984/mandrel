@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { encodeCrapFiles } from '../.agents/scripts/lib/baselines/kinds/_crap-codec.js';
 import { envelopeExtras } from '../.agents/scripts/lib/baselines/kinds/crap.js';
 import { runCrapPreview } from '../.agents/scripts/lib/baselines/preview-gates.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
@@ -612,13 +613,9 @@ test('runCli — --changed-since without --staged keeps ref-based diff mode', as
 });
 
 // ---------------------------------------------------------------------------
-// Story #4866 — the preview gate's unsound-basis backstop.
-//
-// The pre-commit preview is not the authoritative gate; `check-baselines`
-// gates the merge. So when the preview establishes that its own comparison
-// basis cannot produce a meaningful verdict, blocking the commit costs a
-// provably defect-free commit while failing open costs no real coverage. It
-// says so once, by name, and exits 0.
+// The CRAP preview against a real fixture tree. The pre-commit preview is not
+// the authoritative gate (`check-baselines` gates the merge), so a baseline it
+// cannot compare fails it OPEN with one named diagnostic.
 // ---------------------------------------------------------------------------
 
 /**
@@ -632,11 +629,8 @@ function makeCrapFixture({
   methodCount,
   baselineRows,
   scoringSemantics,
-  // Story #4986: written to the envelope only when set, so the #4901 cases
-  // below keep testing an unstamped baseline. Defaulting it on would make the
-  // stamped path the only one anything exercises — which is how the legacy
-  // projection dropped it undetected in the first place.
-  provenanceStamped,
+  // Write the previous `rows[]` layout instead of the grouped `files` one.
+  legacyLayout = false,
   withCoverage = true,
   cyclomaticPerMethod = 1,
 }) {
@@ -712,8 +706,9 @@ function makeCrapFixture({
         scoringSemantics === undefined
           ? envelopeExtras().scoringSemantics
           : scoringSemantics,
-      ...(provenanceStamped === undefined ? {} : { provenanceStamped }),
-      rows: baselineRows,
+      ...(legacyLayout
+        ? { rows: baselineRows }
+        : { files: encodeCrapFiles(baselineRows) }),
     }),
   );
   return dir;
@@ -727,89 +722,31 @@ function rmFixture(dir) {
   }
 }
 
-/** Baseline rows for `methodCount` methods, each shifted by `lineOffset`. */
-function baselineRowsFor(methodCount, lineOffset, crap = 1, extra = {}) {
+/** Baseline rows for `methodCount` methods. */
+function baselineRowsFor(methodCount, crap = 1) {
   const rows = [];
   for (let i = 0; i < methodCount; i += 1) {
-    rows.push({
-      path: 'src/mod.js',
-      method: `m${i}`,
-      startLine: i + 1 + lineOffset,
-      crap,
-      ...extra,
-    });
+    rows.push({ path: 'src/mod.js', method: `m${i}`, crap });
   }
   return rows;
 }
 
-// ---------------------------------------------------------------------------
-// Story #4871 — the backstop must measure what it claims to measure.
-//
-// #4866's numerator was `drifted + incomparable`, but a row reaches the drift
-// arm only AFTER passing the provenance filter — so `drifted` counts rows
-// whose coordinate systems AGREED and can never evidence a mismatch. On this
-// pure-JavaScript repository the ratio therefore tripped on every diff,
-// suppressing the gate's verdicts while it still reported success.
-// ---------------------------------------------------------------------------
-
-describe('runCrapPreview — the backstop measures coordinate mixing (#4871)', () => {
-  it('reports a per-method regression on a pure-JavaScript diff (AC-1, AC-4)', async () => {
-    // Every baseline row sits 1000 lines away, so EVERY row drifts — the shape
-    // that used to suppress the run. Coordinates are uniform (plain .js), so
-    // the basis is sound and a real regression must surface as a verdict.
+describe('runCrapPreview — persisted keys carry no line (#5971)', () => {
+  it('reports a per-method regression by key, with nothing drifted', async () => {
     const methodCount = 25;
     const dir = makeCrapFixture({
       methodCount,
       cyclomaticPerMethod: 2,
-      baselineRows: baselineRowsFor(methodCount, 1000, 0),
+      baselineRows: baselineRowsFor(methodCount, 0),
     });
     try {
       const { exitCode, envelope } = await runCrapPreview({ cwd: dir });
-      assert.equal(envelope.summary.drifted, methodCount, 'all rows drifted');
+      assert.equal(envelope.summary.drifted, 0);
       assert.equal(envelope.summary.provenanceMismatched, 0);
-      assert.equal(
-        envelope.diagnostics,
-        undefined,
-        'uniform provenance must never suppress',
-      );
-      assert.ok(
-        envelope.summary.regressions > 0,
-        'the per-method verdict must be reported, not suppressed',
-      );
-      assert.ok(envelope.violations.length > 0);
+      assert.equal(envelope.diagnostics, undefined);
+      assert.ok(envelope.summary.regressions > 0);
+      assert.equal(envelope.violations[0].kind, 'regression');
       assert.equal(exitCode, 1);
-    } finally {
-      rmFixture(dir);
-    }
-  });
-
-  it('still suppresses, names, and exits 0 on genuine mixing (AC-3, AC-8)', async () => {
-    // Baseline rows stamped `transpiled` against an original-coordinate
-    // JavaScript scan: a real provenance mismatch on every row.
-    const methodCount = 25;
-    const dir = makeCrapFixture({
-      methodCount,
-      cyclomaticPerMethod: 2,
-      baselineRows: baselineRowsFor(methodCount, 1000, 0, {
-        coordinateSystem: 'transpiled',
-      }),
-    });
-    try {
-      const { exitCode, envelope } = await runCrapPreview({ cwd: dir });
-      assert.equal(exitCode, 0, 'the preview gate must fail OPEN');
-      assert.deepEqual(envelope.violations, []);
-      assert.equal(envelope.summary.regressions, 0);
-      assert.equal(envelope.summary.newViolations, 0);
-      assert.equal(envelope.diagnostics.length, 1, 'exactly ONE diagnostic');
-      assert.equal(
-        envelope.diagnostics[0].name,
-        'crap-unsound-comparison-basis',
-      );
-      assert.match(envelope.diagnostics[0].message, /line coordinates/);
-      assert.match(envelope.diagnostics[0].message, /crap:update/);
-      // The evidence stays — only the accusations go.
-      assert.equal(envelope.summary.provenanceMismatched, methodCount);
-      assert.equal(envelope.summary.incomparable, methodCount);
     } finally {
       rmFixture(dir);
     }
@@ -819,7 +756,7 @@ describe('runCrapPreview — the backstop measures coordinate mixing (#4871)', (
     const methodCount = 25;
     const dir = makeCrapFixture({
       methodCount,
-      baselineRows: baselineRowsFor(methodCount, 0, 0),
+      baselineRows: baselineRowsFor(methodCount, 0),
     });
     try {
       const { exitCode, envelope } = await runCrapPreview({ cwd: dir });
@@ -845,7 +782,7 @@ describe('runCrapPreview — absent coverage is not zero coverage (#4871)', () =
       methodCount,
       cyclomaticPerMethod: 2,
       withCoverage: false,
-      baselineRows: baselineRowsFor(methodCount, 0, 0),
+      baselineRows: baselineRowsFor(methodCount, 0),
     });
     try {
       const { exitCode, envelope } = await runCrapPreview({ cwd: dir });
@@ -869,7 +806,7 @@ describe('runCrapPreview — absent coverage is not zero coverage (#4871)', () =
     const dir = makeCrapFixture({
       methodCount,
       withCoverage: false,
-      baselineRows: baselineRowsFor(methodCount, 1000, 0),
+      baselineRows: baselineRowsFor(methodCount, 0),
     });
     try {
       const { envelope } = await runCrapPreview({ cwd: dir });
@@ -906,7 +843,7 @@ describe('runCrapPreview — compat check runs BEFORE the compare (AC-6)', () =>
     const methodCount = 25;
     const dir = makeCrapFixture({
       methodCount,
-      baselineRows: baselineRowsFor(methodCount, 1000, 0),
+      baselineRows: baselineRowsFor(methodCount, 0),
       scoringSemantics: 'coverage-join-v1',
     });
     try {
@@ -931,7 +868,7 @@ describe('runCrapPreview — compat check runs BEFORE the compare (AC-6)', () =>
     const methodCount = 25;
     const dir = makeCrapFixture({
       methodCount,
-      baselineRows: baselineRowsFor(methodCount, 0, 0),
+      baselineRows: baselineRowsFor(methodCount, 0),
     });
     try {
       const { envelope } = await runCrapPreview({ cwd: dir });
@@ -942,23 +879,19 @@ describe('runCrapPreview — compat check runs BEFORE the compare (AC-6)', () =>
   });
 });
 
-// ---------------------------------------------------------------------------
-// Story #4901 — the upgrade door. A baseline written before provenance
-// stamping asserts by omission that all its rows are original coordinates.
-// The preview must fail OPEN and say "re-seed", not emit regressions derived
-// from a join it cannot key.
-// ---------------------------------------------------------------------------
-describe('runCrapPreview — a pre-provenance baseline is refused (#4901)', () => {
+describe('runCrapPreview — a previous-layout baseline is refused (AC-8)', () => {
   it('exits 0, suppresses verdicts, and names the re-seed remedy', async () => {
     const methodCount = 25;
-    // A TS row with no `provenanceStamped` marker: the pre-#4866 writer's
-    // exact output shape, and the one the ts-transpiler axis deliberately
-    // exempts.
-    const baselineRows = [
-      ...baselineRowsFor(methodCount, 0, 0),
-      { path: 'src/legacy.tsx', method: 'render', startLine: 458, crap: 2 },
-    ];
-    const dir = makeCrapFixture({ methodCount, baselineRows });
+    const baselineRows = baselineRowsFor(methodCount, 0).map((r, i) => ({
+      ...r,
+      startLine: i + 1,
+    }));
+    const dir = makeCrapFixture({
+      methodCount,
+      baselineRows,
+      legacyLayout: true,
+      scoringSemantics: 'method-identity-v4',
+    });
     try {
       const { exitCode, envelope } = await runCrapPreview({ cwd: dir });
       assert.equal(exitCode, 0, 'the preview fails open, never closed');
@@ -966,36 +899,27 @@ describe('runCrapPreview — a pre-provenance baseline is refused (#4901)', () =
       assert.equal(envelope.diagnostics[0].name, 'crap-baseline-incompatible');
       assert.match(
         envelope.diagnostics[0].message,
-        /predates coordinate-provenance stamping/,
+        /scoring semantics changed/,
       );
       assert.match(
         envelope.diagnostics[0].message,
         /crap:update -- --full-scope/,
       );
-      // Refused before the scan's rows ever meet it.
       assert.equal(envelope.summary.total, 0);
     } finally {
       rmFixture(dir);
     }
   });
 
-  // Story #4986 — the case #4901 never wrote, and the reason its regression
-  // shipped. Every test above drives an UNSTAMPED baseline, so the preview's
-  // read path could drop `provenanceStamped` entirely and the suite stayed
-  // green. This is the door a real consumer walks through on every commit:
-  // a current writer's stamp, a TS row, and an expectation that the gate
-  // compares instead of refusing.
-  it('accepts a stamped TS baseline and actually compares it (#4986)', async () => {
+  // Story #4986: a current writer's stamp and a TS row must be compared,
+  // not refused.
+  it('accepts a current TS baseline and actually compares it (#4986)', async () => {
     const methodCount = 25;
     const baselineRows = [
-      ...baselineRowsFor(methodCount, 0, 0),
-      { path: 'src/legacy.tsx', method: 'render', startLine: 458, crap: 2 },
+      ...baselineRowsFor(methodCount, 0),
+      { path: 'src/legacy.tsx', method: 'render', crap: 2 },
     ];
-    const dir = makeCrapFixture({
-      methodCount,
-      baselineRows,
-      provenanceStamped: true,
-    });
+    const dir = makeCrapFixture({ methodCount, baselineRows });
     try {
       const { exitCode, envelope } = await runCrapPreview({ cwd: dir });
       assert.equal(exitCode, 0);
@@ -1007,23 +931,6 @@ describe('runCrapPreview — a pre-provenance baseline is refused (#4901)', () =
       // The assertion that separates "accepted" from "silently suppressed":
       // a refused envelope reports zero rows compared, so only a non-zero
       // total proves the scan's rows actually met the baseline.
-      assert.equal(envelope.summary.total, methodCount);
-    } finally {
-      rmFixture(dir);
-    }
-  });
-
-  it('leaves a pure-JavaScript baseline alone even without the marker', async () => {
-    // The invariant that keeps every JS consumer (this repo included) off the
-    // re-seed path: no transpiled row means no coordinate that could be wrong.
-    const methodCount = 25;
-    const dir = makeCrapFixture({
-      methodCount,
-      baselineRows: baselineRowsFor(methodCount, 0, 0),
-    });
-    try {
-      const { envelope } = await runCrapPreview({ cwd: dir });
-      assert.deepEqual(envelope.diagnostics ?? [], []);
       assert.equal(envelope.summary.total, methodCount);
     } finally {
       rmFixture(dir);

@@ -30,6 +30,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { decodeEnvelope } from '../../../.agents/scripts/lib/baselines/codec.js';
 import { _internals as readerInternals } from '../../../.agents/scripts/lib/baselines/reader.js';
 import { writeFile } from '../../../.agents/scripts/lib/baselines/writer.js';
 import { toPosix } from '../../../.agents/scripts/lib/util/paths.js';
@@ -104,7 +105,7 @@ export function pruneEnvelope({ envelope, inventory, existsOnDisk } = {}) {
 }
 
 /**
- * Read and JSON-parse a baseline file. Returns `null` when the file is absent
+ * Read, JSON-parse and decode a baseline file. Returns `null` when the file is absent
  * (a kind this repository does not use) and throws only on malformed JSON,
  * which is a real defect the caller should surface rather than swallow.
  *
@@ -119,7 +120,7 @@ function readEnvelope(absPath, fsImpl) {
   } catch {
     return null;
   }
-  return JSON.parse(raw);
+  return decodeEnvelope(JSON.parse(raw));
 }
 
 /**

@@ -2,8 +2,12 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://mandrel/.agents/schemas/baselines/crap.schema.json",
   "title": "CrapBaselineV2",
-  "description": "Per-kind baseline schema for the CRAP gate, envelope-shaped. Extends the shared baseline-envelope contract. Distinct from the legacy crap-baseline.schema.json which used a flat shape.",
-  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "description": "Per-kind baseline schema for the CRAP gate, envelope-shaped. Extends the shared baseline-envelope contract. On disk the rows are grouped under `files` (each path once, each method key on its own line); the previous `rows[]` layout still validates so it reaches the scoring-semantics compat axis, which refuses it with the full-scope re-seed command. Distinct from the legacy crap-baseline.schema.json which used a flat shape.",
+  "allOf": [
+    {
+      "$ref": "baseline-envelope.schema.json"
+    }
+  ],
   "type": "object",
   "properties": {
     "scoringSemantics": {
@@ -12,27 +16,50 @@
     },
     "provenanceStamped": {
       "type": "boolean",
-      "description": "Positive assertion that the writer which produced these rows recorded coordinate provenance per row (Story #4901). Absence is the ONLY evidence a pre-Story-#4866 baseline leaves — such a baseline claims by omission that every row is an original-source coordinate while some are transpiled. Deliberately optional and unconstrained here for the same reason as scoringSemantics: an unstamped baseline must reach the `provenance-unstamped` compat axis, which fails it closed with the re-seed command when it also carries transpiled-source rows, rather than dying on a raw schema error. A pure-JavaScript baseline never needs it."
+      "description": "Legacy stamp, no longer written (the persisted row carries no line coordinate to qualify). Accepted only so a baseline from before the grouped layout reaches the scoring-semantics compat axis rather than a raw schema error."
     },
     "rows": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["path", "method", "startLine", "crap"],
+        "required": ["path", "method", "crap"],
         "additionalProperties": false,
         "properties": {
-          "path": { "type": "string" },
-          "method": { "type": "string" },
-          "startLine": { "type": "integer", "minimum": 1 },
-          "crap": { "type": "number", "minimum": 0 },
+          "path": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "startLine": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Previous rows[] layout only. The persisted CRAP identity is path::method; startLine lives on scan rows in memory."
+          },
+          "crap": {
+            "type": "number",
+            "minimum": 0
+          },
           "anonymous": {
             "enum": [true],
-            "description": "Marks `method` as a DERIVED identity rather than a name the source carries (Story #4969). escomplex labels an unnamed function `<anon method-N>`, where N is a per-module counter, so inserting one anonymous function renumbers every later one and re-keys 34.6% of this baseline's rows; the derived identity is the method's enclosing-method path plus, per segment, its call-site anchor (callee, JSX attribute, property key, declared variable) and parameter list, with an ordinal only among siblings sharing both — invariant under edits elsewhere in the file and under line re-wraps. Written ONLY when true, mirroring `coordinateSystem`: a named row keeps the exact four-key shape it always had. Absence on a row whose `method` still looks anonymous is the signature of a half-migrated baseline — rows preserved verbatim by a diff-scoped refresh under an envelope stamped with the current semantics — which the `anon-identity-unstamped` compat axis fails closed."
+            "description": "Previous rows[] layout only; an anonymous key is recognisable by its `<anon ` prefix."
           },
           "coordinateSystem": {
             "enum": ["transpiled"],
-            "description": "Coordinate provenance of startLine (Story #4866). Written ONLY when the row kept transpiled coordinates because its sourcemap lookup did not resolve — the absent-means-'original' default keeps a pure-JavaScript baseline byte-identical, since JavaScript coordinates already ARE original-source coordinates. A row carrying this key is not comparable to one without it: the compare refuses to resolve the two through its nearest-line drift heuristic rather than manufacturing a regression from the gap between two coordinate systems."
+            "description": "Previous rows[] layout only; it qualified startLine, which the persisted identity no longer carries."
           }
+        }
+      },
+      "description": "In-memory row shape `{ path, method, crap }`, which writers validate before encoding; on disk only the previous layout carries rows[]."
+    },
+    "files": {
+      "type": "object",
+      "description": "The grouped on-disk layout: canonical path (sorted) to an object of `\"<method key>\": <crap>` entries (sorted by key). A method key is its scope path — enclosing method segments joined by `/`, ending in its own name — with `#<n>` on a later method that would repeat an earlier key in the same file; an anonymous key is wrapped as `<anon …>`. Identity is path::method; no line number is persisted.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "number",
+          "minimum": 0
         }
       }
     }

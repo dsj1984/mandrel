@@ -68,8 +68,8 @@ const KIND_SPECS = Object.freeze({
   }),
   crap: Object.freeze({
     metric: 'crap',
-    identity: (row) => `${row.path}::${row.method}@${row.startLine}`,
-    label: (row) => `${row.path}::${row.method} (line ${row.startLine})`,
+    identity: (row) => `${row.path}::${row.method}`,
+    label: (row) => `${row.path}::${row.method}`,
     refreshCommand: 'npm run crap:update -- --full-scope',
     defaultTolerance: 0.001,
   }),

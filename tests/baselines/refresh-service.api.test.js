@@ -250,7 +250,7 @@ describe('refreshBaseline — per-kind dispatch (Task #2203)', () => {
     assert.equal(result.kind, 'crap');
     const parsed = JSON.parse(readFileSync(writePath, 'utf8'));
     assert.equal(parsed.$schema, '.agents/schemas/baselines/crap.schema.json');
-    assert.equal(parsed.rows[0].path, 'src/a.js');
+    assert.deepEqual(parsed.files, { 'src/a.js': { fn: 5 } });
   });
 
   it('dispatches to the coverage kind and writes an envelope-shape baseline', async () => {

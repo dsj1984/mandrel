@@ -622,6 +622,26 @@ increase still regresses against the closure's own row. A diff-scoped
 refresh is refused across a `scoringSemantics` change: it would keep
 old-semantics rows under the new stamp, so re-seed with `--full-scope`.
 
+`method-identity-v5` (#5971) extends that identity to named methods and drops
+the line from the persisted key. A named method's key is its scope path — the
+enclosing method segments joined by `/`, ending in its own name, so a
+top-level function keeps its bare name — and a later method that would repeat
+an earlier key in the same file gets `#<n>` (n from 1). The CRAP row identity,
+merge identity and sort order are `path::method`; `startLine` lives on scan
+rows only, for messages and the `--json` report. `compareCrap` buckets every
+row — named or anonymous — by `(file, stem)` and aligns in order, so inserting
+an earlier namesake re-pairs the later ones instead of reporting them new and
+removed — unless the inserted one scored higher than the existing method's
+row, which fails safe as that method's regression, so a later namesake added
+alongside a real increase cannot hide it. A rename stays one new method plus
+one removed row. With no line in the key, per-row `coordinateSystem` / `anonymous` markers, the
+`provenanceStamped` stamp, the nearest-line drift arm and the coordinate
+compat axes are gone; `tsTranspilerVersion` stays, because a transpiler change
+can rename or re-nest emitted methods. The file is grouped by path (see
+[Envelope](#envelope)); a baseline in the previous `rows[]` layout or under any
+older stamp fails closed naming the full-scope re-seed — no JSON-only migration
+can derive scope-path keys, so the re-seed is the migration.
+
 **A stamp newer than the running code is skipped, not failed.** The stamp is
 ordered: `current` when it equals the running stamp, `ahead` only when both are
 `method-identity-v<N>` and the baseline's N is higher, and `behind` otherwise
@@ -756,15 +776,15 @@ part of the materialized `.agents/` payload) — nightly at 05:43 UTC plus
 back clean, and fails the run. A consumer materializing `.agents/` still owns
 its own schedule.
 
-`crap` is deliberately **not** in that job. Its drift identity is
-`path::method@startLine`, so anything that shifts a method's line re-keys its
-row: measured on this tree with a real coverage artifact, 82 rows drifted but
-1438 were reported added and 898 removed — and 853 of those removals are the
-same `path::method` reappearing at a different line. The added/removed axis is
-re-keying churn, not drift, and the remedy the report prints
-(`npm run crap:update -- --full-scope`) additionally re-measures, pulling in
-near-empty coverage entries minted by CLI-spawning tests. Fixing the identity
-is a prerequisite to scheduling the kind.
+`crap` is deliberately **not** in that job. Its drift identity used to carry
+the method's start line, so anything that shifted a method re-keyed its row:
+measured on this tree with a real coverage artifact, 82 rows drifted but 1438
+were reported added and 898 removed — 853 of those removals the same method
+reappearing at a different line. #5971 made the identity `path::method`,
+which removes that churn; the remedy the report prints
+(`npm run crap:update -- --full-scope`) still re-measures, pulling in
+near-empty coverage entries minted by CLI-spawning tests, so scheduling the
+kind remains its own decision.
 
 ### `check-baseline-scope.js` — is this baseline still measuring the tree?
 
@@ -963,9 +983,33 @@ top-level envelope:
 | `kernelVersion` | Version stamp of the writer that produced the file. See below.    |
 | `rows`          | Sorted, canonicalised per-file (or per-route/per-bundle) entries. |
 
-CRAP adds its scoring stamps (`scoringSemantics`, `tsTranspilerVersion`,
-`provenanceStamped`) between `kernelVersion` and `rows`; they change only when
-the scorer does.
+CRAP adds its scoring stamps (`scoringSemantics`, `tsTranspilerVersion`)
+after `kernelVersion`; they change only when the scorer does. CRAP alone also
+replaces `rows` with a grouped `files` object — each canonical path once
+(sorted), mapped to `"<method key>": <crap>` entries (sorted by key):
+
+```json
+{
+  "$schema": ".agents/schemas/baselines/crap.schema.json",
+  "kernelVersion": "7.3.2",
+  "scoringSemantics": "method-identity-v5",
+  "tsTranspilerVersion": "6.0.3",
+  "files": {
+    "src/a.js": {
+      "<anon build/arr.map(r)#0>": 2,
+      "build": 6,
+      "build/helper": 3
+    }
+  }
+}
+```
+
+Each path appears once and each method sits on its own line, so the file
+stays a fraction of the `rows[]` size and two branches that change disjoint,
+non-adjacent methods — in different files or in one — merge as plain text. A
+single layout codec (`.agents/scripts/lib/baselines/codec.js`) encodes on write
+and decodes to in-memory `{ path, method, crap }` rows for every reader, the
+at-ref loader and the merge driver; every other kind keeps `rows[]`.
 
 The file carries **no run timestamp and no rollup**. Both used to be rewritten
 on every refresh, so any two branches that refreshed a baseline conflicted
@@ -1037,7 +1081,7 @@ authoritative declarations live in the per-kind modules at
 | Kind              | Key field | Row axes                                                       | Rollup axes                              |
 | ----------------- | --------- | -------------------------------------------------------------- | ---------------------------------------- |
 | `coverage`        | `path`    | `lines`, `branches`, `functions`, `statements`                 | `lines`, `branches`, `functions`         |
-| `crap`            | `path`    | `method`, `startLine`, `crap`                                  | `max`, `p95`, `methodsAboveCeiling`      |
+| `crap`            | `path`    | `method`, `crap` (on disk: `files` grouped by path)            | `max`, `p95`, `methodsAboveCeiling`      |
 | `maintainability` | `path`    | `maintainability`                                              | `min`, `p50`, `p95`                      |
 | `mutation`        | `path`    | `score`, `killed`, `survived`, `noCoverage`, `timeout`, `total`| `score`, `survived`, `noCoverage`        |
 | `bundle-size`     | `bundle`  | `bundle`, `rawKb`, `gzippedKb`                                 | `totalKb`, `gzippedKb`                   |

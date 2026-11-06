@@ -244,7 +244,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/read.js",
-      "lines": 92.21,
+      "lines": 92.86,
       "branches": 95,
       "functions": 100
     },
@@ -591,6 +591,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/baselines/codec.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
       "lines": 100,
       "branches": 100,
@@ -623,7 +629,7 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
       "lines": 100,
-      "branches": 85,
+      "branches": 84.21,
       "functions": 100
     },
     {
@@ -675,6 +681,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/baselines/kinds/_crap-codec.js",
+      "lines": 100,
+      "branches": 74.19,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js",
       "lines": 95.38,
       "branches": 88.89,
@@ -682,8 +694,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
-      "lines": 97.98,
-      "branches": 73.33,
+      "lines": 98.56,
+      "branches": 84.09,
       "functions": 100
     },
     {
@@ -706,9 +718,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 96.57,
-      "branches": 86.45,
-      "functions": 95.74
+      "lines": 99.23,
+      "branches": 88.55,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -760,14 +772,14 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
-      "lines": 92.25,
-      "branches": 75.76,
+      "lines": 92.98,
+      "branches": 76.81,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "lines": 98.41,
-      "branches": 80.65,
+      "lines": 98.16,
+      "branches": 80.28,
       "functions": 100
     },
     {
@@ -784,7 +796,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "lines": 95.77,
+      "lines": 95.63,
       "branches": 92.75,
       "functions": 100
     },
@@ -1060,7 +1072,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/crap.js",
-      "lines": 88.72,
+      "lines": 89.11,
       "branches": 84.31,
       "functions": 88.89
     },
@@ -1439,7 +1451,7 @@
     {
       "path": ".agents/scripts/lib/crap-method-identity.js",
       "lines": 100,
-      "branches": 97.06,
+      "branches": 97.3,
       "functions": 100
     },
     {
@@ -3640,9 +3652,9 @@
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
-      "lines": 91.17,
-      "branches": 75.93,
-      "functions": 91.67
+      "lines": 91.52,
+      "branches": 77.19,
+      "functions": 92.31
     },
     {
       "path": ".agents/scripts/nav-registry-diff.js",

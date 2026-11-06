@@ -34,6 +34,7 @@ import {
 import { isScorableSourceFile } from '../source-extensions.js';
 import { toPosix } from '../util/paths.js';
 import { buildBundleSizeScorer } from './bundle-size-scorer.js';
+import { decodeEnvelope } from './codec.js';
 import {
   resolveDetectClones,
   resolveFormatExtensions,
@@ -691,16 +692,21 @@ export function readPriorEnvelope(writePath, fs) {
  * @returns {{envelope: object|null, ahead: object|null}}
  */
 export function readPriorState(writePath, fs, kind) {
-  let parsed;
+  let raw;
   try {
-    parsed = JSON.parse(fs.readFileSync(writePath, 'utf8'));
+    raw = JSON.parse(fs.readFileSync(writePath, 'utf8'));
   } catch {
     return { envelope: null, ahead: null };
   }
-  const ahead = kind ? checkBaselineAhead(kind, parsed) : null;
+  const ahead = kind ? checkBaselineAhead(kind, raw) : null;
   if (ahead) return { envelope: null, ahead };
-  const valid = isObject(parsed) && Array.isArray(parsed.rows);
-  return { envelope: valid ? parsed : null, ahead: null };
+  try {
+    const parsed = decodeEnvelope(raw);
+    const valid = isObject(parsed) && Array.isArray(parsed.rows);
+    return { envelope: valid ? parsed : null, ahead: null };
+  } catch {
+    return { envelope: null, ahead: null };
+  }
 }
 
 function validateOptions({ kind, scopeFiles, fullScope, writePath }) {

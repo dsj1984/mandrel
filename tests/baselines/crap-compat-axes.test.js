@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { encodeEnvelope } from '../../.agents/scripts/lib/baselines/codec.js';
 import { classifyScoringSemantics } from '../../.agents/scripts/lib/baselines/kinds/_crap-read.js';
 import {
   aheadStampOf,
@@ -34,23 +35,38 @@ function axis(name) {
 }
 
 // Story #4866: the ts-transpiler axis is scoped to baselines that actually
-// contain transpiled sources, so the shared fixture carries one TS row. A
-// transpiler change moves TS row coordinates and nothing else.
-// Story #4901: a current writer stamps `provenanceStamped`, so a baseline
-// that is valid in every other respect carries it too — without it the
-// `provenance-unstamped` axis would (correctly) refuse this TS-row fixture.
+// contain transpiled sources, so the shared fixture carries one TS row.
 const VALID_BASELINE = {
   escomplexVersion: '0.8.0',
   kernelVersion: '0.8.0',
   tsTranspilerVersion: '5.4.0',
   scoringSemantics: SCORING_SEMANTICS,
-  provenanceStamped: true,
-  rows: [{ path: 'src/a.ts', method: 'run', startLine: 3, crap: 2 }],
+  rows: [{ path: 'src/a.ts', method: 'run', crap: 2 }],
 };
 
 const JS_ONLY_BASELINE = {
   ...VALID_BASELINE,
-  rows: [{ path: 'src/a.js', method: 'run', startLine: 3, crap: 2 }],
+  rows: [{ path: 'src/a.js', method: 'run', crap: 2 }],
+};
+
+/** The previous `rows[]` layout, as its writer left it on disk. */
+const PREVIOUS_LAYOUT_FILE = {
+  $schema: '.agents/schemas/baselines/crap.schema.json',
+  kernelVersion: '0.8.0',
+  scoringSemantics: 'method-identity-v4',
+  tsTranspilerVersion: '5.4.0',
+  provenanceStamped: true,
+  rows: [
+    { path: 'src/a.ts', method: 'run', startLine: 3, crap: 2 },
+    {
+      path: 'src/a.ts',
+      method: '<anon run/(x)#0>',
+      startLine: 4,
+      crap: 1,
+      anonymous: true,
+      coordinateSystem: 'transpiled',
+    },
+  ],
 };
 
 const VALID_CTX = {
@@ -147,7 +163,7 @@ describe('ts-transpiler-drift axis — coordinate-invalidating (AC-7)', () => {
       runningTsTranspilerVersion: '5.5.0',
     });
     assert.match(message, /baseline=5\.4\.0 running=5\.5\.0/);
-    assert.match(message, /identity key/);
+    assert.match(message, /scope-path keys/);
     assert.match(message, /crap:update -- --full-scope/);
     assert.match(message, /baseline-refresh:/);
   });
@@ -428,129 +444,28 @@ describe('classifyScoringSemantics — ahead, current, behind (#5991)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Story #4901 — the pre-provenance baseline axis.
-//
-// The hole this closes is `ts-transpiler-drift`'s own deliberate exemption:
-// it returns null for an unstamped baseline so that pre-existing baselines
-// are not failed for no evidence. A pre-#4866 baseline is exactly that shape.
-// ---------------------------------------------------------------------------
-describe('provenance-unstamped axis (#4901)', () => {
-  // The real pre-#4866 shape: neither stamp exists, because neither had been
-  // written yet. Keeping `tsTranspilerVersion` here would be unfaithful AND
-  // would let the earlier ts-transpiler axis short-circuit the reduce — the
-  // very exemption that makes this axis necessary is what routes a genuine
-  // pre-provenance baseline through to it.
-  const PRE_PROVENANCE_BASELINE = (() => {
-    const b = { ...VALID_BASELINE };
-    delete b.provenanceStamped;
-    delete b.tsTranspilerVersion;
-    return b;
-  })();
-
-  it('is fatal, not a warning', () => {
-    assert.equal(axis('provenance-unstamped').severity, 'fatal');
-  });
-
-  it('fires on a TS-row baseline with no provenanceStamped marker', () => {
-    const message = axis('provenance-unstamped').check({
-      baseline: PRE_PROVENANCE_BASELINE,
-    });
-    assert.match(message, /predates coordinate-provenance stamping/);
-  });
-
-  it('passes a baseline carrying the marker', () => {
-    assert.equal(
-      axis('provenance-unstamped').check({ baseline: VALID_BASELINE }),
-      null,
-    );
-  });
-
-  it('never fires on a pure-JavaScript baseline, marker or not', () => {
-    // The load-bearing exemption: JS coordinates already ARE original-source
-    // coordinates, so a JS-only baseline was never affected by #4866 and must
-    // not be forced through a re-seed it does not need.
-    const jsLegacy = { ...JS_ONLY_BASELINE };
-    delete jsLegacy.provenanceStamped;
-    assert.equal(
-      axis('provenance-unstamped').check({ baseline: jsLegacy }),
-      null,
-    );
-  });
-
-  it('does not accept a truthy non-true marker', () => {
-    // The marker is an assertion, not a hint — only the writer's literal
-    // `true` counts, so a hand-edited string cannot wave a baseline through.
-    const spoofed = { ...PRE_PROVENANCE_BASELINE, provenanceStamped: 'yes' };
-    assert.match(
-      axis('provenance-unstamped').check({ baseline: spoofed }),
-      /predates coordinate-provenance stamping/,
-    );
-  });
-
-  it('treats a null baseline as the missing-baseline axis job', () => {
-    assert.equal(axis('provenance-unstamped').check({ baseline: null }), null);
-  });
-
-  it('names the exact re-seed command in its guidance', () => {
-    const message = axis('provenance-unstamped').check({
-      baseline: PRE_PROVENANCE_BASELINE,
-    });
-    assert.match(message, /npm run test:coverage/);
-    assert.match(message, /crap:update -- --full-scope/);
-    assert.match(message, /baseline-refresh:/);
-  });
-
-  it('is reachable through assertBaselineCompatible (the loaded-envelope door)', () => {
-    // Without this registration the axis exists but nothing in production
-    // reaches it — the exact shape of the #4866 gap it closes.
-    const message = assertBaselineCompatible(PRE_PROVENANCE_BASELINE);
-    assert.match(message, /predates coordinate-provenance stamping/);
-  });
-
-  it('fails the whole reduce closed', () => {
-    const out = evaluateBaselineCompatibility({
-      ...VALID_CTX,
-      baseline: PRE_PROVENANCE_BASELINE,
-    });
-    assert.equal(out.ok, false);
-    assert.equal(out.exitCode, 1);
-    assert.equal(out.kind, 'provenance-unstamped');
-  });
-});
-
-describe('envelopeExtras — provenance marker (#4901)', () => {
-  it('stamps provenanceStamped: true so new baselines carry the assertion', () => {
-    assert.equal(envelopeExtras().provenanceStamped, true);
-  });
-});
-
-describe('provenance-unstamped — the fail-CLOSED door (#4901)', () => {
-  it('reaches check-baselines through checkBaselineSemantics', async () => {
-    // The other half of the Story's disposition contract. `preview-gates.js`
-    // fails OPEN on this message (asserted in tests/quality-preview.test.js);
-    // `check-baselines` fails CLOSED on it. Both read the same axis, but they
-    // read it through different doors — this is the one evaluate.js calls,
-    // which maps any non-null message to `{ schemaError: { tag: 'semantics' } }`.
+describe('the previous rows[] layout — the fail-CLOSED door (AC-8)', () => {
+  it('reaches check-baselines through checkBaselineSemantics, not a schema error', async () => {
     const { checkBaselineSemantics } = await import(
       '../../.agents/scripts/lib/baselines/kernel.js'
     );
-    const preProvenance = { ...VALID_BASELINE };
-    delete preProvenance.provenanceStamped;
-    delete preProvenance.tsTranspilerVersion;
-
-    assert.match(
-      checkBaselineSemantics('crap', preProvenance),
-      /predates coordinate-provenance stamping/,
+    const { loadFile } = await import(
+      '../../.agents/scripts/lib/baselines/reader.js'
     );
-    // And a current baseline is not refused, so the gate stays usable. This
-    // door resolves the running versions from the environment rather than
-    // taking them injected, so the control must carry the writer's own stamps
-    // — otherwise the ts-transpiler axis fires first on a fixture-pinned
-    // version and this assertion would pass for the wrong reason.
+    const dir = makeTempDir('crap-previous-layout-');
+    try {
+      const file = path.join(dir, 'crap.json');
+      fs.writeFileSync(file, JSON.stringify(PREVIOUS_LAYOUT_FILE));
+      const loaded = loadFile(file, { kind: 'crap' });
+      const message = checkBaselineSemantics('crap', loaded);
+      assert.match(message, /scoring semantics changed/);
+      assert.match(message, /crap:update -- --full-scope/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
     assert.equal(
       checkBaselineSemantics('crap', {
-        ...VALID_BASELINE,
+        ...JS_ONLY_BASELINE,
         ...envelopeExtras(),
       }),
       null,
@@ -580,22 +495,20 @@ describe('read path — one door, complete (#5002)', () => {
   /**
    * Write `envelope` to a throwaway checkout and return its baseline path.
    *
-   * `escomplexVersion` is stripped: the v2 envelope schema forbids it (the
-   * read path back-fills it from the running scorer, which is why it is not a
-   * compat stamp). The fixtures above keep it because they are hand-built
-   * loaded envelopes, not files.
+   * Goes through the layout codec, which writes only the envelope stamps
+   * (`escomplexVersion` is not one); `raw` writes the object verbatim.
    */
-  function writeEnvelope({ escomplexVersion: _dropped, ...envelope }) {
+  function writeEnvelope(envelope, { raw = false } = {}) {
     const dir = makeTempDir('crap-read-path-');
     fs.mkdirSync(path.join(dir, 'baselines'), { recursive: true });
     const baselinePath = path.join(dir, 'baselines', 'crap.json');
-    fs.writeFileSync(
-      baselinePath,
-      JSON.stringify({
-        $schema: '.agents/schemas/baselines/crap.schema.json',
-        ...envelope,
-      }),
-    );
+    const onDisk = raw
+      ? envelope
+      : encodeEnvelope({
+          $schema: '.agents/schemas/baselines/crap.schema.json',
+          ...envelope,
+        });
+    fs.writeFileSync(baselinePath, JSON.stringify(onDisk));
     return { dir, baselinePath };
   }
 
@@ -639,7 +552,7 @@ describe('read path — one door, complete (#5002)', () => {
     try {
       const loaded = loadViaProductionDoor(baselinePath);
       assert.deepEqual(loaded.rows, [
-        { crap: 2, file: 'src/a.ts', method: 'run', startLine: 3 },
+        { crap: 2, file: 'src/a.ts', method: 'run' },
       ]);
       // The projection used to back-fill `escomplexVersion` from the running
       // scorer, purely to feed the `escomplex-mismatch` axis — which made that
@@ -668,20 +581,18 @@ describe('read path — one door, complete (#5002)', () => {
     }
   });
 
-  it('still refuses a genuinely pre-provenance baseline', () => {
-    // The guard above must not have been bought by defaulting the stamp to a
-    // truthy value: an envelope that never carried it has to keep failing.
-    const preProvenance = { ...VALID_BASELINE };
-    delete preProvenance.provenanceStamped;
-    const { dir, baselinePath } = writeEnvelope(preProvenance);
+  it('refuses a previous rows[]-layout baseline without throwing (AC-8)', () => {
+    const { dir, baselinePath } = writeEnvelope(PREVIOUS_LAYOUT_FILE, {
+      raw: true,
+    });
     try {
       const loaded = loadViaProductionDoor(baselinePath);
+      assert.ok(loaded, 'the previous layout must parse, not fail the read');
       assert.match(
         assertBaselineCompatible(loaded, {
           runningTsTranspilerVersion: VALID_BASELINE.tsTranspilerVersion,
         }) ?? '',
-        /predates coordinate-provenance stamping/,
-        'the read path let a pre-provenance baseline through',
+        /scoring semantics changed[\s\S]*--full-scope/,
       );
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { assertEnvelope } from '../../.agents/scripts/lib/baselines/envelope.js';
+import { loadFile } from '../../.agents/scripts/lib/baselines/reader.js';
 import {
   write,
   writeFile,
@@ -88,9 +89,9 @@ describe('write() — idempotency', () => {
     assert.equal(a, b);
   });
 
-  it('crap rows sort by (path, startLine, method)', () => {
+  it('crap rows sort by (path, method key) and drop startLine', () => {
     const env = write(FIXTURES.crap);
-    // src/a.js bar (startLine 5) should come before src/a.js foo (startLine 10).
+    assert.ok(env.rows.every((r) => !('startLine' in r)));
     assert.equal(env.rows[0].path, 'src/a.js');
     assert.equal(env.rows[0].method, 'bar');
     assert.equal(env.rows[1].method, 'foo');
@@ -152,7 +153,7 @@ describe('writeFile()', () => {
     rmSync(workDir, { recursive: true, force: true });
   });
 
-  it('round-trips an envelope through disk byte-identically', () => {
+  it('writes crap grouped by path, one method per line, and reads back the same rows (AC-5)', () => {
     const env = write(FIXTURES.crap);
     const filePath = path.join(workDir, 'crap.json');
     writeFile(filePath, env);
@@ -161,17 +162,12 @@ describe('writeFile()', () => {
       {
         $schema: env.$schema,
         kernelVersion: env.kernelVersion,
-        // Story #4775 — the crap kind stamps its scoring semantics, and the
-        // disk projection must carry it through by name or the stamp exists
-        // only in memory. Story #4866 added the transpiler stamp on the same
-        // contract and for the same reason. Story #4901 added
-        // `provenanceStamped` and this list did not follow, so the assertion
-        // below pinned the omission as correct for three Stories; #4969
-        // restored it.
         scoringSemantics: env.scoringSemantics,
         tsTranspilerVersion: env.tsTranspilerVersion,
-        provenanceStamped: env.provenanceStamped,
-        rows: env.rows,
+        files: {
+          'src/a.js': { bar: 25, foo: 4.2 },
+          'src/b.js': { baz: 1 },
+        },
       },
       null,
       2,
@@ -179,7 +175,49 @@ describe('writeFile()', () => {
     assert.equal(onDisk, expected);
     assert.equal(typeof env.scoringSemantics, 'string');
     assert.equal(typeof env.tsTranspilerVersion, 'string');
-    assert.equal(env.provenanceStamped, true);
+    assert.equal(env.provenanceStamped, undefined);
+    assert.deepEqual(loadFile(filePath, { kind: 'crap' }).rows, env.rows);
+  });
+
+  it('an edit above a method leaves its entry byte-identical (AC-1)', () => {
+    const bytesAt = (startLine) => {
+      const filePath = path.join(workDir, `crap-${startLine}.json`);
+      writeFile(
+        filePath,
+        write({
+          kind: 'crap',
+          rows: [{ path: 'src/a.js', method: 'run', startLine, crap: 3 }],
+        }),
+      );
+      return readFileSync(filePath, 'utf8');
+    };
+    assert.equal(bytesAt(10), bytesAt(42));
+  });
+
+  it('leaves every other kind in the rows[] layout, byte for byte (AC-11)', () => {
+    for (const kind of [
+      'coverage',
+      'maintainability',
+      'mutation',
+      'bundle-size',
+    ]) {
+      const env = write(FIXTURES[kind]);
+      const filePath = path.join(workDir, `${kind}.json`);
+      writeFile(filePath, env);
+      assert.equal(
+        readFileSync(filePath, 'utf8'),
+        `${JSON.stringify(
+          {
+            $schema: env.$schema,
+            kernelVersion: env.kernelVersion,
+            rows: env.rows,
+          },
+          null,
+          2,
+        )}\n`,
+        kind,
+      );
+    }
   });
 
   it('terminates the file with a trailing newline', () => {
@@ -369,14 +407,15 @@ describe('writer.writeFile — envelope stamps survive serialization (#4969)', (
       });
       writeFile(absPath, envelope);
       const onDisk = JSON.parse(readFileSync(absPath, 'utf8'));
+      const stamps = (o) => Object.keys(o).filter((k) => k !== 'rows');
 
       assert.deepEqual(
-        Object.keys(onDisk).sort(),
-        Object.keys(envelope).sort(),
+        stamps(onDisk).sort(),
+        [...stamps(envelope), 'files'].sort(),
         'a stamp reaching `write()` but not the file is a stamp that cannot ' +
-          'protect anything — add it to the canonical list in `writeFile`',
+          'protect anything — add it to the codec STAMP_KEYS list',
       );
-      assert.equal(onDisk.provenanceStamped, true);
+      assert.equal(onDisk.provenanceStamped, undefined);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -394,7 +433,7 @@ describe('write() — a scoped write cannot cross a scoring-semantics boundary',
 
   const stale = () => ({
     ...write(FIXTURES.crap),
-    scoringSemantics: 'method-identity-v3',
+    scoringSemantics: 'method-identity-v4',
   });
   const refresh = (scope, priorEnvelope) =>
     write({
@@ -429,8 +468,8 @@ describe('write() — a scoped write cannot cross a scoring-semantics boundary',
     const file = path.join(dir, 'crap.json');
     writeFile(file, stale());
     writeFile(file, refresh(null, stale()));
-    const written = JSON.parse(readFileSync(file, 'utf-8'));
-    assert.equal(written.scoringSemantics, 'method-identity-v4');
+    const written = loadFile(file, { kind: 'crap' });
+    assert.equal(written.scoringSemantics, 'method-identity-v5');
     assert.deepEqual(
       written.rows.map((r) => r.crap),
       [3],
@@ -443,6 +482,6 @@ describe('write() — a scoped write cannot cross a scoring-semantics boundary',
       { mode: 'diff', files: new Set(['src/a.js']) },
       current,
     );
-    assert.equal(result.scoringSemantics, 'method-identity-v4');
+    assert.equal(result.scoringSemantics, 'method-identity-v5');
   });
 });
