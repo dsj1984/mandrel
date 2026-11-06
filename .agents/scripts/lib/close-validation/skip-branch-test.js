@@ -32,7 +32,7 @@ function readMergeBase(gitSpawnImpl, cwd, baseBranch) {
  *
  * @returns {{ testChanged: object, since: string } | { fallback: string }}
  */
-export function resolveSkipBranchScope({
+function resolveSkipBranchScope({
   config,
   cwd,
   baseBranch,
@@ -45,7 +45,7 @@ export function resolveSkipBranchScope({
 }
 
 /** Close's skip-branch `test` gate. */
-export function buildSkipBranchTestGate({ config, testChanged, since }) {
+function buildSkipBranchTestGate({ config, testChanged, since }) {
   const short = since.slice(0, 12);
   return {
     name: 'test',

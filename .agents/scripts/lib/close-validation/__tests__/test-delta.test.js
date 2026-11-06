@@ -7,10 +7,14 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { resolveConfig } from '../../config-resolver.js';
-import {
-  buildSkipBranchTestGate,
-  resolveSkipBranchScope,
-} from '../skip-branch-test.js';
+import { closeTestGate, closeTestScope } from '../skip-branch-test.js';
+
+/** The shared resolver, reached through close's skip-branch entry point. */
+const resolveSkipBranchScope = (opts) =>
+  closeTestScope({ skipBranch: true, ...opts });
+const buildSkipBranchTestGate = ({ config, ...scope }) =>
+  closeTestGate(config, scope);
+
 import { applyTestDelta, substituteChangedSince } from '../test-delta.js';
 
 const ROOT = path.resolve('/fixture-5936');

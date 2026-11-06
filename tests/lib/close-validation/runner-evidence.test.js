@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { runEvidenceGate } from '../../../.agents/scripts/evidence-gate.js';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
-import { buildSkipBranchTestGate } from '../../../.agents/scripts/lib/close-validation/skip-branch-test.js';
+import { closeTestGate } from '../../../.agents/scripts/lib/close-validation/skip-branch-test.js';
 import { hashCommandConfig } from '../../../.agents/scripts/lib/validation-evidence.js';
 
 const TREE = `tree:${'a'.repeat(40)}`;
@@ -345,7 +345,7 @@ describe('the skip-branch scoped deposit credits close at the same HEAD (Story #
     const result = await runCloseValidation({
       cwd: '/repo',
       worktreePath: worktree,
-      gates: [buildSkipBranchTestGate({ config, testChanged, since })],
+      gates: [closeTestGate(config, { testChanged, since })],
       storyId: 5961,
       standalone: true,
       runner: async () => {
