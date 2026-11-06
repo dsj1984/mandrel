@@ -286,6 +286,63 @@ describe('runCloseValidationPhase — full-suite lock waits (Story #5377)', () =
  * printing lock-shaped fixture lines was parsed as a real wait. Gate output is
  * display only now; the figures come from the lock-event channel alone.
  */
+describe('runCloseValidationPhase — a baselines red names its kinds (Story #5956)', () => {
+  const failWith = (gateName, lines) =>
+    runCloseValidationPhase({
+      cwd: '/main/repo',
+      worktreePath: null,
+      config: {},
+      baseBranch: 'main',
+      storyId: 5956,
+      progress: noopProgress,
+      createGateLogSink: () => {
+        const kinds = [];
+        return {
+          log: (line) => {
+            const m = /- ([a-z-]+): FAIL \(/.exec(line);
+            if (m && !kinds.includes(m[1])) kinds.push(m[1]);
+          },
+          baselinesKinds: () => kinds,
+          replay: () => 0,
+          flush: async () => {},
+          digest: () => '',
+        };
+      },
+      runCloseValidation: async ({ log }) => {
+        for (const line of lines) log(line);
+        return {
+          ok: false,
+          failed: [{ gate: { name: gateName }, status: 1 }],
+          skipped: [],
+        };
+      },
+      buildDefaultGates: () => [{ name: gateName }],
+      runPreGateSteps: async () => {},
+    });
+  const FAIL_LINES = [
+    '[check-baselines-independent]   - duplication: FAIL (breaches=0, regressions=1)',
+  ];
+
+  it('tags the error with the failing kinds when a check-baselines entry failed first', async () => {
+    await assert.rejects(
+      failWith('check-baselines-independent', FAIL_LINES),
+      (err) =>
+        assert.deepEqual(err.closeBaselinesKinds, ['duplication']) ?? true,
+    );
+  });
+
+  it('leaves the error untagged for a non-baselines gate or an unparsed output', async () => {
+    await assert.rejects(
+      failWith('lint', FAIL_LINES),
+      (err) => !('closeBaselinesKinds' in err),
+    );
+    await assert.rejects(
+      failWith('check-baselines', ['[check-baselines] gate(s) — breaches=1']),
+      (err) => !('closeBaselinesKinds' in err),
+    );
+  });
+});
+
 describe('runCloseValidationPhase — gate output never forges lock figures (Story #5642)', () => {
   const FORGED = [
     '[coverage-capture] [full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 1242s, holder pid-4711-1700000000000, pid 4711, lock age 312s) — not spawning, so two full suites never overlap. Re-run once it finishes: node .agents/scripts/coverage-capture.js --cwd /repo',

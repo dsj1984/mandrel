@@ -23,6 +23,7 @@ import nodeFs from 'node:fs';
 import path from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { closeGateLogPath } from '../../../../.agents/scripts/lib/config/temp-paths.js';
+import { formatReport } from '../../../../.agents/scripts/lib/orchestration/check-baselines/phases/report.js';
 import {
   createGateLogSink,
   REPLAY_TAIL_LINES,
@@ -150,6 +151,53 @@ describe('createGateLogSink — failure path (AC-4)', () => {
       nodeFs.readFileSync(sink.logPath, 'utf8').includes('line 0'),
       'the artifact still holds every line, including those not replayed',
     );
+  });
+});
+
+describe('createGateLogSink — failing baselines kinds (Story #5956)', () => {
+  it('collects every FAIL kind line, including ones pushed out of the replay tail', () => {
+    const sink = sinkAt('kinds');
+    sink.log(
+      '[check-baselines-independent]   - duplication: FAIL (breaches=0, regressions=1)',
+    );
+    for (let i = 0; i < REPLAY_TAIL_LINES + 5; i += 1) sink.log(`[lint] ${i}`);
+    sink.log('  - crap: FAIL (breaches=1, regressions=0)');
+    sink.log('  - duplication: FAIL (breaches=0, regressions=2)');
+    sink.log('  - maintainability: PASS');
+    assert.deepEqual(sink.baselinesKinds(), ['duplication', 'crap']);
+  });
+
+  it('parses the FAIL lines check-baselines itself formats, so format and parse cannot drift', () => {
+    const gate = (kind, regressionCount) => ({
+      kind,
+      breachCount: 0,
+      regressionCount,
+      kernelMatch: false,
+      kernelBaseline: '1',
+      kernelCurrent: '2',
+      baseRef: 'origin/main',
+      components: [],
+    });
+    const text = formatReport(
+      {
+        gates: [gate('duplication', 1), gate('maintainability', 0)],
+        totalBreaches: 0,
+        totalRegressions: 1,
+        kernelDriftCount: 2,
+        schemaErrors: [],
+        skipped: [],
+      },
+      'text',
+    );
+    const sink = sinkAt('formatted');
+    for (const line of text.split('\n')) sink.log(`[check-baselines] ${line}`);
+    assert.deepEqual(sink.baselinesKinds(), ['duplication']);
+  });
+
+  it('reports none when no kind line parsed', () => {
+    const sink = sinkAt('no-kinds');
+    sink.log('[check-baselines] 2 gate(s) — breaches=1');
+    assert.deepEqual(sink.baselinesKinds(), []);
   });
 });
 

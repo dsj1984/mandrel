@@ -31,7 +31,7 @@ const TAG = '[duplication-rescore]';
 
 const KIND = 'duplication';
 
-const DEFAULT_BASELINE_REL_PATH = 'baselines/duplication.json';
+export const DEFAULT_BASELINE_REL_PATH = 'baselines/duplication.json';
 
 /**
  * Untagged on purpose (see the module header): never `baseline-refresh:`.
@@ -63,9 +63,20 @@ function buildCommitBody(moved) {
  * @param {object} logger
  * @param {string} reason
  */
-function skip(logger, reason) {
+function skip(logger, reason, extra = {}) {
   logger.info?.(`${TAG} no re-score commit (${reason}).`);
-  return { ran: false, committed: false, reason };
+  return { ran: false, committed: false, reason, ...extra };
+}
+
+/** A completed scan that moved nothing still reports its clone partners. */
+function unchanged(logger, partners) {
+  return skip(logger, 'unchanged', { moved: [], partners });
+}
+
+/** @returns {object} a committed re-score's result. */
+function committedResult(sha, moved, partners) {
+  const movedPaths = moved.map((m) => m.path);
+  return { ran: true, committed: true, sha, movedPaths, moved, partners };
 }
 
 /**
@@ -185,7 +196,8 @@ async function attempt(fn, label) {
  *   refreshBaseline?: typeof defaultRefreshBaseline,
  *   scorer?: (files: string[], opts: object) => Promise<object[]>|object[],
  * }} opts
- * @returns {Promise<{ ran: boolean, committed: boolean, sha?: string, movedPaths?: string[], reason?: string }>}
+ * @returns {Promise<{ ran: boolean, committed: boolean, sha?: string, movedPaths?: string[], reason?: string, moved?: Array<{ path: string, before: number|null, after: number|null }>, partners?: Record<string, string[]> }>}
+ *   `moved` and `partners` (write-scope clone partners) whenever a scan completed.
  */
 export async function runDuplicationCloseRescore({
   cwd,
@@ -245,7 +257,8 @@ export async function runDuplicationCloseRescore({
     'scorer-failed',
   );
   if (refreshed.reason) return skip(logger, refreshed.reason);
-  if (!refreshed.value?.wrote) return skip(logger, 'unchanged');
+  const { partners = {} } = refreshed.value;
+  if (!refreshed.value.wrote) return unchanged(logger, partners);
 
   const moved = diffScopedRows({
     files: refreshed.value.scope?.files ?? files,
@@ -264,9 +277,16 @@ export async function runDuplicationCloseRescore({
     'git-failed',
   );
   if (committed.reason) return skip(logger, committed.reason);
-  const movedPaths = moved.map((m) => m.path);
   logger.warn?.(
-    `${TAG} re-scored ${movedPaths.length} duplication row(s) on story #${storyId}; committed as ${committed.value}.`,
+    `${TAG} re-scored ${moved.length} duplication row(s) on story #${storyId}; committed as ${committed.value}.`,
   );
-  return { ran: true, committed: true, sha: committed.value, movedPaths };
+  const movedPaths = moved.map((m) => m.path);
+  return {
+    ran: true,
+    committed: true,
+    sha: committed.value,
+    movedPaths,
+    moved,
+    partners,
+  };
 }

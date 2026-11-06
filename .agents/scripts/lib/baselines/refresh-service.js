@@ -341,8 +341,9 @@ function requireScorer(kind, scorer, cwd) {
  *   scope: { mode: 'full' | 'diff' | 'explicit', ref?: string, files: string[] },
  *   envelope: object | null,
  *   wrote: boolean,
+ *   partners?: Record<string, string[]>,
  *   ahead?: object,
- * }>} `ahead` (with a null `envelope`): a narrower-than-full refresh left a
+ * }>} `partners`: each write-scope file's scored clone partners. `ahead` (with a null `envelope`): a narrower-than-full refresh left a
  *   baseline stamped newer than this code untouched.
  */
 export async function refreshBaseline(opts = {}) {
@@ -450,7 +451,19 @@ export async function refreshBaseline(opts = {}) {
     },
     envelope,
     wrote,
+    partners: partnersOf(canonicalRows, writeFiles),
   };
+}
+
+/** Each listed file's scored clone partners; the envelope never stores them. */
+function partnersOf(rows, files) {
+  const byPath = new Map(rows.map((row) => [row.path, row.partners]));
+  const out = {};
+  for (const file of files) {
+    const partners = byPath.get(file);
+    if (partners?.length) out[file] = partners.map(canonicalizeBaselinePath);
+  }
+  return out;
 }
 
 /**
