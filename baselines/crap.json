@@ -13679,6 +13679,12 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "overBudgetFlag",
+      "startLine": 105,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildTestGateEntry",
       "startLine": 122,
       "crap": 2
@@ -13750,8 +13756,21 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "coverageReaderFlag",
+      "startLine": 270,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "<anon buildBaselinesGateEntries/(name,gateKinds)#0/(k)#0>",
       "startLine": 272,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "<anon coverageReaderFlag/(k)#0>",
+      "startLine": 273,
       "crap": 1,
       "anonymous": true
     },
@@ -14268,8 +14287,21 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "<anon runSerialGates/()#0>",
+      "startLine": 481,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "runAdvisoryProjections",
       "startLine": 502,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "hintedExit",
+      "startLine": 512,
       "crap": 3
     },
     {
@@ -14286,14 +14318,32 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "reportHintedExit",
+      "startLine": 522,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "reportOverBudget",
       "startLine": 525,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "resolveSerialExecution",
+      "startLine": 532,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "skipAfterDeferral",
       "startLine": 543,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "settleSerialResult",
+      "startLine": 548,
       "crap": 3
     },
     {
@@ -25172,6 +25222,19 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "method": "postCaptureFilter",
+      "startLine": 225,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
+      "method": "<anon postCaptureFilter/(g)#0>",
+      "startLine": 226,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/handoff-state.js",
       "method": "handoffStatePath",
       "startLine": 17,
@@ -32721,6 +32784,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
+      "method": "deferralLines",
+      "startLine": 151,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "buildPullRequestFields",
       "startLine": 163,
       "crap": 2
@@ -33628,6 +33697,12 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
       "method": "baselinesEnvelopeGates",
       "startLine": 161,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "deferredCaptureGate",
+      "startLine": 176,
       "crap": 2
     },
     {
