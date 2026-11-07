@@ -30,6 +30,7 @@ import { describe, test } from 'node:test';
 
 import { rollup } from '../.agents/scripts/lib/baselines/kinds/coverage.js';
 import { buildScopePredicate } from '../.agents/scripts/lib/coverage-baseline.js';
+import { pendingSeatFiles } from './helpers/c8rc-scope-pending.js';
 
 const require = createRequire(import.meta.url);
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
@@ -163,12 +164,17 @@ describe('baselines/coverage.json covers exactly the declared scope', () => {
   });
 
   test('every in-scope source file has a row', () => {
-    const missing = inScope.filter((f) => !rowPaths.has(f));
+    const pending = pendingSeatFiles({
+      baseBranch: agentrc.project?.baseBranch,
+      cwd: REPO_ROOT,
+    });
+    const missing = inScope.filter((f) => !rowPaths.has(f) && !pending.has(f));
     assert.deepEqual(
       missing,
       [],
       `${missing.length} in-scope source files have no baseline row, so they ` +
-        'have no floor and nothing to regress against.',
+        'have no floor and nothing to regress against. A file this branch ' +
+        'adds is seated by `update-coverage-baseline.js --seat-missing`.',
     );
   });
 
