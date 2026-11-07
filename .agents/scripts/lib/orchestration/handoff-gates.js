@@ -88,6 +88,17 @@ function preflightArgv(ctx, gate, run) {
   };
 }
 
+/** A lint whose argv close never narrows to the changed files. */
+function isWholeTreeLint(gate, run) {
+  return (
+    gate.name === 'lint' &&
+    !gate.changedFileScope &&
+    run.cmd === gate.cmd &&
+    run.args.length === gate.args.length &&
+    run.args.every((arg, i) => arg === gate.args[i])
+  );
+}
+
 /**
  * Close's preflight entries wrapped in `evidence-gate.js` with the argv close
  * executes; a disabled or scoped-out gate deposits nothing.
@@ -108,6 +119,7 @@ export function creditedPreflight(ctx) {
       ...preflightArgv(ctx, gate, run),
       deposit: { cmd: run.cmd, args: run.args },
       tolerateNoFilesProcessed: run.tolerateNoFilesProcessed,
+      wholeTree: isWholeTreeLint(gate, run),
     });
   }
   return checks;

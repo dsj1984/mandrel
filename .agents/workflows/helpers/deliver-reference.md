@@ -382,6 +382,11 @@ run because a fix commit afterwards would void that run's credit.
   failing check; the envelope's `evidencePath` is the first one's. No suite
   lock is taken and no suite spawns. Only a fully clean preflight is skipped
   on a re-run at the same HEAD.
+- **Ratchets your lint runs.** A ratchet listed in
+  `delivery.quality.ratchets.coveredByLint` is skipped (`⏭ <key> covered by
+  lint`) only once this pass's whole-tree `lint` exited 0, run or credited
+  from fresh evidence; a failing lint spawns no covered ratchet, and an
+  absent or changed-file-scoped lint covers nothing.
 - **Typecheck, lint and format are close's credit.** The handoff takes the
   entries from close's `buildDefaultGates` (same config, base branch,
   worktree and evidence root) and runs them through `evidence-gate.js

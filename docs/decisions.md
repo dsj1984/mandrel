@@ -895,6 +895,14 @@ derived: no tool config, package script or existing gate key names the part of
 a consumer's lint that asserts baseline rows. It defaults to `[]`, which runs
 nothing and leaves the preflight `lint` credit exactly as before.
 
+**Raised to 156 (2026-11-06, Story #5964)** for
+`delivery.quality.ratchets.coveredByLint`. It lets the handoff preflight skip
+a standalone ratchet the same pass's whole-tree `lint` already ran clean. It
+is declared, not derived: `project.commands.lint` is one opaque argv whose
+checks hide behind package-manager and task-runner indirection mandrel cannot
+inspect reliably, and a ratchet that lint runs leaves no evidence record
+mandrel could consult. It defaults to `[]`, which runs every ratchet as before.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

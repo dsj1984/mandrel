@@ -1356,6 +1356,28 @@
               },
               "additionalProperties": false
             },
+            "ratchets": {
+              "type": "object",
+              "description": "CI's standalone ratchets as the handoff preflight runs them.",
+              "properties": {
+                "coveredByLint": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "dead-exports",
+                      "dead-exports-production",
+                      "arch-cycles",
+                      "cyclomatic"
+                    ]
+                  },
+                  "default": [],
+                  "description": "Standalone ratchets the handoff preflight skips once the same pass's whole-tree `lint` check exited 0. Each listed ratchet MUST be run, with the same arguments and over the whole repository, by the command `project.commands.lint` resolves to; mandrel cannot inspect that command, so this is the consumer's declaration. A lint that is absent, disabled, failing or narrowed to changed files covers nothing, and CI stays the backstop. Default `[]` runs every ratchet whose baseline is committed."
+                }
+              },
+              "additionalProperties": false
+            },
             "requireBaselines": {
               "type": "boolean",
               "description": "Story #4495. Fail-closed baseline-enforcement policy for the unified check-baselines close-validation gate. When false (default), a consumer that enables baseline gates (crap/maintainability/…) but has not committed the corresponding baseline artifacts under baselines/ gets a clean skip-with-reason instead of a deterministic first-try close failure. Set true to keep the gate registered so an absent baseline artifact fails close-validation with a preflight hint naming the fix (the fail-closed posture).",

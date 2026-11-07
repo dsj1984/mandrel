@@ -6,6 +6,7 @@
 import { GATES_SCHEMA } from './config/gates/index.js';
 import { DEFAULT_REVIEW_PROVIDERS } from './config/review-chain-default.js';
 import { DEFAULT_CODE_REVIEW } from './config/runners.js';
+import { STANDALONE_RATCHET_KEYS } from './standalone-ratchets.js';
 
 const AUTO_REFRESH_SCHEMA = {
   type: 'object',
@@ -22,6 +23,22 @@ const AUTO_REFRESH_SCHEMA = {
   additionalProperties: false,
 };
 
+const RATCHETS_SCHEMA = {
+  type: 'object',
+  description: "CI's standalone ratchets as the handoff preflight runs them.",
+  properties: {
+    coveredByLint: {
+      type: 'array',
+      uniqueItems: true,
+      items: { type: 'string', enum: [...STANDALONE_RATCHET_KEYS] },
+      default: [],
+      description:
+        "Standalone ratchets the handoff preflight skips once the same pass's whole-tree `lint` check exited 0. Each listed ratchet MUST be run, with the same arguments and over the whole repository, by the command `project.commands.lint` resolves to; mandrel cannot inspect that command, so this is the consumer's declaration. A lint that is absent, disabled, failing or narrowed to changed files covers nothing, and CI stays the backstop. Default `[]` runs every ratchet whose baseline is committed.",
+    },
+  },
+  additionalProperties: false,
+};
+
 export const QUALITY_SCHEMA = {
   type: 'object',
   description:
@@ -29,6 +46,7 @@ export const QUALITY_SCHEMA = {
   properties: {
     gates: GATES_SCHEMA,
     autoRefresh: AUTO_REFRESH_SCHEMA,
+    ratchets: RATCHETS_SCHEMA,
     requireBaselines: {
       type: 'boolean',
       description:

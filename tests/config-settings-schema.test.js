@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { getQuality } from '../.agents/scripts/lib/config/quality.js';
 import {
   AGENTRC_SCHEMA,
   COMMENT_EVENT_NAMES,
   getAgentrcValidator,
   WEBHOOK_EVENT_NAMES,
 } from '../.agents/scripts/lib/config-settings-schema.js';
+import { STANDALONE_RATCHETS } from '../.agents/scripts/lib/standalone-ratchets.js';
 
 const validate = getAgentrcValidator();
 
@@ -385,6 +387,44 @@ describe('delivery.* shape', () => {
     assert.equal(validate(withPolicy('block')), true);
     assert.equal(validate(withPolicy('defer-to-ci')), true);
     expectErrors(withPolicy('skip'), /allowed values/);
+  });
+
+  // Story #5964 — ratchets the consumer's whole-tree lint already runs.
+  it('accepts any subset of the standalone ratchets for ratchets.coveredByLint and rejects anything else', () => {
+    const withCovered = (coveredByLint) => ({
+      ...REQ,
+      delivery: { quality: { ratchets: { coveredByLint } } },
+    });
+    assert.equal(validate(withCovered([])), true);
+    assert.equal(validate(withCovered(['arch-cycles'])), true);
+    assert.equal(
+      validate(
+        withCovered([
+          'dead-exports',
+          'dead-exports-production',
+          'arch-cycles',
+          'cyclomatic',
+        ]),
+      ),
+      true,
+    );
+    expectErrors(withCovered(['unused-deps']), /delivery\/quality\/ratchets/);
+    expectErrors(withCovered('cyclomatic'), /delivery\/quality\/ratchets/);
+    expectErrors(
+      { ...REQ, delivery: { quality: { ratchets: { other: [] } } } },
+      /delivery\/quality\/ratchets/,
+    );
+    assert.deepEqual(getQuality({}).ratchets.coveredByLint, []);
+  });
+
+  it('ratchets.coveredByLint accepts exactly the ratchets the handoff preflight runs', () => {
+    const schemaKeys =
+      AGENTRC_SCHEMA.properties.delivery.properties.quality.properties.ratchets
+        .properties.coveredByLint.items.enum;
+    assert.deepEqual(
+      [...schemaKeys].sort(),
+      STANDALONE_RATCHETS.map((r) => r.key).sort(),
+    );
   });
 
   // Story #5954 AC-7 — the close base-sync posture and the coverage delta keys.

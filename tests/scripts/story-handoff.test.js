@@ -31,8 +31,10 @@ import {
   applyChangedFileScope,
   runCloseValidation,
 } from '../../.agents/scripts/lib/close-validation/runner.js';
+import { AGENTRC_SCHEMA } from '../../.agents/scripts/lib/config-settings-schema.js';
 import { withFullSuiteLockAsync } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { runStoryHandoff } from '../../.agents/scripts/lib/orchestration/story-handoff.js';
+import { STANDALONE_RATCHETS } from '../../.agents/scripts/lib/standalone-ratchets.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   hashCommandConfig,
@@ -572,6 +574,140 @@ describe('story-handoff — the preflight runs the standalone ratchets (#5528)',
     assert.equal(envelope.status, 'ready');
     assert.equal(envelope.steps[0].outcome, 'skipped');
     assert.deepEqual(ratchetCalls(h.runCommand), []);
+  });
+});
+
+describe('story-handoff — ratchets covered by a whole-tree lint (Story #5964)', () => {
+  const RATCHET_KEYS = {
+    'check-dead-exports.js': 'dead-exports',
+    'check-dead-exports.js --production': 'dead-exports-production',
+    'check-arch-cycles.js': 'arch-cycles',
+    'check-cyclomatic.js': 'cyclomatic',
+  };
+  const COVERED = ['dead-exports', 'dead-exports-production', 'cyclomatic'];
+
+  /** Every standalone ratchet's baseline committed in a fresh worktree. */
+  function allBaselines() {
+    const cwd = path.join(tempRoot, 'wt');
+    for (const r of STANDALONE_RATCHETS) {
+      mkdirSync(path.dirname(path.join(cwd, r.baseline)), { recursive: true });
+      writeFileSync(path.join(cwd, r.baseline), '{}', 'utf8');
+    }
+    return cwd;
+  }
+
+  /** A harness whose config lists `coveredByLint`, recording progress lines. */
+  function coveredHarness(coveredByLint = COVERED, opts = {}) {
+    const h = harness({
+      cwd: allBaselines(),
+      config: configFor({
+        delivery: { quality: { ratchets: { coveredByLint } } },
+      }),
+      ...opts,
+    });
+    h.lines = [];
+    h.deps.progress = (_tag, msg) => h.lines.push(msg);
+    return h;
+  }
+
+  const ratchetCalls = (runCommand) =>
+    spawned(runCommand).filter((k) => k in RATCHET_KEYS);
+  const coveredLines = (h) =>
+    h.lines.filter((m) =>
+      / covered by lint \(delivery\.quality\.ratchets\.coveredByLint\)$/.test(
+        m,
+      ),
+    );
+
+  test('AC-4/AC-8: a clean whole-tree lint skips the covered ratchets, runs the rest and reaches ready', async () => {
+    const h = coveredHarness();
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.deepEqual(ratchetCalls(h.runCommand), ['check-arch-cycles.js']);
+    assert.deepEqual(
+      coveredLines(h),
+      COVERED.map(
+        (k) =>
+          `⏭ ${k} covered by lint (delivery.quality.ratchets.coveredByLint)`,
+      ),
+    );
+    const preflight = envelope.steps.find((st) => st.name === 'preflight');
+    assert.match(
+      preflight.detail,
+      /arch-cycles clean; covered by lint: dead-exports, dead-exports-production, cyclomatic$/,
+    );
+    assert.doesNotMatch(preflight.detail.split(';')[0], /cyclomatic/);
+  });
+
+  test('AC-5: a lint credited from fresh evidence covers the ratchets the same way', async () => {
+    const h = coveredHarness(COVERED, {
+      outputs: {
+        lint: { status: 0, stdout: '[evidence-gate] ⏭ lint skipped (fresh)' },
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.deepEqual(ratchetCalls(h.runCommand), ['check-arch-cycles.js']);
+    assert.equal(coveredLines(h).length, 3);
+  });
+
+  test('AC-6: a scoped-out lint covers nothing', async () => {
+    const scopedOut = coveredHarness();
+    scopedOut.deps.scopeGate = ({ gate }) =>
+      gate.name === 'lint' || gate.skip || gate.changedFileScope
+        ? { gate, skip: true }
+        : { gate, cmd: gate.cmd, args: gate.args, skip: false };
+    await scopedOut.run();
+    assert.ok(!spawned(scopedOut.runCommand).includes('lint'));
+    assert.deepEqual(
+      ratchetCalls(scopedOut.runCommand),
+      Object.keys(RATCHET_KEYS),
+    );
+  });
+
+  test('AC-6: a lint narrowed to changed files covers nothing', async () => {
+    const narrowed = coveredHarness();
+    narrowed.deps.scopeGate = ({ gate }) =>
+      gate.skip || gate.changedFileScope
+        ? { gate, skip: true }
+        : {
+            gate,
+            cmd: gate.cmd,
+            args: gate.name === 'lint' ? [...gate.args, 'a.js'] : gate.args,
+            skip: false,
+          };
+    await narrowed.run();
+    assert.deepEqual(
+      ratchetCalls(narrowed.runCommand),
+      Object.keys(RATCHET_KEYS),
+    );
+    assert.equal(coveredLines(narrowed).length, 0);
+  });
+
+  test('AC-7: a failing lint is fix-required with its evidence and no covered ratchet spawns', async () => {
+    const h = coveredHarness(COVERED, {
+      outputs: {
+        lint: { status: 1, stdout: 'lib/x.js: onlyForTests is unused' },
+      },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.match(envelope.evidencePath, /preflight-lint/);
+    assert.match(stopStep(envelope).detail, /^lint finding/);
+    assert.deepEqual(ratchetCalls(h.runCommand), ['check-arch-cycles.js']);
+    assert.equal(coveredLines(h).length, 0);
+  });
+
+  test('AC-3: listing every key the schema accepts covers every ratchet the preflight can run', async () => {
+    const accepted =
+      AGENTRC_SCHEMA.properties.delivery.properties.quality.properties.ratchets
+        .properties.coveredByLint.items.enum;
+    const h = coveredHarness([...accepted]);
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.deepEqual(ratchetCalls(h.runCommand), []);
+    assert.equal(coveredLines(h).length, STANDALONE_RATCHETS.length);
   });
 });
 
