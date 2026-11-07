@@ -634,6 +634,19 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   `Unreviewed` marker naming `no-deposit` or `stale-deposit`, and a
   `review-recorded-at-land` friction signal.
 
+## Handoff telemetry {#handoff-telemetry}
+
+Every `steps[]` entry carries `durationMs` (the review's is `reviewMs`); a
+skip that reuses a result already recorded for this HEAD adds
+`skippedByCredit: true`. A stopped envelope names a `cause` from a closed set
+beside `failedStep`, and every envelope an `attempt` (`null` on a failed
+read). After the state write, each run appends one record to the Story's
+`signals.ndjson` (`phase: handoff`, `emitter.tool: story-handoff`): a `retry`
+when refused, a `trace` when ready. Details carry step names, durations and
+the cause — never a file path. Close telemetry counts them in its `handoff`
+block, apart from close's own `retries`. Best-effort: a failed write never
+changes the status or exit code.
+
 ## Gate output {#gate-output}
 
 Close writes gate lines to `temp/orchestration/close-gates-<storyId>.log` and

@@ -1175,13 +1175,17 @@ The framework emits a closed taxonomy of **thirteen** NDJSON record kinds —
 [`signal-event.schema.json`](../.agents/schemas/signal-event.schema.json).
 
 Enumerated ≠ produced: **no** detector module ships. `diagnose-friction.js`
-and `lib/gates/friction.js` are the live writers; `hotspot`, `rework`,
-`churn`, `idle`, `retry` and `trace` are **reserved names with no producer**.
+and `lib/gates/friction.js` are the live friction writers; `hotspot`,
+`rework`, `churn` and `idle` are **reserved names with no producer**.
 Story #5003 deleted the rework / retry detector pair, their post-merge
-sequencer, and the tool-trace hook that fed them: all three read a
-`traces.ndjson` sibling stream whose only writer was the hook itself, and
-nothing consumed their output. The kind names stay so a re-introduction needs
-no schema bump. Records are written **append-only to
+sequencer, and the tool-trace hook that fed them (and its `traces.ndjson`
+sibling stream). `retry` and `trace` have producers again, each written to
+the Story's own `signals.ndjson`: close appends a `retry` per non-landed
+close (`phase: close`), and `story-handoff.js` appends one record per run
+(`phase: handoff`, `lib/observability/handoff-telemetry.js`) — a `retry`
+naming the refused step and its cause, or a `trace` for a ready run — which
+close telemetry tallies in a separate `handoff` block. The kind names stayed,
+so neither needed a schema bump. Records are written **append-only to
 local disk** under `temp/run-<eid>/stories/story-<sid>/signals.ndjson`
 (standalone Stories: `temp/standalone/stories/story-<sid>/`). GitHub tickets
 receive **summaries only**, never raw events.

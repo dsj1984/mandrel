@@ -1215,6 +1215,10 @@
       "mi": 97.291
     },
     {
+      "path": ".agents/scripts/lib/observability/handoff-telemetry.js",
+      "mi": 106.715
+    },
+    {
       "path": ".agents/scripts/lib/observability/metrics-ledger.js",
       "mi": 105.855
     },
@@ -1996,7 +2000,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "mi": 95.597
+      "mi": 96.399
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
