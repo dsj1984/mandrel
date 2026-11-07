@@ -2,6 +2,8 @@
 
 import { spawn } from 'node:child_process';
 
+import { tapFailureRows } from '../failure-rows.js';
+
 import {
   ADMISSION_REFUSED_EXIT_CODE,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -91,8 +93,8 @@ export function isBiomeNoFilesProcessed(output) {
  *
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, timeoutMs?: number, lockOptions?: object, onLockEvent?: (event: object) => void, skipIfSatisfied?: () => {status: number}|undefined, spawnImpl?: typeof spawn }} opts
- * @returns {Promise<{ status: number }>}
+ * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, retainFailureRows?: boolean, fullSuiteLock?: boolean, timeoutMs?: number, lockOptions?: object, onLockEvent?: (event: object) => void, skipIfSatisfied?: () => {status: number}|undefined, spawnImpl?: typeof spawn }} opts
+ * @returns {Promise<{ status: number, failureRows?: string[] }>}
  */
 export function defaultGateRunner(cmd, args, opts = {}) {
   if (!opts.fullSuiteLock) return spawnGate(cmd, args, opts);
@@ -151,6 +153,7 @@ function spawnGate(cmd, args, opts, lock) {
       supervisor.release();
       resolve({
         status: settledGateStatus({ code, sig, supervisor, opts, output }),
+        ...output.rowsResult(),
       });
     });
     child.on('error', () => {
@@ -181,17 +184,23 @@ function spawnGateChild(cmd, args, cwd, env, spawnImpl = spawn) {
 }
 
 /**
- * Retains a bounded tail only when the biome marker may need inspecting.
+ * Retains a bounded tail only when the biome marker may need inspecting, and
+ * only the capped failure rows of a `retainFailureRows` gate.
  *
- * @param {{ gateName?: string, log?: (m: string) => void, tolerateNoFilesProcessed?: boolean }} opts
+ * @param {{ gateName?: string, log?: (m: string) => void, tolerateNoFilesProcessed?: boolean, retainFailureRows?: boolean }} opts
  */
-function gateOutput({ gateName, log, tolerateNoFilesProcessed }) {
+function gateOutput({
+  gateName,
+  log,
+  tolerateNoFilesProcessed,
+  retainFailureRows,
+}) {
   const prefix = gateName ? `[${gateName}] ` : '';
   const emit =
     typeof log === 'function' ? log : (m) => process.stdout.write(`${m}\n`);
   const recent = [];
-  const tap = tolerateNoFilesProcessed ? retainTail(recent, emit) : emit;
-  return { prefix, emit, tap, recent };
+  const tail = tolerateNoFilesProcessed ? retainTail(recent, emit) : emit;
+  return { prefix, emit, recent, ...tapFailureRows(retainFailureRows, tail) };
 }
 
 function retainTail(recent, emit) {

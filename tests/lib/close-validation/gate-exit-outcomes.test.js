@@ -165,6 +165,149 @@ describe('gate exit outcomes — the close phase settles them', () => {
   });
 });
 
+// Story #5968 — a baselines gate's failure hint quotes the rows it printed.
+describe('gate exit outcomes — a baselines failure quotes its rows', () => {
+  const ROWS = [
+    '- crap: FAIL (breaches=0, regressions=1)',
+    '· a.js::f: crap 3 → 9',
+  ];
+  const FIXED = 'Unified baselines gate breached. Inspect the JSON report.';
+  const baselinesGate = (name) => ({
+    name,
+    cmd: 'node',
+    args: ['.agents/scripts/check-baselines.js', '--format', 'text'],
+    hint: FIXED,
+    retainFailureRows: true,
+  });
+
+  async function closeReturning(gate, result) {
+    const lines = [];
+    let seen;
+    const out = await runCloseValidation({
+      cwd: '/repo',
+      gates: [gate],
+      useEvidence: false,
+      runner: async (_c, _a, opts) => {
+        seen = opts;
+        return result;
+      },
+      log: (m) => lines.push(m),
+    });
+    return { out, seen, text: lines.join('\n') };
+  }
+
+  for (const name of [
+    'check-baselines-independent',
+    'check-baselines-coverage',
+  ]) {
+    it(`AC-7: ${name} exit 1 with rows logs and returns them as the hint`, async () => {
+      const { out, seen, text } = await closeReturning(baselinesGate(name), {
+        status: 1,
+        failureRows: ROWS,
+      });
+      assert.equal(seen.retainFailureRows, true);
+      const [entry] = out.failed;
+      assert.equal(entry.outcome, 'failed');
+      assert.match(
+        entry.gate.hint,
+        /^Baselines gate failed: - crap: FAIL .*; · a\.js::f: crap 3 → 9/,
+      );
+      assert.match(entry.gate.hint, /check-baselines\.js --format json/);
+      assert.ok(text.includes(`hint: ${entry.gate.hint}`), text);
+      assert.ok(!text.includes(FIXED), text);
+    });
+  }
+
+  it('AC-7: with no row retained the fixed hint stays', async () => {
+    const { out } = await closeReturning(baselinesGate('check-baselines'), {
+      status: 1,
+      failureRows: [],
+    });
+    assert.equal(out.failed[0].gate.hint, FIXED);
+  });
+
+  it('AC-7: lock-wait and timeout outcomes keep their own hints', async () => {
+    const gate = baselinesGate('check-baselines');
+    const deferred = await closeReturning(gate, {
+      status: 75,
+      failureRows: ROWS,
+    });
+    assert.equal(deferred.out.failed[0].gate.hint, undefined);
+    const timedOut = await closeReturning(gate, {
+      status: 124,
+      failureRows: ROWS,
+    });
+    assert.match(timedOut.out.failed[0].gate.hint, /timeoutMs/);
+  });
+
+  it('AC-7: the close phase error message carries the quoted rows', async () => {
+    await assert.rejects(
+      runCloseValidationPhase({
+        cwd: '/repo',
+        worktreePath: null,
+        config: {},
+        baseBranch: 'main',
+        storyId: 5968,
+        progress: () => {},
+        buildDefaultGates: () => [baselinesGate('check-baselines')],
+        runPreGateSteps: async () => {},
+        runCloseValidation: (opts) =>
+          runCloseValidation({
+            ...opts,
+            useEvidence: false,
+            runner: async () => ({ status: 1, failureRows: ROWS }),
+          }),
+      }),
+      (err) => {
+        assert.match(err.message, /Baselines gate failed: - crap: FAIL/);
+        assert.doesNotMatch(err.message, /Inspect the JSON report/);
+        return true;
+      },
+    );
+  });
+
+  describe('AC-8: the real runner retains only matched rows, capped', () => {
+    let dir;
+    beforeEach(() => {
+      dir = makeTempDir('mandrel-gate-rows-');
+    });
+    afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+    async function run(retainFailureRows) {
+      const script = path.join(dir, 'emit.js');
+      writeFileSync(
+        script,
+        [
+          "for (let i = 0; i < 500; i++) console.log('noise ' + i);",
+          "for (let i = 0; i < 30; i++) console.log('    · row' + i + ': crap 1 → 9');",
+          'process.exit(1);',
+        ].join('\n'),
+        'utf8',
+      );
+      return defaultGateRunner(process.execPath, [script], {
+        cwd: dir,
+        gateName: 'check-baselines',
+        log: () => {},
+        ...(retainFailureRows ? { retainFailureRows: true } : {}),
+      });
+    }
+
+    it('keeps at most the cap of matched lines and no noise', async () => {
+      const { status, failureRows } = await run(true);
+      assert.equal(status, 1);
+      assert.equal(failureRows.length, 10);
+      assert.equal(failureRows[0], '· row0: crap 1 → 9');
+      assert.ok(failureRows.every((l) => l.startsWith('· row')));
+    });
+
+    it('retains nothing for a gate that does not opt in', async () => {
+      const res = await run(false);
+      assert.equal(res.status, 1);
+      assert.equal(res.failureRows, undefined);
+    });
+  });
+});
+
 describe('gate children resolve config from their cwd (#5729)', () => {
   const PRINT_AGENTRC_CWD = [
     '-e',

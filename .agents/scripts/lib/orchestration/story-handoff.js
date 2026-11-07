@@ -43,6 +43,7 @@ import {
   storyReviewDepositPath,
 } from '../config/temp-paths.js';
 import { COVERAGE_HOST_RESOURCES_EXIT_CODE } from '../coverage-capture.js';
+import { extractFailureRows } from '../failure-rows.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -360,6 +361,7 @@ function preflightChecks(ctx) {
 
 /**
  * A ratchet also fails on `(gate fail)`; its finding names the `+`/`!` rows.
+ * Any other check quotes the failure rows its output carries.
  *
  * @param {{ key: string, gated?: boolean }} check
  * @param {{ status: number, output: string }} run
@@ -377,7 +379,7 @@ function preflightFinding(check, run) {
         .split(/\r?\n/)
         .filter((line) => SIGNALS.offending.test(line))
         .slice(0, MAX_OFFENDING_LINES)
-    : [];
+    : extractFailureRows(run.output, { max: MAX_OFFENDING_LINES });
   const rows = offending.length > 0 ? `: ${offending.join('; ')}` : '';
   return `${check.key}${check.gated ? ' ratchet' : ''} finding${rows} — fix and commit, then re-run`;
 }

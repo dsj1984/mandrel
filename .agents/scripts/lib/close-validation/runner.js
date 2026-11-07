@@ -31,6 +31,7 @@ import {
   GATE_TIMEOUT_HINT,
   OVER_BUDGET_BLOCK_HINT,
   partitionGates,
+  withFailureRows,
 } from './gates.js';
 import { defaultGateRunner } from './process.js';
 import { runProjectionAdvisories as defaultRunProjections } from './projections/advisories.js';
@@ -47,10 +48,10 @@ import { defaultGetHeadSha } from './projections/head-sha.js';
  * `gate.hint` is the one that fits the outcome (none when deferred), so a
  * caller replaying it never prints the failing-tests hint for a non-failure.
  *
- * @param {{ gate: Gate, status: number, cwd: string, log: (m: string) => void }} args
+ * @param {{ gate: Gate, status: number, cwd: string, log: (m: string) => void, failureRows?: string[] }} args
  * @returns {{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'host-resources'|'failed' }}
  */
-function reportGateExit({ gate, status, cwd, log }) {
+function reportGateExit({ gate, status, cwd, log, failureRows }) {
   if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
     log(
       `[close-validation] ⏸ ${gate.name} deferred (exit ${status}) — the full-suite lock wait expired, so nothing ran in ${cwd}`,
@@ -61,8 +62,9 @@ function reportGateExit({ gate, status, cwd, log }) {
   const hinted = hintedExit(gate, status);
   if (hinted) return reportHintedExit({ gate, status, cwd, log, ...hinted });
   log(`[close-validation] ✖ ${gate.name} failed (exit ${status}) in ${cwd}`);
-  if (gate.hint) log(`[close-validation]   hint: ${gate.hint}`);
-  return { gate, status, cwd, outcome: 'failed' };
+  const failedGate = withFailureRows(gate, failureRows);
+  if (failedGate.hint) log(`[close-validation]   hint: ${failedGate.hint}`);
+  return { gate: failedGate, status, cwd, outcome: 'failed' };
 }
 
 export function applyChangedFileScope({ gate, spawnCwd, log }) {
@@ -260,8 +262,9 @@ export async function runCloseValidation({
       ...(gate.tolerateNoFilesProcessed
         ? { tolerateNoFilesProcessed: true }
         : {}),
+      retainFailureRows: gate.retainFailureRows,
     });
-    return { status: result?.status ?? 1 };
+    return { status: result?.status ?? 1, failureRows: result?.failureRows };
   };
 
   const { independent, serial } = partitionGates(gates);
@@ -316,7 +319,7 @@ export async function runCloseValidation({
     }
     if (result.status !== 0) {
       if (!firstIndepFailure) {
-        firstIndepFailure = { gate, status: result.status };
+        firstIndepFailure = { ...result, gate };
         ac.abort();
       }
       return;
@@ -332,8 +335,7 @@ export async function runCloseValidation({
   await Promise.all(indepTasks);
 
   if (firstIndepFailure) {
-    const { gate, status } = firstIndepFailure;
-    failed.push(reportGateExit({ gate, status, cwd: spawnCwd, log }));
+    failed.push(reportGateExit({ ...firstIndepFailure, cwd: spawnCwd, log }));
     return { ok: false, failed, skipped, deferred };
   }
 
@@ -444,8 +446,10 @@ async function runSerialGates(
     dispatchGate,
   },
 ) {
-  const failGate = (gate, status) => {
-    failed.push(reportGateExit({ gate, status, cwd: spawnCwd, log }));
+  const failGate = (gate, status, failureRows) => {
+    failed.push(
+      reportGateExit({ gate, status, cwd: spawnCwd, log, failureRows }),
+    );
   };
   for (const gate of serial) {
     const preset = presetCiDeferral(gate, { deferred, failed, log, spawnCwd });
@@ -579,7 +583,7 @@ function settleSerialResult(gate, result, ctx) {
     return false;
   }
   if (result.status !== 0) {
-    failGate(gate, result.status);
+    failGate(gate, result.status, result.failureRows);
     return true;
   }
   log(`[close-validation] ✓ ${gate.name}`);

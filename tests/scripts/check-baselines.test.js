@@ -450,4 +450,95 @@ describe('check-baselines — formatReport', () => {
     assert.ok(out.includes('coverage: PASS'));
     assert.ok(!out.startsWith('{'));
   });
+
+  const failGate = (kind, extra = {}) => ({
+    kind,
+    kernelMatch: true,
+    components: [
+      {
+        component: '*',
+        violations: [{ axis: 'lines', value: 80, floor: 90, direction: 'gte' }],
+      },
+    ],
+    breachCount: 1,
+    regressionCount: 1,
+    regressions: [
+      { key: 'a.js::f', head: { crap: 9, name: 'f' }, base: { crap: 3 } },
+    ],
+    ...extra,
+  });
+  const textOf = (gates) =>
+    formatReport(
+      { gates, totalBreaches: 1, kernelDriftCount: 0, schemaErrors: [] },
+      'text',
+    ).split('\n');
+
+  it('prints remedy, floor violations, then regression rows under a FAIL kind', () => {
+    const lines = textOf([failGate('crap', { baseRef: 'origin/main' })]);
+    const at = lines.findIndex((l) => l.includes('crap: FAIL'));
+    assert.match(
+      lines[at + 1],
+      /^ {4}↳ remedy: .*`node \.agents\/scripts\/coverage-capture\.js` then `node \.agents\/scripts\/update-crap-baseline\.js --diff-scope origin\/main`.*baseline-refresh:/,
+    );
+    assert.equal(lines[at + 2], '    · *.lines: 80 < floor 90');
+    assert.equal(lines[at + 3], '    · a.js::f: crap 3 → 9');
+  });
+
+  it('names each kind its own remedy and omits the scope flag without a baseRef', () => {
+    const remedy = (kind) =>
+      textOf([failGate(kind)]).find((l) => l.includes('↳ remedy'));
+    assert.match(
+      remedy('coverage'),
+      /coverage-capture\.js` then `node \.agents\/scripts\/update-coverage-baseline\.js`/,
+    );
+    assert.match(
+      remedy('duplication'),
+      /`node \.agents\/scripts\/update-duplication-baseline\.js`/,
+    );
+    assert.match(
+      remedy('maintainability'),
+      /update-maintainability-baseline\.js`/,
+    );
+    assert.match(remedy('bundle-size'), /update-bundle-size-baseline\.js`/);
+    assert.doesNotMatch(remedy('duplication'), /coverage-capture/);
+    assert.match(remedy('mutation'), /mutation run/);
+    assert.doesNotMatch(remedy('mutation'), /\.agents\/scripts/);
+    for (const kind of ['coverage', 'crap', 'duplication', 'mutation']) {
+      assert.doesNotMatch(remedy(kind), /full-scope|reanchor|test:coverage/);
+    }
+  });
+
+  it('reads a new row as (new) and caps regression rows at 20 with an overflow line', () => {
+    const regressions = Array.from({ length: 23 }, (_, i) => ({
+      key: `b${i}`,
+      head: { bytes: 10 },
+      base: null,
+    }));
+    const lines = textOf([
+      failGate('bundle-size', { regressions, regressionCount: 23 }),
+    ]);
+    assert.ok(lines.includes('    · b0: (new) → bytes 10'));
+    assert.equal(lines.filter((l) => /^ {4}· b\d+:/.test(l)).length, 20);
+    assert.ok(
+      lines.includes(
+        '    · … and 3 more — node .agents/scripts/check-baselines.js --gate bundle-size --format json',
+      ),
+    );
+  });
+
+  it('prints no extra lines for a PASS kind or a report without regressions', () => {
+    const pass = {
+      kind: 'crap',
+      kernelMatch: true,
+      components: [],
+      breachCount: 0,
+    };
+    assert.deepEqual(textOf([pass]).slice(1), ['  - crap: PASS']);
+    const legacy = failGate('crap');
+    delete legacy.regressions;
+    assert.equal(
+      textOf([legacy]).filter((l) => l.includes(' · a.js')).length,
+      0,
+    );
+  });
 });

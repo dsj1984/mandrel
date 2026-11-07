@@ -1120,6 +1120,43 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
     });
   }
 
+  test('a non-ratchet preflight finding quotes its failure rows and keeps the evidence path (#5968 AC-1)', async () => {
+    const h = harness({
+      outputs: {
+        lint: {
+          status: 1,
+          stdout:
+            'src/a.js:3:1 lint/style/useConst ━━━━━━\nFound 1 error.\n[run-lint] ✗ biome exited 1',
+        },
+        'quality-preview.js': {
+          status: 1,
+          stdout:
+            '| file | MI delta | worst CRAP delta | n |\n| --- | --- | --- | --- |\n| src/a.js | -2.00 | +0.00 | 0 |',
+        },
+      },
+    });
+    const { envelope } = await h.run();
+    const [lint, preview] = stopStep(envelope).findings;
+    assert.equal(
+      lint.detail,
+      'lint finding: src/a.js:3:1 lint/style/useConst; Found 1 error.; ✗ biome exited 1 — fix and commit, then re-run',
+    );
+    assert.ok(lint.evidencePath);
+    assert.equal(
+      preview.detail,
+      'quality-preview finding: | src/a.js | -2.00 | +0.00 | 0 | — fix and commit, then re-run',
+    );
+  });
+
+  test('a non-ratchet preflight finding with no parsed row keeps the fixed text (#5968 AC-1)', async () => {
+    const h = harness({ outputs: { lint: { status: 1, stdout: 'boom' } } });
+    const { envelope } = await h.run();
+    assert.equal(
+      stopStep(envelope).detail,
+      'lint finding — fix and commit, then re-run',
+    );
+  });
+
   test('lint and quality-preview both failing → one fix-required naming each, no suite', async () => {
     const h = harness({
       outputs: {
@@ -2846,6 +2883,48 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
       assert.ok(!spawned(h.runCommand).includes('git'));
     });
   }
+
+  test('a baselines post-capture finding quotes its FAIL, remedy and row lines (#5968 AC-3)', async () => {
+    const stdout = [
+      '[check-baselines] 1 gate(s) — breaches=0, regressions=1',
+      '  - crap: FAIL (breaches=0, regressions=1)',
+      '    ↳ remedy: fix the named rows',
+      '    · src/a.js::f: crap 3 → 9',
+    ].join('\n');
+    const h = harness({
+      config: baselinesConfig(),
+      outputs: { 'check-baselines.js crap': { status: 1, stdout } },
+    });
+    h.deps.presentBaselines = ['maintainability', 'crap'];
+    const { envelope } = await h.run();
+    assert.equal(
+      stopStep(envelope).detail,
+      'check-baselines-coverage (kinds: crap) finding (exit 1): - crap: FAIL (breaches=0, regressions=1); ↳ remedy: fix the named rows; · src/a.js::f: crap 3 → 9 — fix and commit, then re-run',
+    );
+  });
+
+  test('a post-capture CRAP finding quotes its per-file rows, and is unchanged with none (#5968 AC-3)', async () => {
+    const rows = harness({
+      outputs: {
+        'quality-preview.js --only crap': {
+          status: 1,
+          stdout: '| file | a | b | c |\n| src/a.js | -0.00 | +4.00 | 1 |',
+        },
+      },
+    });
+    const quoted = stopStep((await rows.run()).envelope).detail;
+    assert.match(
+      quoted,
+      /\(exit 1\): \| src\/a\.js \| -0\.00 \| \+4\.00 \| 1 \| — fix/,
+    );
+    const bare = harness({
+      outputs: { 'quality-preview.js --only crap': { status: 1 } },
+    });
+    assert.equal(
+      stopStep((await bare.run()).envelope).detail,
+      'quality-preview-crap finding (exit 1) — fix and commit, then re-run',
+    );
+  });
 
   test('AC-6: post-capture runs once after depositor and seat, lock-free, and skips at an unchanged head', async () => {
     const h = harness({ config: baselinesConfig() });
