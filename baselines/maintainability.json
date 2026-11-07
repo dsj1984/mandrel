@@ -1139,6 +1139,10 @@
       "mi": 98.585
     },
     {
+      "path": ".agents/scripts/lib/git/baseline-conflict-rows.js",
+      "mi": 102.394
+    },
+    {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
       "mi": 113.686
     },
