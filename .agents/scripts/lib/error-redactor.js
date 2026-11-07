@@ -59,6 +59,26 @@ export function redactErrorMessage(message, options = {}) {
   return out.replace(TOKEN_SHAPED, '[REDACTED]');
 }
 
+const JSON_STRING_VALUE = /:\s*"(?:[^"\\]|\\.)*(?:"|$)/g;
+const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+const UUID = /\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/gi;
+
+/**
+ * `redactErrorMessage`, after blanking JSON string values and email- and
+ * UUID-shaped tokens — for raw output that may carry account PII.
+ *
+ * @param {string|undefined} text
+ * @returns {string}
+ */
+export function redactPii(text) {
+  return redactErrorMessage(
+    String(text ?? '')
+      .replace(JSON_STRING_VALUE, ': "<redacted>"')
+      .replace(EMAIL, '<email>')
+      .replace(UUID, '<uuid>'),
+  );
+}
+
 function pathVariants(p) {
   if (!p) return [];
   const back = p.replace(/\//g, '\\');

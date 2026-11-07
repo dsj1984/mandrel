@@ -35,6 +35,7 @@ import {
 } from '../../child-exec.js';
 import { gitSpawn } from '../../git-utils.js';
 import { PROJECT_ROOT } from '../../project-root.js';
+import { defaultSleep } from '../../util/sleep.js';
 import { buildCallersSection } from './callers-context.js';
 import {
   FINDINGS_SCHEMA_JSON,
@@ -317,6 +318,11 @@ async function reviewInTempDir(prompt, effort, deps) {
   }
 }
 
+/** Waits out the failure's `delayMs`, when it names one. */
+async function pauseFor({ delayMs }, deps) {
+  if (delayMs) await (deps.sleepFn ?? defaultSleep)(delayMs);
+}
+
 /** One invocation, re-run once when its failure is transient-shaped. */
 async function reviewWithRetry(prompt, effort, deps) {
   const first = await reviewInTempDir(prompt, effort, deps);
@@ -324,6 +330,7 @@ async function reviewWithRetry(prompt, effort, deps) {
   deps.logger?.warn?.(
     `[code-review] No verdict (${first.reason}); retrying once.`,
   );
+  await pauseFor(first, deps);
   return reviewInTempDir(prompt, effort, deps);
 }
 
@@ -346,6 +353,7 @@ function assertCliPresent(probeFn) {
  *   gitSpawnFn?: typeof gitSpawn,
  *   spawnFn?: Function,
  *   authSpawnFn?: Function,
+ *   sleepFn?: (ms: number) => Promise<void>,
  *   platform?: string,
  *   logger?: { info?: Function, warn?: Function },
  * }} [deps] - `spawnFn` / `authSpawnFn` replace the async runner for the
