@@ -688,9 +688,10 @@ place.
   carrying the key line flips `agent::done` only once that check is green on
   the PR head. While the check is absent or in flight the Story stays at
   `agent::closing` (`pending`, `ci-ratchet-pending`) and a re-run resolves
-  it. A red check flips `agent::blocked` and posts a friction comment naming
-  the check and the PR. The deferred code landed without its ratchet, so an
-  operator must decide. Making the check required in branch protection
+  it. A red check (completed without success: failed, errored, timed out,
+  cancelled, startup failure or action required) flips `agent::blocked` and
+  posts a friction comment naming the check and the PR. The deferred code
+  landed without its ratchet, so an operator must decide. Making the check required in branch protection
   remains the consumer's setting.
 - **Doctor.** `mandrel doctor`'s `coverage-ratchet` check reads
   `.agentrc.json` with `.agentrc.local.json` over it. It fails when
@@ -849,7 +850,7 @@ to `true` to opt in.
 upsert one `story-outcome` structured comment on the Story issue: a fenced JSON
 record of each attempt (status, cause, failed gates, PR, mandrel version,
 worker figures) and a summary whose counters carry across machines and across
-the 100-attempt cap. Recording is best-effort and never changes the terminal
+the 100-attempt / comment-size cap. Recording is best-effort and never changes the terminal
 envelope or exit code. `node .agents/scripts/story-outcomes-report.js
 [--since <YYYY-MM-DD>] [--json]` reads those comments back in one paginated
 call and reports first-pass rate, mean attempts to land, failed gates by count

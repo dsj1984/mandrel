@@ -52,7 +52,13 @@ export async function openAndReviewPr(ctx, deps) {
   // Already merged (landed between invocations): skip review and arm; confirm observes it.
   if (alreadyMerged) {
     discardHeldReview(ctx.heldReview, 'PR already merged', progress);
-    return { prUrl, prNumber, alreadyMerged: true, pushOutcome };
+    return {
+      prUrl,
+      prNumber,
+      alreadyMerged: true,
+      pushOutcome,
+      reviewSkipped: true,
+    };
   }
   const reviewOutcome = await reviewAfterPrOpen({
     held: ctx.heldReview,

@@ -2,7 +2,9 @@
  * ci-ratchet-gate.js — confirm-merge's hold on a PR whose coverage was
  * deferred to CI. With `coverage.ciRatchetCheck` set, a merged PR carrying
  * the `Coverage-deferred:` key line is confirmed only once that check is
- * green on the PR head: absent or in flight stays pending, red blocks.
+ * green on the PR head: absent or in flight stays pending; completed
+ * without success (failure, error, timed out, cancelled, startup failure,
+ * action required) blocks.
  */
 
 import { resolveQuality } from '../config/quality.js';
@@ -10,10 +12,10 @@ import { readDeferralMarker } from '../coverage-deferral.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
 import {
-  isRunInFlight,
-  readRunName,
-  redConclusionOf,
-} from '../orchestration/merge-poll.js';
+  checkVerdict,
+  classifyRollupEntry,
+} from '../orchestration/check-state.js';
+import { isRunInFlight, readRunName } from '../orchestration/merge-poll.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -39,7 +41,9 @@ function ratchetVerdict(rollup, checkName) {
   );
   if (runs.some(isGreen)) return 'green';
   if (runs.some(isRunInFlight)) return 'in-flight';
-  return runs.some((run) => redConclusionOf(run)) ? 'red' : 'absent';
+  return runs.some((run) => checkVerdict(classifyRollupEntry(run)) === 'fail')
+    ? 'red'
+    : 'absent';
 }
 
 /** Post the friction comment and flip `agent::blocked`; each write best-effort. */

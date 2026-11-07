@@ -297,6 +297,57 @@ test('attempts are capped at 100 while counters carry forward', async (t) => {
   assert.equal(rec.summary.failedGates.lint, 105);
 });
 
+test('a near-limit record is trimmed by size so the post fits and counters hold', async (t) => {
+  const gateNames = [
+    'validation',
+    'baseSync',
+    'codeReview',
+    'check-baselines',
+    'check-baselines-independent',
+    'check-baselines-coverage',
+  ];
+  const attempt = {
+    ts: '2026-01-01T00:00:00.000Z',
+    tool: 'single-story-close',
+    status: 'failed',
+    phase: 'close-validation',
+    failedGates: gateNames,
+    workerModel: 'm'.repeat(300),
+  };
+  const prior = {
+    schemaVersion: 1,
+    storyId: STORY,
+    attempts: Array.from({ length: 100 }, () => attempt),
+    summary: {
+      attempts: 100,
+      byStatus: { failed: 100 },
+      failedGates: Object.fromEntries(gateNames.map((g) => [g, 100])),
+    },
+  };
+  const provider = fakeProvider([
+    `${MARKER}\n\n\`\`\`json\n${JSON.stringify(prior, null, 2)}\n\`\`\``,
+  ]);
+  const post = provider.postComment;
+  provider.postComment = async (id, payload) => {
+    if (payload.body.length > 65536) throw new Error('422 body too long');
+    return post(id, payload);
+  };
+  const gates = Object.fromEntries(gateNames.map((g) => [g, 'failed']));
+  const wrote = await record({
+    envelope: envelope('failed', { gates }),
+    config: config(t),
+    provider,
+    worker: { workerModel: 'w'.repeat(5000) },
+  });
+  assert.equal(wrote, true);
+  const body = provider.comments.find((c) => c.body.includes(MARKER)).body;
+  assert.ok(body.length < 65536);
+  const rec = onlyRecord(provider);
+  assert.equal(rec.summary.attempts, 101);
+  for (const g of gateNames) assert.equal(rec.summary.failedGates[g], 101);
+  assert.equal(rec.attempts.at(-1).workerModel.length, 200);
+});
+
 test('each attempt records the mandrel version at the project root, or null (AC-7)', async (t) => {
   const root = makeTempDir('story-outcome-version-');
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

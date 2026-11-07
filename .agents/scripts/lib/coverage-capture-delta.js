@@ -262,6 +262,12 @@ function refusedUnlessOwnFix(opts) {
   return judgeOwnFix({ ...opts, isConfig, formatFreshnessDetail });
 }
 
+/** A config-free delta the rule fully excused only needs a re-stamp. */
+function canRestamp(rule, delta) {
+  if (rule.delta.length > 0 || delta.length === 0) return false;
+  return !delta.some(isCoverageConfigFile);
+}
+
 /** Main's committed delta since the stamp, judged by the shared rule. */
 function classifyCommittedDelta({
   cwd,
@@ -285,7 +291,7 @@ function classifyCommittedDelta({
     configHandled: coverage?.captureHandlesConfigChanges === true,
     ownCommits: () => storyOwnCommits({ cwd, commit, baseRef, spawn }),
   });
-  const restamp = rule.delta.length === 0 && delta.length > 0;
+  const restamp = canRestamp(rule, delta);
   const opts = {
     cwd,
     crap,

@@ -23,6 +23,10 @@ import {
 import { parseDiffScopeFlag } from './diff-scope-cli.js';
 import { assertEnvelope } from './envelope.js';
 import { getKindModule } from './kernel.js';
+import {
+  classifyScoringSemantics,
+  SCORING_SEMANTICS,
+} from './kinds/_crap-read.js';
 import { canonicalizeBaselinePath } from './path-canon.js';
 import {
   deriveScopeFromDiff,
@@ -148,6 +152,17 @@ function buildSeatedEnvelope({ kind, priorEnvelope, seated }) {
   return envelope;
 }
 
+/** A behind CRAP baseline needs a full re-seed; seating would mix semantics. */
+function assertCrapPriorCurrent(kind, envelope) {
+  if (kind !== 'crap' || !envelope) return;
+  const stamp = envelope.scoringSemantics;
+  if (classifyScoringSemantics(stamp) !== 'behind') return;
+  throw new SeatRefusal(
+    `[CRAP] --seat-missing refused: baseline scoringSemantics=${stamp ?? '<unstamped>'} ` +
+      `is behind running=${SCORING_SEMANTICS}; re-seed with a --full-scope crap:update`,
+  );
+}
+
 /** An ahead baseline is left untouched: nothing seated, nothing scored. */
 function handOff(ahead) {
   return { seated: 0, wrote: false, files: [], ahead };
@@ -181,6 +196,7 @@ export async function seatMissingBaseline({
 }) {
   const prior = readPriorState(writePath, fs, kind);
   if (prior.ahead) return handOff(prior.ahead);
+  assertCrapPriorCurrent(kind, prior.envelope);
   return seatScoped({
     kind,
     writePath,

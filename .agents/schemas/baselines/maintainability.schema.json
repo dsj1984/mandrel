@@ -4,6 +4,7 @@
   "title": "MaintainabilityBaseline",
   "description": "Per-kind baseline schema for the Maintainability Index (MI) gate. Extends the shared baseline-envelope contract. Story #2193: the row axis stays `mi`; rollups expose `min` / `p50` / `p95` axes, and configured floors under `delivery.quality.gates.maintainability.floors[*]` target those rollup axes (the framework default is `{ min: 70 }`).",
   "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "required": ["rows"],
   "type": "object",
   "properties": {
     "rows": {

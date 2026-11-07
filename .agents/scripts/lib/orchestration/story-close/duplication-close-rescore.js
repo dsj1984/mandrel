@@ -280,13 +280,5 @@ export async function runDuplicationCloseRescore({
   logger.warn?.(
     `${TAG} re-scored ${moved.length} duplication row(s) on story #${storyId}; committed as ${committed.value}.`,
   );
-  const movedPaths = moved.map((m) => m.path);
-  return {
-    ran: true,
-    committed: true,
-    sha: committed.value,
-    movedPaths,
-    moved,
-    partners,
-  };
+  return committedResult(committed.value, moved, partners);
 }

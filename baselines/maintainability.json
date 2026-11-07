@@ -2079,6 +2079,10 @@
       "mi": 97.185
     },
     {
+      "path": ".agents/scripts/lib/pr-body-lines.js",
+      "mi": 116.813
+    },
+    {
       "path": ".agents/scripts/lib/preflight-runner.js",
       "mi": 106.958
     },

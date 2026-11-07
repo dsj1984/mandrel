@@ -1527,7 +1527,13 @@ async function defaultBlock({
   createProviderFn,
   warn,
 }) {
-  const provider = createProviderFn(config);
+  let provider;
+  try {
+    provider = createProviderFn(config);
+  } catch (err) {
+    warn(`failed to create provider: ${err?.message ?? err}`);
+    return;
+  }
   try {
     await upsertStructuredComment(
       provider,
@@ -1691,15 +1697,38 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   ctx.head = headSha(ctx);
 
   const steps = [];
-  let [stop] = await timed(ctx, async () => [precheck(ctx)].filter(Boolean));
-  if (stop) steps.push(stop);
-  else stop = await runSteps(ctx, steps);
+  let stop;
+  try {
+    [stop] = await timed(ctx, async () => [precheck(ctx)].filter(Boolean));
+    if (stop) steps.push(stop);
+    else stop = await runSteps(ctx, steps);
+  } catch (err) {
+    // A runner fault is re-runnable, so it never flips agent::blocked.
+    stop = fixRequired(
+      ctx.stepName ?? 'precheck',
+      `threw: ${err?.message ?? err}`,
+      {
+        cause: 'other',
+      },
+    );
+    steps.push(stop);
+    progress(stop.name, `${stop.outcome} — ${stop.detail}`);
+  }
   appendReview(steps, await ctx.reviewPending);
 
   const status = stop?.stop ?? HANDOFF_STATUS.READY;
   const credited = steps.find((s) => s.name === 'credited-run');
   if (status === HANDOFF_STATUS.BLOCKED) {
-    await block({ storyId, config, reason: stop.reason, detail: stop.detail });
+    try {
+      await block({
+        storyId,
+        config,
+        reason: stop.reason,
+        detail: stop.detail,
+      });
+    } catch (err) {
+      progress('BLOCK', `block failed: ${err?.message ?? err}`);
+    }
   }
   const envelope = {
     kind: 'story-handoff',

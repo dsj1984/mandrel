@@ -211,6 +211,48 @@ describe('CRAP seat against a baseline stamped ahead (#5991 AC-2)', () => {
   });
 });
 
+describe('CRAP seat against a baseline stamped behind', () => {
+  /** A legacy rows[] envelope carrying two same-name methods in one file. */
+  function writeBehindCrapBaseline(stamp) {
+    const fresh = writeEnvelope({ kind: 'crap', rows: [] });
+    const envelope = {
+      $schema: fresh.$schema,
+      kernelVersion: fresh.kernelVersion,
+      ...(stamp ? { scoringSemantics: stamp } : {}),
+      rows: [
+        { path: 'src/a.js', method: '<anonymous>', startLine: 3, crap: 5 },
+        { path: 'src/a.js', method: '<anonymous>', startLine: 20, crap: 42 },
+      ],
+    };
+    const writePath = path.join(tempDir(), 'crap.json');
+    const bytes = `${JSON.stringify(envelope, null, 2)}\n`;
+    fs.writeFileSync(writePath, bytes);
+    return { writePath, bytes };
+  }
+
+  for (const stamp of ['method-identity-v4', undefined]) {
+    it(`refuses and leaves the file untouched (stamp: ${stamp ?? 'none'})`, async () => {
+      const { writePath, bytes } = writeBehindCrapBaseline(stamp);
+      let scored = false;
+      await assert.rejects(
+        seatMissingBaseline({
+          kind: 'crap',
+          writePath,
+          baseRef: 'origin/main',
+          gitDiff: async () => ['src/b.js'],
+          score: async () => {
+            scored = true;
+            return [{ path: 'src/b.js', method: 'y', crap: 2 }];
+          },
+        }),
+        (err) => err instanceof SeatRefusal && /behind/.test(err.message),
+      );
+      assert.equal(scored, false);
+      assert.equal(fs.readFileSync(writePath, 'utf8'), bytes);
+    });
+  }
+});
+
 describe('seatMissingBaseline — maintainability (AC-3)', () => {
   it('seats only absent paths and keeps existing rows byte-identical', async () => {
     const prior = [

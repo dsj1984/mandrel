@@ -1586,6 +1586,25 @@ describe('story-handoff — the default block writes the label and the friction 
     assert.match(comments[0].body, /story-handoff blocked: remote-unreachable/);
   });
 
+  test('a provider that fails to build degrades to a warning, keeping the block', async () => {
+    const h = harness({ world: gitWorld({ lsRemoteFails: true }) });
+    delete h.deps.block;
+    h.deps.createProviderFn = () => {
+      throw new Error('no GitHub token');
+    };
+    const lines = [];
+    h.deps.progress = (tag, msg) => lines.push({ tag, msg });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.status, 'blocked');
+    assert.ok(
+      lines.some(
+        (l) =>
+          l.tag === 'BLOCK' && /create provider: no GitHub token/.test(l.msg),
+      ),
+    );
+  });
+
   test('a fix-required settle writes no label and no comment', async () => {
     const touched = [];
     const h = harness({ outputs: { lint: { status: 1 } } });
@@ -3980,6 +3999,45 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
     });
   }
 
+  test('a check that throws inside its reservation escapes once, not handed back', async () => {
+    const h = lanesHarness({ config: lanesConfig() });
+    admission(h);
+    const lines = progressLines(h);
+    const run = h.deps.runCommand;
+    const lintCalls = [];
+    h.deps.runCommand = async (cmd, args, opts) => {
+      if (commandKey(cmd, args) !== 'lint') return run(cmd, args, opts);
+      lintCalls.push(opts.env.MANDREL_SUITE_RESERVATION);
+      throw new Error('spawn ENOENT');
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.equal(envelope.cause, 'other');
+    assert.match(stopStep(envelope).detail, /spawn ENOENT/);
+    assert.deepEqual(lintCalls, [RESERVATION]);
+    assert.ok(!lines.some((l) => /back to the serial lane/.test(l.msg)));
+  });
+
+  test('an admission that throws before spawning hands the check to the base lane', async () => {
+    const h = lanesHarness({ config: lanesConfig() });
+    h.deps.admitSuite = async () => {
+      throw new Error('lock dir gone');
+    };
+    const lines = progressLines(h);
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.equal(spawned(h.runCommand).filter((k) => k === 'lint').length, 1);
+    assert.equal(reservationOf(h, 'lint'), undefined);
+    assert.ok(
+      lines.some((l) =>
+        /lint back to the serial lane: admission failed: lock dir gone/.test(
+          l.msg,
+        ),
+      ),
+    );
+  });
+
   test('AC-8: a lost deposit is re-recorded with close hash so close skips the gate', async () => {
     const h = lanesHarness({ config: lanesConfig() });
     admission(h);
@@ -4084,6 +4142,36 @@ describe('story-handoff — per-run telemetry (Story #5970)', () => {
       assert.equal(envelopes[i].cause, 'lint');
       assert.ok(Number.isInteger(record.details.stepDurationsMs.preflight));
     }
+  });
+
+  test('a step that throws still settles fix-required with one retry signal', async () => {
+    const h = harness();
+    const run = h.deps.runCommand;
+    h.deps.runCommand = async (cmd, args, opts) => {
+      if (commandKey(cmd, args) === 'lint') throw new Error('spawn EAGAIN');
+      return run(cmd, args, opts);
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.equal(envelope.cause, 'other');
+    assert.match(stopStep(envelope).detail, /spawn EAGAIN/);
+    const written = records();
+    assert.equal(written.length, 1);
+    assert.equal(written[0].kind, 'retry');
+    assert.equal(written[0].details.cause, 'other');
+  });
+
+  test('a throwing block dep still writes the envelope and the signal', async () => {
+    const h = harness({ world: gitWorld({ lsRemoteFails: true }) });
+    h.deps.block = async () => {
+      throw new Error('provider down');
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.status, 'blocked');
+    assert.equal(records().length, 1);
   });
 
   test('AC-4: a ready run appends one trace record with suite timings and no retry', async () => {

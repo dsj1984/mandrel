@@ -13,7 +13,10 @@ import {
   resolveSharedBaseRef,
   unresolvedBaseReviewOutcome,
 } from '../../review-base-ref.js';
-import { degradationEnvelope } from '../../review-providers/degraded-gates.js';
+import {
+  degradationEnvelope,
+  resolveNoVerdictHalt,
+} from '../../review-providers/degraded-gates.js';
 import { runStoryReviewCore } from '../../story-close/phases/review-core.js';
 import { postStructuredComment } from '../../ticketing/state.js';
 import {
@@ -93,6 +96,42 @@ async function postStoryReviewCrossRef({
 
 /** @param {object} [config] */
 const onNoVerdictOf = (config) => config?.delivery?.codeReview?.onNoVerdict;
+
+/** @param {unknown} prUrl */
+const prNumberDegradation = (prUrl) => ({
+  tool: 'story-scope-review',
+  gate: 'pr-number',
+  surface: String(prUrl ?? 'pull-request'),
+  kind: 'verdict-missing',
+  reason: 'pr-number-unparseable',
+});
+
+/** @param {object|null} halt */
+const haltFieldsOf = (halt) => ({
+  halted: halt !== null,
+  haltCause: halt?.haltCause ?? null,
+  blockerReason: halt?.blockerReason ?? null,
+});
+
+const ZERO_SEVERITY = Object.freeze({
+  critical: 0,
+  high: 0,
+  medium: 0,
+  suggestion: 0,
+});
+
+/** No PR number means no review ran: a verdict-missing record, not a pass. */
+function unparseablePrOutcome({ prUrl, storyId, config }) {
+  const degradations = [prNumberDegradation(prUrl)];
+  const onNoVerdict = onNoVerdictOf(config);
+  const halt = resolveNoVerdictHalt({ degradations, onNoVerdict, storyId });
+  return {
+    ...haltFieldsOf(halt),
+    skipped: true,
+    severity: { ...ZERO_SEVERITY },
+    ...degradationEnvelope(degradations),
+  };
+}
 
 /**
  * Run the review against `headRef`; `deferPost` holds the report unposted.
@@ -272,7 +311,7 @@ export async function runStoryScopeReview({
       'REVIEW',
       `⏭ Story-scope review skipped: could not parse PR number from URL ${prUrl}.`,
     );
-    return { halted: false, skipped: true };
+    return unparseablePrOutcome({ prUrl, storyId, config });
   }
   const computed = await computeStoryScopeReview({
     cwd,

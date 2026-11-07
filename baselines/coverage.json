@@ -3141,6 +3141,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/pr-body-lines.js",
+      "lines": 100,
+      "branches": 81.82,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/preflight-runner.js",
       "lines": 81.43,
       "branches": 53.33,

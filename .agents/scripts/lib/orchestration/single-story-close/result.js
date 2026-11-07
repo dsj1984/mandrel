@@ -182,21 +182,32 @@ function deferredCaptureGate(validationGates) {
 }
 
 /**
- * Derived from the review's degradation kinds, never the bare `degraded` flag.
+ * Derived from the review's degradation kinds, never the bare `degraded` flag;
+ * `skipped` when this run reviewed nothing (an already-merged PR).
  *
  * @param {object|null} reviewOverride
  * @param {ReadonlyArray<object>} [reviewDegradations]
+ * @param {boolean} [reviewSkipped]
  * @returns {string}
  */
-function codeReviewGate(reviewOverride, reviewDegradations) {
+function codeReviewGate(reviewOverride, reviewDegradations, reviewSkipped) {
+  if (isUnreviewed(reviewOverride, reviewSkipped)) return 'skipped';
   return reviewGateValue(reviewDegradations, { overridden: !!reviewOverride });
 }
+
+/**
+ * @param {object|null} reviewOverride
+ * @param {boolean} [reviewSkipped]
+ */
+const isUnreviewed = (reviewOverride, reviewSkipped) =>
+  !reviewOverride && !!reviewSkipped;
 
 /**
  * @param {{ skipValidation?: boolean, skipSync?: boolean }} options
  * @param {Record<string, string>|null} validationGates
  * @param {object|null} reviewOverride
  * @param {ReadonlyArray<object>} [reviewDegradations]
+ * @param {{ reviewSkipped?: boolean }} [review]
  * @returns {Record<string, string>}
  */
 export function closeEnvelopeGates(
@@ -204,13 +215,18 @@ export function closeEnvelopeGates(
   validationGates,
   reviewOverride,
   reviewDegradations,
+  { reviewSkipped = false } = {},
 ) {
   return {
     validation: options.skipValidation ? 'skipped' : 'passed',
     ...baselinesEnvelopeGates(validationGates),
     ...deferredCaptureGate(validationGates),
     baseSync: options.skipSync ? 'skipped' : 'passed',
-    codeReview: codeReviewGate(reviewOverride, reviewDegradations),
+    codeReview: codeReviewGate(
+      reviewOverride,
+      reviewDegradations,
+      reviewSkipped,
+    ),
   };
 }
 

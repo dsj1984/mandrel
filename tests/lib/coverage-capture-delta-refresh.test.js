@@ -65,6 +65,7 @@ const SYNCS = {
   script: { 'scripts/tool.js': 'export const t = 1;\n' },
   baseline: BASELINE,
   mixed: { ...UNRELATED, ...BASELINE },
+  configOnly: { 'package.json': '{}\n' },
   ...Object.fromEntries(
     CONFIGS.map((config) => [config, { ...UNRELATED, [config]: '{}\n' }]),
   ),
@@ -557,6 +558,31 @@ describe('narrower delta rule (Story #5954)', () => {
     });
     assert.equal(second.calls[0].env[BASE_REF_ENV], stamped);
     assert.doesNotMatch(second.log, /coverage-determining config/);
+  });
+
+  const JSON_GLOB = ['**/*.json'];
+
+  it('a config delta matched by nonInputGlobs never restamps', async () => {
+    const repo = fixtureRepo({ captured: true });
+    repo.baseSync('configOnly');
+    const second = await capture(repo.dir, {
+      coverage: { nonInputGlobs: JSON_GLOB },
+    });
+    assert.match(second.log, /coverage-determining config package\.json/);
+    assert.doesNotMatch(second.log, /rule: restamp/);
+    assert.equal(second.calls[0].env[BASE_REF_ENV], 'main');
+  });
+
+  it('with captureHandlesConfigChanges a glob-matched config delta still runs', async () => {
+    const repo = fixtureRepo({ captured: true });
+    const stamped = repo.readStamp().commit;
+    repo.baseSync('configOnly');
+    const second = await capture(repo.dir, {
+      coverage: { nonInputGlobs: JSON_GLOB, captureHandlesConfigChanges: true },
+    });
+    assert.equal(second.calls.length, 1);
+    assert.equal(second.calls[0].env[BASE_REF_ENV], stamped);
+    assert.doesNotMatch(second.log, /rule: restamp/);
   });
 
   it("AC-4: a base-only overlap refresh's Story rows equal a Story-scope capture", async () => {

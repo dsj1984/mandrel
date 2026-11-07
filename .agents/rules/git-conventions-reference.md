@@ -116,8 +116,8 @@ owned by `boot-sweep.js` / `clean-git.js`:
   confirmed, eyeballed reap.
 - **Stalled deliveries are reported, never touched.** The same boot sweep
   (`boot-sweep.js` and `single-story-init.js`) automatically lists every open
-  `agent::executing` Story whose `story-<id>` origin head has not moved for
-  6 hours (`--stalled-after-hours <n>`) and that has no open PR — a session
+  `agent::executing` Story whose `story-<id>` origin head has not moved (no
+  commit and no push) for 6 hours (`--stalled-after-hours <n>`) and that has no open PR — a session
   that died silently. It reads origin over the REST API, writes nothing, and
   is advisory: each row names `deliver-recover.js --story <id>`, which owns
   the verdict.

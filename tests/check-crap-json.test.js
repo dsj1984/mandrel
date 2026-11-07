@@ -96,6 +96,29 @@ test('buildCrapReport — empty envelope validates against crap-report.schema.js
   assert.strictEqual(envelope.summary.diffRef, 'main');
 });
 
+test('schema describes no removed unsound-basis machinery, and the deprecated counters stay 0', () => {
+  const schema = JSON.parse(fs.readFileSync(SCHEMA_PATH, 'utf-8'));
+  const described = JSON.stringify([
+    schema.properties.summary,
+    schema.properties.diagnostics.description,
+  ]);
+  assert.doesNotMatch(described, /unsound-basis|drifted-row ratio/);
+  const envelope = buildCrapReport({
+    compareResult: compareCrap({
+      currentRows: [],
+      baselineRows: [],
+      newMethodCeiling: 30,
+      tolerance: 0.001,
+    }),
+    scanSummary: {},
+    kernelVersion: KERNEL_VERSION,
+    escomplexVersion: '7.3.2',
+    newMethodCeiling: 30,
+  });
+  assert.strictEqual(envelope.summary.incomparable, 0);
+  assert.strictEqual(envelope.summary.provenanceMismatched, 0);
+});
+
 test('buildCrapReport — full-scope nulls diffRef (Story #1394)', () => {
   const validate = loadValidator();
   const envelope = buildCrapReport({

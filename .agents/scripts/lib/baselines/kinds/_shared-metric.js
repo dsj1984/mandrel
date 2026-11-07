@@ -80,65 +80,6 @@ export function makeRollup({ aggregate }) {
 }
 
 /**
- * A removed base row is an improvement only when `removedIsImprovement` says
- * so; otherwise it is unchanged.
- *
- * @param {{
- *   identity: (row: object) => string,
- *   betterIsHigher: boolean,
- *   metricField: string,
- *   removedIsImprovement?: (row: object) => boolean
- * }} opts
- * @returns {(head: object, base: object) => {
- *   regressions: object[], improvements: object[],
- *   unchanged: object[], additions: object[]
- * }}
- */
-export function makeCompare({
-  identity,
-  betterIsHigher,
-  metricField,
-  removedIsImprovement = () => false,
-}) {
-  return function compare(head, base) {
-    const headRows = Array.isArray(head?.rows) ? head.rows : [];
-    const baseRows = Array.isArray(base?.rows) ? base.rows : [];
-    const baseByKey = new Map();
-    for (const r of baseRows) baseByKey.set(identity(r), r);
-    const seen = new Set();
-    const regressions = [];
-    const improvements = [];
-    const unchanged = [];
-    const additions = [];
-    for (const h of headRows) {
-      const key = identity(h);
-      seen.add(key);
-      const b = baseByKey.get(key);
-      if (!b) {
-        additions.push({ key, head: h, base: null });
-        continue;
-      }
-      const delta = (h[metricField] ?? 0) - (b[metricField] ?? 0);
-      const regressed = betterIsHigher ? delta < 0 : delta > 0;
-      const improved = betterIsHigher ? delta > 0 : delta < 0;
-      if (regressed) regressions.push({ key, head: h, base: b });
-      else if (improved) improvements.push({ key, head: h, base: b });
-      else unchanged.push({ key, head: h, base: b });
-    }
-    for (const b of baseRows) {
-      const key = identity(b);
-      if (seen.has(key)) continue;
-      if (removedIsImprovement(b)) {
-        improvements.push({ key, head: null, base: b });
-      } else {
-        unchanged.push({ key, head: null, base: b });
-      }
-    }
-    return { regressions, improvements, unchanged, additions };
-  };
-}
-
-/**
  * Within epsilon, the prior row object is returned so its bytes are kept.
  *
  * @param {{

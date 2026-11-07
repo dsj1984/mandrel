@@ -6,6 +6,9 @@
 
 import { paginateRest, parseApiJson } from './request-helpers.js';
 
+// 50,000 comments: a wide `story-outcomes-report --since` window stays readable.
+const REPO_COMMENTS_PAGE_CAP = 500;
+
 // Visible headers downstream consumers grep for — keep them byte-stable.
 const TYPE_BADGES = {
   progress: '🔄 **Progress**',
@@ -36,10 +39,11 @@ export class CommentGateway {
    *                 id, body, created_at, user
    */
   async getTicketComments(ticketId) {
-    return paginateRest(
-      this._gh,
-      `/repos/${this.owner}/${this.repo}/issues/${ticketId}/comments`,
-    );
+    return paginateRest(this._gh, `${this._issues()}/${ticketId}/comments`);
+  }
+
+  _issues() {
+    return `/repos/${this.owner}/${this.repo}/issues`;
   }
 
   /**
@@ -49,14 +53,15 @@ export class CommentGateway {
   async getRepoCommentsSince(since) {
     return paginateRest(
       this._gh,
-      `/repos/${this.owner}/${this.repo}/issues/comments?since=${encodeURIComponent(since)}`,
+      `${this._issues()}/comments?since=${encodeURIComponent(since)}`,
+      { pageCap: REPO_COMMENTS_PAGE_CAP },
     );
   }
 
   async deleteComment(commentId) {
     await this._gh.api({
       method: 'DELETE',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`,
+      endpoint: `${this._issues()}/comments/${commentId}`,
     });
   }
 
@@ -75,7 +80,7 @@ export class CommentGateway {
 
     const result = await this._gh.api({
       method: 'POST',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/${ticketId}/comments`,
+      endpoint: `${this._issues()}/${ticketId}/comments`,
       body: { body },
     });
     const comment = parseApiJson(result);

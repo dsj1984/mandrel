@@ -101,6 +101,35 @@ describe('confirm-merge — the CI ratchet hold (AC-10)', () => {
     assert.match(provider.comments[0], /PR #77/);
   });
 
+  for (const conclusion of [
+    'TIMED_OUT',
+    'CANCELLED',
+    'STARTUP_FAILURE',
+    'ACTION_REQUIRED',
+  ]) {
+    it(`blocks on a check that completed ${conclusion}`, async () => {
+      const { result, provider } = await confirm({
+        rollup: [run({ status: 'COMPLETED', conclusion })],
+      });
+      assert.equal(result.action, 'blocked');
+      assert.equal(result.reason, 'ci-ratchet-red');
+      assert.ok(provider.labels().includes('agent::blocked'));
+      assert.equal(provider.comments.length, 1);
+    });
+  }
+
+  it('a green re-run beats a timed-out run; an in-flight re-run holds', async () => {
+    const timedOut = run({ status: 'COMPLETED', conclusion: 'TIMED_OUT' });
+    const green = await confirm({
+      rollup: [timedOut, run({ status: 'COMPLETED', conclusion: 'SUCCESS' })],
+    });
+    assert.equal(green.result.action, 'done');
+    const rerun = await confirm({
+      rollup: [timedOut, run({ status: 'IN_PROGRESS' })],
+    });
+    assert.equal(rerun.result.action, 'pending');
+  });
+
   it('confirms as today without the marker or without ciRatchetCheck', async () => {
     const unmarked = await confirm({ body: 'Closes #5955' });
     assert.equal(unmarked.result.action, 'done');

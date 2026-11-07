@@ -40,17 +40,17 @@
         "incomparable": {
           "type": "integer",
           "minimum": 0,
-          "description": "Story #4866: scanned methods the compare REFUSED to resolve because their line coordinate provenance differs from the matching baseline rows'. Reported, never scored — resolving them through the nearest-line drift heuristic is what manufactures a regression no change can satisfy."
+          "description": "Deprecated: always 0. The compare that refused methods with differing line-coordinate provenance was removed when CRAP rows stopped being keyed by startLine; kept for envelope compatibility."
         },
         "provenanceMismatched": {
           "type": "integer",
           "minimum": 0,
-          "description": "Story #4871: scanned methods whose baseline candidates included at least one row expressed in a DIFFERENT line coordinate system, counted BEFORE the compare's provenance filter discards that evidence. This — not the drifted-row count, which by construction only ever counts rows whose coordinates agreed — is the quantity the unsound-basis backstop compares against its threshold."
+          "description": "Deprecated: always 0. CRAP rows no longer carry a line coordinate, so there is no provenance to mismatch; kept for envelope compatibility."
         },
         "unscorable": {
           "type": "integer",
           "minimum": 0,
-          "description": "Story #4871: methods the scan could not score because no coverage artifact covered them. Reported rather than computed from an assumed zero percent coverage (which would drive CRAP maximal on untouched files), and excluded from the denominator of the unsound-basis ratio."
+          "description": "Story #4871: methods the scan could not score because no coverage artifact covered them. Reported rather than computed from an assumed zero percent coverage (which would drive CRAP maximal on untouched files)."
         },
         "removed": { "type": "integer", "minimum": 0 },
         "skippedNoCoverage": { "type": "integer", "minimum": 0 },
@@ -118,7 +118,7 @@
     },
     "diagnostics": {
       "type": "array",
-      "description": "Story #4866: named, gate-level findings emitted INSTEAD of per-method verdicts when the gate has established that no verdict it could produce would be meaningful — an incomparable baseline, a baseline stamped ahead of the running code, or a comparison basis whose drifted-row ratio proves the two sides disagree on line coordinates. Present only in that case; `violations` is then empty and the preview gate exits 0.",
+      "description": "Story #4866: named, gate-level findings emitted INSTEAD of per-method verdicts when the gate has established that no verdict it could produce would be meaningful — an incomparable baseline or a baseline stamped ahead of the running code. Present only in that case; `violations` is then empty and the preview gate exits 0. `crap-unsound-comparison-basis` is a retired name kept in the enum for compatibility and no longer emitted.",
       "items": {
         "type": "object",
         "required": ["name", "message"],

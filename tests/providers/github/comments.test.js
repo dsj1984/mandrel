@@ -88,6 +88,24 @@ describe('providers/github/comments.js — CommentGateway', () => {
     );
   });
 
+  it('getRepoCommentsSince: reads past the default 50-page cap on a wide window', async () => {
+    const exec = async ({ args }) => {
+      const page = Number(/[?&]page=(\d+)/.exec(args[3])[1]);
+      const n = page <= 60 ? 100 : 7;
+      const items = Array.from({ length: n }, (_, i) => ({
+        id: page * 1000 + i,
+      }));
+      return { stdout: JSON.stringify(items), stderr: '', code: 0 };
+    };
+    const gw = new CommentGateway({
+      gh: createGh(exec),
+      owner: 'o',
+      repo: 'r',
+    });
+    const out = await gw.getRepoCommentsSince('2020-01-01T00:00:00Z');
+    assert.equal(out.length, 6007);
+  });
+
   it('deleteComment: issues a DELETE call against the comments endpoint', async () => {
     const gh = makeFakeGh({
       'DELETE /issues/comments/123': { status: 204, json: {} },

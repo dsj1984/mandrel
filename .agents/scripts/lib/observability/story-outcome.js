@@ -30,6 +30,9 @@ import { forEachLine } from './signals-writer.js';
 export const OUTCOME_COMMENT_TYPE = 'story-outcome';
 const OUTCOME_SCHEMA_VERSION = 1;
 const MAX_ATTEMPTS = 100;
+/** Headroom under GitHub's 65536-char comment limit for the marker prefix. */
+const MAX_BODY_CHARS = 60000;
+const MAX_FIELD_CHARS = 200;
 const STATUSES = Object.freeze(['landed', 'pending', 'blocked', 'failed']);
 /** Results that found the Story already closed or done: nothing happened. */
 const NOOP_REASONS = new Set([
@@ -100,6 +103,12 @@ function windowedReviewCounts(rows, sinceMs) {
   return counts;
 }
 
+function clip(value) {
+  return typeof value === 'string'
+    ? value.slice(0, MAX_FIELD_CHARS)
+    : (value ?? null);
+}
+
 /**
  * @param {{ envelope: object, tool: string, worker?: object, rows?: object[],
  *   nowMs?: number, mandrelVersion?: string|null }} args
@@ -124,8 +133,8 @@ function buildAttempt({
     failedGates: failedGateNames(envelope.gates),
     prNumber: intOrNull(envelope.pr?.number),
     mandrelVersion,
-    workerModel: worker.workerModel ?? null,
-    workerEffort: worker.workerEffort ?? null,
+    workerModel: clip(worker.workerModel),
+    workerEffort: clip(worker.workerEffort),
     workerTokens: intOrNull(worker.workerTokens),
     ...windowedReviewCounts(rows, nowMs - elapsedMs),
   };
@@ -158,8 +167,8 @@ function normalizeSummary(raw = {}) {
 }
 
 /**
- * Counters carry forward from `prior`, so trimming old attempts never lowers
- * a count; `acceptanceRounds` is max-shaped.
+ * Counters carry forward from `prior`, so trimming old attempts (count or
+ * body-size cap) never lowers a count; `acceptanceRounds` is max-shaped.
  *
  * @param {object|null} prior
  * @param {object} attempt
@@ -216,9 +225,20 @@ function renderOutcomeBody(record) {
     `**Story outcome** · attempts: ${summary.attempts} · status: ${last?.status ?? 'unknown'} · last failed gates: ${gates}`,
     '',
     '```json',
-    JSON.stringify(record, null, 2),
+    JSON.stringify(record),
     '```',
   ].join('\n');
+}
+
+/** Drops the oldest attempts until the body fits; `summary` is untouched. */
+function renderBoundedBody(record) {
+  let body = renderOutcomeBody(record);
+  while (body.length > MAX_BODY_CHARS && record.attempts.length > 1) {
+    const drop = Math.max(1, Math.floor(record.attempts.length / 10));
+    record.attempts = record.attempts.slice(drop);
+    body = renderOutcomeBody(record);
+  }
+  return body;
 }
 
 /**
@@ -300,7 +320,7 @@ async function writeRecord({
     provider,
     storyId,
     OUTCOME_COMMENT_TYPE,
-    renderOutcomeBody(record),
+    renderBoundedBody(record),
   );
   return true;
 }

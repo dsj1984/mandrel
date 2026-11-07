@@ -402,10 +402,12 @@ run because a fix commit afterwards would void that run's credit.
   `quality-preview` or a ratchet), admits it through `withSuiteAdmission`
   under close's argv for that gate with no wait, and runs it inside the
   reservation. A miss (exit 75 or 78) hands the check back to the base lane
-  in order, records no finding and retires that lane. No lane aborts
-  another. The step result gains `concurrency: { requested, admitted }`, and
-  each passed deposit missing from the evidence store afterwards is
-  re-recorded with close's command hash. Suite admission off
+  in order, records no finding and retires that lane; a check that throws
+  once admitted is not a miss and fails the step as it would serially. No
+  lane aborts another. The step result gains
+  `concurrency: { requested, admitted }`, and each passed deposit missing
+  from the evidence store afterwards is re-recorded with close's command
+  hash. Suite admission off
   (`fullSuiteLock: false`, `MANDREL_FULL_SUITE_LOCK=0`) or an inherited
   suite reservation keeps the step serial, with one progress line naming
   why.
@@ -642,8 +644,9 @@ skip that reuses a result already recorded for this HEAD adds
 beside `failedStep`, and every envelope an `attempt` (`null` on a failed
 read). After the state write, each run appends one record to the Story's
 `signals.ndjson` (`phase: handoff`, `emitter.tool: story-handoff`): a `retry`
-when refused, a `trace` when ready. Details carry step names, durations and
-the cause — never a file path. Close telemetry counts them in its `handoff`
+when refused, a `trace` when ready. A step that throws settles
+`fix-required` with cause `other`, so the run still writes both. Details
+carry step names, durations and the cause — never a file path. Close telemetry counts them in its `handoff`
 block, apart from close's own `retries`. Best-effort: a failed write never
 changes the status or exit code.
 
