@@ -61,12 +61,7 @@ function classify(text) {
   return null;
 }
 
-/**
- * A streaming collector: feed lines with `push`, read the quoted rows back.
- *
- * @param {{ max?: number }} [opts]
- * @returns {{ push: (line: string) => void, rows: () => string[] }}
- */
+/** A streaming collector: feed lines with `push`, read the quoted rows back. */
 export function createFailureRowCollector({ max = DEFAULT_MAX_ROWS } = {}) {
   const rows = [];
   const seen = new Set();
@@ -108,14 +103,19 @@ export function extractFailureRows(output, opts) {
   return collector.rows();
 }
 
-/**
- * A finding's `: <row>; <row>` quote, `''` when nothing parsed.
- *
- * @param {string} output
- * @param {{ max?: number }} [opts]
- * @returns {string}
- */
+/** A finding's `: <row>; <row>` quote, `''` when nothing parsed. */
 export function quoteFailureRows(output, opts) {
   const rows = extractFailureRows(output, opts);
   return rows.length > 0 ? `: ${rows.join('; ')}` : '';
+}
+
+/** Retains an opted-in gate's capped rows as its lines stream past `emit`. */
+export function tapFailureRows(retain, emit) {
+  if (!retain) return { tap: emit, rowsResult: () => ({}) };
+  const rows = createFailureRowCollector();
+  const tap = (line) => {
+    rows.push(line);
+    emit(line);
+  };
+  return { tap, rowsResult: () => ({ failureRows: rows.rows() }) };
 }

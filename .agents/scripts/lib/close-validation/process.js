@@ -2,7 +2,7 @@
 
 import { spawn } from 'node:child_process';
 
-import { createFailureRowCollector } from '../failure-rows.js';
+import { tapFailureRows } from '../failure-rows.js';
 
 import {
   ADMISSION_REFUSED_EXIT_CODE,
@@ -151,8 +151,10 @@ function spawnGate(cmd, args, opts, lock) {
     // 'close', not 'exit': only 'close' waits for both pipes to drain.
     child.on('close', (code, sig) => {
       supervisor.release();
-      const status = settledGateStatus({ code, sig, supervisor, opts, output });
-      resolve(gateResult(status, output));
+      resolve({
+        status: settledGateStatus({ code, sig, supervisor, opts, output }),
+        ...output.rowsResult(),
+      });
     });
     child.on('error', () => {
       supervisor.release();
@@ -187,33 +189,18 @@ function spawnGateChild(cmd, args, cwd, env, spawnImpl = spawn) {
  *
  * @param {{ gateName?: string, log?: (m: string) => void, tolerateNoFilesProcessed?: boolean, retainFailureRows?: boolean }} opts
  */
-function gateOutput(opts) {
-  const prefix = opts.gateName ? `[${opts.gateName}] ` : '';
+function gateOutput({
+  gateName,
+  log,
+  tolerateNoFilesProcessed,
+  retainFailureRows,
+}) {
+  const prefix = gateName ? `[${gateName}] ` : '';
   const emit =
-    typeof opts.log === 'function'
-      ? opts.log
-      : (m) => process.stdout.write(`${m}\n`);
+    typeof log === 'function' ? log : (m) => process.stdout.write(`${m}\n`);
   const recent = [];
-  const tail = opts.tolerateNoFilesProcessed ? retainTail(recent, emit) : emit;
-  const { tap, failureRows } = retainRows(opts.retainFailureRows, tail);
-  return { prefix, emit, tap, recent, failureRows };
-}
-
-/** Feeds an opted-in gate's lines to a capped row collector, never the whole output. */
-function retainRows(retain, emit) {
-  if (!retain) return { tap: emit, failureRows: () => undefined };
-  const rows = createFailureRowCollector();
-  const tap = (line) => {
-    rows.push(line);
-    emit(line);
-  };
-  return { tap, failureRows: rows.rows };
-}
-
-/** `{ status }`, plus the retained rows for an opted-in gate. */
-function gateResult(status, output) {
-  const failureRows = output.failureRows();
-  return failureRows ? { status, failureRows } : { status };
+  const tail = tolerateNoFilesProcessed ? retainTail(recent, emit) : emit;
+  return { prefix, emit, recent, ...tapFailureRows(retainFailureRows, tail) };
 }
 
 function retainTail(recent, emit) {
