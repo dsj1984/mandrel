@@ -102,8 +102,8 @@ function resolveScopeBase({ workTree, git, baseBranch }) {
 }
 
 /**
- * Paths `origin/<base>` changed since `baselineRef`; the raw-path rule of the
- * base-sync probe. Throws on a failed diff.
+ * Paths `origin/<base>` changed since `baselineRef`; the base-sync probe's
+ * raw-path rule. Throws on a failed diff.
  *
  * @param {{ workTree: string, git: Function, scopeBase: string, baselineRef: string }} ctx
  * @returns {string[]}
@@ -116,7 +116,22 @@ function listIncomingFiles({ workTree, git, scopeBase, baselineRef }) {
   return String(out ?? '')
     .split('\n')
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter((line) => line.length > 0);
+}
+
+/**
+ * The change-set base and the incoming paths a skipped base sync excludes.
+ *
+ * @param {{ workTree: string, git: Function, baseBranch: string, baselineRef?: string }} ctx
+ * @returns {{ diffBase: string, exclude: string[] }}
+ */
+function resolveScopeRefs({ workTree, git, baseBranch, baselineRef }) {
+  const scopeBase = resolveScopeBase({ workTree, git, baseBranch });
+  if (!baselineRef) return { diffBase: scopeBase, exclude: [] };
+  return {
+    diffBase: baselineRef,
+    exclude: listIncomingFiles({ workTree, git, scopeBase, baselineRef }),
+  };
 }
 
 /**
@@ -141,14 +156,16 @@ function resolveScope({
   if (listDirtyPaths(workTree, git).includes(relPath)) {
     return { reason: 'dirty-tree' };
   }
-  const scopeBase = resolveScopeBase({ workTree, git, baseBranch });
-  const exclude = baselineRef
-    ? listIncomingFiles({ workTree, git, scopeBase, baselineRef })
-    : [];
+  const { diffBase, exclude } = resolveScopeRefs({
+    workTree,
+    git,
+    baseBranch,
+    baselineRef,
+  });
   const isScorable = fileFilterFor(KIND, { additionalFormats });
   const files = listChangedFiles({
     cwd: workTree,
-    baseBranch: baselineRef || scopeBase,
+    baseBranch: diffBase,
     storyBranch,
     git,
   }).filter((f) => isScorable(f));
