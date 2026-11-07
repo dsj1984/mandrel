@@ -9,9 +9,7 @@ import { rmSync } from 'node:fs';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
-  buildHandoffRecord,
   emitHandoffRecord,
-  HANDOFF_CAUSES,
   handoffCause,
   isHandoffRecord,
   nextHandoffAttempt,
@@ -21,6 +19,20 @@ import { appendSignal } from '../../../.agents/scripts/lib/observability/signals
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const STORY = 5970;
+
+/** The record the emitter would append, captured from its writer. */
+async function buildHandoffRecord({ storyId, envelope }) {
+  let signal;
+  await emitHandoffRecord({
+    storyId,
+    envelope,
+    writeFn: (args) => {
+      signal = args.signal;
+      return true;
+    },
+  });
+  return signal;
+}
 let tempRoot;
 let config;
 beforeEach(() => {
@@ -48,16 +60,18 @@ const refused = {
   ],
 };
 
-describe('handoff-telemetry', () => {
+describe('handoff-telemetry', async () => {
   it('normalizes an unknown or missing cause to other', () => {
     assert.equal(handoffCause('push-hook'), 'push-hook');
     assert.equal(handoffCause('host-resources'), 'other');
     assert.equal(handoffCause(undefined), 'other');
-    assert.ok(Object.isFrozen(HANDOFF_CAUSES));
   });
 
-  it('builds a schema-valid retry for a refused run, carrying the check and no path', () => {
-    const record = buildHandoffRecord({ storyId: STORY, envelope: refused });
+  it('builds a schema-valid retry for a refused run, carrying the check and no path', async () => {
+    const record = await buildHandoffRecord({
+      storyId: STORY,
+      envelope: refused,
+    });
     assert.equal(validateSignal(record).valid, true);
     assert.equal(record.kind, 'retry');
     assert.equal(isHandoffRecord(record), true);
@@ -73,8 +87,8 @@ describe('handoff-telemetry', () => {
     });
   });
 
-  it('builds a trace for a ready run with only the numeric timing fields', () => {
-    const record = buildHandoffRecord({
+  it('builds a trace for a ready run with only the numeric timing fields', async () => {
+    const record = await buildHandoffRecord({
       storyId: STORY,
       envelope: {
         status: 'ready',

@@ -11,10 +11,10 @@ import crypto from 'node:crypto';
 import { EVENT_KINDS } from '../signals/schema.js';
 import { appendSignal, forEachLine } from '../signals/write.js';
 
-export const HANDOFF_PHASE = 'handoff';
-export const HANDOFF_TOOL = 'story-handoff';
+const HANDOFF_PHASE = 'handoff';
+const HANDOFF_TOOL = 'story-handoff';
 
-export const HANDOFF_CAUSES = Object.freeze(
+const HANDOFF_CAUSES = Object.freeze(
   new Set([
     'precheck',
     'merge-driver-unregistered',
@@ -105,7 +105,7 @@ function recordDetails(envelope) {
  * @param {{ storyId: number, envelope: object, ts?: string }} args
  * @returns {object} a schema-valid signal.
  */
-export function buildHandoffRecord({ storyId, envelope, ts }) {
+function buildHandoffRecord({ storyId, envelope, ts }) {
   return {
     kind: envelope.status === 'ready' ? EVENT_KINDS.TRACE : EVENT_KINDS.RETRY,
     eventId: crypto.randomUUID(),
