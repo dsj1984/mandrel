@@ -758,3 +758,113 @@ test('#5976: the effort resolves from depth once; effortByDepth overrides only i
   const deepMax = { effortByDepth: { deep: 'max' } };
   assert.deepEqual(await efforts(deepMax, 31), ['deep', 'max']);
 });
+
+// Story #5982 — `delivery.codeReview.onNoVerdict` and `haltCause`.
+
+/** An adapter that returns `findings` and records `degradations`. */
+function degradedAdapter(degradations, findings = []) {
+  return {
+    runReview: async () => findings,
+    getDegradations: () => degradations,
+  };
+}
+
+const row = (kind, reason = `${kind} gap`) => ({
+  tool: 'code-review',
+  gate: 'codeReview',
+  surface: 'model-bug-review',
+  kind,
+  reason,
+});
+
+test('#5982 AC-1: truncated guidance is recorded as context-reduced', async (t) => {
+  const cwd = tempDir(t, 'review-guidance-');
+  fs.writeFileSync(path.join(cwd, 'REVIEW.md'), 'x'.repeat(8_500));
+  const out = await review(fakeAdapter([]), { cwd });
+  const guidance = out.degradations.find((d) => d.tool === 'review-guidance');
+  assert.equal(guidance.kind, 'context-reduced');
+});
+
+test('#5982 AC-4: unset or report onNoVerdict never halts on any degradation kind', async () => {
+  for (const codeReview of [{}, { onNoVerdict: 'report' }]) {
+    const out = await review(
+      degradedAdapter([
+        row('verdict-missing'),
+        row('coverage-partial'),
+        row('context-reduced'),
+      ]),
+      { resolveConfigFn: configWith(codeReview) },
+    );
+    assert.equal(out.halted, false);
+    assert.equal(out.haltCause, null);
+    assert.equal(out.blockerReason, null);
+  }
+});
+
+test('#5982 AC-5: block halts on verdict-missing or coverage-partial with a no-verdict blocker', async () => {
+  for (const kind of ['verdict-missing', 'coverage-partial']) {
+    const out = await review(
+      degradedAdapter([
+        row(kind, 'claude CLI is not logged in (authMethod: none)'),
+      ]),
+      { resolveConfigFn: configWith({ onNoVerdict: 'block' }) },
+    );
+    assert.equal(out.halted, true);
+    assert.equal(out.haltCause, 'no-verdict');
+    assert.match(out.blockerReason, /not logged in/);
+    assert.match(out.blockerReason, /claude auth login/);
+    assert.match(
+      out.blockerReason,
+      /node \.agents\/scripts\/story-review-compute\.js --story 42/,
+    );
+  }
+});
+
+test('#5982 AC-5: block names the fix for quota and a skipped provider', async () => {
+  const out = await review(
+    degradedAdapter([
+      row(
+        'verdict-missing',
+        'the claude CLI account is out of quota (usage limit reached)',
+      ),
+      {
+        ...row('verdict-missing', 'optional provider "llm-review" skipped: x'),
+        surface: 'llm-review',
+      },
+    ]),
+    { resolveConfigFn: configWith({ onNoVerdict: 'block' }) },
+  );
+  assert.match(out.blockerReason, /wait for the usage-limit reset/);
+  assert.match(out.blockerReason, /install the `claude` or `codex` CLI/);
+});
+
+test('#5982 AC-5: block does not halt on context-reduced alone', async () => {
+  const out = await review(degradedAdapter([row('context-reduced')]), {
+    resolveConfigFn: configWith({ onNoVerdict: 'block' }),
+  });
+  assert.equal(out.halted, false);
+  assert.equal(out.haltCause, null);
+});
+
+test('#5982: a surviving critical wins over a no-verdict halt', async () => {
+  const out = await review(
+    degradedAdapter(
+      [row('verdict-missing')],
+      [{ severity: 'critical', title: 'Bug', body: 'b' }],
+    ),
+    { resolveConfigFn: configWith({ onNoVerdict: 'block' }) },
+  );
+  assert.equal(out.halted, true);
+  assert.equal(out.haltCause, 'critical');
+  assert.match(out.blockerReason, /1 critical/);
+});
+
+test('#5982 AC-10: the no-verdict blocker carries no account identity', async () => {
+  const out = await review(
+    degradedAdapter([
+      row('verdict-missing', 'claude CLI is not logged in (authMethod: none)'),
+    ]),
+    { resolveConfigFn: configWith({ onNoVerdict: 'block' }) },
+  );
+  assert.doesNotMatch(out.blockerReason, /@|org-|Example Org/);
+});

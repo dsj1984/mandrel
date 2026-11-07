@@ -3693,3 +3693,42 @@ describe('story-handoff — seat order, step env and post-seat checks (Story #59
     assert.equal(lintSkip(HEAD).skip, false);
   });
 });
+
+// Story #5982 — a no-verdict halt is blocked, not fix-required.
+describe('story-handoff — a held review with no verdict (Story #5982 AC-6)', () => {
+  const BLOCKER =
+    'code-review produced no verdict for part or all of the diff: run `claude auth login`';
+
+  test('a no-verdict halt settles blocked with the blocker reason and the deposit as evidence', async () => {
+    const h = harness({
+      deposit: {
+        halted: true,
+        haltCause: 'no-verdict',
+        blockerReason: BLOCKER,
+        severity: { critical: 0 },
+      },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.status, 'blocked');
+    assert.equal(envelope.failedStep, 'review');
+    const stop = stopStep(envelope);
+    assert.equal(stop.detail, BLOCKER);
+    assert.equal(stop.reason, 'review-no-verdict');
+    assert.equal(stop.evidencePath, '/tmp/story-review.json');
+  });
+
+  test('a critical halt still settles fix-required', async () => {
+    const h = harness({
+      deposit: {
+        halted: true,
+        haltCause: 'critical',
+        severity: { critical: 1 },
+      },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    assert.equal(envelope.failedStep, 'review');
+  });
+});

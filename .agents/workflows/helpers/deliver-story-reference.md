@@ -285,12 +285,18 @@ judgment that help text cannot carry.
   `gates.codeReview: "overridden"` rather than `"passed"`. If you find yourself
   reaching for it twice for the same shape of finding, the gate is
   miscalibrated — fix the gate, not the run.
-- `gates.codeReview: "degraded"` — not a flag but an envelope value: a
-  review surface ran yet produced no verdict (the `claude` CLI is not logged
-  in or out of quota, or its output did not parse). The PR comment lists it
-  under Degraded Gates. It is reported, not blocking — close still lands —
-  so read the diff yourself before trusting the merge. Precedence:
-  `overridden` > `degraded` > `passed`.
+- `gates.codeReview: "unreviewed" | "partial" | "degraded"` — not flags but
+  envelope values from the review's degradation kinds: `unreviewed` (any
+  `verdict-missing`: no verdict, a skipped optional reviewer, an unresolvable
+  base), `partial` (any `coverage-partial`: part of the diff unreviewed),
+  `degraded` (only `context-reduced`: reviewed with less context). The
+  reviewer is retried once on a transient failure first. Precedence:
+  `overridden` > `unreviewed` > `partial` > `degraded` > `passed`. Under the
+  default `delivery.codeReview.onNoVerdict: "report"` all three are reported,
+  not blocking — read the diff yourself before trusting the merge. Under
+  `"block"`, `unreviewed` and `partial` halt the close like a CRITICAL
+  (`haltCause: "no-verdict"`, blocker naming the fix and the
+  `story-review-compute.js` re-run); `--override-review-block` is the escape.
 - `--max-wait-seconds <n>` — from a headless caller with no host
   tool-invocation ceiling, to keep single-block semantics
   without editing the consumer's config.

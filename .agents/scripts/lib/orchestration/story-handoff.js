@@ -1134,6 +1134,12 @@ async function stepPush(ctx) {
  * @returns {StepResult}
  */
 function reviewVerdict(deposit, depositPath, settled) {
+  // No code change resolves a missing verdict, so the worker is not sent to edit.
+  if (deposit?.halted && deposit.haltCause === 'no-verdict') {
+    return blocked('review', 'review-no-verdict', deposit.blockerReason, {
+      evidencePath: depositPath,
+    });
+  }
   if (deposit?.halted) {
     return fixRequired(
       'review',

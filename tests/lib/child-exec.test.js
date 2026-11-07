@@ -19,6 +19,7 @@ import {
   REPORTED_MAX_BUFFER_BYTES,
   spawnCapture,
   spawnCaptureAsync,
+  spawnCaptureNullableAsync,
   spawnChild,
 } from '../../.agents/scripts/lib/child-exec.js';
 import { streamChild } from '../../.agents/scripts/lib/child-stream.js';
@@ -261,6 +262,15 @@ describe('spawnCaptureAsync (Story #5480)', () => {
       { timeout: 100 },
     );
     assert.equal(out.status, 1);
+  });
+
+  it('spawnCaptureNullableAsync reports a timed-out child as status null (Story #5982)', async () => {
+    const out = await spawnCaptureNullableAsync(
+      NODE,
+      ['-e', 'setTimeout(() => {}, 10_000)'],
+      { timeout: 100 },
+    );
+    assert.equal(out.status, null);
   });
 
   it('reports a missing binary as a failed result, never a rejection', async () => {

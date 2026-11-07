@@ -150,6 +150,16 @@ export async function spawnCaptureAsync(file, args, opts = {}) {
 }
 
 /**
+ * `spawnCaptureAsync`, but a timeout, kill or spawn error stays `status: null`.
+ *
+ * @returns {Promise<{ status: number|null, stdout: string, stderr: string }>}
+ */
+export async function spawnCaptureNullableAsync(file, args, opts = {}) {
+  const raw = await spawnChild(file, args, { run: execCollect, ...opts });
+  return { ...normalizeCapture(raw), status: raw?.status ?? null };
+}
+
+/**
  * Spawn and stream each output chunk to `opts.onChunk` while retaining a
  * bounded tail; see `child-stream.js` for the contract.
  *

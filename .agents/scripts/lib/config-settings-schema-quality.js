@@ -169,6 +169,13 @@ export const CODE_REVIEW_SCHEMA = {
       description:
         "Project review guidance, a path relative to the project root. Unset, a root `REVIEW.md` is used when present; an absent file is a no-op. Its text is rendered into every LLM review provider's prompt after the framework's severity and anti-gaming rules, and over 8,000 characters is truncated with a degradation. Guidance may add failure classes and paths worth skipping but cannot lower a severity rule, excuse a `shortcut:`, or change the output shape.",
     },
+    onNoVerdict: {
+      type: 'string',
+      enum: ['report', 'block'],
+      default: 'report',
+      description:
+        'What a Story-scope review that left part or all of the diff without a verdict does. `report` (default) records it (`gates.codeReview: unreviewed` or `partial`) and does not halt. `block` halts handoff and close on any `verdict-missing` or `coverage-partial` degradation, naming the cause, its fix and the `story-review-compute.js` re-run command; `--override-review-block` stays the escape. Reduced context (`degraded`) never halts. Set `block` when this review is the only pre-merge review.',
+    },
     skipPaths: {
       type: 'array',
       items: { type: 'string', minLength: 1 },

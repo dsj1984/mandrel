@@ -239,7 +239,8 @@
           "optional": true
         }
       ],
-      "autoFixSeverity": "medium"
+      "autoFixSeverity": "medium",
+      "onNoVerdict": "report"
     },
     "refactorStage": {
       "enabled": false

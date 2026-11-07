@@ -539,6 +539,7 @@ describe('shared base ref (Story #5325)', () => {
         tool: 'story-scope-review',
         gate: 'base-ref-resolution',
         surface: 'origin/main',
+        kind: 'verdict-missing',
         reason: 'remote-base-ref-unresolved',
       },
     ]);
@@ -771,23 +772,42 @@ describe('runSingleStoryClose review-halt orchestration', () => {
   });
 
   /**
-   * Story #5663: a review that produced no verdict must not read as
-   * `passed`. Precedence is `overridden` > `degraded` > `passed`, and a
-   * degraded review is reported, not blocking — the PR still arms.
+   * Story #5663 / #5982: a review that produced no verdict must not read as
+   * `passed`. Precedence is `overridden` > `unreviewed` > `partial` >
+   * `degraded` > `passed`, derived from the degradation kinds, and under the
+   * default `onNoVerdict: report` none blocks — the PR still arms.
    */
-  const MODEL_REVIEW_DEGRADATION = Object.freeze({
+  const degradation = (kind, surface = 'model-bug-review') => ({
     tool: 'code-review',
     gate: 'codeReview',
-    surface: 'model-bug-review',
+    surface,
+    kind,
     reason: 'the claude CLI account is out of quota (usage limit reached)',
   });
-  for (const { label, halted, degraded, override, expected } of [
-    { label: 'clean', halted: false, degraded: false, expected: 'passed' },
-    { label: 'degraded', halted: false, degraded: true, expected: 'degraded' },
+  for (const { label, halted, kinds, override, expected } of [
+    { label: 'clean', halted: false, kinds: [], expected: 'passed' },
+    {
+      label: 'context-reduced',
+      halted: false,
+      kinds: ['context-reduced'],
+      expected: 'degraded',
+    },
+    {
+      label: 'partial',
+      halted: false,
+      kinds: ['context-reduced', 'coverage-partial'],
+      expected: 'partial',
+    },
+    {
+      label: 'unreviewed',
+      halted: false,
+      kinds: ['coverage-partial', 'verdict-missing'],
+      expected: 'unreviewed',
+    },
     {
       label: 'overridden-and-degraded',
       halted: true,
-      degraded: true,
+      kinds: ['verdict-missing'],
       override: 'false positive; reviewed by hand',
       expected: 'overridden',
     },
@@ -839,8 +859,8 @@ describe('runSingleStoryClose review-halt orchestration', () => {
           postedCommentId: 9999,
           commentTargetId: 556,
           halted,
-          degraded,
-          degradations: degraded ? [MODEL_REVIEW_DEGRADATION] : [],
+          degraded: kinds.length > 0,
+          degradations: kinds.map((kind) => degradation(kind)),
           ...(halted ? { blockerReason: '1 critical blocker(s)' } : {}),
         }),
       });
@@ -864,5 +884,148 @@ describe('runSingleStoryClose review-halt orchestration', () => {
       }),
       /--override-review-block requires a reason of at least 12 characters/,
     );
+  });
+});
+
+// Story #5982 — a no-verdict halt under `onNoVerdict: block` at close.
+describe('runSingleStoryClose no-verdict halt (Story #5982)', () => {
+  const BLOCKER =
+    'code-review produced no verdict for part or all of the diff ' +
+    '(delivery.codeReview.onNoVerdict: block): llm-review [verdict-missing]: ' +
+    'optional provider "llm-review" skipped: unavailable on this host — ' +
+    'install the `claude` or `codex` CLI. Then re-run ' +
+    '`node .agents/scripts/story-review-compute.js --story 2839`.';
+  const NO_VERDICT_REVIEW = Object.freeze({
+    status: 'ok',
+    severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+    posted: true,
+    postedCommentId: 7777,
+    commentTargetId: 557,
+    halted: true,
+    haltCause: 'no-verdict',
+    blockerReason: BLOCKER,
+    degraded: true,
+    degradations: [
+      {
+        tool: 'review-provider-factory',
+        gate: 'codeReview',
+        surface: 'llm-review',
+        kind: 'verdict-missing',
+        reason:
+          'optional provider "llm-review" skipped: unavailable on this host',
+      },
+    ],
+  });
+
+  function closeArgs(t, ghCalls, extra = {}) {
+    const gh = makeFakeGh((args) => {
+      ghCalls.push(args.slice());
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/557\n';
+      }
+      if (args[1] === 'merge') return '';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+    t.mock.module(GIT_UTILS_URL, gitUtilsMock());
+    mockCloseValidation(t, closeValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
+    return {
+      storyId: 2839,
+      noWaitForMerge: true,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      injectedConfig: fakeConfig(),
+      injectedGh: gh,
+      injectedRunCodeReview: async () => ({ ...NO_VERDICT_REVIEW }),
+      ...extra,
+    };
+  }
+
+  it('AC-7: refuses to arm auto-merge, blocks the Story, and names the cause and re-run command', async (t) => {
+    if (typeof t.mock?.module !== 'function') {
+      t.skip(
+        'module mocking unavailable without --experimental-test-module-mocks',
+      );
+      return;
+    }
+    const ghCalls = [];
+    const recorder = fakeProviderRecorder();
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=no-verdict`);
+    await assert.rejects(
+      runSingleStoryClose(
+        closeArgs(t, ghCalls, { injectedProvider: recorder.provider }),
+      ),
+      (err) => {
+        assert.match(err.message, /produced no verdict/);
+        assert.match(err.message, /story-review-compute\.js --story 2839/);
+        assert.doesNotMatch(err.message, /critical blocker/);
+        return true;
+      },
+    );
+    assert.equal(
+      ghCalls.find((c) => c[1] === 'merge'),
+      undefined,
+      'auto-merge must not arm on a no-verdict halt',
+    );
+    assert.deepEqual(recorder.updates.at(-1).payload.labels.add, [
+      'agent::blocked',
+    ]);
+    const body = recorder.postedComments.at(-1).payload.body;
+    assert.match(body, /Code review blocked delivery/);
+    assert.match(body, /no verdict/);
+    assert.match(body, /install the `claude` or `codex` CLI/);
+    assert.match(body, /story-review-compute\.js --story 2839/);
+    assert.doesNotMatch(body, /critical blocker/);
+  });
+
+  it('AC-7: --override-review-block proceeds, records the override, and reports overridden', async (t) => {
+    if (typeof t.mock?.module !== 'function') {
+      t.skip(
+        'module mocking unavailable without --experimental-test-module-mocks',
+      );
+      return;
+    }
+    const ghCalls = [];
+    const recorder = fakeProviderRecorder();
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=no-verdict-override`
+    );
+    const outcome = await runSingleStoryClose(
+      closeArgs(t, ghCalls, {
+        injectedProvider: recorder.provider,
+        overrideReviewBlock: 'reviewed by hand; no CLI on this host',
+      }),
+    );
+    assert.ok(ghCalls.find((c) => c[1] === 'merge'));
+    const records = recorder.postedComments.filter((c) =>
+      /Code-review blocker overridden by operator/.test(c.payload.body),
+    );
+    assert.equal(records.length, 2);
+    assert.match(records[0].payload.body, /no verdict/);
+    assert.equal(outcome.terminal.gates.codeReview, 'overridden');
+  });
+});
+
+describe('Story-scope review outcome under an unresolvable base (Story #5982)', () => {
+  it('halts with haltCause no-verdict when onNoVerdict is block', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const out = await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: fakeProviderRecorder().provider,
+      gitSpawnFn: gitSpawnStub({ resolveBase: false }),
+      runCodeReviewFn: async () => ({ halted: false }),
+      progress: () => {},
+      config: { delivery: { codeReview: { onNoVerdict: 'block' } } },
+    });
+    assert.equal(out.halted, true);
+    assert.equal(out.haltCause, 'no-verdict');
+    assert.match(out.blockerReason, /fetch the base ref/);
   });
 });

@@ -252,6 +252,46 @@ describe('runStoryReviewComputeCli', () => {
     assert.equal(readReviewDeposit(5480, { config }).severity.critical, 1);
   });
 
+  test('#5982 AC-5: a no-verdict halt prints the blocker, not a CRITICAL line, and deposits haltCause', async () => {
+    const config = configFor();
+    let out = '';
+    const blocker =
+      'code-review produced no verdict: run `claude auth login`. Then re-run `node .agents/scripts/story-review-compute.js --story 5480`.';
+    const double = reviewDouble();
+    const outcome = await runStoryReviewComputeCli(
+      ['--story', '5480', '--cwd', '/work'],
+      {
+        resolveConfigImpl: () => config,
+        stdout: { write: (s) => (out += s) },
+        gitSpawnFn: gitStub(),
+        runCodeReviewFn: async (opts) => ({
+          ...(await double(opts)),
+          halted: true,
+          haltCause: 'no-verdict',
+          blockerReason: blocker,
+        }),
+      },
+    );
+    assert.equal(outcome.deposit.haltCause, 'no-verdict');
+    assert.equal(readReviewDeposit(5480, { config }).haltCause, 'no-verdict');
+    assert.ok(out.includes(`BLOCKED: ${blocker}`));
+    assert.doesNotMatch(out, /CRITICAL: fix, commit/);
+  });
+
+  test('a CRITICAL halt deposits haltCause critical', async () => {
+    const config = configFor();
+    const outcome = await runStoryReviewComputeCli(
+      ['--story', '5480', '--cwd', '/work'],
+      {
+        resolveConfigImpl: () => config,
+        stdout: { write: () => {} },
+        gitSpawnFn: gitStub(),
+        runCodeReviewFn: reviewDouble({ severity: { ...CLEAN, critical: 1 } }),
+      },
+    );
+    assert.equal(outcome.deposit.haltCause, 'critical');
+  });
+
   test('a provider throw rejects — the only non-zero path', async () => {
     await assert.rejects(
       runStoryReviewComputeCli(['--story', '5480'], {

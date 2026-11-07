@@ -187,11 +187,17 @@ function toFindings(entries) {
     .filter(Boolean);
 }
 
+const resultTextOf = (envelope) =>
+  typeof envelope?.result === 'string' ? envelope.result : '';
+
+function isUsageLimited(result, envelope) {
+  const text = [result.stderr, resultTextOf(envelope), result.stdout];
+  return USAGE_LIMIT_RE.test(text.join('\n'));
+}
+
 function failureReason(result, envelope) {
-  const resultText =
-    typeof envelope?.result === 'string' ? envelope.result : '';
-  const text = [result.stderr, resultText, result.stdout].join('\n');
-  if (USAGE_LIMIT_RE.test(text)) {
+  const resultText = resultTextOf(envelope);
+  if (isUsageLimited(result, envelope)) {
     return 'the claude CLI account is out of quota (usage limit reached)';
   }
   if (result.status !== 0) {
@@ -237,19 +243,25 @@ function resultTextFindings(text) {
 /**
  * Verdict resolution: (a) a successful envelope's `structured_output`,
  * (b) the fallback parser over its `result` text, (c) no verdict.
+ * `retryable` excludes a usage limit and a `status: null` timeout.
  *
- * @param {{ status: number, stdout: string, stderr: string }} result
- * @returns {{ findings: Finding[] } | { reason: string }}
+ * @param {{ status: number|null, stdout: string, stderr: string }} result
+ * @returns {{ findings: Finding[] } | { reason: string, retryable: boolean }}
  */
 export function resolveVerdict(result) {
   const envelope = parseEnvelope(result.stdout);
+  const retryable =
+    Number.isInteger(result.status) && !isUsageLimited(result, envelope);
   if (!isSuccess(result, envelope)) {
-    return { reason: noVerdictReason(result, envelope) };
+    return { reason: noVerdictReason(result, envelope), retryable };
   }
   const entries =
     structuredFindings(envelope.structured_output) ??
     resultTextFindings(envelope.result);
   return entries
     ? { findings: toFindings(entries) }
-    : { reason: 'the reviewer output did not parse as a findings verdict' };
+    : {
+        reason: 'the reviewer output did not parse as a findings verdict',
+        retryable,
+      };
 }

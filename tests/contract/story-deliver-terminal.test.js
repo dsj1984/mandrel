@@ -1318,3 +1318,50 @@ describe('story-deliver-terminal — suite timings and lock holder (Story #5485)
     assert.match(note, /pid-9-1, pid 9, lock age 310s/);
   });
 });
+
+describe('story-deliver-terminal — codeReview gate values (Story #5982)', () => {
+  const landed = (codeReview) => ({
+    storyId: 5982,
+    status: 'landed',
+    phase: 'post-land',
+    storyBranch: 'story-5982',
+    baseBranch: 'main',
+    pr: { number: 99, url: 'https://x/99', state: 'MERGED' },
+    gates: { validation: 'passed', codeReview },
+    tail: CLEAN_TAIL,
+    nextCommand: null,
+    elapsedSeconds: 1,
+  });
+
+  it('accepts unreviewed and partial beside degraded, overridden and passed', () => {
+    for (const value of [
+      'unreviewed',
+      'partial',
+      'degraded',
+      'overridden',
+      'passed',
+    ]) {
+      const env = buildTerminalEnvelope(landed(value));
+      assert.equal(validateTerminalEnvelope(env).valid, true, value);
+    }
+  });
+
+  it('rejects a codeReview value outside the enum', () => {
+    const env = buildTerminalEnvelope(landed('passed'));
+    const { valid } = validateTerminalEnvelope({
+      ...env,
+      gates: { ...env.gates, codeReview: 'mostly-reviewed' },
+    });
+    assert.equal(valid, false);
+  });
+
+  it('the schema description narrows degraded to reduced context', () => {
+    const { description } = SCHEMA.properties.gates;
+    assert.match(description, /"unreviewed"/);
+    assert.match(description, /"partial"/);
+    assert.match(
+      description,
+      /overridden > unreviewed > partial > degraded > passed/,
+    );
+  });
+});

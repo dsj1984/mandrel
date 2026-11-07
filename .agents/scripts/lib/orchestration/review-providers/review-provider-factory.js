@@ -1,7 +1,7 @@
 /**
  * review-providers/review-provider-factory.js — resolves
  * `codeReview.providers` into a `ChainProvider`. A failing entry throws
- * unless it is `optional`.
+ * unless it is `optional`; a skipped one records a `verdict-missing`.
  *
  * @typedef {import('./types.js').ReviewProvider}        ReviewProvider
  * @typedef {import('./types.js').ManualPromptProvider}  ManualPromptProvider
@@ -134,6 +134,8 @@ export function buildProviderChain(entries, ctx) {
   const inline = [];
   /** @type {PromptChainEntry[]} */
   const prompts = [];
+  /** Optional inline entries skipped at construction, with their gates. */
+  const skipped = [];
 
   for (const raw of entries) {
     if (!raw || typeof raw !== 'object' || typeof raw.name !== 'string') {
@@ -161,6 +163,7 @@ export function buildProviderChain(entries, ctx) {
             manualPrompt ? 'manual-prompt' : 'inline'
           } provider "${name}" in chain; skipping (optional=true).`,
         );
+        if (!manualPrompt) skipped.push({ name, gate, why: 'not registered' });
         continue;
       }
       const supported = Object.keys(registry).sort().join(', ');
@@ -182,6 +185,9 @@ export function buildProviderChain(entries, ctx) {
             err?.message ?? err
           }`,
         );
+        if (!manualPrompt) {
+          skipped.push({ name, gate, why: 'unavailable on this host' });
+        }
         continue;
       }
       throw err;
@@ -194,8 +200,31 @@ export function buildProviderChain(entries, ctx) {
     }
   }
 
-  return { inline, prompts };
+  return { inline, prompts, skipped };
 }
+
+/**
+ * @param {ReadonlyArray<{ name: string, gate: ProviderGate, why: string }>} skipped
+ * @param {ProviderGateContext} ctx
+ * @returns {Array<object>}
+ */
+function skippedDegradations(skipped, ctx) {
+  return skipped
+    .filter((entry) => entry.gate(ctx))
+    .map(({ name, why }) => ({
+      tool: 'review-provider-factory',
+      gate: 'codeReview',
+      surface: name,
+      kind: 'verdict-missing',
+      reason: `optional provider "${name}" skipped: ${why}`,
+    }));
+}
+
+/** @param {ReviewInput} input @returns {ProviderGateContext} */
+const gateContextOf = (input) => ({
+  scope: input?.scope,
+  labels: /** @type {any} */ (input)?.labels ?? [],
+});
 
 /**
  * @param {Finding[]} findings
@@ -220,6 +249,7 @@ function stampProvider(findings, name) {
  */
 export function createChainProvider(chain, opts = {}) {
   const logger = opts.logger;
+  let skippedRows = [];
 
   return {
     chain,
@@ -230,12 +260,8 @@ export function createChainProvider(chain, opts = {}) {
     async runReview(input) {
       /** @type {Finding[]} */
       const merged = [];
-      const ctx = {
-        scope: input?.scope,
-        labels: /** @type {ReadonlyArray<string>} */ (
-          /** @type {any} */ (input)?.labels ?? []
-        ),
-      };
+      const ctx = gateContextOf(input);
+      skippedRows = skippedDegradations(chain.skipped ?? [], ctx);
       for (const entry of chain.inline) {
         if (!entry.gate(ctx)) {
           logger?.info?.(
@@ -259,7 +285,10 @@ export function createChainProvider(chain, opts = {}) {
      * @returns {Promise<Array<object>>}
      */
     async getDegradations() {
-      return mergeChainDegradations(chain.inline, logger);
+      return [
+        ...skippedRows,
+        ...(await mergeChainDegradations(chain.inline, logger)),
+      ];
     },
     /**
      * @param {ReviewInput} input
@@ -267,12 +296,7 @@ export function createChainProvider(chain, opts = {}) {
      */
     async getPromptMessages(input) {
       const messages = [];
-      const ctx = {
-        scope: input?.scope,
-        labels: /** @type {ReadonlyArray<string>} */ (
-          /** @type {any} */ (input)?.labels ?? []
-        ),
-      };
+      const ctx = gateContextOf(input);
       for (const entry of chain.prompts) {
         if (!entry.gate(ctx)) {
           logger?.info?.(

@@ -903,6 +903,16 @@ checks hide behind package-manager and task-runner indirection mandrel cannot
 inspect reliably, and a ratchet that lint runs leaves no evidence record
 mandrel could consult. It defaults to `[]`, which runs every ratchet as before.
 
+**Raised to 157 (2026-11-06, Story #5982)** for
+`delivery.codeReview.onNoVerdict`. A Story-scope review that produced no
+verdict was reported and never halted, so a consumer whose only pre-merge
+review is this one could not stop an unreviewed merge. Whether this review is
+the only pre-merge review is a fact about the consumer's repository (its other
+CI, its human review rules) that no tool config, package manifest or existing
+gate key records, and it holds for every run, so it is config rather than a
+flag. It reverses #5663's "no new key" note for this one knob and defaults to
+`report`, which keeps today's non-blocking behaviour.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

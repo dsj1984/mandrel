@@ -46,6 +46,7 @@ export function loadReviewGuidance({
       tool: 'review-guidance',
       gate: 'codeReview',
       surface: 'review-guidance',
+      kind: 'context-reduced',
       reason:
         `${file} truncated at ${MAX_GUIDANCE_CHARS} characters: ` +
         `${trimmed.length - MAX_GUIDANCE_CHARS} characters not rendered`,

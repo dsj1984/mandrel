@@ -121,12 +121,31 @@ describe('unresolvedBaseReviewOutcome', () => {
         tool: 'story-scope-review',
         gate: 'base-ref-resolution',
         surface: 'origin/main',
+        kind: 'verdict-missing',
         reason: 'remote-base-ref-unresolved',
       },
     ]);
+    assert.equal(out.haltCause, null);
     assert.equal(lines.length, 1);
     assert.equal(lines[0][0], 'REVIEW');
     assert.ok(lines[0][1].includes('origin/main'));
+  });
+
+  it('#5982: halts with haltCause no-verdict under onNoVerdict: block', () => {
+    const out = unresolvedBaseReviewOutcome({
+      storyId: 5982,
+      baseBranch: 'main',
+      remoteRef: 'origin/main',
+      progress: () => {},
+      onNoVerdict: 'block',
+    });
+    assert.equal(out.halted, true);
+    assert.equal(out.haltCause, 'no-verdict');
+    assert.match(out.blockerReason, /fetch the base ref/);
+    assert.match(
+      out.blockerReason,
+      /node \.agents\/scripts\/story-review-compute\.js --story 5982/,
+    );
   });
 
   it('names the ref it would have probed when the remote ref is unknown', () => {

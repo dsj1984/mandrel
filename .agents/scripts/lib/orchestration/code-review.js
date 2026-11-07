@@ -2,7 +2,8 @@
  * lib/orchestration/code-review.js — in-process Story-scope code review:
  * load the configured review adapter (default `native`), collect its
  * `Finding[]`, render and post the `verification-results` comment (adapters
- * never post), and report `halted` on any surviving critical finding.
+ * never post), and report `halted` on any surviving critical finding or,
+ * under `onNoVerdict: "block"`, a missing verdict (`haltCause`).
  */
 
 import picomatch from 'picomatch';
@@ -31,6 +32,7 @@ import {
 import {
   collectProviderDegradations,
   degradationEnvelope,
+  resolveNoVerdictHalt,
 } from './review-providers/degraded-gates.js';
 import { findingInstances } from './review-providers/finding-identity.js';
 import {
@@ -135,6 +137,7 @@ function resolveStoryScope(opts, config) {
  *   postedCommentId: number|null,
  *   commentTargetId: number,
  *   halted: boolean,
+ *   haltCause: 'critical'|'no-verdict'|null,
  *   criticalByProvider?: Record<string, number>,
  *   degraded: boolean, degradations: Array<object>,
  *   blockerReason: string|null,
@@ -287,21 +290,42 @@ function resolveCriticalByProvider({ findings, providerName, severity }) {
 }
 
 /** Tally, halt verdict and per-provider criticals of grounded findings. */
-function scoreFindings(findings, providerName) {
+function scoreFindings(findings, providerName, haltContext) {
   const severity = countBySeverity(findings);
   const halted = hasSurvivingCritical(severity);
   return {
     severity,
-    halted,
     criticalByProvider: resolveCriticalByProvider({
       findings,
       providerName,
       severity,
     }),
-    blockerReason: halted
-      ? `code-review reported ${severity.critical} critical blocker(s)`
-      : null,
+    ...resolveHalt(halted, severity, haltContext),
   };
+}
+
+/**
+ * A surviving critical halts first; else `onNoVerdict: "block"` halts a
+ * review with a verdict-missing or coverage-partial degradation.
+ */
+function resolveHalt(
+  critical,
+  severity,
+  { degradations, codeReviewConfig, ticketId },
+) {
+  if (critical) {
+    return {
+      halted: true,
+      haltCause: 'critical',
+      blockerReason: `code-review reported ${severity.critical} critical blocker(s)`,
+    };
+  }
+  const noVerdict = resolveNoVerdictHalt({
+    degradations,
+    onNoVerdict: codeReviewConfig?.onNoVerdict,
+    storyId: ticketId,
+  });
+  return noVerdict ?? { halted: false, haltCause: null, blockerReason: null };
 }
 
 /**
@@ -560,7 +584,11 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   const { findings } = carry;
   const degradations = [...vetted.degradations, ...carry.degradations];
   const verification = addVerification(vetted.verification, carry.verification);
-  const scored = scoreFindings(findings, providerName);
+  const scored = scoreFindings(findings, providerName, {
+    degradations,
+    codeReviewConfig,
+    ticketId,
+  });
   const report = renderFindingsFn({
     scope,
     ticketId,
@@ -601,6 +629,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     postedCommentId,
     commentTargetId,
     halted: scored.halted,
+    haltCause: scored.haltCause,
     criticalByProvider: scored.criticalByProvider,
     ...degradationEnvelope(degradations),
     verification,

@@ -456,7 +456,7 @@ function buildPrContext(ctx, deps) {
       options,
       ctx.prePush.validationGates,
       ctx.pr.reviewOverride,
-      ctx.pr.reviewDegraded,
+      ctx.pr.reviewDegradations,
     ),
   };
 }

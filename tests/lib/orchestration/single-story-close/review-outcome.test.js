@@ -11,11 +11,12 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-
+import { reviewGateValue } from '../../../../.agents/scripts/lib/orchestration/review-providers/degraded-gates.js';
 import {
   buildOutcomeTally,
   formatReviewOutcomeLines,
 } from '../../../../.agents/scripts/lib/orchestration/single-story-close/phases/review-outcome.js';
+import { closeEnvelopeGates } from '../../../../.agents/scripts/lib/orchestration/single-story-close/result.js';
 
 /** The severity shape every outcome carries, all-zero unless a test says otherwise. */
 function severity(overrides = {}) {
@@ -122,4 +123,50 @@ test('formatReviewOutcomeLines: the posted flag is reported honestly on both bra
   });
 
   assert.match(notPosted[0], /Posted to PR #9: false\./);
+});
+
+// Story #5982 — the gate value and the warning line follow the degradation kinds.
+
+const ofKind = (kind) => ({ surface: 'model-bug-review', reason: 'r', kind });
+
+test('#5982 AC-3: reviewGateValue precedence is overridden > unreviewed > partial > degraded > passed', () => {
+  const all = ['verdict-missing', 'coverage-partial', 'context-reduced'].map(
+    ofKind,
+  );
+  assert.equal(reviewGateValue(all, { overridden: true }), 'overridden');
+  assert.equal(reviewGateValue(all), 'unreviewed');
+  assert.equal(reviewGateValue(all.slice(1)), 'partial');
+  assert.equal(reviewGateValue(all.slice(2)), 'degraded');
+  assert.equal(reviewGateValue([]), 'passed');
+  assert.equal(reviewGateValue(undefined), 'passed');
+});
+
+test('#5982 AC-3: the close envelope gate reads the kinds, not the degraded flag', () => {
+  const gate = (degradations, override = null) =>
+    closeEnvelopeGates({}, null, override, degradations).codeReview;
+  assert.equal(gate([ofKind('verdict-missing')]), 'unreviewed');
+  assert.equal(gate([ofKind('coverage-partial')]), 'partial');
+  assert.equal(gate([ofKind('context-reduced')]), 'degraded');
+  assert.equal(gate([]), 'passed');
+  assert.equal(
+    gate([ofKind('verdict-missing')], { reason: 'x' }),
+    'overridden',
+  );
+});
+
+test('#5982 AC-11: unreviewed and partial reviews say they are not blocked unless onNoVerdict is block', () => {
+  for (const [kind, word] of [
+    ['verdict-missing', /UNREVIEWED/],
+    ['coverage-partial', /PARTIAL/],
+  ]) {
+    const lines = formatReviewOutcomeLines({
+      severity: severity(),
+      degradations: [ofKind(kind)],
+      prNumber: 7,
+      posted: true,
+    });
+    assert.match(lines[1], word);
+    assert.match(lines[1], /onNoVerdict/);
+    assert.doesNotMatch(lines[1], /secondary review does not gate/);
+  }
 });
