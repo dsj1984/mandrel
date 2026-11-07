@@ -2335,6 +2335,7 @@
       "normalizeCapture": 1,
       "spawnCapture": 1,
       "spawnCaptureAsync": 1,
+      "spawnCaptureNullableAsync": 1,
       "spawnChild": 1
     },
     ".agents/scripts/lib/child-stream.js": {
@@ -4517,6 +4518,7 @@
       "resolveCommentTargetId": 3,
       "resolveConfigBase": 1,
       "resolveCriticalByProvider": 4,
+      "resolveHalt": 2,
       "resolveHistoryDeps": 3,
       "resolveInjectedChangedFiles": 3,
       "resolvePromptMessages": 3.0885568513119535,
@@ -5715,8 +5717,10 @@
       "windowSpan": 4
     },
     ".agents/scripts/lib/orchestration/review-base-ref.js": {
+      "haltFields": 1,
       "remoteBaseRef": 1,
       "resolveSharedBaseRef": 3,
+      "unresolvedBaseDegradations": 1,
       "unresolvedBaseReviewOutcome": 1
     },
     ".agents/scripts/lib/orchestration/review-deposit.js": {
@@ -5726,6 +5730,7 @@
       "buildReviewDeposit": 3,
       "computeReviewDiffDigest": 4.03125,
       "depositAsComputedReview": 1,
+      "haltCauseOf": 3,
       "identityOf": 1,
       "isDeposit": 7,
       "probeHeldReviewDiff": 4,
@@ -5824,12 +5829,14 @@
       "refuteSymbolReferenced": 5
     },
     ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js": {
+      "<anon resultTextOf(envelope)#0>": 2,
       "<anon toFindings/entries.map(entry)#0/mapSeverity()#0>": 1,
       "<anon toFindings/entries.map(entry)#0>": 1,
       "asFindingList": 3,
       "clip": 2,
       "failureReason": 9,
       "isSuccess": 4,
+      "isUsageLimited": 1,
       "lastBareArray": 4,
       "matchArrayEnd": 9.016486871565235,
       "noVerdictReason": 3,
@@ -5847,6 +5854,8 @@
       "<anon claudeArgs(effort)#0>": 1,
       "<anon compareText(a,b)#0>": 3,
       "<anon createCodeReviewProviderForRegistry/degradations.map(d)#0>": 1,
+      "<anon createCodeReviewProviderForRegistry/noteChunkGaps/failed.map(f)#0>": 1,
+      "<anon createCodeReviewProviderForRegistry/noteChunkGaps/failed.map(f)#1>": 1,
       "<anon createCodeReviewProviderForRegistry/reviewInChunks/chunk.sections.map(s)#0>": 1,
       "<anon createCodeReviewProviderForRegistry/reviewInChunks/chunk.sections.map(s)#1>": 1,
       "<anon createCodeReviewProviderForRegistry/reviewInChunks/filter(file)#0>": 1,
@@ -5867,6 +5876,7 @@
       "buildPrompt": 3,
       "compareSections": 3,
       "createCodeReviewProviderForRegistry": 5,
+      "createCodeReviewProviderForRegistry/noteChunkGaps": 3,
       "createCodeReviewProviderForRegistry/noteDegradation": 1,
       "createCodeReviewProviderForRegistry/reviewInChunks": 4,
       "createCodeReviewProviderForRegistry/settle": 2,
@@ -5875,6 +5885,7 @@
       "packChunks": 2,
       "quoteWindowsArg": 1,
       "reviewInTempDir": 2,
+      "reviewWithRetry": 2,
       "runAuthStatus": 1,
       "runClaude": 3,
       "runReviewer": 1,
@@ -5930,14 +5941,23 @@
       "voterContext": 1
     },
     ".agents/scripts/lib/orchestration/review-providers/degraded-gates.js": {
+      "<anon fixFor/NO_VERDICT_FIXES.find(re)#0>": 1,
+      "<anon kindOf(kind)#0>": 2,
+      "<anon resolveNoVerdictHalt/blocking.map(d)#0>": 1,
+      "<anon resolveNoVerdictHalt/filter(d)#0>": 1,
+      "<anon reviewGateValue/map(d)#0>": 1,
       "<anon summarizeDegradations/rows.map(d)#0>": 1,
       "collectProviderDegradations": 2.6244879380974053,
       "degradationEnvelope": 1,
+      "fixFor": 2,
       "mergeChainDegradations": 2.1481481481481484,
       "normalizeDegradations": 10,
       "renderDegradedGatesSection": 2,
       "renderDegradedHeaderLines": 2,
       "renderNoFindingsBlock": 2,
+      "resolveNoVerdictHalt": 3,
+      "reviewGapLines": 4,
+      "reviewGateValue": 5,
       "summarizeDegradations": 2
     },
     ".agents/scripts/lib/orchestration/review-providers/finding-identity.js": {
@@ -6033,6 +6053,9 @@
       "<anon buildGate/(ctx)#0>": 7.057151188219857,
       "<anon buildGate/when.labelAny.filter(l)#0>": 2.004665403119988,
       "<anon buildProviderChain/gate(gctx)#0>": 2,
+      "<anon gateContextOf(input)#0>": 1,
+      "<anon skippedDegradations/map(name,why)#0>": 1,
+      "<anon skippedDegradations/skipped.filter(entry)#0>": 2,
       "<anon stampProvider/findings.map(f)#0>": 1,
       "buildGate": 8.074646449919813,
       "buildProviderChain": 12.157083248524323,
@@ -6042,6 +6065,7 @@
       "listInlineProviders": 1,
       "listPromptProviders": 1,
       "listRegisteredProviders": 1,
+      "skippedDegradations": 1,
       "stampProvider": 1
     },
     ".agents/scripts/lib/orchestration/review-providers/security-review.js": {
@@ -6196,10 +6220,12 @@
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js": {
       "<anon computeStoryScopeReview/(opts)#0>": 1,
+      "<anon onNoVerdictOf(config)#0>": 1,
       "<anon settleStoryScopeReview/info(m)#0>": 1,
       "<anon settleStoryScopeReview/warn(m)#0>": 1,
       "buildStoryReviewCrossRefBody": 1,
       "computeStoryScopeReview": 4,
+      "haltCauseOf": 2,
       "postStoryReviewCrossRef": 4,
       "runStoryScopeReview": 2,
       "settleStoryScopeReview": 4
@@ -6469,9 +6495,12 @@
       "reconcileFromMergedHead": 2
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js": {
+      "blockBody": 1,
+      "haltLines": 2,
       "handleCriticalReviewBlock": 1.0017808943428779
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js": {
+      "haltMessage": 2,
       "resolveReviewHalt": 2
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/review-outcome.js": {
@@ -6483,6 +6512,7 @@
       "<anon handleOverriddenReviewBlock/post()#1>": 1,
       "<anon recordOverrides/findings.filter(f)#0>": 1.048084147257701,
       "buildReviewOverrideBody": 1,
+      "haltSummary": 2,
       "handleOverriddenReviewBlock": 2,
       "postAuditRecord": 1,
       "recordOverrides": 2.1923365890308038
@@ -8756,6 +8786,7 @@
       "<anon runStoryReviewComputeCli/(tag,msg)#0>": 1.0015721886123234,
       "computeStoryReviewDeposit": 5.001202103681442,
       "formatTally": 1,
+      "haltLine": 2,
       "main": 2,
       "runStoryReviewComputeCli": 4.025155017797175
     },
