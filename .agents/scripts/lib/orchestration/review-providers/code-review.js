@@ -238,26 +238,28 @@ function quoteWindowsArg(arg) {
 
 /**
  * Async, so close's concurrent gate children keep draining. Shared with the
- * critical verifier. `keepNullStatus` reports a timeout, kill or spawn error
- * as `status: null` rather than 1.
+ * critical verifier.
  *
  * @param {ReadonlyArray<string>} args
- * @param {{ cwd: string, input?: string, timeout: number, run?: Function, platform: string, keepNullStatus?: boolean }} opts
- * @returns {Promise<{ status: number|null, stdout: string, stderr: string }>}
+ * @param {{ cwd: string, input?: string, timeout: number, run?: Function, platform: string }} opts
+ * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
  */
-export function runClaude(
-  args,
-  { cwd, input, timeout, run, platform, keepNullStatus = false },
-) {
+export function runClaude(args, opts) {
+  return spawnCaptureAsync('claude', ...claudeSpawn(args, opts));
+}
+
+/** `runClaude`, but a timeout, kill or spawn error stays `status: null`. */
+function runClaudeNullable(args, opts) {
+  return spawnCaptureNullableAsync('claude', ...claudeSpawn(args, opts));
+}
+
+/** The argv and spawn options both runners share. */
+function claudeSpawn(args, { cwd, input, timeout, run, platform }) {
   const shell = platform === 'win32';
-  const spawn = keepNullStatus ? spawnCaptureNullableAsync : spawnCaptureAsync;
-  return spawn('claude', shell ? args.map(quoteWindowsArg) : [...args], {
-    cwd,
-    input: input ?? '',
-    shell,
-    timeout,
-    ...(run ? { run } : {}),
-  });
+  return [
+    shell ? args.map(quoteWindowsArg) : [...args],
+    { cwd, input: input ?? '', shell, timeout, ...(run ? { run } : {}) },
+  ];
 }
 
 /**
@@ -287,13 +289,12 @@ function runAuthStatus(runDir, deps) {
 }
 
 function runReviewer(runDir, prompt, effort, deps) {
-  return runClaude(claudeArgs(effort), {
+  return runClaudeNullable(claudeArgs(effort), {
     cwd: runDir,
     input: prompt,
     timeout: INVOKE_TIMEOUT_MS,
     run: deps.spawnFn,
     platform: deps.platform,
-    keepNullStatus: true,
   });
 }
 

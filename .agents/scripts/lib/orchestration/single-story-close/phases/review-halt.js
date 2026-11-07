@@ -21,6 +21,12 @@ function haltMessage({ prUrl, criticalCount, noVerdictReason }) {
   );
 }
 
+/** @param {{ haltCause?: string, blockerReason?: string|null }} outcome */
+function noVerdictReasonOf({ haltCause, blockerReason }) {
+  if (haltCause !== 'no-verdict') return null;
+  return blockerReason ?? 'no verdict';
+}
+
 /**
  * An overridden Story proceeds; anything else emits friction, blocks, throws.
  *
@@ -36,10 +42,7 @@ export async function resolveReviewHalt(
 ) {
   const { storyId } = ctx;
   const criticalCount = reviewOutcome.severity?.critical ?? 0;
-  const noVerdictReason =
-    reviewOutcome.haltCause === 'no-verdict'
-      ? (reviewOutcome.blockerReason ?? 'no verdict')
-      : null;
+  const noVerdictReason = noVerdictReasonOf(reviewOutcome);
   // Checked before the blocked transition: an overridden Story proceeds.
   if (ctx.options.overrideReviewBlock) {
     return await handleOverriddenReviewBlock({

@@ -195,6 +195,10 @@ function isUsageLimited(result, envelope) {
   return USAGE_LIMIT_RE.test(text.join('\n'));
 }
 
+function isRetryable(result, envelope) {
+  return Number.isInteger(result.status) && !isUsageLimited(result, envelope);
+}
+
 function failureReason(result, envelope) {
   const resultText = resultTextOf(envelope);
   if (isUsageLimited(result, envelope)) {
@@ -250,8 +254,7 @@ function resultTextFindings(text) {
  */
 export function resolveVerdict(result) {
   const envelope = parseEnvelope(result.stdout);
-  const retryable =
-    Number.isInteger(result.status) && !isUsageLimited(result, envelope);
+  const retryable = isRetryable(result, envelope);
   if (!isSuccess(result, envelope)) {
     return { reason: noVerdictReason(result, envelope), retryable };
   }
