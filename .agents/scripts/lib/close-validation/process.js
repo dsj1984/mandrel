@@ -151,10 +151,8 @@ function spawnGate(cmd, args, opts, lock) {
     // 'close', not 'exit': only 'close' waits for both pipes to drain.
     child.on('close', (code, sig) => {
       supervisor.release();
-      resolve({
-        status: settledGateStatus({ code, sig, supervisor, opts, output }),
-        ...(output.rows ? { failureRows: output.rows.rows() } : {}),
-      });
+      const status = settledGateStatus({ code, sig, supervisor, opts, output });
+      resolve(gateResult(status, output));
     });
     child.on('error', () => {
       supervisor.release();
@@ -196,22 +194,26 @@ function gateOutput(opts) {
       ? opts.log
       : (m) => process.stdout.write(`${m}\n`);
   const recent = [];
-  const rows = opts.retainFailureRows ? createFailureRowCollector() : null;
   const tail = opts.tolerateNoFilesProcessed ? retainTail(recent, emit) : emit;
-  return {
-    prefix,
-    emit,
-    tap: rows ? retainRows(rows, tail) : tail,
-    recent,
-    rows,
-  };
+  const { tap, failureRows } = retainRows(opts.retainFailureRows, tail);
+  return { prefix, emit, tap, recent, failureRows };
 }
 
-function retainRows(rows, emit) {
-  return (line) => {
+/** Feeds an opted-in gate's lines to a capped row collector, never the whole output. */
+function retainRows(retain, emit) {
+  if (!retain) return { tap: emit, failureRows: () => undefined };
+  const rows = createFailureRowCollector();
+  const tap = (line) => {
     rows.push(line);
     emit(line);
   };
+  return { tap, failureRows: rows.rows };
+}
+
+/** `{ status }`, plus the retained rows for an opted-in gate. */
+function gateResult(status, output) {
+  const failureRows = output.failureRows();
+  return failureRows ? { status, failureRows } : { status };
 }
 
 function retainTail(recent, emit) {

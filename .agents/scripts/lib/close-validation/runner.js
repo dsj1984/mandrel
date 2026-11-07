@@ -262,7 +262,7 @@ export async function runCloseValidation({
       ...(gate.tolerateNoFilesProcessed
         ? { tolerateNoFilesProcessed: true }
         : {}),
-      ...(gate.retainFailureRows ? { retainFailureRows: true } : {}),
+      retainFailureRows: gate.retainFailureRows,
     });
     return { status: result?.status ?? 1, failureRows: result?.failureRows };
   };

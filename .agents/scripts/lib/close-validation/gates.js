@@ -330,7 +330,7 @@ function buildBaselinesGateEntries({ decision, kinds, env }) {
     ],
     hint: decision.hint ?? CHECK_BASELINES_HINT,
     // A registration hint stays as-is; the fixed hint yields to quoted rows.
-    ...(decision.hint ? {} : { retainFailureRows: true }),
+    retainFailureRows: !decision.hint,
     ...(env ? { env } : {}),
     ...coverageReaderFlag(gateKinds),
   });
