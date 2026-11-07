@@ -14,7 +14,7 @@
  * @property {string} reason
  */
 
-export const DEGRADATION_KINDS = Object.freeze([
+const DEGRADATION_KINDS = Object.freeze([
   'verdict-missing',
   'coverage-partial',
   'context-reduced',
