@@ -493,12 +493,10 @@ test('syncBranchFromBase: an undecodable baseline-only conflict resolves to the 
   assert.deepEqual(out.resolvedBaselineFiles, files);
   assert.deepEqual(out.changedPaths, ['lib/a.js', 'baselines/coverage.json']);
   // The base side wins, by name — never `--ours`, never a hand-edited row.
-  assert.deepEqual(callsOf(runners, 'checkout')[0].args, [
-    'checkout',
-    'origin/main',
-    '--',
-    ...files,
-  ]);
+  assert.deepEqual(
+    callsOf(runners, 'checkout').map((c) => c.args),
+    files.map((file) => ['checkout', 'origin/main', '--', file]),
+  );
   assert.deepEqual(callsOf(runners, 'add')[0].args, ['add', '--', ...files]);
   assert.deepEqual(callsOf(runners, 'commit')[0].args, ['commit', '--no-edit']);
   assert.equal(

@@ -495,7 +495,7 @@ async function runPreflightCheck(ctx, check, pass, env) {
     creditCheck(ctx, check);
     return null;
   }
-  const detail = check.key === 'lint' ? finding + seatHint(ctx) : finding;
+  const detail = finding + seatHint(ctx, check);
   return { check: check.key, detail, evidencePath: run.evidencePath };
 }
 
@@ -503,7 +503,8 @@ async function runPreflightCheck(ctx, check, pass, env) {
  * A failed lint on a change set that adds files may be a missing coverage or
  * CRAP row the seat writes only after preflight: name the downgrade contract.
  */
-function seatHint(ctx) {
+function seatHint(ctx, check) {
+  if (check.key !== 'lint') return '';
   const added = gitLine(ctx.git, ctx.cwd, [
     'diff',
     '--name-only',

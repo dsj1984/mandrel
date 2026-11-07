@@ -76,32 +76,29 @@ function diffPaths(gitSpawn, cwd, fromSha) {
 const DRIVER_OWNED_BASELINE = /^baselines\/[^/]+\.json$/;
 
 /**
- * Row-merge each conflicted baseline (Story-only rows survive), take
- * `origin/<base>`'s whole file where that cannot decode, and commit the
- * merge. The kept Story-only row count, or null on any failed step.
+ * Take `origin/<base>`'s whole file for each of `wholeFile` (the baselines
+ * that could not be row-merged), stage every conflicted baseline and commit
+ * the merge. False on any failed step.
  *
  * @param {typeof defaultGitSpawn} gitSpawn
  * @param {string} cwd
  * @param {string} baseBranch
  * @param {string[]} files
- * @returns {number|null}
+ * @param {string[]} wholeFile
+ * @returns {boolean}
  */
-function resolveBaselinesToBase(gitSpawn, cwd, baseBranch, files) {
-  const { kept, wholeFile } = keepStoryRowsIn(gitSpawn, cwd, files);
-  const checkout = wholeFile.length > 0 ? [wholeFile] : [];
+function resolveBaselinesToBase(gitSpawn, cwd, baseBranch, files, wholeFile) {
   const steps = [
-    ...checkout.map((paths) => [
+    ...wholeFile.map((file) => [
       'checkout',
       `origin/${baseBranch}`,
       '--',
-      ...paths,
+      file,
     ]),
     ['add', '--', ...files],
     ['commit', '--no-edit'],
   ];
-  return steps.every((args) => gitSpawn(cwd, ...args).status === 0)
-    ? kept
-    : null;
+  return steps.every((args) => gitSpawn(cwd, ...args).status === 0);
 }
 
 function unmergedPaths(gitSpawn, cwd) {
@@ -241,10 +238,13 @@ function resolveBaselineOnlyConflict({
     driver.declared &&
     conflictFiles.length > 0 &&
     conflictFiles.every((f) => DRIVER_OWNED_BASELINE.test(f));
-  const kept = baselineOnly
-    ? resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles)
-    : null;
-  if (kept === null) return null;
+  if (!baselineOnly) return null;
+  const { kept, wholeFile } = keepStoryRowsIn(gitSpawn, cwd, conflictFiles);
+  if (
+    !resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles, wholeFile)
+  ) {
+    return null;
+  }
   log(
     'SYNC',
     `Resolved baseline-only conflict to origin/${baseBranch} (${kept} Story-only row(s) kept): ${conflictFiles.join(', ')}`,
