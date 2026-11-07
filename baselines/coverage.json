@@ -1575,6 +1575,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/failure-rows.js",
+      "lines": 97.52,
+      "branches": 97.22,
+      "functions": 88.88
+    },
+    {
       "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
       "lines": 100,
       "branches": 92,
@@ -1956,6 +1962,12 @@
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
       "lines": 97.02,
       "branches": 80.65,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/fail-detail.js",
+      "lines": 100,
+      "branches": 89.65,
       "functions": 100
     },
     {
