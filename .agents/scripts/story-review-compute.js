@@ -54,6 +54,14 @@ function formatTally(severity) {
   return `critical=${s.critical ?? 0} high=${s.high ?? 0} medium=${s.medium ?? 0} suggestion=${s.suggestion ?? 0}`;
 }
 
+/** A no-verdict halt is blocked (no code change resolves it); else CRITICAL. */
+function haltLine(deposit) {
+  if (deposit.haltCause === 'no-verdict') {
+    return `[story-review-compute] ⛔ BLOCKED: ${deposit.blockerReason}\n`;
+  }
+  return `[story-review-compute] ❌ CRITICAL: fix, commit and re-push before hand-off. Report:\n${deposit.report}\n`;
+}
+
 /**
  * @param {{ storyId: number, cwd: string, config: object }} input
  * @param {{
@@ -167,11 +175,7 @@ export async function runStoryReviewComputeCli(
     `[story-review-compute] ✅ Held review for Story #${storyId} written → ${outcome.path}\n` +
       `[story-review-compute] diff ${deposit.diffDigest.slice(0, 12)} @ ${deposit.headSha.slice(0, 12)} · ${formatTally(deposit.severity)}\n`,
   );
-  if (deposit.halted) {
-    stdout.write(
-      `[story-review-compute] ❌ CRITICAL: fix, commit and re-push before hand-off. Report:\n${deposit.report}\n`,
-    );
-  }
+  if (deposit.halted) stdout.write(haltLine(deposit));
   return outcome;
 }
 

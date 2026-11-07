@@ -1696,7 +1696,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-base-ref.js",
-      "mi": 103.447
+      "mi": 105.212
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
@@ -1720,7 +1720,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
-      "mi": 98.716
+      "mi": 100.178
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
@@ -1740,7 +1740,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/degraded-gates.js",
-      "mi": 105.641
+      "mi": 106.881
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/finding-identity.js",
@@ -1784,7 +1784,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
-      "mi": 97.991
+      "mi": 99.103
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
@@ -1836,7 +1836,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "mi": 92.964
+      "mi": 95.428
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -1908,15 +1908,15 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
-      "mi": 114.79
+      "mi": 117.372
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js",
-      "mi": 96.481
+      "mi": 101.35
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-outcome.js",
-      "mi": 121.456
+      "mi": 126.667
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
@@ -2644,7 +2644,7 @@
     },
     {
       "path": ".agents/scripts/story-review-compute.js",
-      "mi": 93.032
+      "mi": 94.419
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",

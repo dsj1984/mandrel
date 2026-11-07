@@ -91,6 +91,9 @@ async function postStoryReviewCrossRef({
   return false;
 }
 
+/** @param {object} [config] */
+const onNoVerdictOf = (config) => config?.delivery?.codeReview?.onNoVerdict;
+
 /**
  * Run the review against `headRef`; `deferPost` holds the report unposted.
  *
@@ -108,6 +111,7 @@ export async function computeStoryScopeReview({
   runCodeReviewFn,
   gitSpawnFn,
   progress,
+  config,
 }) {
   const base = resolveSharedBaseRef({ baseBranch, cwd, gitSpawnFn });
   if (!base.resolved) {
@@ -117,6 +121,7 @@ export async function computeStoryScopeReview({
         baseBranch,
         remoteRef: base.remoteRef,
         progress,
+        onNoVerdict: onNoVerdictOf(config),
       }),
     };
   }
@@ -142,6 +147,14 @@ export async function computeStoryScopeReview({
     gitSpawnFn,
   });
   return { result };
+}
+
+/** A result computed before `haltCause` existed halted on a critical. */
+function haltCauseOf({ halted, haltCause, blockerReason }) {
+  return {
+    haltCause: haltCause ?? (halted ? 'critical' : null),
+    blockerReason: blockerReason ?? null,
+  };
 }
 
 /**
@@ -198,6 +211,7 @@ export async function settleStoryScopeReview({
 
   return {
     halted: !!result.halted,
+    ...haltCauseOf(result),
     severity: sev,
     criticalByProvider: result.criticalByProvider,
     // The override records these ids so a re-review does not halt on them.
@@ -224,9 +238,11 @@ export async function settleStoryScopeReview({
  *   runCodeReviewFn: Function,
  *   gitSpawnFn?: Function,
  *   progress: (tag: string, msg: string) => void,
+ *   config?: object,
  * }} args
  * @returns {Promise<{
  *   halted: boolean,
+ *   haltCause?: 'critical'|'no-verdict'|null,
  *   skipped?: boolean,
  *   severity?: { critical: number, high: number, medium: number, suggestion: number },
  *   criticalByProvider?: Record<string, number>,
@@ -249,6 +265,7 @@ export async function runStoryScopeReview({
   runCodeReviewFn,
   gitSpawnFn,
   progress,
+  config,
 }) {
   if (prNumber == null) {
     progress(
@@ -267,6 +284,7 @@ export async function runStoryScopeReview({
     runCodeReviewFn,
     gitSpawnFn,
     progress,
+    config,
   });
   return settleStoryScopeReview({
     computed,

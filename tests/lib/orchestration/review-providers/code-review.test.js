@@ -15,6 +15,7 @@ import { spawnCaptureAsync } from '../../../../.agents/scripts/lib/child-exec.js
 import { createCodeReviewProviderForRegistry } from '../../../../.agents/scripts/lib/orchestration/review-providers/code-review.js';
 import {
   mergeChainDegradations,
+  normalizeDegradations,
   renderDegradedGatesSection,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/degraded-gates.js';
 import { renderGuidanceBlock } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-guidance.js';
@@ -113,9 +114,10 @@ function countSeverity(findings) {
 }
 
 /** Exactly one degraded-gate record for the model bug review. */
-function assertOneDegradation(provider, reasonRe) {
+function assertOneDegradation(provider, reasonRe, kind) {
   const rows = provider.getDegradations();
   assert.equal(rows.length, 1);
+  if (kind) assert.equal(rows[0].kind, kind);
   assert.equal(rows[0].tool, 'code-review');
   assert.equal(rows[0].gate, 'codeReview');
   assert.equal(rows[0].surface, 'model-bug-review');
@@ -487,7 +489,8 @@ test('AC-6: a failed review then a successful one reports no degradation for the
     authSpawnFn: () => ({ status: 0, stdout: AUTH_OK, stderr: '' }),
     spawnFn: () => {
       run += 1;
-      return run === 1
+      // The first review fails twice: the invocation and its one retry.
+      return run <= 2
         ? { status: 1, stdout: '', stderr: 'boom' }
         : { status: 0, stdout: envelope([]), stderr: '' };
     },
@@ -1036,4 +1039,198 @@ test('#5976: input.effort sets --effort on every chunk and in the log line; argv
   }
   assert.equal(lines.filter((m) => /--effort high \(/.test(m)).length, 2);
   assert.ok(!lines.some((m) => /--effort low/.test(m)));
+});
+
+// Story #5982 — degradation kinds and the single transient retry.
+
+test('#5982 AC-1: a whole-review no verdict is verdict-missing', async () => {
+  const unreadable = harness({
+    diff: { status: 128, stdout: '', stderr: 'bad revision' },
+  });
+  await unreadable.provider.runReview(INPUT);
+  assertOneDegradation(unreadable.provider, /bad revision/, 'verdict-missing');
+  const loggedOut = harness({ auth: { status: 1, stdout: '', stderr: '' } });
+  await loggedOut.provider.runReview(INPUT);
+  assertOneDegradation(loggedOut.provider, /auth status/, 'verdict-missing');
+});
+
+test('#5982 AC-1: every chunk without a verdict is one verdict-missing record naming every file', async () => {
+  const diff = [
+    section('src/a.js', 150_000),
+    section('src/b.js', 150_000),
+  ].join('');
+  const { provider } = perPromptHarness(diff, () => ({
+    status: 0,
+    stdout: 'not json',
+    stderr: '',
+  }));
+  await provider.runReview(INPUT);
+  const row = assertOneDegradation(
+    provider,
+    /^no verdict for src\/a\.js, src\/b\.js: /,
+    'verdict-missing',
+  );
+  assert.doesNotMatch(row.reason, /;.*;/);
+});
+
+test('#5982 AC-1: one chunk without a verdict beside one with a verdict is coverage-partial', async () => {
+  const diff = [
+    section('src/a.js', 150_000),
+    section('src/b.js', 150_000),
+  ].join('');
+  const { provider } = perPromptHarness(diff, (prompt) =>
+    prompt.includes('+++ b/src/a.js')
+      ? { status: 0, stdout: 'not json', stderr: '' }
+      : { status: 0, stdout: envelope([]), stderr: '' },
+  );
+  await provider.runReview(INPUT);
+  assertOneDegradation(
+    provider,
+    /^no verdict for src\/a\.js/,
+    'coverage-partial',
+  );
+});
+
+test('#5982 AC-1: files past the chunk bound and a truncated chunk are coverage-partial', async () => {
+  const files = Array.from({ length: 8 }, (_, i) => `src/f${i}.js`);
+  const bounded = perPromptHarness(
+    files.map((f) => section(f, 150_000)).join(''),
+    () => ({ status: 0, stdout: envelope([]), stderr: '' }),
+  );
+  await bounded.provider.runReview(INPUT);
+  assertOneDegradation(bounded.provider, /review bounded/, 'coverage-partial');
+  const big = `diff --git a/x b/x\n${'+'.repeat(250_000)}\n`;
+  const truncated = harness({ diff: { status: 0, stdout: big, stderr: '' } });
+  await truncated.provider.runReview(INPUT);
+  assertOneDegradation(truncated.provider, /truncated at/, 'coverage-partial');
+});
+
+test('#5982 AC-1: an incomplete callers block is context-reduced', async () => {
+  const hits = Array.from(
+    { length: 30 },
+    (_, i) => `story-5426:src/b.js:${i + 1}:loadWidget();`,
+  ).join('\n');
+  const { provider } = harness({
+    diff: { status: 0, stdout: CALLER_DIFF, stderr: '' },
+    grep: () => ({ status: 0, stdout: hits, stderr: '' }),
+  });
+  await provider.runReview({ ...INPUT, depth: 'deep' });
+  assertOneDegradation(provider, /callers block incomplete/, 'context-reduced');
+});
+
+test('#5982 AC-1: a record with no or an unknown kind normalizes to context-reduced', () => {
+  const rows = normalizeDegradations([
+    { surface: 's', reason: 'r' },
+    { surface: 's', reason: 'r', kind: 'mystery' },
+    { surface: 's', reason: 'r', kind: 'coverage-partial' },
+  ]);
+  assert.deepEqual(
+    rows.map((d) => d.kind),
+    ['context-reduced', 'context-reduced', 'coverage-partial'],
+  );
+});
+
+/** A spawnFn that answers each invocation in turn from `results`. */
+function sequenceHarness(results, extra = {}) {
+  let i = 0;
+  const lines = [];
+  const provider = createCodeReviewProviderForRegistry({
+    probeFn: () => true,
+    platform: 'linux',
+    logger: { info: () => {}, warn: (m) => lines.push(m) },
+    gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),
+    authSpawnFn: () => extra.auth ?? { status: 0, stdout: AUTH_OK, stderr: '' },
+    spawnFn: () => results[Math.min(i++, results.length - 1)],
+  });
+  return { provider, invocations: () => i, lines };
+}
+
+const OK = { status: 0, stdout: envelope([]), stderr: '' };
+
+for (const [label, failure] of [
+  ['a non-zero integer exit', { status: 1, stdout: '', stderr: 'boom' }],
+  [
+    'an is_error result',
+    { status: 0, stdout: envelope([], { is_error: true }), stderr: '' },
+  ],
+  [
+    'a non-success subtype',
+    {
+      status: 0,
+      stdout: JSON.stringify({ subtype: 'error_max_turns', result: '' }),
+      stderr: '',
+    },
+  ],
+  ['unparseable output', { status: 0, stdout: 'not json', stderr: '' }],
+]) {
+  test(`#5982 AC-8: ${label} is retried once and a recovered verdict records nothing`, async () => {
+    const { provider, invocations } = sequenceHarness([failure, OK]);
+    assert.deepEqual(await provider.runReview(INPUT), []);
+    assert.equal(invocations(), 2);
+    assert.deepEqual(provider.getDegradations(), []);
+  });
+}
+
+test('#5982 AC-8: a failure that persists is retried exactly once, then one verdict-missing record', async () => {
+  const fail = { status: 1, stdout: '', stderr: 'boom' };
+  const { provider, invocations, lines } = sequenceHarness([fail]);
+  await provider.runReview(INPUT);
+  assert.equal(invocations(), 2);
+  assertOneDegradation(provider, /status 1: boom/, 'verdict-missing');
+  assert.ok(lines.some((m) => /retrying once/.test(m)));
+});
+
+test('#5982 AC-8: no retry for a usage limit, a timeout (status null) or a failed auth preflight', async () => {
+  const quota = sequenceHarness([
+    {
+      status: 1,
+      stdout: envelope([], { is_error: true, result: 'usage limit reached' }),
+      stderr: '',
+    },
+  ]);
+  await quota.provider.runReview(INPUT);
+  assert.equal(quota.invocations(), 1);
+  assertOneDegradation(quota.provider, /out of quota/, 'verdict-missing');
+
+  const timeout = sequenceHarness([{ status: null, stdout: '', stderr: '' }]);
+  await timeout.provider.runReview(INPUT);
+  assert.equal(timeout.invocations(), 1);
+  assertOneDegradation(timeout.provider, /status null/, 'verdict-missing');
+
+  const auth = sequenceHarness([OK], {
+    auth: { status: 1, stdout: '', stderr: '' },
+  });
+  await auth.provider.runReview(INPUT);
+  assert.equal(auth.invocations(), 0);
+  assertOneDegradation(auth.provider, /auth status/, 'verdict-missing');
+});
+
+test('#5982 AC-8: each chunk is retried on its own', async () => {
+  const diff = [
+    section('src/a.js', 150_000),
+    section('src/b.js', 150_000),
+  ].join('');
+  const seen = new Map();
+  const { provider, prompts } = perPromptHarness(diff, (prompt) => {
+    const key = prompt.includes('+++ b/src/a.js') ? 'a' : 'b';
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+    return seen.get(key) === 1
+      ? { status: 0, stdout: 'not json', stderr: '' }
+      : { status: 0, stdout: envelope([]), stderr: '' };
+  });
+  await provider.runReview(INPUT);
+  assert.equal(prompts.length, 4);
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('#5982 AC-10: no retry log line or reason carries account identity', async () => {
+  const { provider, lines } = sequenceHarness([
+    { status: 1, stdout: '', stderr: 'boom' },
+  ]);
+  await provider.runReview(INPUT);
+  const text = [
+    ...lines,
+    ...provider.getDegradations().map((d) => d.reason),
+  ].join('\n');
+  assert.doesNotMatch(text, /operator@example\.com|Example Org|org-123/);
 });

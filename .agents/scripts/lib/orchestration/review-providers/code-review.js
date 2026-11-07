@@ -10,14 +10,15 @@
  * OS temp cwd (no CLAUDE.md discovery), user-only settings, no MCP, no tools.
  *
  * A missing CLI throws at construction (the chain entry is optional). A
- * review with no verdict records one degraded gate via `getDegradations()`
- * and returns no findings, so "never ran" cannot read as "found nothing".
+ * transient failure is retried once; a review still with no verdict records
+ * one degraded gate via `getDegradations()` and returns no findings.
  * A diff over the cap is reviewed chunk by chunk (file-aligned, sequential,
  * findings merged). Source sections pack before tests and docs, and every
  * chunk is told it is a slice and handed the whole changed-file manifest so
- * a file changed in another chunk never reads as unchanged. What went unchecked — a truncated file, files past the
- * chunk bound, a chunk with no verdict, a capped `<callers>` block — is
- * recorded beside the findings, naming the files.
+ * a file changed in another chunk never reads as unchanged. What went
+ * unchecked — a truncated file, files past the chunk bound, a chunk with no
+ * verdict (`coverage-partial`), a capped `<callers>` block
+ * (`context-reduced`) — is recorded beside the findings, naming the files.
  *
  * @typedef {import('./types.js').Finding}        Finding
  * @typedef {import('./types.js').ReviewInput}    ReviewInput
@@ -28,7 +29,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnCaptureAsync } from '../../child-exec.js';
+import {
+  spawnCaptureAsync,
+  spawnCaptureNullableAsync,
+} from '../../child-exec.js';
 import { gitSpawn } from '../../git-utils.js';
 import { PROJECT_ROOT } from '../../project-root.js';
 import { buildCallersSection } from './callers-context.js';
@@ -240,19 +244,22 @@ function quoteWindowsArg(arg) {
  * @param {{ cwd: string, input?: string, timeout: number, run?: Function, platform: string }} opts
  * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
  */
-export function runClaude(args, { cwd, input, timeout, run, platform }) {
+export function runClaude(args, opts) {
+  return spawnCaptureAsync('claude', ...claudeSpawn(args, opts));
+}
+
+/** `runClaude`, but a timeout, kill or spawn error stays `status: null`. */
+function runClaudeNullable(args, opts) {
+  return spawnCaptureNullableAsync('claude', ...claudeSpawn(args, opts));
+}
+
+/** The argv and spawn options both runners share. */
+function claudeSpawn(args, { cwd, input, timeout, run, platform }) {
   const shell = platform === 'win32';
-  return spawnCaptureAsync(
-    'claude',
+  return [
     shell ? args.map(quoteWindowsArg) : [...args],
-    {
-      cwd,
-      input: input ?? '',
-      shell,
-      timeout,
-      ...(run ? { run } : {}),
-    },
-  );
+    { cwd, input: input ?? '', shell, timeout, ...(run ? { run } : {}) },
+  ];
 }
 
 /**
@@ -282,7 +289,7 @@ function runAuthStatus(runDir, deps) {
 }
 
 function runReviewer(runDir, prompt, effort, deps) {
-  return runClaude(claudeArgs(effort), {
+  return runClaudeNullable(claudeArgs(effort), {
     cwd: runDir,
     input: prompt,
     timeout: INVOKE_TIMEOUT_MS,
@@ -294,7 +301,7 @@ function runReviewer(runDir, prompt, effort, deps) {
 /**
  * Preflight, then the review, both from a fresh OS temp dir removed after.
  *
- * @returns {Promise<{ findings: Finding[] } | { reason: string }>}
+ * @returns {Promise<{ findings: Finding[] } | { reason: string, retryable?: boolean }>}
  */
 async function reviewInTempDir(prompt, effort, deps) {
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-code-review-'));
@@ -308,6 +315,16 @@ async function reviewInTempDir(prompt, effort, deps) {
   } finally {
     fs.rmSync(runDir, { recursive: true, force: true });
   }
+}
+
+/** One invocation, re-run once when its failure is transient-shaped. */
+async function reviewWithRetry(prompt, effort, deps) {
+  const first = await reviewInTempDir(prompt, effort, deps);
+  if (!first.retryable) return first;
+  deps.logger?.warn?.(
+    `[code-review] No verdict (${first.reason}); retrying once.`,
+  );
+  return reviewInTempDir(prompt, effort, deps);
 }
 
 /** @param {ReviewInput} input */
@@ -343,16 +360,36 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
   let degradations = [];
 
   /** Record a not-checked slice without replacing the findings. */
-  function noteDegradation(reason) {
-    degradations.push({ ...DEGRADATION_BASE, reason });
+  function noteDegradation(reason, kind) {
+    degradations.push({ ...DEGRADATION_BASE, kind, reason });
     deps.logger?.warn?.(`[code-review] Not checked: ${reason}.`);
   }
 
   function settle(verdict) {
     if (!('reason' in verdict)) return verdict.findings;
-    degradations.push({ ...DEGRADATION_BASE, reason: verdict.reason });
+    degradations.push({
+      ...DEGRADATION_BASE,
+      kind: 'verdict-missing',
+      reason: verdict.reason,
+    });
     deps.logger?.warn?.(`[code-review] No verdict: ${verdict.reason}.`);
     return [];
+  }
+
+  /**
+   * No chunk with a verdict is a review with none: one record naming every
+   * file. Otherwise each chunk without one is a partial gap.
+   */
+  function noteChunkGaps(failed, total) {
+    if (failed.length > 0 && failed.length === total) {
+      const reasons = [...new Set(failed.map((f) => f.reason))].join('; ');
+      const files = failed.map((f) => f.files).join(', ');
+      noteDegradation(`no verdict for ${files}: ${reasons}`, 'verdict-missing');
+      return;
+    }
+    for (const { files, reason } of failed) {
+      noteDegradation(`no verdict for ${files}: ${reason}`, 'coverage-partial');
+    }
   }
 
   /**
@@ -380,15 +417,18 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
       noteDegradation(
         `review bounded at ${MAX_REVIEW_CHUNKS} chunks: ${overflow.length} ` +
           `file(s) not reviewed: ${overflow.join(', ')}`,
+        'coverage-partial',
       );
     }
     const findings = [];
+    const failed = [];
     for (const [index, chunk] of chunks.entries()) {
       const files = chunk.sections.map((s) => s.file).join(', ');
       if (chunk.size > budget) {
         noteDegradation(
           `${files} truncated at ${budget} characters: ` +
             `${chunk.size - budget} characters not reviewed`,
+          'coverage-partial',
         );
       }
       const prompt = buildPrompt(
@@ -398,13 +438,11 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
         budget,
         sliceNote(index + 1, chunks.length) + manifest,
       );
-      const verdict = await reviewInTempDir(prompt, effortOf(input), runDeps);
-      if ('reason' in verdict) {
-        noteDegradation(`no verdict for ${files}: ${verdict.reason}`);
-      } else {
-        findings.push(...verdict.findings);
-      }
+      const verdict = await reviewWithRetry(prompt, effortOf(input), runDeps);
+      if ('reason' in verdict) failed.push({ files, reason: verdict.reason });
+      else findings.push(...verdict.findings);
     }
+    noteChunkGaps(failed, chunks.length);
     return dedupeFindings(findings);
   }
 
@@ -421,12 +459,12 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
         cwd: PROJECT_ROOT,
         gitSpawnFn,
       });
-      if (callers.reason) noteDegradation(callers.reason);
+      if (callers.reason) noteDegradation(callers.reason, 'context-reduced');
       if (diff.text.length > MAX_DIFF_CHARS) {
         return reviewInChunks(input, diff.text, callers.text);
       }
       return settle(
-        await reviewInTempDir(
+        await reviewWithRetry(
           buildPrompt(input, diff.text, callers.text),
           effortOf(input),
           runDeps,

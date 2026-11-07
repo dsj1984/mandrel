@@ -120,6 +120,7 @@ test('a head this repository cannot resolve keeps the critical and records a deg
         tool: 'claim-grounding',
         gate: 'claim-grounding',
         surface: 'head-ref',
+        kind: 'context-reduced',
         reason: `head ${foreignHead} not resolvable in ${dir}`,
       },
     ],

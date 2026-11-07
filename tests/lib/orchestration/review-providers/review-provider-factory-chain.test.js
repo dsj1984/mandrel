@@ -468,3 +468,73 @@ test('listRegisteredProviders: unions inline + prompt names', () => {
   assert.ok(all.includes('ultrareview'));
   assert.ok(all.includes('security-review'));
 });
+
+// Story #5982 — a skipped optional reviewer cannot read as having reviewed.
+
+test('#5982 AC-2: with neither CLI the default chain records one verdict-missing naming llm-review', async () => {
+  const provider = createReviewProvider(undefined, {
+    inlineRegistry: defaultChainRegistry({ cliPresent: false, order: [] }),
+    promptRegistry: promptRegistry({}),
+  });
+  await provider.runReview(STORY_INPUT);
+  const rows = await provider.getDegradations();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].kind, 'verdict-missing');
+  assert.equal(rows[0].surface, 'llm-review');
+  assert.match(
+    rows[0].reason,
+    /"llm-review" skipped: unavailable on this host/,
+  );
+});
+
+test('#5982 AC-2: a skipped optional entry whose scope or label gate excludes the run records nothing', async () => {
+  const provider = createReviewProvider(
+    {
+      providers: [
+        { name: 'native' },
+        { name: 'ghost', optional: true, scopes: ['story'] },
+        { name: 'gone', optional: true, when: { label: 'needs::llm' } },
+      ],
+    },
+    {
+      inlineRegistry: inlineRegistry({
+        native: () => stubInline([]),
+        gone: () => {
+          throw new Error('no CLI');
+        },
+      }),
+      promptRegistry: promptRegistry({}),
+    },
+  );
+  await provider.runReview(INPUT);
+  assert.deepEqual(await provider.getDegradations(), []);
+  await provider.runReview({ ...STORY_INPUT, labels: ['needs::llm'] });
+  assert.deepEqual(
+    (await provider.getDegradations()).map((d) => [d.surface, d.kind]),
+    [
+      ['ghost', 'verdict-missing'],
+      ['gone', 'verdict-missing'],
+    ],
+  );
+});
+
+test('#5982 AC-9: delivery.codeReview.onNoVerdict validates as report or block only', () => {
+  const validate = getAgentrcValidator();
+  const config = (onNoVerdict) => ({
+    project: {
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+    },
+    delivery: { codeReview: { onNoVerdict } },
+  });
+  for (const value of ['report', 'block']) {
+    assert.equal(
+      validate(config(value)),
+      true,
+      JSON.stringify(validate.errors),
+    );
+  }
+  for (const value of ['warn', true, 1]) {
+    assert.equal(validate(config(value)), false, String(value));
+  }
+  assert.equal(CODE_REVIEW_SCHEMA.properties.onNoVerdict.default, 'report');
+});

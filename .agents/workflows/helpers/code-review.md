@@ -198,12 +198,36 @@ The pipeline will:
   close-validation gate, so the review does not re-run it).
 - Post a structured summary report to the `[TICKET_ID]` issue.
 
-**What the review did not check is posted, not silent.** A diff longer than
-200,000 characters is truncated for the model bug review, and a `<callers>`
-block can hit a cap; each records a degradation (the unreviewed character and
-file counts, or the dropped symbols) beside the parsed findings. Those land
-in the **Degraded gates** section of the posted `verification-results`
-comment — that section is where every unreviewed slice appears.
+**What the review did not check is posted, not silent.** Every degradation
+lands in the **Degraded gates** section of the posted `verification-results`
+comment with one of three kinds:
+
+- `verdict-missing` — no verdict at all: the diff could not be read, the
+  `claude` CLI is not logged in or out of quota, the reviewer failed or its
+  output did not parse, every chunk failed, an optional chain entry such as
+  `llm-review` was skipped on a host without its CLI, or the base ref is
+  unresolvable. Close reports `gates.codeReview: "unreviewed"`.
+- `coverage-partial` — part of the diff went unreviewed: one chunk failed
+  beside chunks that returned a verdict, files fell past the chunk bound, or a
+  chunk was truncated at the 200,000-character budget. Close reports
+  `"partial"`.
+- `context-reduced` — reviewed with less context: a capped `<callers>`
+  block or truncated guidance. Close reports `"degraded"`.
+
+Before recording a no-verdict, the `code-review` provider re-invokes the
+reviewer **once** when the failure is transient-shaped (a non-zero exit that
+is not a usage limit, an `is_error` result, a non-success subtype,
+unparseable output). It never retries a failed auth preflight, a usage limit
+or a timeout.
+
+`delivery.codeReview.onNoVerdict` decides what a gap does. `report` (the
+default) never halts. `block` halts handoff and close on any
+`verdict-missing` or `coverage-partial` record with `haltCause:
+"no-verdict"`: the blocker names the cause, its fix and the
+`story-review-compute.js --story <id>` re-run command, handoff settles
+`blocked` (no code change resolves it) and close refuses to arm auto-merge
+unless re-run with `--override-review-block "<reason>"`. `context-reduced`
+never halts.
 
 ### Story scope runs no lens pass
 

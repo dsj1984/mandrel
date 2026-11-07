@@ -1,11 +1,14 @@
 /**
  * phases/review-outcome.js — renders the review outcome, always stating the
  * degraded gates (`none` when healthy) so "never ran" cannot read as
- * "found nothing". Degraded is reported, not blocking — and never claim
- * another gate covered the surface; this module cannot see that.
+ * "found nothing". It never claims another gate covered the surface; this
+ * module cannot see that.
  */
 
-import { summarizeDegradations } from '../../review-providers/degraded-gates.js';
+import {
+  reviewGapLines,
+  summarizeDegradations,
+} from '../../review-providers/degraded-gates.js';
 
 /**
  * @param {{ severity: { critical: number, high: number, medium: number, suggestion: number }, degradations?: unknown }} args
@@ -35,13 +38,8 @@ export function formatReviewOutcomeLines({
   posted,
 }) {
   const tally = buildOutcomeTally({ severity, degradations });
-  const lines = [`Findings — ${tally}. Posted to PR #${prNumber}: ${posted}.`];
-  if (summarizeDegradations(degradations) !== 'none') {
-    lines.push(
-      '⚠️ Review ran DEGRADED — the surface(s) above were not reviewed. The close ' +
-        'is not blocked — a secondary review does not gate the merge — but ' +
-        'nothing here vouches for those surfaces.',
-    );
-  }
-  return lines;
+  return [
+    `Findings — ${tally}. Posted to PR #${prNumber}: ${posted}.`,
+    ...reviewGapLines(degradations),
+  ];
 }

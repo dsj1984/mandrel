@@ -1184,14 +1184,22 @@ async function stepPush(ctx) {
  * @returns {StepResult}
  */
 function reviewVerdict(deposit, depositPath, settled) {
-  if (deposit?.halted) {
-    return fixRequired(
-      'review',
-      'held review found a CRITICAL — fix, commit, re-run the handoff',
-      { evidencePath: depositPath, cause: 'review-critical' },
-    );
-  }
+  if (deposit?.halted) return haltedReview(deposit, depositPath);
   return settled;
+}
+
+/** No code change resolves a missing verdict, so that halt is blocked. */
+function haltedReview(deposit, depositPath) {
+  if (deposit.haltCause === 'no-verdict') {
+    return blocked('review', 'review-no-verdict', deposit.blockerReason, {
+      evidencePath: depositPath,
+    });
+  }
+  return fixRequired(
+    'review',
+    'held review found a CRITICAL — fix, commit, re-run the handoff',
+    { evidencePath: depositPath, cause: 'review-critical' },
+  );
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */

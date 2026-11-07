@@ -18,15 +18,23 @@ import {
 
 const REASON_SIGNAL_LIMIT = 500;
 
+/** The halt being overridden, as one sentence. */
+function haltSummary({ prUrl, criticalCount, noVerdictReason }) {
+  if (noVerdictReason) {
+    return `The Story-scope review produced **no verdict** on ${prUrl}: ${noVerdictReason}`;
+  }
+  return `The Story-scope review reported **${criticalCount} critical blocker(s)** on ${prUrl}.`;
+}
+
 /**
- * @param {{ prUrl: string, criticalCount: number, reason: string }} args
+ * @param {{ prUrl: string, criticalCount: number, reason: string, noVerdictReason?: string|null }} args
  * @returns {string}
  */
-function buildReviewOverrideBody({ prUrl, criticalCount, reason }) {
+function buildReviewOverrideBody({ reason, ...halt }) {
   return [
     '### Code-review blocker overridden by operator',
     '',
-    `The Story-scope review reported **${criticalCount} critical blocker(s)** on ${prUrl}.`,
+    haltSummary(halt),
     'The operator reviewed and rejected the finding(s) and authorized delivery',
     'with `--override-review-block`; auto-merge was armed.',
     '',
@@ -87,6 +95,7 @@ function recordOverrides({ storyId, findings, ...deps }) {
  *   criticalCount: number,
  *   criticalByProvider?: Record<string, number>,
  *   reason: string,
+ *   noVerdictReason?: string|null,
  *   findings?: Array<object>,
  *   config?: object,
  *   emitFrictionFn?: typeof emitRuntimeFriction,
@@ -101,11 +110,17 @@ export async function handleOverriddenReviewBlock({
   criticalCount,
   criticalByProvider = {},
   reason,
+  noVerdictReason = null,
   findings = [],
   config,
   emitFrictionFn = emitRuntimeFriction,
 }) {
-  const body = buildReviewOverrideBody({ prUrl, criticalCount, reason });
+  const body = buildReviewOverrideBody({
+    prUrl,
+    criticalCount,
+    reason,
+    noVerdictReason,
+  });
   Logger.warn(
     `[single-story-close] ⚠️ Story-scope review reported ${criticalCount} critical blocker(s) on ` +
       `PR ${prUrl} — OVERRIDDEN by operator: ${reason}`,

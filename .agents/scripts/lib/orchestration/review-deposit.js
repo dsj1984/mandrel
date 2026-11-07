@@ -96,6 +96,12 @@ export function computeReviewDiffDigest({ cwd, baseRef, headRef, gitSpawnFn }) {
   }
 }
 
+/** A halt recorded before `haltCause` existed was a critical one. */
+function haltCauseOf(record) {
+  if (!record.halted) return null;
+  return record.haltCause === 'no-verdict' ? 'no-verdict' : 'critical';
+}
+
 /**
  * Flatten a computed review `result` into the deposit record.
  *
@@ -121,6 +127,7 @@ export function buildReviewDeposit({
     provider: result.providerName ?? null,
     severity: result.severity,
     halted: !!result.halted,
+    haltCause: haltCauseOf(result),
     criticalByProvider: result.criticalByProvider ?? {},
     findings: Array.isArray(result.findings) ? result.findings : [],
     report: result.report ?? '',
@@ -149,6 +156,7 @@ export function depositAsComputedReview(deposit) {
       posted: false,
       postedCommentId: null,
       halted: deposit.halted,
+      haltCause: haltCauseOf(deposit),
       criticalByProvider: deposit.criticalByProvider,
       degraded: deposit.degraded,
       degradations: deposit.degradations,

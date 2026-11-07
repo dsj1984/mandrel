@@ -80,6 +80,6 @@ export async function openAndReviewPr(ctx, deps) {
     alreadyMerged: false,
     pushOutcome,
     reviewOverride,
-    reviewDegraded: reviewOutcome.degraded === true,
+    reviewDegradations: reviewOutcome.degradations ?? [],
   };
 }

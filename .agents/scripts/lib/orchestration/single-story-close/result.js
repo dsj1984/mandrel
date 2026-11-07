@@ -4,6 +4,7 @@ import { recordCloseTelemetry } from '../../observability/close-telemetry.js';
 import { finishCloseTerminal } from '../../observability/story-outcome.js';
 import { emitTerseResult } from '../../observability/terse-result.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from '../lifecycle/emit-merge-flip-failed.js';
+import { reviewGateValue } from '../review-providers/degraded-gates.js';
 import {
   buildTerminalEnvelope,
   emitTerminalEnvelope,
@@ -181,38 +182,35 @@ function deferredCaptureGate(validationGates) {
 }
 
 /**
- * `overridden` > `degraded` > `passed`: an override records the human
- * decision on a failed review; `degraded` says a review surface produced no
- * verdict (reported, not blocking — a secondary review does not gate merge).
+ * Derived from the review's degradation kinds, never the bare `degraded` flag.
  *
  * @param {object|null} reviewOverride
- * @param {boolean} [reviewDegraded]
- * @returns {'overridden'|'degraded'|'passed'}
+ * @param {ReadonlyArray<object>} [reviewDegradations]
+ * @returns {string}
  */
-function codeReviewGate(reviewOverride, reviewDegraded) {
-  if (reviewOverride) return 'overridden';
-  return reviewDegraded ? 'degraded' : 'passed';
+function codeReviewGate(reviewOverride, reviewDegradations) {
+  return reviewGateValue(reviewDegradations, { overridden: !!reviewOverride });
 }
 
 /**
  * @param {{ skipValidation?: boolean, skipSync?: boolean }} options
  * @param {Record<string, string>|null} validationGates
  * @param {object|null} reviewOverride
- * @param {boolean} [reviewDegraded]
+ * @param {ReadonlyArray<object>} [reviewDegradations]
  * @returns {Record<string, string>}
  */
 export function closeEnvelopeGates(
   options,
   validationGates,
   reviewOverride,
-  reviewDegraded,
+  reviewDegradations,
 ) {
   return {
     validation: options.skipValidation ? 'skipped' : 'passed',
     ...baselinesEnvelopeGates(validationGates),
     ...deferredCaptureGate(validationGates),
     baseSync: options.skipSync ? 'skipped' : 'passed',
-    codeReview: codeReviewGate(reviewOverride, reviewDegraded),
+    codeReview: codeReviewGate(reviewOverride, reviewDegradations),
   };
 }
 
