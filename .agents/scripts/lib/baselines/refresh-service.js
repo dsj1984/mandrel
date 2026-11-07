@@ -318,7 +318,8 @@ function requireScorer(kind, scorer, cwd) {
  * Refresh the on-disk baseline for `kind`. `scopeFiles: null` without
  * `fullScope` derives scope from `git diff baseRef..headRef`; `fullScope`
  * requires `scopeFiles: null`. `requireRowsForScopeFiles` fails loud when a
- * scoped file produced no row.
+ * scoped file produced no row. A scoped refresh never rewrites an
+ * `excludeWriteFiles` row.
  *
  * @param {{
  *   kind: 'maintainability' | 'crap' | 'coverage' | 'duplication' | 'bundle-size',
@@ -335,6 +336,7 @@ function requireScorer(kind, scorer, cwd) {
  *   requireRowsForScopeFiles?: boolean,
  *   requiredScopeFilePredicate?: (file: string) => boolean,
  *   extrasContext?: { cwd?: string, targetDirs?: string[] },
+ *   excludeWriteFiles?: string[],
  * }} opts
  * @returns {Promise<{
  *   kind: string,
@@ -363,6 +365,7 @@ export async function refreshBaseline(opts = {}) {
     requireRowsForScopeFiles = false,
     requiredScopeFilePredicate,
     extrasContext,
+    excludeWriteFiles = [],
   } = opts;
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
@@ -419,6 +422,7 @@ export async function refreshBaseline(opts = {}) {
     scope,
     rows: canonicalRows,
     priorRows: priorEnvelope?.rows,
+    exclude: excludeWriteFiles,
   });
 
   const envelope = writeEnvelope({
@@ -475,10 +479,17 @@ function partnersOf(rows, files) {
  * removed clone's partner appears in no head pair). A rise in an unrelated
  * file stays out of scope, so a branch never owns drift it did not cause.
  *
- * @param {{ kind: string, scope: { mode: string, files: string[] }, rows: object[], priorRows?: object[] }} args
+ * `exclude` is subtracted last.
+ *
+ * @param {{ kind: string, scope: { mode: string, files: string[] }, rows: object[], priorRows?: object[], exclude?: string[] }} args
  * @returns {string[]}
  */
-function resolveWriteScopeFiles({ kind, scope, rows, priorRows }) {
+function resolveWriteScopeFiles({ exclude = [], ...args }) {
+  const excluded = new Set(exclude.map(canonicalizeBaselinePath));
+  return widenWriteScope(args).filter((file) => !excluded.has(file));
+}
+
+function widenWriteScope({ kind, scope, rows, priorRows }) {
   if (kind !== 'duplication' || scope.mode === 'full') return [...scope.files];
   const headByPath = new Map(rows.map((row) => [row.path, row]));
   const partners = scope.files.flatMap(
