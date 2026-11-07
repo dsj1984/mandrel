@@ -1832,7 +1832,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
-      "mi": 93.819
+      "mi": 94.488
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
@@ -1856,7 +1856,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js",
-      "mi": 86.314
+      "mi": 89.69
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
