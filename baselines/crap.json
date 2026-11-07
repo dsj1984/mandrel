@@ -3848,6 +3848,7 @@
       "classifyBranchSeed": 3,
       "currentBranch": 3,
       "ensureLocalBranch": 2,
+      "remoteBranchSha": 3,
       "seedStoryBranchRef": 11
     },
     ".agents/scripts/lib/git-utils.js": {
@@ -6249,6 +6250,7 @@
       "<anon finishWithMergeWait/runPostLandTailFn(args)#0>": 1,
       "<anon landed(_terminal,storyId,prUrl)#0>": 1,
       "<anon pending(terminal,storyId,prUrl)#0>": 1,
+      "closeEnvelopeFields": 1,
       "finishDeferred": 1,
       "finishWithMergeWait": 1.0000214334705075,
       "finishWithoutMergeWait": 2,
@@ -6316,7 +6318,8 @@
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js": {
       "openAndReviewPr": 3,
-      "pullRequestArgs": 1
+      "pullRequestArgs": 1,
+      "pushPhase": 1
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/options.js": {
       "<anon assertNoRetiredFlags/argv.some(a)#0>": 2,
@@ -6403,6 +6406,9 @@
       "probeEmptyDiff": 2
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/push.js": {
+      "localTip": 3,
+      "originAtLocalTip": 3,
+      "push": 1,
       "pushStoryBranch": 1
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js": {
