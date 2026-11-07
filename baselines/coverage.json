@@ -2505,6 +2505,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/preflight-lanes.js",
+      "lines": 98.9,
+      "branches": 92.16,
+      "functions": 91.67
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
       "lines": 96.61,
       "branches": 83.72,
@@ -3010,9 +3016,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 98.77,
-      "branches": 89.78,
-      "functions": 98.73
+      "lines": 98.8,
+      "branches": 91,
+      "functions": 98.82
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
