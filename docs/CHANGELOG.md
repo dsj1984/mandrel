@@ -15,6 +15,15 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.113.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.112.0...mandrel-v2.113.0) (2026-11-07)
+
+
+### Fixed
+
+* base sync keeps Story-only baseline rows on a baseline-only conflict, and preflight lint names the handoff-step downgrade ([#6022](https://github.com/dsj1984/mandrel/issues/6022)) ([#6026](https://github.com/dsj1984/mandrel/issues/6026)) ([1c281cd](https://github.com/dsj1984/mandrel/commit/1c281cd3840c52df9025a2a00b3cfede2ae0d171))
+* code-review auth probe retries a non-JSON `claude auth status` once and records a redacted output prefix ([#6021](https://github.com/dsj1984/mandrel/issues/6021)) ([#6024](https://github.com/dsj1984/mandrel/issues/6024)) ([b719dd3](https://github.com/dsj1984/mandrel/commit/b719dd3281fecaa061abcf94610b0dfaa59ed904))
+* duplication re-score moves only the rows a Story caused when baseSync on-conflict skipped the base merge ([#6019](https://github.com/dsj1984/mandrel/issues/6019)) ([#6025](https://github.com/dsj1984/mandrel/issues/6025)) ([1b9354a](https://github.com/dsj1984/mandrel/commit/1b9354af75976a3037db235f49769fc0eae3ae8a))
+
 ## [2.112.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.111.0...mandrel-v2.112.0) (2026-11-07)
 
 
