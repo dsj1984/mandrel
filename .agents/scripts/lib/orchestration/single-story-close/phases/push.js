@@ -44,6 +44,17 @@ function push(cwd, storyBranch, gitSync, progress) {
   return { outcome: 'pushed' };
 }
 
+function settlePush({ pushCwd, storyBranch, skipValidation, ...git }) {
+  if (skipValidation || !originAtLocalTip(pushCwd, storyBranch, git.gitSpawn)) {
+    return push(pushCwd, storyBranch, git.gitSync, git.progress);
+  }
+  git.progress(
+    'GIT',
+    `⏭  origin/${storyBranch} already at HEAD — push skipped.`,
+  );
+  return { outcome: 'skipped-already-at-head' };
+}
+
 /**
  * @param {{
  *   cwd: string,
@@ -65,10 +76,12 @@ export function pushStoryBranch({
   gitSpawn = defaultGitSpawn,
   progress,
 }) {
-  const pushCwd = worktreePath ?? cwd;
-  if (skipValidation || !originAtLocalTip(pushCwd, storyBranch, gitSpawn)) {
-    return push(pushCwd, storyBranch, gitSync, progress);
-  }
-  progress('GIT', `⏭  origin/${storyBranch} already at HEAD — push skipped.`);
-  return { outcome: 'skipped-already-at-head' };
+  return settlePush({
+    pushCwd: worktreePath ?? cwd,
+    storyBranch,
+    skipValidation,
+    gitSync,
+    gitSpawn,
+    progress,
+  });
 }
