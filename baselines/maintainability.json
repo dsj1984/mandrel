@@ -1996,7 +1996,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "mi": 95.597
+      "mi": 96.399
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
