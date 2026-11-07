@@ -2557,7 +2557,8 @@
       "resolveTestCredited": 2,
       "suiteOfRecord": 1,
       "suiteOfRecordFlag": 2,
-      "toKindSet": 3.072
+      "toKindSet": 3.072,
+      "withFailureRows": 2
     },
     ".agents/scripts/lib/close-validation/process.js": {
       "<anon defaultGateRunner/withFullSuiteLockAsync(lock)#0>": 1,
@@ -2634,6 +2635,7 @@
       "<anon runCloseValidation/evidenceVerdict(gate,configHash)#0>": 5,
       "<anon runCloseValidation/independent.map(gate)#0>": 8.008452725702384,
       "<anon runCloseValidation/recordIfActive(gate,configHash,durationMs)#0>": 3,
+      "<anon runSerialGates/failGate(gate,status,failureRows)#0>": 1,
       "<anon runSerialGates/failGate(gate,status)#0>": 1,
       "<anon runSerialGates/recordPass()#0>": 2,
       "applyChangedFileScope": 5.990502911344854,
@@ -3414,6 +3416,21 @@
       "methodSiteOf": 3,
       "traitIgnoreKeys": 3,
       "traitNewScope": 3
+    },
+    ".agents/scripts/lib/failure-rows.js": {
+      "<anon classify/SIGNATURES.some(re)#0>": 1,
+      "<anon createFailureRowCollector/add(text)#0>": 3,
+      "<anon createFailureRowCollector/rows()#0>": 1,
+      "<anon tapFailureRows/rowsResult()#0>": 1,
+      "<anon tapFailureRows/rowsResult()#1>": 1,
+      "<anon tapFailureRows/tap(line)#0>": 1,
+      "classify": 6,
+      "createFailureRowCollector": 7,
+      "extractFailureRows": 1,
+      "isTableRow": 4,
+      "normalise": 1,
+      "quoteFailureRows": 2,
+      "tapFailureRows": 2
     },
     ".agents/scripts/lib/feedback-loop/graduate-steps.js": {
       "<anon dedupFinding/probe(marker)#0>": 1,
@@ -4283,6 +4300,18 @@
       "loadValidated": 2,
       "withComponentRollups": 3
     },
+    ".agents/scripts/lib/orchestration/check-baselines/phases/fail-detail.js": {
+      "<anon fmt(n)#0>": 1,
+      "<anon formatRegressionLine/filter(v)#0>": 1,
+      "<anon formatRegressionLine/map(f,v)#0>": 1,
+      "<anon formatRegressionLine/numeric.filter(f,v)#0>": 2,
+      "<anon formatRegressionLine/numeric.map(f,v)#0>": 1,
+      "formatFailDetail": 1,
+      "formatRegressionLine": 2,
+      "formatRegressionLines": 3,
+      "formatRemedyLine": 2,
+      "remedyCommand": 6
+    },
     ".agents/scripts/lib/orchestration/check-baselines/phases/floors.js": {
       "<anon applyFloors/out.sort(a,b)#0>": 3,
       "<anon buildAxisMismatchError/availableKeys.map(k)#0>": 1,
@@ -4353,6 +4382,8 @@
       "resolveRefreshTrigger": 6
     },
     ".agents/scripts/lib/orchestration/check-baselines/phases/report.js": {
+      "<anon appendGateText/g.components.flatMap(c)#0/c.violations.map(v)#0>": 1,
+      "<anon appendGateText/g.components.flatMap(c)#0>": 1,
       "<anon formatSkipped/skipped.map(s)#0>": 1,
       "appendGateText": 2,
       "formatGateLine": 6,
