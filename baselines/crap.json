@@ -5910,6 +5910,7 @@
       "dedupeFindings": 1,
       "openChunk": 1,
       "packChunks": 2,
+      "pauseFor": 2,
       "quoteWindowsArg": 1,
       "reviewInTempDir": 2,
       "reviewWithRetry": 2,
