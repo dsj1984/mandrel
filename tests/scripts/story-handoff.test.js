@@ -694,7 +694,7 @@ describe('story-handoff — ratchets covered by a whole-tree lint (Story #5964)'
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'preflight');
     assert.match(envelope.evidencePath, /preflight-lint/);
-    assert.match(envelope.steps.at(-1).detail, /^lint finding/);
+    assert.match(stopStep(envelope).detail, /^lint finding/);
     assert.deepEqual(ratchetCalls(h.runCommand), ['check-arch-cycles.js']);
     assert.equal(coveredLines(h).length, 0);
   });
