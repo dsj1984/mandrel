@@ -8,8 +8,8 @@ description: >-
 # Deliver digest (read once per session)
 
 > **Bundle, not a procedure.** [`deliver-story.md`](deliver-story.md) is still
-> the steps; this file is the material they reference, bundled so one read
-> covers the happy path. Situational material stays on demand in
+> the steps; this file bundles the material they reference. Situational
+> material stays on demand in
 > [`deliver-story-reference.md`](deliver-story-reference.md) and
 > [`deliver-reference.md`](deliver-reference.md), read only when routed.
 
@@ -55,18 +55,16 @@ node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <wor
 It prints one object: `files` — the one change set handed to the verdict
 owner (`null` when the diff is unenumerable) — plus `level` and
 `classes` from `review-depth.js`, and `mode`, `reason` and `verdictOwner`
-from `ceremony-routing.js`. Level rules: a sensitive path in
-`audit-rules.json` → `high`, none → `low`, an unenumerable diff → `null`.
+from `ceremony-routing.js`. Level: a sensitive
+`audit-rules.json` path → `high`, else `low`; unenumerable → `null`.
 The level drives **review depth** only (close reads it too): a
 sensitive footprint buys a **deep review**, not a fresh acceptance critic.
 
 > **The ceremony rule, stated once.** The **profile alone** names the verdict
 > owner: `minimal` / `standard` → `inline`, `strict` → `fresh`. Nothing else
 > moves it — not the change level, not sensitivity, **not the dispatch
-> mode**: an `inline` Story under `strict` still spawns the fresh critic. The
-> only inline authoring under `strict` is the harness fallback in
-> [`acceptance-self-eval.md`](acceptance-self-eval.md), noted in any friction
-> comment.
+> mode**: an `inline` Story under `strict` still spawns the fresh critic,
+> bar the harness fallback in [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 ## 4. Acceptance self-eval (Step 1a, required)
 
@@ -97,8 +95,7 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 ## 5. The one credited run — `story-handoff.js`
 
-After the self-eval's last fix commit the worker runs **one** command, which
-runs this section and prints one envelope:
+After the self-eval's last fix commit the worker runs **one** command:
 
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
@@ -115,8 +112,10 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    **untagged** before any credit.
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
-   baselined ratchet; one `fix-required` lists every finding —
-   [`deliver-reference.md`](deliver-reference.md) § Preflight.
+   baselined ratchet; one `fix-required` lists every finding. Serial unless
+   a host's `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
+   above 1 (default 1): close's independent gates may then run in admitted
+   lanes beside the base lane — [`deliver-reference.md`](deliver-reference.md) § Preflight.
 3. **One depositor**, by the one predicate close registers `coverage-capture`
    on — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →

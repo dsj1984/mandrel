@@ -375,13 +375,31 @@ then the shipped standalone ratchets CI's `baselines` job runs —
 and `check-cyclomatic.js` — in the worktree. It runs **before** the credited
 run because a fix commit afterwards would void that run's credit.
 
-- **One pass, every finding.** The checks run serially (lint and typecheck
-  are unadmitted CPU fan-outs) and all run even after a finding. Any finding
-  settles one `fix-required` whose `detail` lists each finding on its own
-  line and whose `findings[]` carries `{ check, detail, evidencePath }` per
-  failing check; the envelope's `evidencePath` is the first one's. No suite
-  lock is taken and no suite spawns. Only a fully clean preflight is skipped
-  on a re-run at the same HEAD.
+- **One pass, every finding.** Every check runs, even after a finding. Any
+  finding settles one `fix-required` whose `detail` lists each finding on its
+  own line, in check order, and whose `findings[]` carries `{ check, detail,
+  evidencePath }` per failing check; the envelope's `evidencePath` is the
+  first one's in check order. No suite runs before the credited run. Only a
+  fully clean preflight is skipped on a re-run at the same HEAD.
+- **Serial by default; admitted lanes per host.** With
+  `delivery.execution.preflightConcurrency` at `1` (the default) the checks
+  run one after another, exactly as before. A host that can afford overlap
+  sets a higher value in its `.agentrc.local.json` (copied into every
+  worktree); a host with no overlay, such as a cloud session, stays serial.
+  Above 1 the step runs one **base lane**, which takes every check in order
+  unadmitted, and up to N − 1 **admitted lanes**. An admitted lane takes only
+  a deposited check whose gate close runs in its independent bucket
+  (`isIndependentGate`: today `typecheck`, `lint` and `format`, never
+  `quality-preview` or a ratchet), admits it through `withSuiteAdmission`
+  under close's argv for that gate with no wait, and runs it inside the
+  reservation. A miss (exit 75 or 78) hands the check back to the base lane
+  in order, records no finding and retires that lane. No lane aborts
+  another. The step result gains `concurrency: { requested, admitted }`, and
+  each passed deposit missing from the evidence store afterwards is
+  re-recorded with close's command hash. Suite admission off
+  (`fullSuiteLock: false`, `MANDREL_FULL_SUITE_LOCK=0`) or an inherited
+  suite reservation keeps the step serial, with one progress line naming
+  why.
 - **Ratchets your lint runs.** A ratchet listed in
   `delivery.quality.ratchets.coveredByLint` is skipped (`⏭ <key> covered by
   lint`) only once this pass's whole-tree `lint` exited 0, run or credited
