@@ -249,6 +249,7 @@ export function closeResult({
   waitedForMerge = false,
   merged = false,
   landCompleted = merged,
+  pushOutcome,
 }) {
   return {
     storyId,
@@ -258,6 +259,7 @@ export function closeResult({
     prUrl,
     prNumber,
     pushed: true,
+    pushOutcome,
     autoMergeEnabled,
     autoMergeReason,
     worktreeReaped,

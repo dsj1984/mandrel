@@ -633,6 +633,7 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(result.prUrl, 'https://github.com/owner/repo/pull/123');
     assert.equal(result.prNumber, 123);
     assert.equal(result.pushed, true);
+    assert.equal(result.pushOutcome, 'pushed');
     assert.equal(result.autoMergeEnabled, true);
     assert.equal(result.autoMergeReason, null);
     assert.equal(result.worktreeReaped, false);
@@ -1394,6 +1395,66 @@ describe('runSingleStoryClose orchestration', () => {
       'standalone phase must not feed a positive epicId into runCloseValidation',
     );
     assert.equal(runCall.opts.storyId, 8);
+  });
+
+  it('Story #5967 — skips the push when origin already holds the tip, then opens the PR', async (t) => {
+    mockCloseValidation(t, defaultCloseValidationMock());
+    const tip = 'c'.repeat(40);
+    const gitCalls = [];
+    t.mock.module(GIT_UTILS_URL, {
+      namedExports: {
+        ...defaultGitUtilsMock().namedExports,
+        gitSpawn: (_cwd, ...args) => {
+          if (args[0] === 'rev-parse' && args[1] === 'refs/heads/story-9') {
+            return { status: 0, stdout: `${tip}\n`, stderr: '' };
+          }
+          if (args[0] === 'ls-remote') {
+            return {
+              status: 0,
+              stdout: `${tip}\trefs/heads/story-9\n`,
+              stderr: '',
+            };
+          }
+          return defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args);
+        },
+        gitSync: (...args) => {
+          gitCalls.push(args);
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      },
+    });
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') return 'https://github.com/owner/repo/pull/9\n';
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=push-skip`);
+    const { result, terminal } = await runSingleStoryClose({
+      storyId: 9,
+      cwd: '/repo',
+      skipValidation: false,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: { id: 9, state: 'open', title: 'At tip', labels: [] },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+
+    assert.equal(
+      gitCalls.find((c) => c[1] === 'push'),
+      undefined,
+      'no git push when origin already holds the tip',
+    );
+    assert.equal(result.prNumber, 9, 'the PR is still opened');
+    assert.equal(result.pushed, true);
+    assert.equal(result.pushOutcome, 'skipped-already-at-head');
+    assert.equal(terminal.pushOutcome, 'skipped-already-at-head');
   });
 
   it('throws when a validation gate fails', async (t) => {

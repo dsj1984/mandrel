@@ -541,10 +541,13 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
 ## Held review at hand-off {#held-review}
 
 The one home of this rule; the digest and the worker contract point here.
-`story-handoff.js` starts the Story-scope code review as the credited run
-starts — pinned to HEAD at that moment, after a `test`-depositor seat — and
-awaits it after the push, skipping the computation when a deposit already
-matches the diff digest. The envelope's `reviewMs` sits beside the run's
+`story-handoff.js` starts the Story-scope code review once base-merge settles
+HEAD — pinned to the post-merge HEAD, before preflight's first check (and
+before a `test`-depositor seat, whose generated-only commit keeps the digest)
+— so it runs alongside preflight, and awaits it after the push, skipping the
+computation when a deposit already matches the diff digest. A precheck
+refusal or a base merge that does not settle (conflict, failed fetch, missing
+merge driver) starts no review. The envelope's `reviewMs` sits beside the run's
 `suiteTimings`. The same computation stands alone for a manual re-run:
 
 ```bash
@@ -564,11 +567,16 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   raw diff. It never stops the handoff on a provider throw — the step reports
   `error` and close computes the review itself.
 - **A CRITICAL is the worker's to fix.** The handoff settles `fix-required`
-  naming the deposit. One that lands while the credited run is in flight
-  aborts the run (the SIGTERM a Ctrl-C sends; the child frees the full-suite
-  lock), records no credit and pushes nothing; a CRITICAL after the run still
-  settles after the push, as before. Any earlier stop still awaits the
-  review, so no provider is orphaned. Fix, commit, and re-run the handoff
+  naming the deposit. It never cuts preflight short: every check runs to its
+  own result. One that has landed before the credited run would begin stops
+  the handoff there — no `test`-depositor seat, no run, no full-suite lock,
+  no credit, no push. One that lands while the run is in flight aborts it
+  (the SIGTERM a Ctrl-C sends; the child frees the full-suite lock), records
+  no credit and pushes nothing; a CRITICAL after the run still settles after
+  the push. Any earlier stop still awaits the review and appends its result
+  to `steps[]` once, so no provider is orphaned and one envelope carries both
+  findings, each with its own evidence path; `status` and `failedStep` stay
+  the first stop's, and a review `error` never blocks. Fix, commit, and re-run the handoff
   (the fix commit voided the credit, so it re-runs the suite, pushes and
   re-computes) — the acceptance loop's redraft discipline, bounded by
   `delivery.acceptanceEval.maxRounds`. Still CRITICAL at the cap → take the
@@ -633,6 +641,11 @@ cue for `delivery.execution.workloads`. The
 that writes `$MANDREL_SUITE_READY_FILE` when its tests start (after a
 consumer load gate) gets a fresh bound for them, so worst-case wall is lock
 wait + 2 × `timeoutMs`.
+
+The close terminal's `pushOutcome` (also on the close result) reads its
+`phaseDurations.push`: `pushed`, or `skipped-already-at-head` when origin
+already held the Story-branch tip, so no `git push` (and no `pre-push`) ran.
+`--skip-validation` always pushes; an unreadable tip or `ls-remote` pushes.
 
 **Delta re-credit after a base move.** When close's base sync merged
 incoming paths (`BASE MOVED`), the `test` gate is the suite gate, the
