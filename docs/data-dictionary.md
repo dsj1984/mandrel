@@ -9,8 +9,8 @@ Mandrel orchestration engine.
 
 One newline-terminated JSON object emitted by `signals-writer.appendSignal`
 to `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone Stories:
-`temp/standalone/stories/story-<sid>/signals.ndjson`; and a sibling
-`traces.ndjson` for `kind: trace`). Schema lives at
+`temp/standalone/stories/story-<sid>/signals.ndjson`; every kind, `trace`
+included, shares that one file). Schema lives at
 [`signal-event.schema.json`](../.agents/schemas/signal-event.schema.json);
 the table below mirrors that schema — update both together. See
 [`docs/architecture.md`](architecture.md#performance-signal-telemetry) for

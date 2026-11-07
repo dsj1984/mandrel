@@ -8,6 +8,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { orchestrationLogDir } from '../../../.agents/scripts/lib/config/temp-paths.js';
 import { recordCloseTelemetry } from '../../../.agents/scripts/lib/observability/close-telemetry.js';
+import { emitHandoffRecord } from '../../../.agents/scripts/lib/observability/handoff-telemetry.js';
 import {
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
@@ -1281,6 +1282,17 @@ describe('follow-up-rollup — run-level close telemetry (Story #5435)', () => {
           details: { criticalByProvider: { 'code-review': 1 } },
           config,
         });
+        await emitHandoffRecord({
+          storyId,
+          envelope: {
+            status: 'fix-required',
+            failedStep: 'push',
+            cause: 'push-hook',
+            attempt: 1,
+            steps: [{ name: 'push', durationMs: 7 }],
+          },
+          config,
+        });
       }
       await emitRuntimeFriction({
         storyId: 2,
@@ -1306,6 +1318,14 @@ describe('follow-up-rollup — run-level close telemetry (Story #5435)', () => {
       assert.deepEqual(rollup.telemetry.review, {
         haltsByProvider: { 'code-review': 2 },
         overridesByProvider: { 'code-review': 1 },
+      });
+      // Story #5970: the roll-up sums the handoff block across the run.
+      assert.deepEqual(rollup.telemetry.handoff, {
+        attempts: 2,
+        ready: 0,
+        byFailedStep: { push: 2 },
+        byCause: { 'push-hook': 2 },
+        stepMs: { push: 14 },
       });
       for (const { body } of comments) {
         assert.doesNotMatch(body, /byCause|haltsByProvider|workerTokens/);

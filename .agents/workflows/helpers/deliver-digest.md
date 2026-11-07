@@ -97,18 +97,18 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 ## 5. The one credited run — `story-handoff.js`
 
-After the self-eval's last fix commit the worker runs **one** command, which
-runs this section and prints one envelope:
+After the self-eval's last fix commit the worker runs **one** command that
+prints one envelope:
 
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
 `ready` (exit 0) → hand off. `fix-required` (exit 2) → a finding, a red or
-deferred suite, a base-merge conflict (files named), a non-fast-forward push,
+deferred suite, a base-merge conflict, a non-fast-forward push,
 a `commit_refs_rules` push stepping missed or a CRITICAL: fix, commit,
 re-run; labels untouched. `blocked` (exit 1) → only a remote-refused push,
 an unreachable remote, an unconfirmed base branch, an unregistered merge
 driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
-`friction`. A re-run skips every step still valid for HEAD. Past the sync Bash ceiling → **background**.
+`friction`. A re-run skips every step still valid for HEAD. Past the sync ceiling → **background**, explicit timeout: parallel-tooling Rule 2.
 
 1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops. Then close's **duplication re-score**, committed
@@ -136,7 +136,7 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    one envelope with any finding — [`deliver-reference.md`](deliver-reference.md) § Held review.
 
 A later commit voids any credit; a baseline-JSON seat keeps the stamp. It
-reads the **output**, not the exit code: no signal deposits nothing. Seat order, re-score, runner shapes:
+reads the **output**, not the exit code: no signal deposits nothing. Seat order, runner shapes:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is a

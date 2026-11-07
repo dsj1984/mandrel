@@ -66,6 +66,35 @@ the command exits.
   a bracketed pattern (`pgrep -f "[m]y-script.js"`) — and always bound the
   loop with a maximum iteration count so a wrong condition ends the wait
   instead of the agent.
+- **Time-limited hosts: pass an explicit timeout.** A host that runs
+  unattended (a cloud session, a `-p` run, an Agent SDK application, CI)
+  limits background commands to 30 minutes by default and 2 hours at most,
+  then stops them. Every long command started in the background therefore
+  passes an explicit timeout sized to its worst case — on Claude Code,
+  `timeout: 7200000` (the 2-hour maximum) beside `run_in_background: true`.
+  Pass it on **every** host: it is harmless on a local session, and an agent
+  cannot reliably tell the two apart. A host whose background shell takes no
+  timeout parameter follows its own limit. The host limit is a safety net,
+  not the plan — the delivery commands are idempotent and bounded internally
+  (`coverage.timeoutMs`, `mergeWatch.maxBudgetSeconds`).
+  - **Never rely on the auto-move.** A foreground command that reaches its
+    foreground timeout is moved to the background and gets only 30 minutes
+    from the move, whatever timeout it carried — start long work in the
+    background instead. Close stays foreground; on a time-limited host it
+    runs with `--merge-watch-mode async` so its merge wait moves into the
+    background `single-story-confirm-merge.js … --wait`
+    ([`deliver-reference.md`](deliver-reference.md) § Async merge-confirm
+    mode).
+  - **Worst-case sizing.** A credited capture can reach the full-suite lock
+    wait plus 2 × `coverage.timeoutMs`. A consumer whose worst case exceeds
+    the host maximum lowers `coverage.timeoutMs` or declares the slice over
+    budget (exit 76, `onOverBudget`) — no timeout can exceed the maximum.
+  - **A stop notice is not silent.** When the host stops `story-handoff.js`,
+    `single-story-close.js` or `single-story-confirm-merge.js` at its
+    background limit, re-run the same command once with the explicit
+    timeout — each is idempotent and resumes. A second stop is a blocker:
+    post a `friction` comment naming the command and the limit, and flip
+    `agent::blocked`.
 
 ## Rule 3 — N parallel `Agent` calls in one turn for N independent units
 

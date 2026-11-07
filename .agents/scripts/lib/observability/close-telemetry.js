@@ -12,6 +12,7 @@ import { parseWorkerModel, parseWorkerTokens } from '../cli-args.js';
 import { Logger } from '../Logger.js';
 import { parseWorkerEffort } from '../orchestration/resume-effort.js';
 import { EVENT_KINDS } from '../signals/schema.js';
+import { isHandoffRecord } from './handoff-telemetry.js';
 import {
   emitRuntimeFriction,
   emitTerminalFriction,
@@ -132,7 +133,35 @@ function emptyTelemetryTally() {
     acceptanceRounds: 0,
     retries: { total: 0, byCause: {} },
     review: { haltsByProvider: {}, overridesByProvider: {} },
+    handoff: emptyHandoffTally(),
   };
+}
+
+function emptyHandoffTally() {
+  return { attempts: 0, ready: 0, byFailedStep: {}, byCause: {}, stepMs: {} };
+}
+
+/** A story-handoff record, ready or not, counted apart from close's retries. */
+function tallyHandoff(tally, { details = {} }) {
+  const handoff = tally.handoff;
+  handoff.attempts += 1;
+  if (details.status === 'ready') handoff.ready += 1;
+  else {
+    addCounts(handoff.byFailedStep, { [details.failedStep ?? 'unknown']: 1 });
+    addCounts(handoff.byCause, { [details.cause ?? RETRY_CAUSES.OTHER]: 1 });
+  }
+  for (const [step, ms] of Object.entries(details.stepDurationsMs ?? {})) {
+    if (Number.isFinite(ms)) addCounts(handoff.stepMs, { [step]: ms });
+  }
+}
+
+/** @param {ReturnType<typeof emptyHandoffTally>} into @param {ReturnType<typeof emptyHandoffTally>} from */
+function mergeHandoffTally(into, from) {
+  into.attempts += from.attempts;
+  into.ready += from.ready;
+  addCounts(into.byFailedStep, from.byFailedStep);
+  addCounts(into.byCause, from.byCause);
+  addCounts(into.stepMs, from.stepMs);
 }
 
 /**
@@ -152,12 +181,16 @@ function providerIncidents(details) {
 
 const RECORD_TALLIERS = Object.freeze({
   [EVENT_KINDS.RETRY]: (tally, record) => {
+    if (isHandoffRecord(record)) return tallyHandoff(tally, record);
     const cause =
       typeof record.details?.cause === 'string'
         ? record.details.cause
         : RETRY_CAUSES.OTHER;
     tally.retries.total += 1;
     addCounts(tally.retries.byCause, { [cause]: 1 });
+  },
+  [EVENT_KINDS.TRACE]: (tally, record) => {
+    if (isHandoffRecord(record)) tallyHandoff(tally, record);
   },
   [EVENT_KINDS.ACCEPTANCE_EVAL]: (tally, record) => {
     const round = Number(record.details?.round);
@@ -207,6 +240,7 @@ function mergeTelemetryTallies(tallies) {
     addCounts(total.retries.byCause, t.retries.byCause);
     addCounts(total.review.haltsByProvider, t.review.haltsByProvider);
     addCounts(total.review.overridesByProvider, t.review.overridesByProvider);
+    mergeHandoffTally(total.handoff, t.handoff);
   }
   return total;
 }
@@ -268,6 +302,7 @@ async function buildCloseTelemetry({
       ...tally.review,
       confirmedHaltsByProvider: confirmedHalts(tally, landed),
     },
+    handoff: tally.handoff,
     workerTokens: Number.isInteger(workerTokens) ? workerTokens : null,
     workerModel,
     workerEffort,
