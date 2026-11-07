@@ -30,6 +30,11 @@
     "docsFreshness": {
       "paths": ["README.md", "docs/CHANGELOG.md"]
     },
+    "handoff": {
+      "postSeatChecks": [
+        { "cmd": "node", "args": ["--test", "tests/c8rc-scope.test.js"] }
+      ]
+    },
     "quality": {
       "gates": {
         "coverage": {
