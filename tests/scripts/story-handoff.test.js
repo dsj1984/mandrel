@@ -3696,6 +3696,14 @@ describe('story-handoff — seat order, step env and post-seat checks (Story #59
 
 describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
   const RESERVATION = '/locks/reservations/w2-lint';
+  // A suite run (a capture's reservation, a lock-off hatch) must not leak in.
+  const { MANDREL_SUITE_RESERVATION, MANDREL_FULL_SUITE_LOCK, ...cleanEnv } =
+    process.env;
+  const lanesHarness = (opts) => {
+    const h = harness(opts);
+    h.deps.env = cleanEnv;
+    return h;
+  };
   const lanesConfig = (execution = {}, project = {}) =>
     configFor({
       project: { baseBranch: 'main', paths: { tempRoot }, ...project },
@@ -3732,7 +3740,7 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
       configFor(),
       lanesConfig({ preflightConcurrency: 1 }),
     ].entries()) {
-      const h = harness({ config });
+      const h = lanesHarness({ config });
       h.deps.logDir = path.join(tempRoot, `orchestration-${i}`);
       const calls = admission(h);
       const { envelope } = await h.run();
@@ -3748,7 +3756,7 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
   });
 
   test('AC-3/AC-9: an admitted lane runs lint under close argv with the reservation env', async () => {
-    const h = harness({ config: lanesConfig() });
+    const h = lanesHarness({ config: lanesConfig() });
     const calls = admission(h);
     const { envelope } = await h.run();
     assert.equal(envelope.status, 'ready');
@@ -3768,7 +3776,9 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
   });
 
   test('AC-4: only deposited close-independent gates reach an admitted lane', async () => {
-    const h = harness({ config: lanesConfig({ preflightConcurrency: 4 }) });
+    const h = lanesHarness({
+      config: lanesConfig({ preflightConcurrency: 4 }),
+    });
     const calls = admission(h);
     await h.run();
     const admittedGates = calls.map((c) =>
@@ -3820,7 +3830,7 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
         {},
         { commands: { formatCheck: 'npx prettier --check .' } },
       );
-      const h = harness({ config });
+      const h = lanesHarness({ config });
       h.deps.scopeGate = applyChangedFileScope;
       const lines = progressLines(h);
       const calls = admission(h, () => exit);
@@ -3847,7 +3857,7 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
   }
 
   test('AC-6: findings settle in check order when completion order differs', async () => {
-    const h = harness({
+    const h = lanesHarness({
       config: lanesConfig(),
       outputs: {
         typecheck: { status: 2, stdout: 'error TS1: bad' },
@@ -3898,8 +3908,8 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
   ];
   for (const [label, execution, env, why] of serialCases) {
     test(`AC-7: ${label} runs serially with one line naming why`, async () => {
-      const h = harness({ config: lanesConfig(execution) });
-      h.deps.env = { ...process.env, ...env };
+      const h = lanesHarness({ config: lanesConfig(execution) });
+      h.deps.env = { ...cleanEnv, ...env };
       const lines = progressLines(h);
       const calls = admission(h);
       const { envelope } = await h.run();
@@ -3919,7 +3929,7 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
   }
 
   test('AC-8: a lost deposit is re-recorded with close hash so close skips the gate', async () => {
-    const h = harness({ config: lanesConfig() });
+    const h = lanesHarness({ config: lanesConfig() });
     admission(h);
     await h.run();
     const lint = h.runCommand.calls.find((c) => c.key === 'lint');
@@ -3933,7 +3943,7 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
   });
 
   test('AC-8: a failed re-record only warns', async () => {
-    const h = harness({ config: lanesConfig() });
+    const h = lanesHarness({ config: lanesConfig() });
     admission(h);
     const blocker = path.join(tempRoot, 'not-a-dir');
     writeFileSync(blocker, 'x');
