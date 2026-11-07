@@ -3379,6 +3379,7 @@
       "parseQuietErrorsFlag": 4,
       "pathVariants": 3,
       "redactErrorMessage": 4,
+      "redactPii": 1,
       "resolveRepoRoot": 2
     },
     ".agents/scripts/lib/escomplex-anchor.js": {
@@ -5852,6 +5853,7 @@
       "refuteSymbolReferenced": 5
     },
     ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js": {
+      "<anon prefixOf(text)#0>": 1,
       "<anon resultTextOf(envelope)#0>": 2,
       "<anon toFindings/entries.map(entry)#0/mapSeverity()#0>": 1,
       "<anon toFindings/entries.map(entry)#0>": 1,
