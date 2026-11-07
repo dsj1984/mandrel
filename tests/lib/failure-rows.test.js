@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  createFailureRowCollector,
   extractFailureRows,
+  quoteFailureRows,
+  tapFailureRows,
 } from '../../.agents/scripts/lib/failure-rows.js';
 
 const ESC = String.fromCharCode(27);
@@ -91,9 +92,22 @@ describe('extractFailureRows', () => {
     assert.deepEqual(extractFailureRows(undefined), []);
   });
 
-  it('streams one line at a time through the collector', () => {
-    const c = createFailureRowCollector({ max: 2 });
-    for (const l of ['✖ a', '✖ b', '✖ c']) c.push(l);
-    assert.deepEqual(c.rows(), ['✖ a', '✖ b']);
+  it('taps an opted-in stream, passing every line through', () => {
+    const seen = [];
+    const { tap, rowsResult } = tapFailureRows(true, (l) => seen.push(l));
+    for (const l of ['noise', '✖ a', '✖ b']) tap(l);
+    assert.deepEqual(seen, ['noise', '✖ a', '✖ b']);
+    assert.deepEqual(rowsResult(), { failureRows: ['✖ a', '✖ b'] });
+    const off = tapFailureRows(false, () => {});
+    off.tap('✖ a');
+    assert.deepEqual(off.rowsResult(), {});
+  });
+
+  it('quotes rows for a finding, or nothing', () => {
+    assert.equal(
+      quoteFailureRows('✖ a\nFound 1 error.'),
+      ': ✖ a; Found 1 error.',
+    );
+    assert.equal(quoteFailureRows('fine'), '');
   });
 });

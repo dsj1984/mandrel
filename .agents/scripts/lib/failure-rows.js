@@ -62,7 +62,7 @@ function classify(text) {
 }
 
 /** A streaming collector: feed lines with `push`, read the quoted rows back. */
-export function createFailureRowCollector({ max = DEFAULT_MAX_ROWS } = {}) {
+function createFailureRowCollector({ max = DEFAULT_MAX_ROWS } = {}) {
   const rows = [];
   const seen = new Set();
   let follow = 0;
