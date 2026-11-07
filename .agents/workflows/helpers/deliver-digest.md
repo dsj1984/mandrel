@@ -76,8 +76,8 @@ skeleton — it derives § 3's `files` and `verdictOwner` with the same function
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId> --init
 --cwd <workCwd>`
 
-It writes one empty record per `acceptance[]` item under
-`temp/scratch/story-<id>/`. The owner fills **every** record,
+It writes one empty record per `acceptance[]` item and prints its
+path. The owner fills **every** record,
 scored against that change set with `verify[]` output as evidence, and scores
 it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 (default 2; `0` scores once with no redraft).
@@ -100,12 +100,12 @@ After the self-eval's last fix commit the worker runs **one** command:
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
 `ready` (exit 0) → hand off. `fix-required` (exit 2) → a finding, a red or
-deferred suite, a base-merge conflict (files named), a non-fast-forward push,
+deferred suite, a base-merge conflict, a non-fast-forward push,
 a `commit_refs_rules` push stepping missed or a CRITICAL: fix, commit,
 re-run; labels untouched. `blocked` (exit 1) → only a remote-refused push,
 an unreachable remote, an unconfirmed base branch, an unregistered merge
 driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
-`friction`. A re-run skips every step still valid for HEAD. Past the sync Bash ceiling → **background**.
+`friction`. A re-run skips every step still valid for HEAD. Past the sync ceiling → **background**, explicit timeout: parallel-tooling Rule 2.
 
 1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops. Then close's **duplication re-score**, committed
@@ -113,8 +113,8 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
    baselined ratchet; one `fix-required` lists every finding. Serial unless
-   a host's `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
-   above 1 (default 1): close's independent gates may then run in admitted
+   a per-host `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
+   above 1 (default 1): close's independent gates then run in admitted
    lanes beside the base lane — [`deliver-reference.md`](deliver-reference.md) § Preflight.
 3. **One depositor**, by the one predicate close registers `coverage-capture`
    on — coverage or CRAP gate on **and** a `captureScript`:
@@ -135,7 +135,7 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    one envelope with any finding — [`deliver-reference.md`](deliver-reference.md) § Held review.
 
 A later commit voids any credit; a baseline-JSON seat keeps the stamp. It
-reads the **output**, not the exit code: no signal deposits nothing. Seat order, re-score, runner shapes:
+reads the **output**, not the exit code: no signal deposits nothing. Seat order, runner shapes:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is a

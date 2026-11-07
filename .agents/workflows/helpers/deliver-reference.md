@@ -344,7 +344,9 @@ shapes poll on inside the ~60s window: checks already **green** (the merge is
 imminent — observed at the green cadence, it saves a whole confirm
 invocation) and a red rollup still awaiting its confirming probe. When a close returns that `pending` envelope, launch its
 `nextCommand` (`single-story-confirm-merge.js … --wait`) as a **background**
-invocation (host background Bash — its completion re-invokes the agent) and
+invocation with the explicit timeout (`timeout: 7200000` on Claude Code —
+[`parallel-tooling.md`](parallel-tooling.md) Rule 2; its completion
+re-invokes the agent) and
 move on to the next Story; `single-story-confirm-merge.js` is idempotent and
 owns the whole tail, and `deliver-recover.js` recovers an orphaned confirm. Do
 not foreground-poll the merge. The cumulative `maxBudgetSeconds` give-up is
@@ -364,6 +366,13 @@ config default stays `"sync"`. A slow-CI solo consumer may opt into `"async"`
 for the same reason — a foreground wait longer than the host tool ceiling
 expires `pending` anyway. Otherwise a one-Story run keeps `sync`: there is no
 sibling to unblock, and the foreground wait is the cheapest path to `landed`.
+
+**Exception — a time-limited host.** On a host that limits background
+commands (a cloud session, a `-p` run, an Agent SDK application, CI) a
+one-Story close also runs with `--merge-watch-mode async`. Close itself stays
+in the foreground, now bounded to the gates plus the ~60s probe, and the long
+merge wait moves into the background confirm that carries the explicit
+timeout. A local session need not pass the flag.
 
 ## Preflight (before close) {#preflight}
 
@@ -489,8 +498,10 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   full captures before raising the cap
   ([configuration](../../docs/configuration.md)).
 - **Background dispatch.** If the handoff outruns the host's sync Bash ceiling,
-  dispatch it in the **background** — its completion re-invokes you; never
-  spawn a task to poll or `sleep`-loop against it
+  dispatch it in the **background** with an explicit timeout
+  (`timeout: 7200000` on Claude Code, the 2-hour maximum) — its completion
+  re-invokes you; never spawn a task to poll or `sleep`-loop against it. On a
+  host stop notice, re-run it once; a second stop is the blocked path
   ([`parallel-tooling.md`](parallel-tooling.md) Rule 2).
 - **Redraft rounds.** Run the scoped projects for the roots you changed plus
   `verify[]`, not the whole suite; only the one run needs credit.
