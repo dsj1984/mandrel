@@ -134,7 +134,7 @@ export function buildProviderChain(entries, ctx) {
   const inline = [];
   /** @type {PromptChainEntry[]} */
   const prompts = [];
-  /** Optional inline entries skipped at construction, with their gates. */
+  /** Optional entries skipped at construction, with their gates. */
   const skipped = [];
 
   for (const raw of entries) {
@@ -163,7 +163,7 @@ export function buildProviderChain(entries, ctx) {
             manualPrompt ? 'manual-prompt' : 'inline'
           } provider "${name}" in chain; skipping (optional=true).`,
         );
-        if (!manualPrompt) skipped.push({ name, gate, why: 'not registered' });
+        skipped.push({ name, gate, manualPrompt, why: 'not registered' });
         continue;
       }
       const supported = Object.keys(registry).sort().join(', ');
@@ -185,9 +185,12 @@ export function buildProviderChain(entries, ctx) {
             err?.message ?? err
           }`,
         );
-        if (!manualPrompt) {
-          skipped.push({ name, gate, why: 'unavailable on this host' });
-        }
+        skipped.push({
+          name,
+          gate,
+          manualPrompt,
+          why: 'unavailable on this host',
+        });
         continue;
       }
       throw err;
@@ -204,13 +207,13 @@ export function buildProviderChain(entries, ctx) {
 }
 
 /**
- * @param {ReadonlyArray<{ name: string, gate: ProviderGate, why: string }>} skipped
+ * @param {ReadonlyArray<{ name: string, gate: ProviderGate, manualPrompt: boolean, why: string }>} skipped
  * @param {ProviderGateContext} ctx
  * @returns {Array<object>}
  */
 function skippedDegradations(skipped, ctx) {
   return skipped
-    .filter((entry) => entry.gate(ctx))
+    .filter((entry) => !entry.manualPrompt && entry.gate(ctx))
     .map(({ name, why }) => ({
       tool: 'review-provider-factory',
       gate: 'codeReview',

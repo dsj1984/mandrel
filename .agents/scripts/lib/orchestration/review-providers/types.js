@@ -74,8 +74,8 @@
  * @typedef {object} ProviderChain
  * @property {InlineChainEntry[]} inline
  * @property {PromptChainEntry[]} prompts
- * @property {Array<{ name: string, gate: ProviderGate, why: string }>} [skipped]
- *   Optional inline entries skipped at construction.
+ * @property {Array<{ name: string, gate: ProviderGate, manualPrompt: boolean, why: string }>} [skipped]
+ *   Optional entries skipped at construction.
  */
 
 export {};
