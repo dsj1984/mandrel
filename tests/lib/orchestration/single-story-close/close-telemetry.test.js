@@ -23,6 +23,7 @@ import {
   gatherRunTelemetry,
   recordCloseTelemetry,
 } from '../../../../.agents/scripts/lib/observability/close-telemetry.js';
+import { emitHandoffRecord } from '../../../../.agents/scripts/lib/observability/handoff-telemetry.js';
 import {
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
@@ -301,6 +302,35 @@ describe('AC-3: --worker-tokens is best-effort', () => {
   }
 });
 
+const HANDOFFS = [
+  {
+    status: 'fix-required',
+    failedStep: 'preflight',
+    cause: 'lint',
+    attempt: 1,
+    steps: [
+      { name: 'base-merge', durationMs: 10 },
+      { name: 'preflight', durationMs: 30, check: 'lint' },
+    ],
+  },
+  {
+    status: 'ready',
+    attempt: 2,
+    steps: [
+      { name: 'base-merge', durationMs: 5 },
+      { name: 'preflight', durationMs: 20 },
+    ],
+  },
+];
+
+const HANDOFF_TALLY = {
+  attempts: 2,
+  ready: 1,
+  byFailedStep: { preflight: 1 },
+  byCause: { lint: 1 },
+  stepMs: { 'base-merge': 15, preflight: 50 },
+};
+
 describe('AC-4: the telemetry summary', () => {
   async function seedStory(storyId) {
     for (const round of [1, 2]) {
@@ -342,6 +372,10 @@ describe('AC-4: the telemetry summary', () => {
       details: { criticalByProvider: { 'code-review': 2 } },
       config,
     });
+    // Story #5970: one refused and one ready handoff, apart from close's retries.
+    for (const envelope of HANDOFFS) {
+      await emitHandoffRecord({ storyId, envelope, config });
+    }
   }
 
   it('reports acceptance rounds, retries by cause, halts/overrides by provider and worker tokens', async () => {
@@ -364,6 +398,8 @@ describe('AC-4: the telemetry summary', () => {
         // native's halt was never overridden and the Story landed.
         confirmedHaltsByProvider: { native: 1 },
       },
+      // Story #5970 AC-8: handoff records leave `retries` untouched.
+      handoff: HANDOFF_TALLY,
       workerTokens: 5000,
       workerModel: 'sonnet',
       workerEffort: 'high',
@@ -399,6 +435,14 @@ describe('AC-4: the telemetry summary', () => {
       native: 2,
     });
     assert.deepEqual(run.review.overridesByProvider, { 'code-review': 2 });
+    // Story #5970 AC-9: the run roll-up sums each Story's handoff block.
+    assert.deepEqual(run.handoff, {
+      attempts: 4,
+      ready: 2,
+      byFailedStep: { preflight: 2 },
+      byCause: { lint: 2 },
+      stepMs: { 'base-merge': 30, preflight: 100 },
+    });
   });
 });
 

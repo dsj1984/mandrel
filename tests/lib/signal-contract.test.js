@@ -20,6 +20,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { emitHandoffRecord } from '../../.agents/scripts/lib/observability/handoff-telemetry.js';
 import {
   appendSignal,
   forEachLine,
@@ -139,6 +140,32 @@ const traceBash = {
   },
 };
 
+/** The record story-handoff would append, captured from its writer. */
+async function handoffRecord(envelope) {
+  let signal;
+  await emitHandoffRecord({
+    storyId: 4413,
+    envelope,
+    writeFn: (args) => {
+      signal = args.signal;
+      return true;
+    },
+  });
+  return signal;
+}
+const handoffRetry = await handoffRecord({
+  status: 'fix-required',
+  failedStep: 'push',
+  cause: 'push-hook',
+  attempt: 2,
+  steps: [{ name: 'push', durationMs: 12 }],
+});
+const handoffTrace = await handoffRecord({
+  status: 'ready',
+  attempt: 1,
+  steps: [],
+});
+
 describe('signal contract — every live writer validates against the schema', () => {
   const cases = [
     ['diagnose-friction', diagnoseFriction],
@@ -149,6 +176,9 @@ describe('signal contract — every live writer validates against the schema', (
     ['acceptance-eval', null], // filled below
     ['wave tick (epic-level)', waveStart],
     ['trace hook (Bash)', traceBash],
+    // Story #5970 — one record per story-handoff run.
+    ['story-handoff retry', handoffRetry],
+    ['story-handoff trace', handoffTrace],
   ];
 
   for (const [label, record] of cases) {

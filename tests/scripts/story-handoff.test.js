@@ -31,8 +31,10 @@ import {
   applyChangedFileScope,
   runCloseValidation,
 } from '../../.agents/scripts/lib/close-validation/runner.js';
+import { signalsFile } from '../../.agents/scripts/lib/config/temp-paths.js';
 import { AGENTRC_SCHEMA } from '../../.agents/scripts/lib/config-settings-schema.js';
 import { withFullSuiteLockAsync } from '../../.agents/scripts/lib/full-suite-lock.js';
+import { validateSignal } from '../../.agents/scripts/lib/observability/signal-validator.js';
 import { runStoryHandoff } from '../../.agents/scripts/lib/orchestration/story-handoff.js';
 import { STANDALONE_RATCHETS } from '../../.agents/scripts/lib/standalone-ratchets.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -247,6 +249,8 @@ const stepNames = (envelope) => envelope.steps.map((s) => s.name);
 /** The step the envelope stopped on; a started review may trail it. */
 const stopStep = (envelope) =>
   envelope.steps.findLast((s) => s.name === envelope.failedStep);
+const reviewStep = (envelope) =>
+  envelope.steps.find((s) => s.name === 'review');
 const spawned = (runCommand) => runCommand.calls.map((c) => c.key);
 
 describe('story-handoff — the happy path (AC-1)', () => {
@@ -1647,7 +1651,11 @@ describe('story-handoff — the story-progress record (Story #5553)', () => {
     mkdirSync(progressFile(), { recursive: true });
     const blocked = await harness().run();
     assert.equal(blocked.exitCode, baseline.exitCode);
-    assert.deepEqual(blocked.envelope, baseline.envelope);
+    // Each run counts as one more handoff attempt; nothing else may differ.
+    assert.deepEqual(
+      { ...blocked.envelope, attempt: 1 },
+      { ...baseline.envelope, attempt: 1 },
+    );
   });
 });
 
@@ -2343,7 +2351,8 @@ describe('story-handoff — the review runs beside the credited run (Story #5905
       return t;
     };
     const { envelope } = await h.run();
-    assert.equal(envelope.reviewMs, 250);
+    assert.ok(Number.isInteger(envelope.reviewMs) && envelope.reviewMs > 0);
+    assert.equal(reviewStep(envelope).durationMs, envelope.reviewMs);
     assert.ok('suiteTimings' in envelope);
   });
 
@@ -3691,5 +3700,308 @@ describe('story-handoff — seat order, step env and post-seat checks (Story #59
     const post = envelope.steps.find((s) => s.name === 'post-capture');
     assert.match(post.detail, /post-seat checks skipped/);
     assert.equal(lintSkip(HEAD).skip, false);
+  });
+});
+
+/**
+ * Story #5970 — every handoff run leaves one signal naming its stopping step,
+ * cause and per-step time; the envelope carries the same cause and attempt.
+ */
+describe('story-handoff — per-run telemetry (Story #5970)', () => {
+  const records = () => {
+    const file = signalsFile(null, STORY, configFor());
+    if (!existsSync(file)) return [];
+    return readFileSync(file, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((r) => r.phase === 'handoff');
+  };
+  const failing = { outputs: { lint: { status: 1, stdout: 'lint finding' } } };
+  const crapOn = () =>
+    configFor({
+      delivery: { quality: { gates: { crap: { enabled: true } } } },
+    });
+
+  test('AC-1: every step carries an integer durationMs; only a credit-reused skip carries skippedByCredit', async () => {
+    const h = harness();
+    const first = await h.run();
+    for (const step of first.envelope.steps) {
+      assert.ok(Number.isInteger(step.durationMs), step.name);
+      assert.equal(step.skippedByCredit, undefined, step.name);
+    }
+    const seat = first.envelope.steps.find((s) => s.name === 'seat');
+    assert.equal(seat.outcome, 'skipped', 'seated: 0 is a plain skip');
+    const rerun = await h.run();
+    const byName = Object.fromEntries(
+      rerun.envelope.steps.map((s) => [s.name, s]),
+    );
+    for (const name of ['preflight', 'credited-run', 'seat', 'post-capture']) {
+      assert.equal(byName[name].skippedByCredit, true, name);
+    }
+    assert.equal(byName.push.outcome, 'skipped');
+    assert.equal(byName.push.skippedByCredit, undefined, 'origin at HEAD');
+  });
+
+  test('AC-1: a held review that already matches the diff is a credit skip, timed by reviewMs', async () => {
+    const h = harness({ heldDeposit: { halted: false, severity: null } });
+    const { envelope } = await h.run();
+    const review = envelope.steps.find((s) => s.name === 'review');
+    assert.equal(review.skippedByCredit, true);
+    assert.equal(review.durationMs, envelope.reviewMs);
+  });
+
+  test('AC-2/AC-5: three fix-required runs append one retry each, attempts 1, 2 and 3', async () => {
+    const h = harness(failing);
+    const envelopes = [];
+    for (let i = 0; i < 3; i += 1) envelopes.push((await h.run()).envelope);
+    const written = records();
+    assert.deepEqual(
+      written.map((r) => r.details.attempt),
+      [1, 2, 3],
+    );
+    assert.deepEqual(
+      envelopes.map((e) => e.attempt),
+      [1, 2, 3],
+    );
+    for (const [i, record] of written.entries()) {
+      assert.equal(validateSignal(record).valid, true);
+      assert.equal(record.kind, 'retry');
+      assert.equal(record.emitter.tool, 'story-handoff');
+      assert.equal(record.details.status, 'fix-required');
+      assert.equal(record.details.failedStep, 'preflight');
+      assert.equal(record.details.cause, 'lint');
+      assert.equal(record.details.check, 'lint');
+      assert.equal(envelopes[i].cause, 'lint');
+      assert.ok(Number.isInteger(record.details.stepDurationsMs.preflight));
+    }
+  });
+
+  test('AC-4: a ready run appends one trace record with suite timings and no retry', async () => {
+    const { envelope } = await harness().run();
+    const written = records();
+    assert.equal(written.length, 1);
+    const [record] = written;
+    assert.equal(validateSignal(record).valid, true);
+    assert.equal(record.kind, 'trace');
+    assert.equal(record.details.status, 'ready');
+    assert.equal(record.details.attempt, 1);
+    assert.equal(envelope.attempt, 1);
+    assert.equal(envelope.cause, undefined);
+    assert.ok('suiteTimings' in record.details);
+    assert.ok(Number.isInteger(record.details.stepDurationsMs['credited-run']));
+    assert.equal(record.details.reviewMs, envelope.reviewMs);
+  });
+
+  test('AC-6: a throwing writer or reader leaves status and exit code unchanged', async () => {
+    for (const opts of [{}, failing]) {
+      const baseline = await harness(opts).run();
+      const h = harness(opts);
+      h.deps.writeSignal = async () => {
+        throw new Error('disk gone');
+      };
+      h.deps.readSignals = async () => {
+        throw new Error('disk gone');
+      };
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, baseline.exitCode);
+      assert.equal(envelope.status, baseline.envelope.status);
+      assert.equal(envelope.attempt, null);
+    }
+  });
+
+  test('AC-7: no record carries a file path; the evidence path stays in the envelope', async () => {
+    const { envelope } = await harness(failing).run();
+    assert.ok(envelope.evidencePath);
+    const [record] = records();
+    const strings = JSON.stringify(record.details).match(/"[^"]*"/g) ?? [];
+    assert.ok(
+      strings.every((str) => !/[\\/]/.test(str)),
+      `no path in ${JSON.stringify(record.details)}`,
+    );
+  });
+
+  const HALTED = { halted: true, severity: { critical: 1 } };
+  const gitFails = (stdout) => ({ outputs: { git: { status: 1, stdout } } });
+  const causes = [
+    ['an uncommitted tree', {}, 'precheck', (h) => (h.world.dirty = ['x.js'])],
+    ['the wrong branch', { world: gitWorld({ branch: 'main' }) }, 'precheck'],
+    [
+      'an unresolved HEAD',
+      {},
+      'precheck',
+      (h) => {
+        const { git } = h.deps;
+        h.deps.git = (cwd, ...args) =>
+          args[0] === 'rev-parse' ? { status: 128 } : git(cwd, ...args);
+      },
+    ],
+    [
+      'a merge conflict',
+      { sync: { synced: false, kind: 'conflict', conflictFiles: ['a.js'] } },
+      'base-merge-conflict',
+    ],
+    [
+      'a missing merge driver',
+      { sync: { synced: false, kind: 'merge-driver-missing', stderr: 'x' } },
+      'merge-driver-unregistered',
+    ],
+    [
+      'an unfetchable base',
+      { sync: { synced: false, kind: 'fetch-failed', stderr: 'x' } },
+      'base-branch-unconfirmed',
+    ],
+    [
+      'another merge failure',
+      { sync: { synced: false, kind: 'weird', stderr: 'x' } },
+      'base-merge-failed',
+    ],
+    ...[
+      [75, 'lock-wait-expired'],
+      [78, 'host-admission'],
+      [124, 'suite-timeout'],
+      [1, 'red-suite'],
+      [76, 'capture-over-budget'],
+      [77, 'other'],
+    ].map(([status, cause]) => [
+      `a credited run exiting ${status}`,
+      { outputs: { 'coverage-capture.js': { status, stdout: '' } } },
+      cause,
+    ]),
+    [
+      'a credited run with no credit signal',
+      { outputs: { 'coverage-capture.js': { status: 0, stdout: 'hm' } } },
+      'no-credit-signal',
+    ],
+    [
+      'a refused seat',
+      {
+        outputs: {
+          'update-maintainability-baseline.js': { status: 1, stdout: '' },
+        },
+      },
+      'seat-refused',
+    ],
+    [
+      'a failed seat commit',
+      {
+        outputs: {
+          'update-maintainability-baseline.js': {
+            status: 0,
+            stdout: 'seated: 1',
+          },
+        },
+      },
+      'seat-commit-failed',
+      (h) => {
+        const { git } = h.deps;
+        h.deps.git = (cwd, ...args) =>
+          args[0] === 'commit'
+            ? { status: 1, stdout: '', stderr: 'nope' }
+            : git(cwd, ...args);
+      },
+    ],
+    [
+      'a post-capture finding',
+      () => ({
+        config: crapOn(),
+        outputs: {
+          'quality-preview.js --only crap': { status: 1, stdout: '' },
+        },
+      }),
+      'post-capture',
+    ],
+    [
+      'an unreachable remote',
+      { world: gitWorld({ lsRemoteFails: true }) },
+      'remote-unreachable',
+    ],
+    [
+      'a rejected push',
+      gitFails(' ! [remote rejected] story-5518 -> story-5518 (declined)'),
+      'push-rejected',
+    ],
+    [
+      'a branch behind its remote',
+      gitFails(
+        ' ! [rejected]        story-5518 -> story-5518 (non-fast-forward)',
+      ),
+      'ref-behind',
+    ],
+    [
+      'a failing pre-push hook',
+      gitFails('husky - pre-push failed'),
+      'push-hook',
+    ],
+    [
+      'an unconfirmed push',
+      { outputs: { git: { status: 0, keepRemote: true } } },
+      'push-unconfirmed',
+    ],
+    ['a held review CRITICAL', { deposit: HALTED }, 'review-critical'],
+  ];
+  for (const [label, given, cause, arrange] of causes) {
+    test(`AC-3: ${label} records cause ${cause}`, async () => {
+      const opts = typeof given === 'function' ? given() : given;
+      const h = harness(opts);
+      arrange?.(h);
+      const { envelope } = await h.run();
+      assert.equal(envelope.cause, cause, stopStep(envelope)?.detail);
+      const [record] = records();
+      assert.equal(record.kind, 'retry');
+      assert.equal(record.details.cause, cause);
+      assert.equal(record.details.failedStep, envelope.failedStep);
+    });
+  }
+
+  test('AC-3: a ratchet finding records ratchet with its check key', async () => {
+    const cwd = path.join(tempRoot, 'wt');
+    mkdirSync(path.join(cwd, 'baselines'), { recursive: true });
+    writeFileSync(path.join(cwd, 'baselines', 'arch-cycles.json'), '{}');
+    const h = harness({
+      cwd,
+      outputs: {
+        'check-arch-cycles.js': {
+          status: 1,
+          stdout: '+ a.js -> b.js\n[arch-cycles] added=1 (gate fail)',
+        },
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.cause, 'ratchet');
+    const [record] = records();
+    assert.equal(record.details.cause, 'ratchet');
+    assert.equal(record.details.check, 'arch-cycles');
+  });
+
+  test('AC-3: a CRITICAL that aborts the credited run records review-critical', async () => {
+    const h = harness({ deposit: HALTED });
+    const { computeReview } = h.deps;
+    let captureStarted;
+    const started = new Promise((resolve) => {
+      captureStarted = resolve;
+    });
+    h.deps.runCommand = (cmd, args, opts) => {
+      if (path.basename(args[0] ?? '') !== 'coverage-capture.js') {
+        return h.runCommand(cmd, args, opts);
+      }
+      captureStarted();
+      return new Promise((resolve) =>
+        opts.signal.addEventListener('abort', () =>
+          resolve({ status: 143, stdout: '', stderr: '' }),
+        ),
+      );
+    };
+    h.deps.computeReview = async (input) => {
+      await started;
+      return computeReview(input);
+    };
+    const { envelope } = await h.run();
+    assert.equal(envelope.failedStep, 'review');
+    assert.equal(
+      envelope.steps.find((s) => s.name === 'credited-run').outcome,
+      'aborted',
+    );
+    assert.equal(envelope.cause, 'review-critical');
   });
 });

@@ -54,6 +54,11 @@ import { remoteBranchSha } from '../git-branch-lifecycle.js';
 import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import {
+  emitHandoffRecord,
+  handoffCause,
+  nextHandoffAttempt,
+} from '../observability/handoff-telemetry.js';
+import {
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
 } from '../observability/runtime-friction.js';
@@ -137,11 +142,13 @@ const SEAT_SCRIPTS = Object.freeze({
 });
 
 /**
- * A settled step. `stop` carries the envelope status that ends the run.
+ * A settled step. `stop` carries the envelope status that ends the run;
+ * `cause` its handoff-telemetry cause.
  *
  * @typedef {{ name: string, outcome: 'ran'|'skipped'|'deferred'|'failed'|'error'|'aborted',
  *   detail: string, evidencePath?: string|null, conflictFiles?: string[],
- *   stop?: 'fix-required'|'blocked', reason?: string }} StepResult
+ *   stop?: 'fix-required'|'blocked', reason?: string, cause?: string,
+ *   durationMs?: number|null, skippedByCredit?: boolean }} StepResult
  */
 
 const ran = (name, detail, extra = {}) => ({
@@ -156,6 +163,9 @@ const skipped = (name, detail, extra = {}) => ({
   detail,
   ...extra,
 });
+/** A skip that reuses a result already recorded for this HEAD. */
+const creditSkip = (name, detail, extra = {}) =>
+  skipped(name, detail, { ...extra, skippedByCredit: true });
 const fixRequired = (name, detail, extra = {}) => ({
   name,
   outcome: 'failed',
@@ -168,6 +178,7 @@ const blocked = (name, reason, detail, extra = {}) => ({
   outcome: 'failed',
   detail,
   reason,
+  cause: reason,
   stop: HANDOFF_STATUS.BLOCKED,
   ...extra,
 });
@@ -307,6 +318,12 @@ async function withLockProgress(ctx, run) {
   return { result, timings: summarizeLockEvents(events) };
 }
 
+const SUITE_FAILURE_CAUSES = Object.freeze({
+  [LOCK_WAIT_EXPIRED_EXIT_CODE]: 'lock-wait-expired',
+  [ADMISSION_REFUSED_EXIT_CODE]: 'host-admission',
+  [TIMEOUT_EXIT_CODE]: 'suite-timeout',
+});
+
 /**
  * The suite exit codes § 5 distinguishes from a red run.
  *
@@ -393,7 +410,7 @@ function preflightFinding(check, run) {
 async function stepPreflight(ctx) {
   const name = 'preflight';
   if (ctx.state.preflightHead === ctx.head) {
-    return skipped(
+    return creditSkip(
       name,
       `preflight already passed at ${ctx.head.slice(0, 12)}`,
     );
@@ -407,6 +424,7 @@ async function stepPreflight(ctx) {
     return fixRequired(
       name,
       `could not resolve close's typecheck/lint/format gates: ${err?.message ?? err}`,
+      { cause: 'preflight-unresolved' },
     );
   }
   const findings = [];
@@ -416,13 +434,21 @@ async function stepPreflight(ctx) {
     if (finding) findings.push(finding);
   }
   if (findings.length > 0) {
+    const { check, evidencePath } = findings[0];
     return fixRequired(name, findings.map((f) => f.detail).join('\n'), {
-      evidencePath: findings[0].evidencePath,
+      evidencePath,
       findings,
+      check,
+      cause: preflightCause(check),
     });
   }
   ctx.state.preflightHead = ctx.head;
   return ran(name, preflightSummary(pass));
+}
+
+/** A baselined ratchet's finding is a `ratchet`; any other check is its own key. */
+function preflightCause(key) {
+  return STANDALONE_RATCHETS.some((r) => r.key === key) ? 'ratchet' : key;
 }
 
 /**
@@ -546,10 +572,12 @@ async function stepBaseMerge(ctx) {
     return fixRequired(
       name,
       `merging origin/${ctx.baseBranch} conflicts; the merge was aborted, so the tree is clean — merge it yourself, resolve, commit, re-run`,
-      { conflictFiles: sync.conflictFiles },
+      { conflictFiles: sync.conflictFiles, cause: 'base-merge-conflict' },
     );
   }
-  return fixRequired(name, `merge failed: ${sync.stderr}`.trim());
+  return fixRequired(name, `merge failed: ${sync.stderr}`.trim(), {
+    cause: 'base-merge-failed',
+  });
 }
 
 /**
@@ -609,7 +637,7 @@ function depositorArgv(ctx) {
 async function creditedRun(ctx, signal) {
   const name = 'credited-run';
   if (ctx.state.creditHead === ctx.head) {
-    return skipped(
+    return creditSkip(
       name,
       `${ctx.depositor} credit already deposited at ${ctx.head.slice(0, 12)}`,
       { depositor: ctx.depositor },
@@ -648,12 +676,12 @@ async function creditedRun(ctx, signal) {
   }
   if (freshSignal.test(run.output)) {
     recordCredit(ctx, credit);
-    return skipped(name, `${label} credit already fresh`, extra);
+    return creditSkip(name, `${label} credit already fresh`, extra);
   }
   return fixRequired(
     name,
     `${ctx.depositor} exited 0 but printed no credit signal, so it deposited nothing`,
-    extra,
+    { ...extra, cause: 'no-credit-signal' },
   );
 }
 
@@ -758,7 +786,10 @@ function settleSuiteExit(ctx, name, { status, output }, extra) {
 function settleCodeExit(ctx, name, status, extra) {
   return isOverBudgetExit(status)
     ? settleOverBudget(ctx, name, extra)
-    : fixRequired(name, suiteFailureDetail(ctx, status), extra);
+    : fixRequired(name, suiteFailureDetail(ctx, status), {
+        ...extra,
+        cause: SUITE_FAILURE_CAUSES[status] ?? 'red-suite',
+      });
 }
 
 /** A 124 records its HEAD, so a second one there stops recommending a re-run. */
@@ -822,7 +853,10 @@ async function commitSeatedRows(
     return fixRequired(
       name,
       `committing the seated rows failed: ${detail}`.trim(),
-      { evidencePath: ctx.writeEvidence('seat-commit', detail) },
+      {
+        evidencePath: ctx.writeEvidence('seat-commit', detail),
+        cause: 'seat-commit-failed',
+      },
     );
   }
   const priorHead = ctx.head;
@@ -880,7 +914,7 @@ function staticSeatKinds(config) {
 /** Seat `kinds` and commit any rows under `step.name`, keyed by `step.headKey`. */
 async function seatAndCommit(ctx, kinds, step) {
   if (ctx.state[step.headKey] === ctx.head) {
-    return skipped(step.name, `nothing to seat at ${ctx.head.slice(0, 12)}`);
+    return creditSkip(step.name, `nothing to seat at ${ctx.head.slice(0, 12)}`);
   }
   const seated = await runSeats(ctx, step.name, kinds);
   if (seated.stop) return seated;
@@ -928,7 +962,7 @@ async function runSeats(ctx, name, kinds) {
       return fixRequired(
         name,
         `${kind} --seat-missing ${run.status !== 0 ? `refused (exit ${run.status})` : 'printed no `seated: N`'} — read the log for the fix`,
-        { evidencePath: run.evidencePath },
+        { evidencePath: run.evidencePath, cause: 'seat-refused' },
       );
     }
     total += Number(match[1]);
@@ -976,7 +1010,7 @@ function refBehind(ctx, evidence) {
   return fixRequired(
     'push',
     `origin/${ctx.branch} has commits HEAD lacks — git fetch origin ${ctx.branch}, git merge origin/${ctx.branch}, re-run`,
-    evidence,
+    { ...evidence, cause: 'ref-behind' },
   );
 }
 
@@ -1033,7 +1067,7 @@ function pushFailure(ctx, push, range = []) {
     : fixRequired(
         'push',
         'git push failed locally (a pre-push hook?) — fix the cause with a NEW commit, re-run',
-        evidence,
+        { ...evidence, cause: 'push-hook' },
       );
 }
 
@@ -1138,7 +1172,7 @@ function reviewVerdict(deposit, depositPath, settled) {
     return fixRequired(
       'review',
       'held review found a CRITICAL — fix, commit, re-run the handoff',
-      { evidencePath: depositPath },
+      { evidencePath: depositPath, cause: 'review-critical' },
     );
   }
   return settled;
@@ -1160,7 +1194,7 @@ async function computeHeldReview(ctx) {
     return reviewVerdict(
       held.deposit,
       ctx.reviewPath,
-      skipped(name, 'held review already matches this diff'),
+      creditSkip(name, 'held review already matches this diff'),
     );
   }
   let outcome;
@@ -1249,7 +1283,7 @@ async function stepPostCapture(ctx) {
   const name = 'post-capture';
   const { postCaptureHead } = ctx.state;
   if (postCaptureHead === ctx.head && postCaptureSettled(ctx)) {
-    return skipped(name, `already clean at ${ctx.head.slice(0, 12)}`);
+    return creditSkip(name, `already clean at ${ctx.head.slice(0, 12)}`);
   }
   const { gates, failed } = await scorePostCapture(ctx, (...a) =>
     runLogged(ctx, ...a),
@@ -1259,6 +1293,7 @@ async function stepPostCapture(ctx) {
     return fixRequired(name, `${failed.finding}${rows}`, {
       evidencePath: failed.evidencePath,
       gate: failed.gate,
+      cause: 'post-capture',
     });
   }
   const post = await runPostSeatChecks(ctx, (...a) => runLogged(ctx, ...a));
@@ -1301,6 +1336,7 @@ function postSeatFixRequired(name, failed) {
   return fixRequired(name, failed.finding, {
     evidencePath: failed.evidencePath,
     gate: failed.gate,
+    cause: 'post-capture',
   });
 }
 
@@ -1359,6 +1395,22 @@ function stepOrder(depositor) {
   ];
 }
 
+/** `run`'s results, each carrying the call's wall time as `durationMs`. */
+async function timed(ctx, run) {
+  const startedAt = ctx.now();
+  const results = await run();
+  const durationMs = ctx.now() - startedAt;
+  return results.map((r) => ({ ...r, durationMs }));
+}
+
+/**
+ * The review ran concurrently with the credited run: its own wall time is
+ * `ctx.reviewMs`, not the time spent awaiting it.
+ */
+function envelopeStep(ctx, { stop: _stop, ...rest }) {
+  return rest.name === 'review' ? { ...rest, durationMs: ctx.reviewMs } : rest;
+}
+
 /**
  * Run the steps in order into `steps`; a step may settle several results.
  *
@@ -1368,7 +1420,7 @@ async function runSteps(ctx, steps) {
   for (const step of stepOrder(ctx.depositor)) {
     ctx.stepName = handoffStepName(step);
     ctx.storyProgress.phase(ctx.stepName);
-    const results = [await step(ctx)].flat();
+    const results = await timed(ctx, async () => [await step(ctx)].flat());
     for (const result of results) {
       steps.push(result);
       ctx.progress(result.name, `${result.outcome} — ${result.detail}`);
@@ -1378,6 +1430,8 @@ async function runSteps(ctx, steps) {
   }
   return null;
 }
+
+const PRECHECK = Object.freeze({ cause: 'precheck' });
 
 /**
  * Refusals before any step: the handoff runs on the Story branch with the
@@ -1392,16 +1446,18 @@ function precheck(ctx) {
     return fixRequired(
       'precheck',
       `checked-out branch is ${current || 'unknown'}, not ${ctx.branch} — re-run single-story-init.js (idempotent) and work in its workCwd`,
+      PRECHECK,
     );
   }
   if (!ctx.head) {
-    return fixRequired('precheck', 'HEAD does not resolve');
+    return fixRequired('precheck', 'HEAD does not resolve', PRECHECK);
   }
   const dirty = changedPaths(ctx.git, ctx.cwd);
   if (dirty.length > 0) {
     return fixRequired(
       'precheck',
       `uncommitted changes (${dirty.slice(0, 5).join(', ')}) — commit the implementation, then re-run`,
+      PRECHECK,
     );
   }
   return null;
@@ -1495,6 +1551,8 @@ async function defaultBlock({
  *   presentBaselines?: string[],
  *   runDuplicationRescore?: typeof runDuplicationCloseRescore,
  *   emitFriction?: typeof emitRuntimeFriction,
+ *   writeSignal?: typeof import('../signals/write.js').appendSignal,
+ *   readSignals?: typeof import('../signals/write.js').forEachLine,
  * }} deps `evidenceCwd` anchors close's evidence store (the main checkout);
  *   `runCommand` receives `onChunk`, `signal` and (when set)
  *   `timeoutMs` beside `cwd`/`env`; a runner that never calls `onChunk`
@@ -1528,6 +1586,8 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     presentBaselines,
     runDuplicationRescore = runDuplicationCloseRescore,
     emitFriction = emitRuntimeFriction,
+    writeSignal,
+    readSignals,
   } = deps;
   const block =
     deps.block ??
@@ -1605,7 +1665,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   ctx.head = headSha(ctx);
 
   const steps = [];
-  let stop = precheck(ctx);
+  let [stop] = await timed(ctx, async () => [precheck(ctx)].filter(Boolean));
   if (stop) steps.push(stop);
   else stop = await runSteps(ctx, steps);
   appendReview(steps, await ctx.reviewPending);
@@ -1622,7 +1682,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     headSha: ctx.head,
     status,
     depositor: ctx.depositor,
-    steps: steps.map(({ stop: _stop, ...rest }) => rest),
+    steps: steps.map((step) => envelopeStep(ctx, step)),
     review: ctx.review,
     lockWait: credited?.lockWait ?? null,
     suiteTimings: credited?.suiteTimings ?? null,
@@ -1633,15 +1693,24 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     ...(stop
       ? {
           failedStep: stop.name,
+          cause: handoffCause(stop.cause),
           evidencePath: stop.evidencePath ?? null,
           ...(stop.reason ? { reason: stop.reason } : {}),
           ...(stop.conflictFiles ? { conflictFiles: stop.conflictFiles } : {}),
         }
       : {}),
+    attempt: await nextHandoffAttempt({ storyId, config, readFn: readSignals }),
   };
   writeFileAtomic(
     statePath,
     `${JSON.stringify({ state: ctx.state, envelope }, null, 2)}\n`,
   );
+  await emitHandoffRecord({
+    storyId,
+    envelope,
+    config,
+    writeFn: writeSignal,
+    warn: (m) => progress('TELEMETRY', m),
+  });
   return { envelope, exitCode: EXIT_CODES[status] };
 }
