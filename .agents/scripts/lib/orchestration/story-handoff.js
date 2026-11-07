@@ -47,6 +47,7 @@ import { extractFailureRows } from '../failure-rows.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
+  withSuiteAdmission,
 } from '../full-suite-lock.js';
 import { handoffRerunSkip } from '../git/base-sync-probe.js';
 import { syncBranchFromBase } from '../git/sync-from-base.js';
@@ -91,6 +92,7 @@ import {
 } from './handoff-rescore.js';
 import { handoffStatePath } from './handoff-state.js';
 import { settleSuiteOfRecord } from './handoff-suite-of-record.js';
+import { requestedLanes, runPreflightLanes } from './preflight-lanes.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
 import { runDuplicationCloseRescore } from './story-close/duplication-close-rescore.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
@@ -402,8 +404,10 @@ function preflightFinding(check, run) {
 }
 
 /**
- * Runs every check, serially, then settles one `fix-required` listing each
- * finding; a passed carryable check keeps its credit either way.
+ * Runs every check — serially, or over admitted lanes when
+ * `preflightConcurrency` asks (preflight-lanes.js) — then settles one
+ * `fix-required` listing each finding in check order; a passed carryable
+ * check keeps its credit either way.
  *
  * @param {object} ctx @returns {Promise<StepResult>}
  */
@@ -427,11 +431,21 @@ async function stepPreflight(ctx) {
       { cause: 'preflight-unresolved' },
     );
   }
-  const findings = [];
+  let findings = [];
   const pass = { checks, lint: null, covered: [] };
-  for (const check of checks) {
-    const finding = await runPreflightCheck(ctx, check, pass);
-    if (finding) findings.push(finding);
+  const lanes = requestedLanes(ctx);
+  let extra = {};
+  if (lanes) {
+    const run = await runPreflightLanes(ctx, checks, lanes, (check, env) =>
+      runPreflightCheck(ctx, check, pass, env),
+    );
+    findings = run.findings;
+    extra = { concurrency: { requested: lanes, admitted: run.admitted } };
+  } else {
+    for (const check of checks) {
+      const finding = await runPreflightCheck(ctx, check, pass);
+      if (finding) findings.push(finding);
+    }
   }
   if (findings.length > 0) {
     const { check, evidencePath } = findings[0];
@@ -440,10 +454,11 @@ async function stepPreflight(ctx) {
       findings,
       check,
       cause: preflightCause(check),
+      ...extra,
     });
   }
   ctx.state.preflightHead = ctx.head;
-  return ran(name, preflightSummary(pass));
+  return ran(name, preflightSummary(pass), extra);
 }
 
 /** A baselined ratchet's finding is a `ratchet`; any other check is its own key. */
@@ -457,7 +472,7 @@ function preflightCause(key) {
  *
  * @returns {Promise<{ check: string, detail: string, evidencePath?: string }|null>}
  */
-async function runPreflightCheck(ctx, check, pass) {
+async function runPreflightCheck(ctx, check, pass, env) {
   const cover = lintCovers(check, pass);
   if (cover === 'covered') {
     pass.covered.push(check.key);
@@ -472,6 +487,7 @@ async function runPreflightCheck(ctx, check, pass) {
     `preflight-${check.key}`,
     check.cmd,
     check.args,
+    env,
   );
   const detail = preflightFinding(check, run);
   if (check.key === 'lint') pass.lint = detail ? 'failed' : 'passed';
@@ -1594,6 +1610,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     presentBaselines,
     runDuplicationRescore = runDuplicationCloseRescore,
     emitFriction = emitRuntimeFriction,
+    admitSuite = withSuiteAdmission,
     writeSignal,
     readSignals,
   } = deps;
@@ -1639,6 +1656,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     getChangedFilesFn,
     runDuplicationRescore,
     emitFriction,
+    admitSuite,
     state: readState(statePath, progress),
     review: null,
     reviewPending: null,

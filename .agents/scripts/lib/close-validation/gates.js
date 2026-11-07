@@ -713,6 +713,16 @@ const INDEPENDENT_GATE_NAMES = new Set([
 ]);
 
 /**
+ * Does close run this gate in its concurrent bucket?
+ *
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isIndependentGate(name) {
+  return INDEPENDENT_GATE_NAMES.has(name);
+}
+
+/**
  * Order is preserved within each bucket.
  *
  * @param {Gate[]} gates
@@ -722,7 +732,7 @@ export function partitionGates(gates) {
   const independent = [];
   const serial = [];
   for (const gate of gates) {
-    if (INDEPENDENT_GATE_NAMES.has(gate.name)) independent.push(gate);
+    if (isIndependentGate(gate.name)) independent.push(gate);
     else serial.push(gate);
   }
   return { independent, serial };

@@ -1659,6 +1659,10 @@
       "mi": 101.009
     },
     {
+      "path": ".agents/scripts/lib/orchestration/preflight-lanes.js",
+      "mi": 107.81
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
       "mi": 96.27
     },
