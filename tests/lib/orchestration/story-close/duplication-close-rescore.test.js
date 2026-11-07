@@ -244,7 +244,12 @@ function gitStub({
   return { git, calls };
 }
 
-function stubbed({ git = gitStub(), config = {}, refreshBaseline } = {}) {
+function stubbed({
+  git = gitStub(),
+  config = {},
+  refreshBaseline,
+  baselineRef,
+} = {}) {
   const root = makeTempDir('dup-rescore-stub-');
   writeEnvelope(root, [row('src/a.js', 5)]);
   return runDuplicationCloseRescore({
@@ -252,6 +257,7 @@ function stubbed({ git = gitStub(), config = {}, refreshBaseline } = {}) {
     storyId: 7,
     baseBranch: 'main',
     storyBranch: 'story-7',
+    baselineRef,
     config,
     logger: QUIET,
     gitSync: git.git,
@@ -346,6 +352,123 @@ describe('runDuplicationCloseRescore — named skips (AC-2)', () => {
     await stubbed({ git: stub });
     const diff = stub.calls.find((c) => c[0] === 'diff');
     assert.ok(diff.includes('origin/main...story-7'), diff.join(' '));
+  });
+});
+
+describe('runDuplicationCloseRescore — a skipped base sync (Story #6019)', () => {
+  const withPartners = (r, partners) => ({ ...r, partners });
+
+  /**
+   * `story-7` branches at the merge-base and changes a.js; origin's main then
+   * edits a.js's clone partner b.js and its row. The tree still holds the
+   * merge-base b.js.
+   */
+  function onConflictRepo() {
+    const base = [row('src/a.js', 5), row('src/b.js', 8)];
+    const { root, git } = realRepo(base);
+    const mergeBase = git('rev-parse', 'main');
+    const origin = makeTempDir('dup-rescore-origin-');
+    gitSync(origin, 'init', '-q', '--bare', '-b', 'main');
+    git('remote', 'add', 'origin', origin);
+    git('push', '-q', 'origin', 'main');
+    const peer = makeTempDir('dup-rescore-peer-');
+    gitSync(peer, 'clone', '-q', origin, '.');
+    gitSync(peer, 'config', 'user.email', 'peer@example.com');
+    gitSync(peer, 'config', 'user.name', 'Peer');
+    gitSync(peer, 'config', 'commit.gpgsign', 'false');
+    fs.writeFileSync(path.join(peer, 'src/b.js'), 'export const b = 9;\n');
+    writeEnvelope(peer, [row('src/a.js', 5), row('src/b.js', 2)]);
+    gitSync(peer, 'commit', '-q', '-am', 'feat: change b');
+    gitSync(peer, 'push', '-q', 'origin', 'main');
+    git('fetch', '-q', 'origin');
+    return { root, git, base, mergeBase };
+  }
+
+  const rescore = (root, baselineRef) =>
+    runDuplicationCloseRescore({
+      cwd: root,
+      storyId: 7,
+      baseBranch: 'main',
+      storyBranch: 'story-7',
+      baselineRef,
+      config: {},
+      logger: QUIET,
+      // The stale tree scores b.js above its merge-base row.
+      scorer: () => [
+        withPartners(row('src/a.js', 3), ['src/b.js']),
+        withPartners(row('src/b.js', 50), ['src/a.js']),
+      ],
+    });
+
+  /** check-baselines' duplication compare against the merge-base rows. */
+  const regressionsOver = (base, headRows) =>
+    applyTolerance(
+      runCompareStage(
+        { rows: headRows },
+        {
+          baseRef: 'merge-base',
+          baseRead: true,
+          basePayload: { rows: base },
+          kindModule: duplicationKind,
+        },
+      ),
+      { kind: 'absolute', value: 1 },
+    ).regressions.map((r) => r.key);
+
+  test('AC-1/AC-2: an incoming clone partner keeps its row and the merge-base compare passes', async () => {
+    const { root, base, mergeBase } = onConflictRepo();
+    const out = await rescore(root, mergeBase);
+    assert.equal(out.committed, true, JSON.stringify(out));
+    assert.deepEqual(out.movedPaths, ['src/a.js']);
+    const headRows = readRows(root);
+    assert.deepEqual(
+      headRows.find((r) => r.path === 'src/b.js'),
+      base.find((r) => r.path === 'src/b.js'),
+    );
+    assert.deepEqual(regressionsOver(base, headRows), []);
+  });
+
+  test('AC-2: without baselineRef the same fixture rewrites the incoming row and the compare fails', async () => {
+    const { root, base } = onConflictRepo();
+    const out = await rescore(root, undefined);
+    assert.deepEqual(out.movedPaths.sort(), ['src/a.js', 'src/b.js']);
+    assert.deepEqual(regressionsOver(base, readRows(root)), ['src/b.js']);
+  });
+
+  test('AC-5: a failed incoming-path diff is a named skip that writes nothing', async () => {
+    let refreshed = false;
+    const out = await stubbed({
+      baselineRef: 'f'.repeat(40),
+      git: gitStub({ failOn: 'diff --name-only --no-renames' }),
+      refreshBaseline: async () => {
+        refreshed = true;
+        return { wrote: true };
+      },
+    });
+    assert.match(out.reason, /^git-failed: /);
+    assert.equal(out.committed, false);
+    assert.equal(refreshed, false);
+  });
+
+  test('scopes the change set on baselineRef and excludes the incoming paths', async () => {
+    const stub = gitStub({ changed: 'src/a.js\nsrc/b.js' });
+    const seen = [];
+    await stubbed({
+      baselineRef: 'mb',
+      git: stub,
+      refreshBaseline: async (opts) => {
+        seen.push(opts);
+        return { wrote: false };
+      },
+    });
+    const diffs = stub.calls
+      .filter((c) => c[0] === 'diff')
+      .map((c) => c.join(' '));
+    assert.deepEqual(diffs, [
+      'diff --name-only --no-renames mb origin/main',
+      'diff --name-only mb...story-7',
+    ]);
+    assert.deepEqual(seen[0].excludeWriteFiles, ['src/a.js', 'src/b.js']);
   });
 });
 
@@ -447,6 +570,20 @@ describe('runPreGateSteps — the two new close steps', () => {
       .filter((m) => /baseline commit refused/.test(m));
     assert.equal(warned.length, 1, 'logged once at warning level');
     assert.match(warned[0], /⚠️ \[DUPLICATION\] .*\[body-max-line-length\]/);
+  });
+
+  test('forwards baselineRef to the duplication re-score (Story #6019 AC-3)', async () => {
+    const seen = [];
+    await runPreGateSteps({
+      ...ctx(() => {}),
+      baselineRef: 'mb',
+      runDuplicationCloseRescore: async (args) => {
+        seen.push(args.baselineRef);
+        return { committed: false };
+      },
+      runRatchetShrinkWriteback: () => ({ committed: false }),
+    });
+    assert.deepEqual(seen, ['mb']);
   });
 
   test('skips both without a story branch', async () => {

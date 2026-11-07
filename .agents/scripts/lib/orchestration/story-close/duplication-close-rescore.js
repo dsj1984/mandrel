@@ -7,6 +7,10 @@
  * adds clones to a file it changed fails the head-vs-base compare at close.
  * The scan covers the whole tree (clones are pairwise); only changed-file rows
  * and their clone partners' rows are written. Every failure is a named skip, never a failed close.
+ *
+ * A skipped base sync passes `baselineRef` (the merge-base): the change set is
+ * scoped on it, and no row is written for a path `origin/<base>` changed since,
+ * because the tree holds that file's merge-base version and main owns its row.
  */
 
 import fs from 'node:fs';
@@ -98,11 +102,29 @@ function resolveScopeBase({ workTree, git, baseBranch }) {
 }
 
 /**
- * Guards plus the scoped file list. A dirty baseline file would otherwise be
- * swept into the commit.
+ * Paths `origin/<base>` changed since `baselineRef`; the raw-path rule of the
+ * base-sync probe. Throws on a failed diff.
  *
- * @param {{ workTree: string, baseBranch: string, storyBranch: string, git: Function, relPath: string, additionalFormats?: string[] }} ctx
- * @returns {{ reason: string } | { files: string[] }}
+ * @param {{ workTree: string, git: Function, scopeBase: string, baselineRef: string }} ctx
+ * @returns {string[]}
+ */
+function listIncomingFiles({ workTree, git, scopeBase, baselineRef }) {
+  const out = git(
+    ['diff', '--name-only', '--no-renames', baselineRef, scopeBase],
+    { cwd: workTree },
+  );
+  return String(out ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Guards plus the scoped file list and the paths whose rows stay untouched. A
+ * dirty baseline file would otherwise be swept into the commit.
+ *
+ * @param {{ workTree: string, baseBranch: string, storyBranch: string, git: Function, relPath: string, additionalFormats?: string[], baselineRef?: string }} ctx
+ * @returns {{ reason: string } | { files: string[], exclude: string[] }}
  */
 function resolveScope({
   workTree,
@@ -111,6 +133,7 @@ function resolveScope({
   git,
   relPath,
   additionalFormats,
+  baselineRef,
 }) {
   if (currentBranch(workTree, git) !== storyBranch) {
     return { reason: 'wrong-branch' };
@@ -118,14 +141,20 @@ function resolveScope({
   if (listDirtyPaths(workTree, git).includes(relPath)) {
     return { reason: 'dirty-tree' };
   }
+  const scopeBase = resolveScopeBase({ workTree, git, baseBranch });
+  const exclude = baselineRef
+    ? listIncomingFiles({ workTree, git, scopeBase, baselineRef })
+    : [];
   const isScorable = fileFilterFor(KIND, { additionalFormats });
   const files = listChangedFiles({
     cwd: workTree,
-    baseBranch: resolveScopeBase({ workTree, git, baseBranch }),
+    baseBranch: baselineRef || scopeBase,
     storyBranch,
     git,
   }).filter((f) => isScorable(f));
-  return files.length === 0 ? { reason: 'no-changed-files' } : { files };
+  return files.length === 0
+    ? { reason: 'no-changed-files' }
+    : { files, exclude };
 }
 
 /**
@@ -190,6 +219,7 @@ async function attempt(fn, label) {
  *   storyId: number|string,
  *   baseBranch: string,
  *   storyBranch?: string,
+ *   baselineRef?: string,
  *   config?: object,
  *   logger?: object,
  *   gitSync?: (cwd: string, ...args: string[]) => string,
@@ -205,6 +235,7 @@ export async function runDuplicationCloseRescore({
   storyId,
   baseBranch,
   storyBranch,
+  baselineRef,
   config,
   logger = DefaultLogger,
   gitSync = defaultGitSync,
@@ -236,12 +267,13 @@ export async function runDuplicationCloseRescore({
         git,
         relPath,
         additionalFormats: gate.value.additionalFormats,
+        baselineRef,
       }),
     'git-failed',
   );
   if (scope.reason) return skip(logger, scope.reason);
   if (scope.value.reason) return skip(logger, scope.value.reason);
-  const { files } = scope.value;
+  const { files, exclude } = scope.value;
 
   const priorRows = readPriorEnvelope(writePath, fs)?.rows ?? [];
   const refreshed = await attempt(
@@ -251,6 +283,7 @@ export async function runDuplicationCloseRescore({
         cwd: workTree,
         writePath,
         scopeFiles: files,
+        excludeWriteFiles: exclude,
         epsilon: getBaselineEpsilon(KIND),
         ...(scorer ? { scorer } : {}),
       }),

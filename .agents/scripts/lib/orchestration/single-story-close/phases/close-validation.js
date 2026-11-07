@@ -86,6 +86,7 @@ export async function runCloseValidationPhase({
       storyId,
       baseBranch,
       storyBranch,
+      baselineRef: baseSync?.baselineRef,
       config,
       progress,
       runScopedFormatAutofix,

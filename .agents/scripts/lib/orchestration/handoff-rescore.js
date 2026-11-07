@@ -69,6 +69,7 @@ export async function rescoreDuplication(ctx, readHead) {
       storyId: ctx.storyId,
       baseBranch: ctx.baseBranch,
       storyBranch: ctx.branch,
+      baselineRef: ctx.baselineRef,
       config: ctx.config,
       logger: { info: log, warn: log },
     });
