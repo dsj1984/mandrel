@@ -17,6 +17,7 @@ import {
   mergeChainDegradations,
   normalizeDegradations,
   renderDegradedGatesSection,
+  resolveNoVerdictHalt,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/degraded-gates.js';
 import { renderGuidanceBlock } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-guidance.js';
 
@@ -58,8 +59,13 @@ function envelope(findings, extra = {}) {
  */
 function harness(opts = {}) {
   const calls = [];
+  const sleeps = [];
+  let authCount = 0;
   const provider = createCodeReviewProviderForRegistry({
     probeFn: () => true,
+    sleepFn: async (ms) => {
+      sleeps.push(ms);
+    },
     // Pinned so argv assertions do not depend on the host's shell quoting.
     platform: opts.platform ?? 'linux',
     logger: opts.logger,
@@ -82,6 +88,8 @@ function harness(opts = {}) {
         options,
         cwdExisted: fs.existsSync(options.cwd),
       });
+      const seq = opts.authSeq;
+      if (seq) return seq[Math.min(authCount++, seq.length - 1)];
       return opts.auth ?? { status: 0, stdout: AUTH_OK, stderr: '' };
     },
     spawnFn: (file, args, options) => {
@@ -99,7 +107,7 @@ function harness(opts = {}) {
       };
     },
   });
-  return { provider, calls };
+  return { provider, calls, sleeps };
 }
 
 function invokeCall(calls) {
@@ -450,6 +458,79 @@ test('AC-5: a non-zero or unparseable preflight skips the review', async () => {
   assertOneDegradation(garbled.provider, /unparseable output/);
   assert.equal(invokeCall(garbled.calls), undefined);
 });
+
+const authCalls = (calls) => calls.filter((c) => c.kind === 'auth').length;
+const UUID_TEXT = '123e4567-e89b-12d3-a456-426614174000';
+const PII_GARBLE = {
+  status: 0,
+  stdout: `Refreshing token...\n{"loggedIn":true,"email":"operator@example.com","orgName":"Example Org","orgId":"${UUID_TEXT}"}`,
+  stderr: `warn: operator@example.com session ${UUID_TEXT} ${'x'.repeat(400)}`,
+};
+
+test('an unparseable preflight that recovers runs the review after one delayed retry', async () => {
+  const { provider, calls, sleeps } = harness({
+    authSeq: [
+      { status: 0, stdout: 'not json', stderr: '' },
+      { status: 0, stdout: AUTH_OK, stderr: '' },
+    ],
+  });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assert.equal(authCalls(calls), 2);
+  assert.deepEqual(sleeps, [2000]);
+  assert.ok(invokeCall(calls));
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('a persistently unparseable preflight records redacted, capped output prefixes', async () => {
+  const { provider, calls } = harness({ auth: PII_GARBLE });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assert.equal(authCalls(calls), 2);
+  const row = assertOneDegradation(
+    provider,
+    /unparseable output \(stdout: ".*", stderr: ".*"\)/,
+    'verdict-missing',
+  );
+  const [, out, err] = row.reason.match(/stdout: "(.*)", stderr: "(.*)"\)$/);
+  assert.ok(out.length > 0 && out.length <= 200);
+  assert.equal(err.length, 200);
+  for (const pii of [/operator@example\.com/, /Example Org/, /123e4567/]) {
+    assert.doesNotMatch(row.reason, pii);
+  }
+});
+
+test('under onNoVerdict block a persistent unparseable preflight halts naming the re-run', async () => {
+  const { provider } = harness({ auth: PII_GARBLE });
+  await provider.runReview(INPUT);
+  const halt = resolveNoVerdictHalt({
+    degradations: provider.getDegradations(),
+    onNoVerdict: 'block',
+    storyId: INPUT.ticketId,
+  });
+  assert.equal(halt?.halted, true);
+  assert.match(
+    halt.blockerReason,
+    /transient; re-run `story-review-compute\.js`/,
+  );
+  assert.doesNotMatch(halt.blockerReason, /claude auth login/);
+});
+
+for (const [label, auth, reasonRe] of [
+  ['a non-zero exit', { status: 1, stdout: '', stderr: '' }, /exited 1/],
+  [
+    'a loggedIn: false payload',
+    { status: 0, stdout: JSON.stringify({ loggedIn: false }), stderr: '' },
+    /claude CLI is not logged in$/,
+  ],
+  ['a timeout', { status: null, stdout: '', stderr: '' }, /exited 1/],
+]) {
+  test(`${label} preflight is probed exactly once with no delay`, async () => {
+    const { provider, calls, sleeps } = harness({ auth });
+    await provider.runReview(INPUT);
+    assert.equal(authCalls(calls), 1);
+    assert.deepEqual(sleeps, []);
+    assertOneDegradation(provider, reasonRe, 'verdict-missing');
+  });
+}
 
 test('AC-5: a usage-limit failure names quota exhaustion', async () => {
   const stdout = JSON.stringify({
@@ -1136,6 +1217,7 @@ function sequenceHarness(results, extra = {}) {
   const lines = [];
   const provider = createCodeReviewProviderForRegistry({
     probeFn: () => true,
+    sleepFn: async () => {},
     platform: 'linux',
     logger: { info: () => {}, warn: (m) => lines.push(m) },
     gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),

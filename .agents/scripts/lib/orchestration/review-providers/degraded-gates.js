@@ -94,6 +94,10 @@ export function reviewGapLines(degradations) {
 
 /** The fix each no-verdict cause needs; matched on the record, never on PII. */
 const NO_VERDICT_FIXES = [
+  [
+    /auth status returned unparseable output/,
+    'the auth preflight output was transient; re-run `story-review-compute.js`',
+  ],
   [/not logged in|auth status/, 'run `claude auth login`'],
   [/out of quota|usage limit/, 'wait for the usage-limit reset'],
   [/skipped/, 'install the `claude` or `codex` CLI'],
