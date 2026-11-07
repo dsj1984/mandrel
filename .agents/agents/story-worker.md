@@ -140,7 +140,10 @@ A close after a base move re-runs only the affected tests when the
 consumer declares `project.commands.testChanged`.
 
 If it outruns the host's sync Bash ceiling, dispatch it in the
-**background**: its completion re-invokes you. Never spawn a task to poll or
+**background** with an explicit timeout (`timeout: 7200000`, the 2-hour
+maximum: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md)
+Rule 2): its completion re-invokes you; on a host stop notice re-run it once,
+and a second stop is your blocked path. Never spawn a task to poll or
 `sleep`-loop against it; a waiter with a wrong condition outlives the agent.
 An exit code is never evidence a gate did work — its **output** is: read the
 envelope's per-step outcomes and credit. Redraft rounds run the scoped

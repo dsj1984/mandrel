@@ -321,6 +321,87 @@ describe('the bundled delivery read pins the same dispatch shape', () => {
   });
 });
 
+/**
+ * Story #5979 — a host that runs unattended stops a background command at its
+ * time limit (30 minutes by default), so every surface that backgrounds a
+ * delivery command must name an explicit timeout and reach Rule 2. Asserted
+ * structurally; none of this counts toward {@link MAX_EXACT_SENTENCE_PINS}.
+ */
+describe('background dispatch names an explicit timeout on every surface', () => {
+  const digestSection5 = () => {
+    const src = read(DIGEST);
+    const rest = src.slice(src.indexOf('## 5.') + 3);
+    const end = rest.indexOf('\n## ');
+    return end === -1 ? rest : rest.slice(0, end);
+  };
+
+  it('Rule 2 requires the explicit timeout, forbids the auto-move and handles the stop notice', () => {
+    const src = read(RULE2);
+    assert.match(
+      src,
+      /timeout: 7200000/,
+      'Rule 2 must name the Claude Code maximum',
+    );
+    assert.match(src, /2 hours/i, 'Rule 2 must name the host maximum');
+    assertDocMentions(
+      src,
+      /auto-move/i,
+      'Rule 2 must forbid relying on the auto-move',
+    );
+    assertDocMentions(
+      src,
+      /2 × `coverage\.timeoutMs`/,
+      'Rule 2 must size the worst case',
+    );
+    assertDocMentions(
+      src,
+      /stop notice/i,
+      'Rule 2 must say what a stop notice triggers',
+    );
+    assert.match(
+      src,
+      /agent::blocked/,
+      'a second stop must reach the blocked path',
+    );
+  });
+
+  it('digest § 5 and the worker credited-run section name the timeout and cite Rule 2', () => {
+    for (const [name, section] of [
+      ['digest § 5', digestSection5()],
+      [WORKER, creditedRunSection(read(WORKER))],
+    ]) {
+      assertDocMentions(
+        section,
+        /explicit timeout/i,
+        `${name} must name an explicit timeout`,
+      );
+      assertDocMentions(
+        section,
+        /parallel-tooling(\.md)?.{0,80}Rule 2/,
+        `${name} must cite Rule 2`,
+      );
+    }
+  });
+
+  it('the reference names the timeout for both background commands and the async exception', () => {
+    const src = read(REFERENCE);
+    assertDocMentions(
+      src,
+      /\*\*background\*\* with an explicit timeout/,
+      'the credited-run dispatch must carry the timeout',
+    );
+    assertDocMentions(
+      src,
+      /time-limited host/i,
+      'the async merge-confirm mode must name the time-limited-host exception',
+    );
+    assert.ok(
+      (src.match(/timeout: 7200000/g) ?? []).length >= 2,
+      'both background commands must carry the timeout',
+    );
+  });
+});
+
 describe('the new guidance does not trip the init-backgrounding guard', () => {
   it('reports no story-init-not-backgrounded finding for .agents/', () => {
     const finding = initCheck.detect({ cwd: REPO_ROOT });
