@@ -3848,6 +3848,7 @@
       "classifyBranchSeed": 3,
       "currentBranch": 3,
       "ensureLocalBranch": 2,
+      "remoteBranchSha": 3,
       "seedStoryBranchRef": 11
     },
     ".agents/scripts/lib/git-utils.js": {
@@ -6249,6 +6250,7 @@
       "<anon finishWithMergeWait/runPostLandTailFn(args)#0>": 1,
       "<anon landed(_terminal,storyId,prUrl)#0>": 1,
       "<anon pending(terminal,storyId,prUrl)#0>": 1,
+      "closeEnvelopeFields": 1,
       "finishDeferred": 1,
       "finishWithMergeWait": 1.0000214334705075,
       "finishWithoutMergeWait": 2,
@@ -6316,7 +6318,8 @@
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js": {
       "openAndReviewPr": 3,
-      "pullRequestArgs": 1
+      "pullRequestArgs": 1,
+      "pushPhase": 1
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/options.js": {
       "<anon assertNoRetiredFlags/argv.some(a)#0>": 2,
@@ -6403,7 +6406,11 @@
       "probeEmptyDiff": 2
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/push.js": {
-      "pushStoryBranch": 1
+      "localTip": 3,
+      "originAtLocalTip": 3,
+      "push": 1,
+      "pushStoryBranch": 1,
+      "settlePush": 3
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js": {
       "readMergedHead": 2,
@@ -6747,6 +6754,8 @@
       "summarizeSignalCategories": 5
     },
     ".agents/scripts/lib/orchestration/story-handoff.js": {
+      "<anon appendReview/steps.some(s)#0>": 1,
+      "<anon beforeRun/guarded(ctx)#0>": 2,
       "<anon blocked(name,reason,detail,extra)#0>": 1,
       "<anon changedPaths/filter(p)#0>": 1,
       "<anon changedPaths/map(line)#0>": 1,
@@ -6777,6 +6786,8 @@
       "<anon skipped(name,detail,extra)#0>": 1,
       "<anon startReview/catch(err)#0>": 1.0122894856622666,
       "<anon startReview/finally()#0>": 1.0122894856622666,
+      "<anon startReview/then(result)#0>": 1.008,
+      "<anon stepCreditedRun/ctx.reviewPending.then(result)#0>": 2,
       "<anon stepCreditedRun/then(result)#0>": 2,
       "<anon stepDuplicationRescore/rescoreDuplication()#0>": 1,
       "<anon steppedPush/map(sha)#0>": 1,
@@ -6789,6 +6800,8 @@
       "<anon withLockProgress/()#0>": 3,
       "<anon withLockProgress/catch()#0>": 1,
       "<anon withLockProgress/forward()#0>": 2,
+      "appendReview": 3,
+      "beforeRun": 1,
       "carryHeldLint": 2,
       "changedPaths": 2,
       "classifyPushFailure": 2,

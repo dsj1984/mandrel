@@ -42,6 +42,15 @@ export function branchExistsRemotely(branch, cwd) {
   return result.status === 0 && result.stdout.length > 0;
 }
 
+/** Origin's tip for `branch`: `sha` null when absent; never throws. */
+export function remoteBranchSha(cwd, branch, git = gitSpawn) {
+  const res = git(cwd, 'ls-remote', 'origin', `refs/heads/${branch}`);
+  const detail = `${res?.stderr ?? ''}`.trim();
+  if (res?.status !== 0) return { reachable: false, sha: null, detail };
+  const sha = `${res.stdout ?? ''}`.trim().split(/\s+/)[0] || null;
+  return { reachable: true, sha, detail: '' };
+}
+
 /**
  * Local-only; authoritative once `git fetch origin` has run.
  *

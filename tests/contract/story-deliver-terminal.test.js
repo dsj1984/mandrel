@@ -586,6 +586,37 @@ describe('story-deliver-terminal — baseSync (Story #5954)', () => {
   });
 });
 
+describe('story-deliver-terminal — pushOutcome (Story #5967)', () => {
+  const base = {
+    kind: 'story-deliver-terminal',
+    storyId: 5967,
+    status: 'pending',
+    phase: 'auto-merge',
+    nextCommand: NEXT_COMMANDS.confirmMerge(5967),
+    elapsedSeconds: 1,
+  };
+
+  it('carries the push outcome and stays optional', () => {
+    for (const pushOutcome of ['pushed', 'skipped-already-at-head', null]) {
+      assert.equal(
+        buildTerminalEnvelope({ ...base, pushOutcome }).pushOutcome,
+        pushOutcome,
+      );
+    }
+    assert.equal('pushOutcome' in buildTerminalEnvelope(base), false);
+  });
+
+  it('the schema refuses any other value', () => {
+    for (const pushOutcome of ['skipped', 'PUSHED', '', true, 0]) {
+      assert.equal(
+        validateTerminalEnvelope({ ...base, pushOutcome }).valid,
+        false,
+        `expected ${JSON.stringify(pushOutcome)} to be rejected`,
+      );
+    }
+  });
+});
+
 describe('story-deliver-terminal — blocked / failed', () => {
   it('blocked carries a shared-classifier class and a friction pointer', () => {
     const env = buildTerminalEnvelope({

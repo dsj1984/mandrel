@@ -98,7 +98,7 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 ## 5. The one credited run — `story-handoff.js`
 
 After the self-eval's last fix commit the worker runs **one** command, which
-runs this section in order and prints one envelope:
+runs this section and prints one envelope:
 
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
@@ -112,7 +112,7 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
 
 1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops. Then close's **duplication re-score**, committed
-   **untagged** before any credit, so close's own no-ops.
+   **untagged** before any credit.
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
    `quality-preview.js --changed-since origin/<baseBranch>`, then each
    baselined ratchet; one `fix-required` lists every finding —
@@ -121,7 +121,7 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    on — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →
      `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`,
-     behind the host full-suite lock. Signal: `Wrote content-digest capture
+     behind the full-suite lock. Signal: `Wrote content-digest capture
      stamp`. No second `npm test`.
    - **Otherwise** → `node <main-repo>/.agents/scripts/evidence-gate.js
      --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`;
@@ -132,12 +132,11 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    …`; then post-capture checks: close's `quality-preview-crap` and `check-baselines`,
    then `delivery.handoff.postSeatChecks`. Children get `MANDREL_HANDOFF_STEP`.
 5. **Push** `story-<id>`; the remote ref must equal HEAD.
-6. **Held review** beside step 3, which a CRITICAL aborts —
-   [`deliver-reference.md`](deliver-reference.md) § Held review.
+6. **Held review** from step 1, beside 2: a CRITICAL skips or aborts 3,
+   one envelope with any finding — [`deliver-reference.md`](deliver-reference.md) § Held review.
 
 A later commit voids any credit; a baseline-JSON seat keeps the stamp. It
-reads the **output**, not the exit code: a run that prints no signal
-deposits nothing. Seat order, re-score, runner shapes:
+reads the **output**, not the exit code: no signal deposits nothing. Seat order, re-score, runner shapes:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is a

@@ -25,12 +25,34 @@ function capture() {
   };
 }
 
+const SHA = 'a'.repeat(40);
+
+/** A gitSpawn world answering `rev-parse` (local) and `ls-remote` (origin). */
+function gitWorld({ local = SHA, remote = SHA, lsRemoteFails = false } = {}) {
+  const probes = [];
+  const gitSpawn = (cwd, ...args) => {
+    probes.push({ cwd, args });
+    if (args[0] === 'rev-parse') {
+      return local
+        ? { status: 0, stdout: `${local}\n`, stderr: '' }
+        : { status: 128, stdout: '', stderr: 'unknown revision' };
+    }
+    if (lsRemoteFails) {
+      return { status: 128, stdout: '', stderr: 'Could not read from remote' };
+    }
+    const stdout = remote ? `${remote}\trefs/heads/story-5967\n` : '';
+    return { status: 0, stdout, stderr: '' };
+  };
+  return { probes, gitSpawn };
+}
+
 test('pushStoryBranch pushes with -u and sets the upstream', () => {
   const { calls, gitSync } = capture();
   pushStoryBranch({
     cwd: '/repo',
     storyBranch: 'story-4943',
     gitSync,
+    gitSpawn: gitWorld({ remote: null }).gitSpawn,
     progress: () => {},
   });
   assert.equal(calls.length, 1);
@@ -44,6 +66,7 @@ test('pushStoryBranch carries no hook-bypass flag', () => {
     cwd: '/repo',
     storyBranch: 'story-4943',
     gitSync,
+    gitSpawn: gitWorld({ remote: null }).gitSpawn,
     progress: () => {},
   });
   const bypass = calls[0].args.filter((a) =>
@@ -63,6 +86,7 @@ test('pushStoryBranch pushes from the Story worktree when one is supplied', () =
     worktreePath: '/repo/.worktrees/story-4990',
     storyBranch: 'story-4990',
     gitSync,
+    gitSpawn: gitWorld({ remote: null }).gitSpawn,
     progress: () => {},
   });
   assert.equal(
@@ -80,6 +104,7 @@ test('pushStoryBranch falls back to the main checkout when there is no worktree'
       worktreePath,
       storyBranch: 'story-4990',
       gitSync,
+      gitSpawn: gitWorld({ remote: null }).gitSpawn,
       progress: () => {},
     });
     assert.equal(
@@ -99,8 +124,76 @@ test('pushStoryBranch surfaces a push failure as a throw', () => {
         gitSync: () => {
           throw new Error('remote rejected');
         },
+        gitSpawn: gitWorld({ remote: null }).gitSpawn,
         progress: () => {},
       }),
     /git push failed for story-4943.*remote rejected/s,
   );
+});
+
+function pushWith(world, extra = {}) {
+  const { calls, gitSync } = capture();
+  const logs = [];
+  const result = pushStoryBranch({
+    cwd: '/repo',
+    worktreePath: '/repo/.worktrees/story-5967',
+    storyBranch: 'story-5967',
+    gitSync,
+    gitSpawn: world.gitSpawn,
+    progress: (tag, msg) => logs.push(`${tag} ${msg}`),
+    ...extra,
+  });
+  return { calls, logs, result };
+}
+
+test('pushStoryBranch skips the push when origin already holds the local tip', () => {
+  const world = gitWorld();
+  const { calls, logs, result } = pushWith(world);
+  assert.deepEqual(result, { outcome: 'skipped-already-at-head' });
+  assert.equal(calls.length, 0, 'no git push — pre-push must not re-run');
+  assert.ok(
+    logs.some((l) => /already at HEAD — push skipped/.test(l)),
+    logs.join('\n'),
+  );
+  assert.deepEqual(world.probes[0].args, [
+    'rev-parse',
+    'refs/heads/story-5967',
+  ]);
+  assert.ok(
+    world.probes.every((p) => p.cwd === '/repo/.worktrees/story-5967'),
+    'both reads run from the directory the push would run from',
+  );
+});
+
+test('pushStoryBranch pushes when origin is behind or has no such branch', () => {
+  for (const remote of ['b'.repeat(40), null]) {
+    const { calls, result } = pushWith(gitWorld({ remote }));
+    assert.deepEqual(result, { outcome: 'pushed' });
+    assert.deepEqual(calls[0].args, ['push', '-u', 'origin', 'story-5967']);
+    assert.equal(calls[0].cwd, '/repo/.worktrees/story-5967');
+  }
+});
+
+test('pushStoryBranch always pushes under --skip-validation, even at the tip', () => {
+  const world = gitWorld();
+  const { calls, result } = pushWith(world, { skipValidation: true });
+  assert.deepEqual(result, { outcome: 'pushed' });
+  assert.equal(calls.length, 1);
+  assert.equal(world.probes.length, 0, 'no probe when pre-push is the gate');
+});
+
+test('pushStoryBranch pushes when ls-remote fails or the local tip is unreadable', () => {
+  for (const world of [
+    gitWorld({ lsRemoteFails: true }),
+    gitWorld({ local: null }),
+    {
+      gitSpawn: () => {
+        throw new Error('spawn exploded');
+      },
+    },
+  ]) {
+    const { calls, result } = pushWith(world);
+    assert.deepEqual(result, { outcome: 'pushed' });
+    assert.deepEqual(calls[0].args, ['push', '-u', 'origin', 'story-5967']);
+  }
 });

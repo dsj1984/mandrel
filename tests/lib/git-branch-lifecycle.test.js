@@ -11,6 +11,7 @@ import {
   classifyBranchSeed,
   currentBranch,
   ensureLocalBranch,
+  remoteBranchSha,
   seedStoryBranchRef,
 } from '../../.agents/scripts/lib/git-branch-lifecycle.js';
 import { __setGitRunners } from '../../.agents/scripts/lib/git-utils.js';
@@ -90,6 +91,47 @@ describe('branchExistsLocally / branchExistsRemotely', () => {
   it('remote: status 0 but empty stdout → false', () => {
     installScriptedRunner([OK('')]);
     assert.equal(branchExistsRemotely('feat-x', '/cwd'), false);
+  });
+});
+
+describe('remoteBranchSha', () => {
+  it("reads origin's tip for the branch through the injected runner", () => {
+    const calls = [];
+    const git = (cwd, ...args) => {
+      calls.push({ cwd, args });
+      return OK('abc123\trefs/heads/story-1\n');
+    };
+    assert.deepEqual(remoteBranchSha('/cwd', 'story-1', git), {
+      reachable: true,
+      sha: 'abc123',
+      detail: '',
+    });
+    assert.deepEqual(calls, [
+      { cwd: '/cwd', args: ['ls-remote', 'origin', 'refs/heads/story-1'] },
+    ]);
+  });
+
+  it('sha is null when origin has no such branch', () => {
+    assert.deepEqual(
+      remoteBranchSha('/cwd', 'story-1', () => OK('')),
+      {
+        reachable: true,
+        sha: null,
+        detail: '',
+      },
+    );
+  });
+
+  it('unreachable carries the trimmed stderr', () => {
+    assert.deepEqual(
+      remoteBranchSha('/cwd', 'story-1', () => FAIL(' no route \n')),
+      { reachable: false, sha: null, detail: 'no route' },
+    );
+  });
+
+  it('defaults to the module gitSpawn', () => {
+    installScriptedRunner([OK('def456\trefs/heads/story-2')]);
+    assert.equal(remoteBranchSha('/cwd', 'story-2').sha, 'def456');
   });
 });
 
