@@ -1124,7 +1124,7 @@
     },
     {
       "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "mi": 101.73
+      "mi": 100.287
     },
     {
       "path": ".agents/scripts/lib/git-utils.js",
@@ -1884,7 +1884,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/push.js",
-      "mi": 126.964
+      "mi": 110.587
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
@@ -1924,7 +1924,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
-      "mi": 95.767
+      "mi": 95.261
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
