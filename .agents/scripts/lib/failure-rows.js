@@ -8,7 +8,7 @@
 
 import { stripVTControlCharacters } from 'node:util';
 
-export const DEFAULT_MAX_ROWS = 10;
+const DEFAULT_MAX_ROWS = 10;
 
 const MAX_LINE_CHARS = 200;
 
