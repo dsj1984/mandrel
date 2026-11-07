@@ -129,9 +129,7 @@ export async function finishWithMergeWait(prCtx, deps) {
     autoMergeEnabled: prCtx.autoMergeEnabled,
     autoMergeReason: prCtx.autoMergeReason,
     gates: prCtx.gates,
-    lockWait: prCtx.lockWait,
-    suiteTimings: prCtx.suiteTimings,
-    baseSync: prCtx.baseSync,
+    ...closeEnvelopeFields(prCtx),
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });
   const result = closeResult({
@@ -146,6 +144,7 @@ export async function finishWithMergeWait(prCtx, deps) {
     // Released by the post-land tail only; any other ending keeps the claim.
     leaseReleased: waitOutcome.tail?.leaseRelease === true,
     localCleanupDeferred: prCtx.localCleanupDeferred,
+    pushOutcome: prCtx.pushOutcome,
     directMerged: prCtx.directMerged,
     waitedForMerge: true,
     merged: deriveObservedMerge({
@@ -164,6 +163,16 @@ export async function finishWithMergeWait(prCtx, deps) {
   });
   reportWaitTerminal(terminal, { storyId: prCtx.storyId, prUrl: prCtx.prUrl });
   return { success: terminal.status === 'landed', result, terminal };
+}
+
+/** The close-only envelope fields both finishes carry. */
+function closeEnvelopeFields({
+  lockWait,
+  suiteTimings,
+  baseSync,
+  pushOutcome,
+}) {
+  return { lockWait, suiteTimings, baseSync, pushOutcome };
 }
 
 /**
@@ -186,6 +195,7 @@ export async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     autoMergeReason: prCtx.autoMergeReason,
     leaseReleased: false,
     localCleanupDeferred: prCtx.localCleanupDeferred,
+    pushOutcome: prCtx.pushOutcome,
     directMerged: prCtx.directMerged,
     merged,
     // The flip, issue close and tail belong to `nextCommand`.
@@ -205,9 +215,7 @@ export async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
       autoMergeReason: prCtx.autoMergeReason ?? null,
     },
     gates: prCtx.gates,
-    lockWait: prCtx.lockWait,
-    suiteTimings: prCtx.suiteTimings,
-    baseSync: prCtx.baseSync,
+    ...closeEnvelopeFields(prCtx),
     nextCommand: NEXT_COMMANDS.confirmMerge(prCtx.storyId),
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });

@@ -22,6 +22,7 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { spawnStreamAsync } from '../../.agents/scripts/lib/child-exec.js';
+import { createLockEventChannel } from '../../.agents/scripts/lib/close-lock-events.js';
 import {
   buildDefaultGates,
   resolveCreditedDepositor,
@@ -243,6 +244,9 @@ function harness({
 }
 
 const stepNames = (envelope) => envelope.steps.map((s) => s.name);
+/** The step the envelope stopped on; a started review may trail it. */
+const stopStep = (envelope) =>
+  envelope.steps.findLast((s) => s.name === envelope.failedStep);
 const spawned = (runCommand) => runCommand.calls.map((c) => c.key);
 
 describe('story-handoff — the happy path (AC-1)', () => {
@@ -330,7 +334,7 @@ describe('story-handoff — the happy path (AC-1)', () => {
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'seat');
-    assert.match(envelope.steps.at(-1).detail, /hook rejected/);
+    assert.match(stopStep(envelope).detail, /hook rejected/);
     assert.equal(readFileSync(envelope.evidencePath, 'utf8'), 'hook rejected');
   });
 
@@ -501,7 +505,7 @@ describe('story-handoff — the preflight runs the standalone ratchets (#5528)',
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'preflight');
     assert.match(envelope.evidencePath, /preflight-dead-exports-production/);
-    assert.match(envelope.steps.at(-1).detail, /lib\/x\.js: onlyForTests/);
+    assert.match(stopStep(envelope).detail, /lib\/x\.js: onlyForTests/);
     const keys = spawned(h.runCommand);
     assert.ok(!keys.includes('coverage-capture.js'), 'no credited run');
     assert.ok(!keys.includes('git'), 'no push');
@@ -531,7 +535,7 @@ describe('story-handoff — the preflight runs the standalone ratchets (#5528)',
       assert.equal(exitCode, 2);
       assert.equal(envelope.failedStep, 'preflight');
       assert.ok(envelope.evidencePath, 'names the evidence log');
-      assert.match(envelope.steps.at(-1).detail, detail);
+      assert.match(stopStep(envelope).detail, detail);
     });
   }
 
@@ -969,7 +973,7 @@ describe('story-handoff — the skip-branch scoped `test` deposit (Story #5961)'
       });
       const { envelope, exitCode } = await h.run();
       assert.equal(exitCode, 2);
-      assert.match(envelope.steps.at(-1).detail, /timed out/);
+      assert.match(stopStep(envelope).detail, /timed out/);
       rmSync(path.join(tempRoot, 'orchestration'), {
         recursive: true,
         force: true,
@@ -1110,7 +1114,7 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
       assert.equal(envelope.failedStep, failedStep);
       assert.ok(envelope.evidencePath, 'names the evidence log');
       if (detail) {
-        assert.match(envelope.steps.at(-1).detail, detail);
+        assert.match(stopStep(envelope).detail, detail);
       }
       assert.equal(h.blocks.length, 0, 'no label is written');
     });
@@ -1126,7 +1130,7 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'preflight');
-    const step = envelope.steps.at(-1);
+    const step = stopStep(envelope);
     assert.deepEqual(
       step.findings.map((f) => f.check),
       ['lint', 'quality-preview'],
@@ -1198,7 +1202,7 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'base-merge');
-    assert.equal(envelope.steps.at(-1).detail, 'merge failed: boom');
+    assert.equal(stopStep(envelope).detail, 'merge failed: boom');
     assert.deepEqual(spawned(h.runCommand), []);
   });
 
@@ -1411,7 +1415,7 @@ describe('story-handoff — a ruleset-evaluation push failure is retried stepped
     assert.equal(envelope.status, 'fix-required');
     assert.equal(envelope.reason, 'ruleset-eval-failed');
     assert.match(envelope.evidencePath, /push-step-2\.log$/);
-    const detail = envelope.steps.at(-1).detail;
+    const detail = stopStep(envelope).detail;
     for (const sha of range(5)) {
       assert.ok(
         detail.includes(`git push origin ${sha}:refs/heads/story-${STORY}`),
@@ -1452,7 +1456,7 @@ describe('story-handoff — a ruleset-evaluation push failure is retried stepped
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.match(
-      envelope.steps.at(-1).detail,
+      stopStep(envelope).detail,
       /git fetch origin story-\d+, git merge origin\/story-\d+/,
     );
     assert.equal(pushes(h).length, 1);
@@ -2029,7 +2033,7 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
     assert.equal(exitCode, 2);
     assert.equal(envelope.status, 'fix-required');
     assert.equal(envelope.failedStep, 'credited-run');
-    assert.match(envelope.steps.at(-1).detail, /^red suite \(exit 1\)/);
+    assert.match(stopStep(envelope).detail, /^red suite \(exit 1\)/);
     assert.ok(h.readEvidence().includes(CAPTURE_SIGNAL));
     assert.deepEqual(
       h.lines.filter((l) => l.tag === 'LOCK'),
@@ -2085,7 +2089,7 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
     armTimeoutOnFirstChunk(h);
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
-    assert.match(envelope.steps.at(-1).detail, /^suite timed out \(exit 124\)/);
+    assert.match(stopStep(envelope).detail, /^suite timed out \(exit 124\)/);
     assert.equal(
       h.readEvidence(),
       'MARKER_A\n[handoff] child timed out after 0.3s\n',
@@ -2318,7 +2322,242 @@ describe('story-handoff — the review runs beside the credited run (Story #5905
     const { envelope } = await h.run();
     assert.equal(envelope.failedStep, 'credited-run');
     assert.equal(settled, true);
-    assert.equal(envelope.steps.at(-1).name, 'credited-run');
+    assert.deepEqual(stepNames(envelope).slice(-2), ['credited-run', 'review']);
+  });
+});
+
+describe('story-handoff — the review starts at base-merge (Story #5966)', () => {
+  const HALTED = { halted: true, severity: { critical: 1 } };
+  const MERGED = 'c'.repeat(40);
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const readState = () =>
+    JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+  /** Records each probe's pinned sha; the merge moves HEAD to MERGED. */
+  function mergingHarness(opts = {}) {
+    const h = harness(opts);
+    const shas = [];
+    h.deps.syncFromBase = async () => {
+      h.world.head = MERGED;
+      return { synced: true, kind: 'merge-commit', changedPaths: ['x.js'] };
+    };
+    h.deps.probeReview = ({ sha }) => {
+      shas.push(sha);
+      return { deposit: null };
+    };
+    return { ...h, shas };
+  }
+  /** Delays the lint spawn and reports whether `busy()` held while it ran. */
+  function slowLint(h, busy) {
+    const { runCommand } = h.deps;
+    const seen = { during: false };
+    h.deps.runCommand = async (cmd, args, opts) => {
+      if (commandKey(cmd, args) === 'lint') {
+        await delay(20);
+        seen.during = busy();
+      }
+      return runCommand(cmd, args, opts);
+    };
+    return seen;
+  }
+
+  test('AC-1: the provider is called while preflight is in flight, pinned to the post-merge HEAD', async () => {
+    const h = mergingHarness();
+    const review = { started: false, settled: false };
+    const { computeReview } = h.deps;
+    h.deps.computeReview = async (input) => {
+      review.started = true;
+      await delay(5);
+      review.settled = true;
+      return computeReview(input);
+    };
+    let startedBeforePreflight = null;
+    const { runCommand } = h.deps;
+    h.deps.runCommand = async (cmd, args, opts) => {
+      startedBeforePreflight ??= review.started;
+      return runCommand(cmd, args, opts);
+    };
+    const seen = slowLint(h, () => review.settled);
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.equal(startedBeforePreflight, true, 'in flight before any check');
+    assert.equal(seen.during, true, 'settled while lint was still running');
+    assert.deepEqual(h.shas, [MERGED]);
+    assert.equal(h.reviews.length, 1);
+  });
+
+  test('AC-2: no review starts on a precheck refusal or any non-synced base-merge', async () => {
+    const syncs = [
+      { synced: false, kind: 'conflict', conflictFiles: ['a.js'] },
+      { synced: false, kind: 'fetch-failed', stderr: 'offline' },
+      { synced: false, kind: 'merge-driver-missing', stderr: 'no driver' },
+      { synced: false, kind: 'other', stderr: 'boom' },
+    ];
+    for (const sync of syncs) {
+      const h = harness({ sync });
+      let probed = false;
+      h.deps.probeReview = () => {
+        probed = true;
+        return { deposit: null };
+      };
+      const { envelope } = await h.run();
+      assert.equal(envelope.failedStep, 'base-merge', sync.kind);
+      assert.equal(probed, false, `${sync.kind}: never probed`);
+      assert.equal(h.reviews.length, 0, `${sync.kind}: provider never called`);
+      assert.deepEqual(stepNames(envelope), ['base-merge']);
+    }
+    const world = gitWorld();
+    world.dirty = ['src/a.js'];
+    const refused = harness({ world });
+    await refused.run();
+    assert.equal(refused.reviews.length, 0);
+  });
+
+  for (const [depositor, scripts] of [
+    ['coverage-capture', CAPTURE_SCRIPTS],
+    ['test', { test: 'x' }],
+  ]) {
+    test(`AC-3: a review halted before the run stops the ${depositor} handoff with no seat, run, lock, credit or push`, async () => {
+      const h = harness({ deposit: HALTED, scripts });
+      let channels = 0;
+      h.deps.createLockChannel = () => {
+        channels += 1;
+        return createLockEventChannel();
+      };
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 2);
+      assert.equal(envelope.status, 'fix-required');
+      assert.equal(envelope.failedStep, 'review');
+      assert.equal(envelope.evidencePath, '/tmp/story-review.json');
+      assert.deepEqual(stepNames(envelope), [
+        'base-merge',
+        'duplication-rescore',
+        'seat-static',
+        'preflight',
+        'review',
+      ]);
+      const keys = spawned(h.runCommand);
+      for (const key of [
+        'coverage-capture.js',
+        'evidence-gate.js',
+        'update-crap-baseline.js',
+        'update-coverage-baseline.js',
+        'git',
+      ]) {
+        assert.ok(!keys.includes(key), `${key} never spawns`);
+      }
+      assert.equal(channels, 0, 'no lock is queued or held');
+      assert.equal(readState().creditHead, undefined, 'no credit recorded');
+      assert.equal(h.world.remote, null, 'nothing pushed');
+    });
+  }
+
+  test('AC-4: a preflight finding and a halted review settle as one envelope naming preflight', async () => {
+    const h = harness({
+      deposit: HALTED,
+      outputs: { lint: { status: 1, stdout: 'lint finding' } },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    assert.equal(envelope.failedStep, 'preflight');
+    const preflight = envelope.steps.find((s) => s.name === 'preflight');
+    const review = envelope.steps.find((s) => s.name === 'review');
+    assert.equal(preflight.outcome, 'failed');
+    assert.equal(review.outcome, 'failed');
+    assert.ok(preflight.evidencePath, 'preflight names its evidence');
+    assert.equal(review.evidencePath, '/tmp/story-review.json');
+    assert.equal(envelope.evidencePath, preflight.evidencePath);
+    assert.equal(stepNames(envelope).at(-1), 'review');
+  });
+
+  test('AC-5: a CRITICAL settling mid-preflight leaves every preflight check to run', async () => {
+    const h = harness({ deposit: HALTED });
+    let halted = false;
+    const { computeReview } = h.deps;
+    h.deps.computeReview = async (input) => {
+      const out = await computeReview(input);
+      halted = true;
+      return out;
+    };
+    const seen = slowLint(h, () => halted);
+    const { envelope } = await h.run();
+    assert.equal(seen.during, true, 'the review halted while lint ran');
+    const preflight = envelope.steps.find((s) => s.name === 'preflight');
+    assert.equal(preflight.outcome, 'ran');
+    const keys = spawned(h.runCommand);
+    assert.ok(keys.includes('lint'));
+    assert.ok(keys.includes('quality-preview.js'), 'later checks still ran');
+    assert.equal(envelope.failedStep, 'review');
+  });
+
+  test('AC-7: a review error after a stop is recorded once and stays non-blocking', async () => {
+    const h = harness({
+      outputs: { lint: { status: 1, stdout: 'lint finding' } },
+    });
+    h.deps.computeReview = async () => {
+      throw new Error('provider down');
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.equal(
+      envelope.steps.filter((s) => s.name === 'review').length,
+      1,
+      'recorded once',
+    );
+    assert.equal(envelope.steps.at(-1).outcome, 'error');
+  });
+
+  test('AC-7: a halted review appended after a blocked stop leaves the status blocked', async () => {
+    const h = harness({
+      deposit: HALTED,
+      world: gitWorld({ lsRemoteFails: true }),
+    });
+    let runDone;
+    const done = new Promise((resolve) => {
+      runDone = resolve;
+    });
+    const { runCommand, computeReview } = h.deps;
+    h.deps.runCommand = async (cmd, args, opts) => {
+      const res = await runCommand(cmd, args, opts);
+      if (path.basename(args[0] ?? '') === 'coverage-capture.js') runDone();
+      return res;
+    };
+    h.deps.computeReview = async (input) => {
+      await done;
+      await delay(10);
+      return computeReview(input);
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.status, 'blocked');
+    assert.equal(envelope.failedStep, 'push');
+    assert.deepEqual(stepNames(envelope).slice(-2), ['push', 'review']);
+    assert.equal(envelope.steps.at(-1).outcome, 'failed');
+  });
+
+  test('AC-8: on the test depositor the review is computed once against the pre-seat head', async () => {
+    const h = mergingHarness({
+      scripts: { test: 'x' },
+      outputs: {
+        'update-crap-baseline.js': { status: 0, stdout: 'seated: 1' },
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.equal(envelope.headSha, SEATED_HEAD, 'the seat committed');
+    assert.deepEqual(h.shas, [MERGED]);
+    assert.equal(
+      h.reviews.length,
+      1,
+      'the seat commit starts no second review',
+    );
+    assert.equal(envelope.steps.filter((s) => s.name === 'review').length, 1);
   });
 });
 
@@ -2403,7 +2642,7 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'preflight');
-    assert.match(envelope.steps.at(-1).detail, /^typecheck finding/);
+    assert.match(stopStep(envelope).detail, /^typecheck finding/);
     assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
     assert.ok(!('typecheck' in readState().preflightCredits));
   });
@@ -2493,7 +2732,7 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'preflight');
     assert.match(
-      envelope.steps.at(-1).detail,
+      stopStep(envelope).detail,
       /typecheck\/lint\/format gates: bad ref/,
     );
     assert.deepEqual(spawned(h.runCommand), [
@@ -2563,7 +2802,7 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'post-capture');
-    assert.match(envelope.steps.at(-1).detail, /quality-preview-crap/);
+    assert.match(stopStep(envelope).detail, /quality-preview-crap/);
     assert.ok(envelope.evidencePath);
     assert.ok(!spawned(h.runCommand).includes('git'), 'nothing was pushed');
     assert.equal(h.blocks.length, 0);
@@ -2602,7 +2841,7 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
       const { envelope, exitCode } = await h.run();
       assert.equal(exitCode, 2);
       assert.equal(envelope.failedStep, 'post-capture');
-      const detail = envelope.steps.at(-1).detail;
+      const detail = stopStep(envelope).detail;
       assert.match(detail, new RegExp(`${gate} \\(kinds: ${kind}\\)`));
       assert.ok(!spawned(h.runCommand).includes('git'));
     });
@@ -2731,7 +2970,7 @@ describe('story-handoff — an over-budget capture (exit 76, Story #5949)', () =
     });
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
-    assert.match(envelope.steps.at(-1).detail, /timed out/);
+    assert.match(stopStep(envelope).detail, /timed out/);
   });
 });
 
@@ -2849,7 +3088,7 @@ describe('story-handoff — a suite that lost workers to host memory (exit 77, S
       assert.equal(envelope.failedStep, 'credited-run');
       assert.equal(envelope.reason, 'host-resources');
       assert.equal(envelope.hostResources, undefined);
-      const { detail } = envelope.steps.at(-1);
+      const { detail } = stopStep(envelope);
       assert.match(detail, /no test failed/);
       assert.match(detail, /fewer workers/);
       assert.match(detail, /larger host/);
@@ -2879,7 +3118,7 @@ describe('story-handoff — a suite that lost workers to host memory (exit 77, S
     });
     const { envelope } = await h.run();
     assert.deepEqual(envelope.hostResources, counts);
-    const { detail } = envelope.steps.at(-1);
+    const { detail } = stopStep(envelope);
     assert.match(
       detail,
       /testsPassed: 812, testsFailed: 0, workersLost: 2, peakWorkerRssMb: 1900/,
@@ -2919,12 +3158,12 @@ describe('story-handoff — a suite that lost workers to host memory (exit 77, S
     const first = await h.run();
     assert.equal(first.exitCode, 2);
     assert.match(
-      first.envelope.steps.at(-1).detail,
+      stopStep(first.envelope).detail,
       /^suite timed out \(exit 124\) — usually host contention; re-run the handoff/,
     );
     const second = await h.run();
     assert.equal(second.exitCode, 2);
-    const { detail } = second.envelope.steps.at(-1);
+    const { detail } = stopStep(second.envelope);
     assert.match(detail, /timed out again at this HEAD/);
     assert.match(detail, /coverage\.timeoutMs/);
     assert.match(detail, /exit 76/);
@@ -3070,7 +3309,7 @@ describe('story-handoff — the duplication re-score (Story #5956)', () => {
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'post-capture');
-    const detail = envelope.steps.at(-1).detail;
+    const detail = stopStep(envelope).detail;
     assert.match(detail, /check-baselines-independent \(kinds: duplication\)/);
     assert.match(detail, /lib\/a\.js 1% → 9% \(clones: lib\/b\.js\)/);
     assert.match(detail, /lib\/new\.js none → 4%/);
@@ -3087,7 +3326,7 @@ describe('story-handoff — the duplication re-score (Story #5956)', () => {
     h.deps.presentBaselines = ['duplication'];
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
-    assert.doesNotMatch(envelope.steps.at(-1).detail, /raised duplication/);
+    assert.doesNotMatch(stopStep(envelope).detail, /raised duplication/);
   });
 
   test('AC-3: runs after the base merge and before preflight with close inputs, moves HEAD on a commit, and skips at the same HEAD', async () => {
@@ -3323,7 +3562,7 @@ describe('story-handoff — seat order, step env and post-seat checks (Story #59
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'post-capture');
-    assert.match(envelope.steps.at(-1).detail, /consumer-check --rows/);
+    assert.match(stopStep(envelope).detail, /consumer-check --rows/);
     assert.match(envelope.evidencePath, /post-seat-1/);
     const check = h.runCommand.calls.find((c) => c.key === 'consumer-check');
     assert.deepEqual(check.args, ['--rows']);

@@ -1,8 +1,9 @@
 /**
  * One contending process for tests/lib/suite-admission-multiprocess.test.js.
  * argv[2] is a JSON spec: { name, lockPath, log, config, command, waitMs,
- * holdUntil?, holdMs?, viaHelper?, env?, backfillWindowMs? }. `viaHelper` admits through the
- * consumer entry point under `env`. The "suite" appends start/end lines (start
+ * holdUntil?, holdMs?, viaHelper?, env?, backfillWindowMs?, goFile? }. `viaHelper`
+ * admits through the consumer entry point under `env`. With `goFile` it appends
+ * `ready` once booted and enters admission only when that file appears. The "suite" appends start/end lines (start
  * carries the marker it was handed) to `log` and
  * holds until the `holdUntil` file appears (or for `holdMs`). The first time
  * admission reports a capacity or resource wait, it appends one `blocked`
@@ -60,6 +61,11 @@ const lockOptions = {
   backfillWindowMs: spec.backfillWindowMs,
   onLockProgress,
 };
+
+if (spec.goFile) {
+  note('ready');
+  while (!fs.existsSync(spec.goFile)) await sleep(10);
+}
 
 const code = spec.viaHelper
   ? await withSuiteAdmission(

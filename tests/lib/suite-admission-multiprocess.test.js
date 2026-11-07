@@ -265,27 +265,46 @@ describe('suite admission across processes (Story #5668)', () => {
     });
 
     it('AC-6: the head waiter is admitted once the window closes despite a stream of small waiters', async () => {
-      const small = (name) =>
+      const small = (name, spec) =>
         contend(name, {
           config: backfilling,
           command: SMALL,
           holdMs: 1_000,
           backfillWindowMs: 1_500,
+          ...spec,
         });
-      const smalls = [small('small-a'), small('small-b')];
+      // Child boot can outlast both a fixed hold and the window, so the pair
+      // holds until released and the first backfiller boots before the head.
+      const pair = { holdUntil: releaseFile('pair') };
+      const smalls = [
+        small('small-a', pair),
+        small('small-b', pair),
+        small('small-0', { goFile: releaseFile('go') }),
+      ];
       await until(
-        () => at('small-a', 'start') && at('small-b', 'start'),
-        'two small runs to hold 6 of 10',
+        () =>
+          at('small-a', 'start') &&
+          at('small-b', 'start') &&
+          at('small-0', 'ready'),
+        'two small runs to hold 6 of 10 and a third to boot',
       );
       const big = contend('big', {
         config: backfilling,
         command: FOCUSED,
         holdMs: 0,
       });
-      await until(() => at('big', 'blocked'), 'the larger waiter to queue');
+      await until(
+        () =>
+          fs.existsSync(`${lockPath}.queue`) &&
+          fs.readdirSync(`${lockPath}.queue`).length,
+        'the larger waiter to queue',
+      );
+      fs.writeFileSync(releaseFile('go'), '');
+      await until(() => at('small-0', 'start'), 'a small run to backfill');
+      fs.writeFileSync(releaseFile('pair'), '');
       // Each small run fits beside the head (3 + 6 <= 10), so the stream
       // refills capacity the head needs until the window closes.
-      for (let i = 0; !at('big', 'start') && i < 60; i += 1) {
+      for (let i = 1; !at('big', 'start') && i < 60; i += 1) {
         smalls.push(small(`small-${i}`));
         await new Promise((resolve) => setTimeout(resolve, 150));
       }

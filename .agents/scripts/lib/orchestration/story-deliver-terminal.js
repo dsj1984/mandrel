@@ -120,6 +120,7 @@ function compact(obj) {
  * @param {Record<string, number>|null} [args.phaseDurations] Seconds per phase.
  * @param {{ mode: string, outcome: string, reason: string, incoming: number }|null} [args.baseSync]
  *   Close's base-sync decision; `null` when no sync ran, absent when not passed.
+ * @param {'pushed'|'skipped-already-at-head'|null} [args.pushOutcome]
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]
  *   Test seam.
@@ -144,6 +145,7 @@ export function buildTerminalEnvelope({
   suiteTimings,
   phaseDurations,
   baseSync,
+  pushOutcome,
   timestamp = new Date().toISOString(),
   schemaSource,
 }) {
@@ -168,6 +170,7 @@ export function buildTerminalEnvelope({
     suiteTimings: suiteTimings ?? null,
     phaseDurations,
     baseSync,
+    pushOutcome,
     timestamp,
   });
 

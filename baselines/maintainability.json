@@ -1124,7 +1124,7 @@
     },
     {
       "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "mi": 101.73
+      "mi": 100.287
     },
     {
       "path": ".agents/scripts/lib/git-utils.js",
@@ -1832,7 +1832,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
-      "mi": 93.819
+      "mi": 94.488
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
@@ -1856,7 +1856,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js",
-      "mi": 86.314
+      "mi": 89.69
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
@@ -1884,7 +1884,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/push.js",
-      "mi": 126.964
+      "mi": 109.566
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
@@ -1924,7 +1924,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
-      "mi": 95.767
+      "mi": 95.261
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",

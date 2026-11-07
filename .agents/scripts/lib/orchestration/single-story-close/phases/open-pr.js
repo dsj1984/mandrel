@@ -24,19 +24,25 @@ function pullRequestArgs(ctx, deps) {
   };
 }
 
-export async function openAndReviewPr(ctx, deps) {
-  const { options, worktreePath, storyId, storyBranch, baseBranch } = ctx;
-  const { cwd } = options;
+/** Push from the worktree so `pre-push` measures the tree being sent. */
+function pushPhase(ctx, deps) {
   ctx.setPhase('push');
-  // Push from the worktree so `pre-push` measures the tree being sent; the
-  // ref-based reads below resolve identically from the shared `.git`.
-  pushStoryBranch({
-    cwd,
-    worktreePath,
-    storyBranch,
+  return pushStoryBranch({
+    cwd: ctx.options.cwd,
+    worktreePath: ctx.worktreePath,
+    storyBranch: ctx.storyBranch,
+    skipValidation: ctx.options.skipValidation,
     gitSync: deps.git.gitSync,
+    gitSpawn: deps.git.gitSpawn,
     progress,
-  });
+  }).outcome;
+}
+
+export async function openAndReviewPr(ctx, deps) {
+  const { options, storyId, storyBranch, baseBranch } = ctx;
+  const { cwd } = options;
+  // The ref-based reads below resolve identically from the shared `.git`.
+  const pushOutcome = pushPhase(ctx, deps);
   ctx.setPhase('pull-request');
   const { url: prUrl, alreadyMerged } = await ensurePullRequestWith(
     pullRequestArgs(ctx, deps),
@@ -46,7 +52,7 @@ export async function openAndReviewPr(ctx, deps) {
   // Already merged (landed between invocations): skip review and arm; confirm observes it.
   if (alreadyMerged) {
     discardHeldReview(ctx.heldReview, 'PR already merged', progress);
-    return { prUrl, prNumber, alreadyMerged: true };
+    return { prUrl, prNumber, alreadyMerged: true, pushOutcome };
   }
   const reviewOutcome = await reviewAfterPrOpen({
     held: ctx.heldReview,
@@ -72,6 +78,7 @@ export async function openAndReviewPr(ctx, deps) {
     prUrl,
     prNumber,
     alreadyMerged: false,
+    pushOutcome,
     reviewOverride,
     reviewDegraded: reviewOutcome.degraded === true,
   };
