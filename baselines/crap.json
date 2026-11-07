@@ -6409,7 +6409,8 @@
       "localTip": 3,
       "originAtLocalTip": 3,
       "push": 1,
-      "pushStoryBranch": 1
+      "pushStoryBranch": 1,
+      "settlePush": 3
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js": {
       "readMergedHead": 2,
