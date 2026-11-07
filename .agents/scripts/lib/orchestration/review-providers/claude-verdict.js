@@ -5,6 +5,7 @@
  * @typedef {import('./types.js').Finding} Finding
  */
 
+import { redactPii } from '../../error-redactor.js';
 import { isObject } from '../../json-utils.js';
 import { CLAIM_SCHEMA } from './claim-grounding.js';
 import { buildFinding, unwrapEnvelope } from './parse-findings.js';
@@ -63,13 +64,20 @@ function tryParseJson(text) {
   }
 }
 
+const AUTH_PREFIX_CHARS = 200;
+
+/** A PII-free, length-capped prefix of raw CLI output. */
+const prefixOf = (text) =>
+  redactPii(text).replace(/\s+/g, ' ').trim().slice(0, AUTH_PREFIX_CHARS);
+
 /**
  * `claude auth status --json`. Only `authMethod` and `subscriptionType`
  * are ever named: the payload also carries the account email, org name
- * and ids, which no reason or log line may repeat.
+ * and ids, which no reason or log line may repeat. Non-JSON output on a
+ * zero exit is transient, so it is `retryable`.
  *
- * @param {{ status: number, stdout: string }} result
- * @returns {{ ok: true, detail: string } | { ok: false, reason: string }}
+ * @param {{ status: number, stdout: string, stderr?: string }} result
+ * @returns {{ ok: true, detail: string } | { ok: false, reason: string, retryable?: boolean }}
  */
 export function readAuthStatus(result) {
   if (result.status !== 0) {
@@ -82,7 +90,11 @@ export function readAuthStatus(result) {
   if (!parsed || typeof parsed !== 'object') {
     return {
       ok: false,
-      reason: 'claude auth status returned unparseable output',
+      reason:
+        'claude auth status returned unparseable output ' +
+        `(stdout: "${prefixOf(result.stdout)}", ` +
+        `stderr: "${prefixOf(result.stderr)}")`,
+      retryable: true,
     };
   }
   const method =
