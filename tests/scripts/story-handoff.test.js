@@ -3382,6 +3382,7 @@ describe('story-handoff — on-conflict base-merge re-runs (Story #5954)', () =>
       MERGE_BASE,
       'check-baselines compares to the merge-base',
     );
+    assert.equal(h.rescores.at(-1).baselineRef, MERGE_BASE);
   });
 
   test('a re-run whose probe does not skip merges as before', async () => {
@@ -3391,6 +3392,8 @@ describe('story-handoff — on-conflict base-merge re-runs (Story #5954)', () =>
     const { envelope } = await h.run();
     assert.equal(p.syncs(), 1);
     assert.equal('baseMerge' in envelope, false);
+    assert.ok(h.rescores.length > 0);
+    for (const input of h.rescores) assert.equal(input.baselineRef, undefined);
   });
 
   test('AC-8: unset, a re-run never probes', async () => {

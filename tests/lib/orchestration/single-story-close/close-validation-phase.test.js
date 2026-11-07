@@ -57,6 +57,27 @@ describe('runCloseValidationPhase — standalone parity (Story #4250)', () => {
     );
   });
 
+  it('hands the pre-gate steps the skipped sync merge-base, and nothing after a merge (Story #6019 AC-3)', async () => {
+    const seen = [];
+    for (const baseSync of [{ changedPaths: [], baselineRef: 'mb' }, null]) {
+      await runCloseValidationPhase({
+        cwd: '/main/repo',
+        config: {},
+        baseBranch: 'main',
+        storyBranch: 'story-6019',
+        storyId: 6019,
+        baseSync,
+        progress: noopProgress,
+        runCloseValidation: () => ({ ok: true, failed: [], skipped: [] }),
+        buildDefaultGates: () => [],
+        runPreGateSteps: async (args) => {
+          seen.push(args.baselineRef);
+        },
+      });
+    }
+    assert.deepEqual(seen, ['mb', undefined]);
+  });
+
   it('carries the deferral reason and reports the deferred gate (Story #5955)', async () => {
     const capture = { name: 'coverage-capture', cmd: 'node', args: [] };
     const phase = (validation) =>

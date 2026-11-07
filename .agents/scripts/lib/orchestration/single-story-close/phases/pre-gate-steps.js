@@ -181,7 +181,8 @@ export async function runPreGateSteps({
     run: () =>
       writebackStep(ctx, {
         tag: 'DUPLICATION',
-        run: runDuplicationCloseRescore,
+        run: (args) =>
+          runDuplicationCloseRescore({ ...args, baselineRef: ctx.baselineRef }),
         noun: 'duplication re-score commit',
         describe: (w) =>
           `Re-scored ${w.movedPaths?.length ?? 0} duplication row(s) (untagged)`,

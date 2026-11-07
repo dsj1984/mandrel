@@ -300,6 +300,28 @@ describe('refreshBaseline — duplication clone-partner scope (Story #5702)', ()
     ]);
   });
 
+  it('excludeWriteFiles keeps a partner row and a shrunk row byte-identical', async () => {
+    const prior = seedPrior(writePath, PRIOR_ROWS);
+
+    const result = await refreshBaseline({
+      kind: 'duplication',
+      writePath,
+      scopeFiles: ['src/a.js'],
+      excludeWriteFiles: ['src/c.js', 'src/d.js'],
+      scorer: () => [
+        withPartners(row('src/a.js', 30, 100), ['src/c.js']),
+        withPartners(row('src/c.js', 55, 100), ['src/a.js']),
+      ],
+    });
+
+    const after = byPath(readEnvelope(writePath));
+    assert.equal(after.get('src/a.js').percentage, 30);
+    for (const file of ['src/c.js', 'src/d.js']) {
+      assert.deepEqual(after.get(file), byPath(prior).get(file), file);
+    }
+    assert.deepEqual(result.scope.files.sort(), ['src/a.js', 'src/b.js']);
+  });
+
   it('AC: fullScope ignores partners and reports no widened file list', async () => {
     seedPrior(writePath, PRIOR_ROWS);
 
