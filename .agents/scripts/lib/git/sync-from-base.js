@@ -16,6 +16,7 @@ import {
   gitFetchWithRetry as defaultGitFetchWithRetry,
   gitSpawn as defaultGitSpawn,
 } from '../git-utils.js';
+import { keepStoryRowsIn } from './baseline-conflict-rows.js';
 
 /**
  * Refuse when the declared baseline merge driver is unregistered: git would
@@ -75,19 +76,25 @@ function diffPaths(gitSpawn, cwd, fromSha) {
 const DRIVER_OWNED_BASELINE = /^baselines\/[^/]+\.json$/;
 
 /**
- * Take `origin/<base>`'s side of each conflicted baseline and commit the
- * merge; the seat and close's gates re-derive the Story's rows. False on any
- * failed step.
+ * Take `origin/<base>`'s whole file for each of `wholeFile` (the baselines
+ * that could not be row-merged), stage every conflicted baseline and commit
+ * the merge. False on any failed step.
  *
  * @param {typeof defaultGitSpawn} gitSpawn
  * @param {string} cwd
  * @param {string} baseBranch
  * @param {string[]} files
+ * @param {string[]} wholeFile
  * @returns {boolean}
  */
-function resolveBaselinesToBase(gitSpawn, cwd, baseBranch, files) {
+function resolveBaselinesToBase(gitSpawn, cwd, baseBranch, files, wholeFile) {
   const steps = [
-    ['checkout', `origin/${baseBranch}`, '--', ...files],
+    ...wholeFile.map((file) => [
+      'checkout',
+      `origin/${baseBranch}`,
+      '--',
+      file,
+    ]),
     ['add', '--', ...files],
     ['commit', '--no-edit'],
   ];
@@ -104,7 +111,8 @@ function unmergedPaths(gitSpawn, cwd) {
 }
 
 /**
- * A baseline-only conflict resolves to the base (`resolvedBaselineFiles`);
+ * A baseline-only conflict resolves row by row, base winning
+ * (`resolvedBaselineFiles`);
  * any other conflict is aborted for the caller to surface.
  *
  * @param {object} opts
@@ -230,15 +238,16 @@ function resolveBaselineOnlyConflict({
     driver.declared &&
     conflictFiles.length > 0 &&
     conflictFiles.every((f) => DRIVER_OWNED_BASELINE.test(f));
+  if (!baselineOnly) return null;
+  const { kept, wholeFile } = keepStoryRowsIn(gitSpawn, cwd, conflictFiles);
   if (
-    !baselineOnly ||
-    !resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles)
+    !resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles, wholeFile)
   ) {
     return null;
   }
   log(
     'SYNC',
-    `Resolved baseline-only conflict to origin/${baseBranch}: ${conflictFiles.join(', ')}`,
+    `Resolved baseline-only conflict to origin/${baseBranch} (${kept} Story-only row(s) kept): ${conflictFiles.join(', ')}`,
   );
   return {
     synced: true,

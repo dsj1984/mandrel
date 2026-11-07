@@ -9,11 +9,14 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { syncBranchFromBase } from '../../../.agents/scripts/lib/git/sync-from-base.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+import { seedGitIdentity } from '../../fixtures/git-fixture.js';
 
 function makeFakeRunners({
   fetchStatus = 0,
@@ -474,7 +477,7 @@ function callsOf(runners, verb) {
   return runners.calls.filter((c) => c.args?.[0] === verb);
 }
 
-test('syncBranchFromBase: a baseline-only conflict resolves to origin and commits the merge', async () => {
+test('syncBranchFromBase: an undecodable baseline-only conflict resolves to the whole origin file', async () => {
   const files = ['baselines/coverage.json', 'baselines/crap.json'];
   const { cwd, runners } = conflictingMerge({ unmerged: files });
   const logged = [];
@@ -490,12 +493,10 @@ test('syncBranchFromBase: a baseline-only conflict resolves to origin and commit
   assert.deepEqual(out.resolvedBaselineFiles, files);
   assert.deepEqual(out.changedPaths, ['lib/a.js', 'baselines/coverage.json']);
   // The base side wins, by name — never `--ours`, never a hand-edited row.
-  assert.deepEqual(callsOf(runners, 'checkout')[0].args, [
-    'checkout',
-    'origin/main',
-    '--',
-    ...files,
-  ]);
+  assert.deepEqual(
+    callsOf(runners, 'checkout').map((c) => c.args),
+    files.map((file) => ['checkout', 'origin/main', '--', file]),
+  );
   assert.deepEqual(callsOf(runners, 'add')[0].args, ['add', '--', ...files]);
   assert.deepEqual(callsOf(runners, 'commit')[0].args, ['commit', '--no-edit']);
   assert.equal(
@@ -560,3 +561,96 @@ for (const verb of ['checkout', 'add', 'commit']) {
     fs.rmSync(cwd, { recursive: true, force: true });
   });
 }
+
+// Row-keeping resolution, against a real repository with the driver registered.
+
+const DRIVER_SCRIPT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../.agents/scripts/merge-baseline.js',
+);
+const GIT_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+);
+
+function coverage(kernelVersion, rows) {
+  return {
+    $schema: '.agents/schemas/baselines/coverage.schema.json',
+    kernelVersion,
+    rows: Object.entries(rows)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([p, lines]) => ({ path: p, lines, branches: 100, functions: 100 })),
+  };
+}
+
+function commitCoverage(git, dir, envelope, message) {
+  fs.writeFileSync(
+    path.join(dir, 'baselines', 'coverage.json'),
+    `${JSON.stringify(envelope, null, 2)}\n`,
+  );
+  git('commit', '-q', '-am', message);
+}
+
+test('syncBranchFromBase: a conflicted baseline keeps Story-only rows and takes origin on every conflict', async () => {
+  const root = makeTempDir('sync-from-base-rows-');
+  const origin = path.join(root, 'origin');
+  const story = path.join(root, 'story');
+  const gitIn =
+    (cwd) =>
+    (...args) =>
+      execFileSync('git', args, { cwd, encoding: 'utf8', env: GIT_ENV });
+  fs.mkdirSync(path.join(origin, 'baselines'), { recursive: true });
+  const gitOrigin = gitIn(origin);
+  gitOrigin('init', '-q', '-b', 'main');
+  seedGitIdentity(origin);
+  fs.writeFileSync(path.join(origin, '.gitattributes'), DRIVER_ATTRIBUTE);
+  fs.writeFileSync(
+    path.join(origin, 'baselines', 'coverage.json'),
+    `${JSON.stringify(coverage('1.0.0', { 'a.js': 80, 'b.js': 70 }), null, 2)}\n`,
+  );
+  gitOrigin('add', '-A');
+  gitOrigin('commit', '-q', '-m', 'seed');
+
+  execFileSync('git', ['clone', '-q', origin, story], { env: GIT_ENV });
+  const gitStory = gitIn(story);
+  seedGitIdentity(story);
+  const posix = (p) => p.replaceAll('\\', '/');
+  gitStory(
+    'config',
+    'merge.mandrel-baseline.driver',
+    `"${posix(process.execPath)}" "${posix(DRIVER_SCRIPT)}" %O %A %B %P`,
+  );
+  gitStory('checkout', '-q', '-b', 'story-1');
+  commitCoverage(
+    gitStory,
+    story,
+    coverage('1.0.1', { 'a.js': 80, 'b.js': 71, 'story.js': 90 }),
+    'story seats a row',
+  );
+  commitCoverage(
+    gitOrigin,
+    origin,
+    coverage('1.0.2', { 'a.js': 80, 'b.js': 72, 'theirs.js': 60 }),
+    'base moves a row',
+  );
+
+  const logged = [];
+  const out = await syncBranchFromBase({
+    cwd: story,
+    baseBranch: 'main',
+    log: (_tag, msg) => logged.push(msg),
+  });
+
+  assert.equal(out.kind, 'merge-commit', JSON.stringify(out));
+  assert.deepEqual(out.resolvedBaselineFiles, ['baselines/coverage.json']);
+  const merged = JSON.parse(
+    fs.readFileSync(path.join(story, 'baselines', 'coverage.json'), 'utf8'),
+  );
+  assert.equal(merged.kernelVersion, '1.0.2');
+  assert.deepEqual(
+    Object.fromEntries(merged.rows.map((r) => [r.path, r.lines])),
+    { 'a.js': 80, 'b.js': 72, 'story.js': 90, 'theirs.js': 60 },
+  );
+  assert.equal(gitStory('status', '--porcelain').trim(), '');
+  assert.match(logged.join('\n'), /1 Story-only row\(s\) kept/);
+  fs.rmSync(root, { recursive: true, force: true });
+});

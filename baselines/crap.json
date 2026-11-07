@@ -1804,6 +1804,11 @@
       "projectMaintainabilityEnvelopeToFlat": 9
     },
     ".agents/scripts/lib/baselines/merge-envelopes.js": {
+      "<anon mergeBaselineTheirsWins/conflicts.filter(c)#0>": 1,
+      "<anon mergeBaselineTheirsWins/filter(row)#0>": 1,
+      "<anon mergeBaselineTheirsWins/filter(row)#1>": 1,
+      "<anon mergeBaselineTheirsWins/rowConflicts.flatMap(c)#0>": 2,
+      "<anon mergeBaselineTheirsWins/rowConflicts.map(c)#0>": 1,
       "<anon mergeStamps/filter(k)#0>": 1,
       "<anon renderStampConflict/render(value)#0>": 2,
       "<anon rowIdentity(row)#0>": 1,
@@ -1816,6 +1821,7 @@
       "choose": 4,
       "indexRows": 4.175582990397805,
       "kindFromEnvelope": 3,
+      "mergeBaselineTheirsWins": 7,
       "mergeEnvelopes": 4.028494309486045,
       "mergePlainBaseline": 5.065603345770635,
       "mergeRowSets": 5,
@@ -3920,6 +3926,12 @@
       "sidePaths": 5,
       "syncFromBaseByMode": 4
     },
+    ".agents/scripts/lib/git/baseline-conflict-rows.js": {
+      "<anon keepStoryRows/map(stage)#0>": 1.006591796875,
+      "keepStoryRows": 4.10546875,
+      "keepStoryRowsIn": 2,
+      "readStage": 2
+    },
     ".agents/scripts/lib/git/cached-fetch.js": {
       "__moduleCacheSize": 1.2962962962962963,
       "__resetModuleCache": 1.2962962962962963,
@@ -3931,6 +3943,7 @@
       "<anon diffPaths/map(s)#0>": 1,
       "<anon resolveBaselineOnlyConflict/conflictFiles.every(f)#0>": 1,
       "<anon resolveBaselinesToBase/steps.every(args)#0>": 1,
+      "<anon resolveBaselinesToBase/wholeFile.map(file)#0>": 1,
       "<anon syncBranchFromBase/runGit(args)#0>": 1,
       "<anon unmergedPaths/filter(s)#0>": 1,
       "<anon unmergedPaths/map(s)#0>": 1,
@@ -6977,6 +6990,7 @@
       "runSteps": 2,
       "runStoryHandoff": 6,
       "seatAndCommit": 4,
+      "seatHint": 3,
       "seatKinds": 3,
       "seatsCoverage": 2,
       "selectCreditedDepositor": 1,

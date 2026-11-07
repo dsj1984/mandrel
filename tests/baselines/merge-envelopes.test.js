@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { getKindModule } from '../../.agents/scripts/lib/baselines/kernel.js';
 import {
   kindFromEnvelope,
+  mergeBaselineTheirsWins,
   mergeEnvelopes,
 } from '../../.agents/scripts/lib/baselines/merge-envelopes.js';
 
@@ -275,5 +276,65 @@ describe('mergeEnvelopes — the swarm-os reproduction (AC-4)', () => {
     const a = mergeEnvelopes({ base, ours: branch, theirs: main });
     const b = mergeEnvelopes({ base, ours: main, theirs: branch });
     assert.deepEqual(a.envelope, b.envelope);
+  });
+});
+
+describe('mergeBaselineTheirsWins', () => {
+  it('takes theirs on every row and stamp conflict and keeps rows only ours carries', () => {
+    const base = miEnvelope({ 'a.js': 60, 'b.js': 70, 'gone.js': 50 });
+    const ours = {
+      ...miEnvelope({ 'a.js': 61, 'b.js': 71, 'gone.js': 55, 'new.js': 90 }),
+      kernelVersion: '0.1.1',
+    };
+    const theirs = {
+      ...miEnvelope({ 'a.js': 62, 'b.js': 70 }),
+      kernelVersion: '0.1.2',
+    };
+    const out = mergeBaselineTheirsWins({ base, ours, theirs });
+    assert.equal(out.kind, 'maintainability');
+    assert.equal(out.envelopeKind, true);
+    assert.equal(out.envelope.kernelVersion, '0.1.2');
+    // a.js conflicts (theirs), b.js is ours-only movement, gone.js was
+    // deleted by theirs against our edit (theirs: absent), new.js is ours.
+    assert.deepEqual(byPath(out.envelope), {
+      'a.js': 62,
+      'b.js': 71,
+      'new.js': 90,
+    });
+    assert.equal(out.storyOnlyRows, 1);
+  });
+
+  it('merges a plain row baseline the same way', () => {
+    const plain = (rows) => ({
+      $schema: '.agents/schemas/baselines/cyclomatic.schema.json',
+      ceiling: 10,
+      rows,
+    });
+    const out = mergeBaselineTheirsWins({
+      base: plain([{ file: 'a.js', max: 3 }]),
+      ours: plain([
+        { file: 'a.js', max: 4 },
+        { file: 'z.js', max: 2 },
+      ]),
+      theirs: plain([{ file: 'a.js', max: 5 }]),
+    });
+    assert.equal(out.envelopeKind, false);
+    assert.deepEqual(out.envelope.rows, [
+      { file: 'a.js', max: 5 },
+      { file: 'z.js', max: 2 },
+    ]);
+    assert.equal(out.storyOnlyRows, 1);
+  });
+
+  it('answers null for an unknown kind or a missing side', () => {
+    assert.equal(
+      mergeBaselineTheirsWins({ base: null, ours: {}, theirs: {} }),
+      null,
+    );
+    const env = miEnvelope({ 'a.js': 60 });
+    assert.equal(
+      mergeBaselineTheirsWins({ base: env, ours: env, theirs: null }),
+      null,
+    );
   });
 });

@@ -780,6 +780,22 @@ runs `lint` without depositing close's credit and records the one `lint` pass
 only after every post-seat check passed at that HEAD; under a coverage
 deferral the checks are skipped and close runs lint itself.
 
+When preflight's `lint` fails and the change set
+(`origin/<baseBranch>...HEAD`) adds at least one file, the finding appends a
+hint naming this contract: a check that refuses a missing coverage or CRAP
+row for a change-set file must downgrade under
+`MANDREL_HANDOFF_STEP=preflight` and be declared here. A lint failure on a
+change set that adds nothing carries no hint.
+
+The base merge never drops a seated row. When the only conflicts are in
+`baselines/*.json` files the merge driver owns, the handoff (and close)
+re-merges each one from its three index stages by row identity: every
+conflicted row or envelope key (a stamp such as `kernelVersion`) takes
+`origin/<baseBranch>`'s side, and a row only the Story carries survives. The
+sync log names how many Story-only rows were kept. A side that does not
+decode, or a kind the driver does not know, still takes the whole
+`origin/<baseBranch>` file.
+
 #### `delivery.quality.ratchets.coveredByLint` — ratchets your lint already runs
 
 The handoff preflight runs each standalone ratchet whose baseline is committed

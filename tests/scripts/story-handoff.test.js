@@ -83,6 +83,7 @@ function gitWorld({
   firstParent = [],
   ancestor = true,
   mergeBase = null,
+  added = [],
 } = {}) {
   const world = { head, remote, dirty: [], calls: [] };
   const ok = (stdout = '') => ({ status: 0, stdout, stderr: '' });
@@ -107,6 +108,9 @@ function gitWorld({
       return ok(world.remote ? `${world.remote}\trefs/heads/${branch}\n` : '');
     }
     if (verb === 'add') return ok();
+    if (verb === 'diff' && args.includes('--diff-filter=A')) {
+      return ok(added.join('\n'));
+    }
     if (verb === 'rev-list') return ok(firstParent.join('\n'));
     if (verb === 'merge-base' && !args.includes('--is-ancestor')) {
       return mergeBase ? ok(`${mergeBase}\n`) : { status: 1, stdout: '' };
@@ -1154,6 +1158,40 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
 
   test('a non-ratchet preflight finding with no parsed row keeps the fixed text (#5968 AC-1)', async () => {
     const h = harness({ outputs: { lint: { status: 1, stdout: 'boom' } } });
+    const { envelope } = await h.run();
+    assert.equal(
+      stopStep(envelope).detail,
+      'lint finding — fix and commit, then re-run',
+    );
+  });
+
+  test('a lint finding on a change set that adds files names the seat-downgrade contract', async () => {
+    const h = harness({
+      world: gitWorld({ added: ['src/new.js'] }),
+      outputs: { lint: { status: 1, stdout: 'boom' } },
+    });
+    const { envelope } = await h.run();
+    const { detail } = stopStep(envelope);
+    assert.match(
+      detail,
+      /^lint finding — fix and commit, then re-run\n {2}hint:/,
+    );
+    assert.match(detail, /MANDREL_HANDOFF_STEP=preflight/);
+    assert.match(detail, /delivery\.handoff\.postSeatChecks/);
+    const diff = h.world.calls.find((c) => c.includes('--diff-filter=A'));
+    assert.deepEqual(diff, [
+      'diff',
+      '--name-only',
+      '--diff-filter=A',
+      'origin/main...HEAD',
+    ]);
+  });
+
+  test('a lint finding on a change set that adds nothing carries no hint', async () => {
+    const h = harness({
+      world: gitWorld({ added: [] }),
+      outputs: { lint: { status: 1, stdout: 'boom' } },
+    });
     const { envelope } = await h.run();
     assert.equal(
       stopStep(envelope).detail,

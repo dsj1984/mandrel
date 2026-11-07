@@ -280,7 +280,8 @@ describe('gate exit outcomes — a baselines failure quotes its rows', () => {
         [
           "for (let i = 0; i < 500; i++) console.log('noise ' + i);",
           "for (let i = 0; i < 30; i++) console.log('    · row' + i + ': crap 1 → 9');",
-          'process.exit(1);',
+          // exitCode, not exit(): exit() truncates async pipe writes.
+          'process.exitCode = 1;',
         ].join('\n'),
         'utf8',
       );

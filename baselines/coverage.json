@@ -1731,6 +1731,12 @@
       "functions": 90.91
     },
     {
+      "path": ".agents/scripts/lib/git/baseline-conflict-rows.js",
+      "lines": 95,
+      "branches": 72.22,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
       "lines": 92.79,
       "branches": 96,
