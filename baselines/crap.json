@@ -5858,6 +5858,7 @@
       "asFindingList": 3,
       "clip": 2,
       "failureReason": 9,
+      "isRetryable": 2,
       "isSuccess": 4,
       "isUsageLimited": 1,
       "lastBareArray": 4,
@@ -5897,6 +5898,7 @@
       "assertCliPresent": 2,
       "assertInput": 5,
       "buildPrompt": 3,
+      "claudeSpawn": 3,
       "compareSections": 3,
       "createCodeReviewProviderForRegistry": 5,
       "createCodeReviewProviderForRegistry/noteChunkGaps": 3,
@@ -5911,6 +5913,7 @@
       "reviewWithRetry": 2,
       "runAuthStatus": 1,
       "runClaude": 3,
+      "runClaudeNullable": 1,
       "runReviewer": 1,
       "splitSections": 2,
       "tierOf": 3
@@ -6524,6 +6527,7 @@
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js": {
       "haltMessage": 2,
+      "noVerdictReasonOf": 2,
       "resolveReviewHalt": 2
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/review-outcome.js": {
@@ -6929,6 +6933,7 @@
       "envelopeStep": 2,
       "firstParentRange": 3,
       "gitLine": 2,
+      "haltedReview": 2,
       "headSha": 1,
       "hostResourcesEnvelope": 2,
       "hostResourcesFromLine": 3,
