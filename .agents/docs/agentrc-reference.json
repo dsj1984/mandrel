@@ -78,7 +78,8 @@
   "delivery": {
     "execution": {
       "fullSuiteLock": true,
-      "workloads": []
+      "workloads": [],
+      "preflightConcurrency": 1
     },
     "docsFreshness": {
       "paths": ["README.md"]

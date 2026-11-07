@@ -903,6 +903,18 @@ checks hide behind package-manager and task-runner indirection mandrel cannot
 inspect reliably, and a ratchet that lint runs leaves no evidence record
 mandrel could consult. It defaults to `[]`, which runs every ratchet as before.
 
+**Raised to 157 (2026-11-06, Story #5997)** for
+`delivery.execution.preflightConcurrency`. It lets the handoff preflight run
+close's independent gates (typecheck, lint, format) in extra lanes, each
+admitted through suite admission with no wait. It cannot be derived:
+`capacity` bounds the total weight of every suite spawn in the repository, not
+how many preflight lanes one handoff opens, and whether a host can afford a
+second CPU-heavy check beside its other load (a small container once
+OOM-killed a parallel typecheck) is a per-host fact no manifest or tool config
+records. It defaults to `1`, the serial preflight; a host opts in through
+`.agentrc.local.json`. This reverses #5957's Non-Goal of no parallel
+preflight, which rested on the extra lanes being unadmitted load.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,
