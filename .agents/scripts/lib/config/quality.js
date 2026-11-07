@@ -432,6 +432,12 @@ function resolveGatesWithFloors(gates) {
   return out;
 }
 
+/** `coveredByLint` is always an array; absent or malformed is `[]`. */
+function resolveRatchets(userBlock) {
+  const covered = userBlock?.coveredByLint;
+  return { coveredByLint: Array.isArray(covered) ? covered.slice() : [] };
+}
+
 /**
  * @param {object|undefined} userQuality
  */
@@ -449,6 +455,7 @@ export function resolveQuality(userQuality) {
     baselines: resolveBaselinesFromGates(gates),
     codingGuardrails: { ...CODING_GUARDRAILS },
     autoRefresh: resolveAutoRefresh(block.autoRefresh),
+    ratchets: resolveRatchets(block.ratchets),
     baselineEpsilon: { ...BASELINE_EPSILON },
     gates: resolvedGates,
   };

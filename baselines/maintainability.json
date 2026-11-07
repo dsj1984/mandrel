@@ -860,7 +860,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 89.882
+      "mi": 90.707
     },
     {
       "path": ".agents/scripts/lib/config/review-chain-default.js",
@@ -2209,6 +2209,10 @@
     {
       "path": ".agents/scripts/lib/source-text/strip-js-comments.js",
       "mi": 96.264
+    },
+    {
+      "path": ".agents/scripts/lib/standalone-ratchets.js",
+      "mi": 99.02
     },
     {
       "path": ".agents/scripts/lib/stdio-flush.js",
