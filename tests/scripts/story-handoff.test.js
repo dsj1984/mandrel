@@ -3825,6 +3825,17 @@ describe('story-handoff — per-run telemetry (Story #5970)', () => {
   const gitFails = (stdout) => ({ outputs: { git: { status: 1, stdout } } });
   const causes = [
     ['an uncommitted tree', {}, 'precheck', (h) => (h.world.dirty = ['x.js'])],
+    ['the wrong branch', { world: gitWorld({ branch: 'main' }) }, 'precheck'],
+    [
+      'an unresolved HEAD',
+      {},
+      'precheck',
+      (h) => {
+        const { git } = h.deps;
+        h.deps.git = (cwd, ...args) =>
+          args[0] === 'rev-parse' ? { status: 128 } : git(cwd, ...args);
+      },
+    ],
     [
       'a merge conflict',
       { sync: { synced: false, kind: 'conflict', conflictFiles: ['a.js'] } },
