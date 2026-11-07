@@ -6725,6 +6725,7 @@
       "<anon committedResult/moved.map(m)#0>": 2,
       "<anon diffScopedRows/byPath(rows)#0/map(r)#0>": 1,
       "<anon diffScopedRows/byPath(rows)#0>": 1,
+      "<anon listIncomingFiles/filter(line)#0>": 1,
       "<anon listIncomingFiles/map(line)#0>": 1,
       "<anon resolveScope/filter(f)#0>": 1,
       "<anon runDuplicationCloseRescore/attempt()#0>": 1,
@@ -6742,6 +6743,7 @@
       "listIncomingFiles": 1,
       "resolveScope": 4,
       "resolveScopeBase": 1,
+      "resolveScopeRefs": 2,
       "runDuplicationCloseRescore": 12,
       "skip": 1,
       "unchanged": 1
