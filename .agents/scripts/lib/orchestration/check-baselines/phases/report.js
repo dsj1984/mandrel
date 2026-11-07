@@ -4,6 +4,8 @@
  * @module lib/orchestration/check-baselines/phases/report
  */
 
+import { formatFailDetail } from './fail-detail.js';
+
 function formatHeader(report) {
   return (
     `[check-baselines] ${report.gates.length} gate(s) — ` +
@@ -55,12 +57,11 @@ function formatViolationLine(component, v) {
 
 function appendGateText(lines, g) {
   lines.push(formatGateLine(g));
-  for (const c of g.components) {
-    if (c.violations.length === 0) continue;
-    for (const v of c.violations) {
-      lines.push(formatViolationLine(c.component, v));
-    }
-  }
+  const violations = g.components.flatMap((c) =>
+    c.violations.map((v) => formatViolationLine(c.component, v)),
+  );
+  const pass = formatGateStatus(g) === 'PASS';
+  lines.push(...(pass ? violations : formatFailDetail(g, violations)));
 }
 
 /** A skipped gate gets a line of its own so it never reads as a PASS. */

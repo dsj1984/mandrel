@@ -20,6 +20,7 @@ import {
   deferCoverage,
   deferralEnvelope,
 } from '../coverage-deferral.js';
+import { quoteFailureRows } from '../failure-rows.js';
 import {
   hashCommandConfig,
   recordPass,
@@ -285,7 +286,7 @@ function scoresDuplication(gate) {
 function failure(gate, res) {
   return {
     gate: gate.name,
-    finding: `${describeGate(gate)} finding (exit ${res.status}) — fix and commit, then re-run`,
+    finding: `${describeGate(gate)} finding (exit ${res.status})${quoteFailureRows(res.output)} — fix and commit, then re-run`,
     evidencePath: res.evidencePath,
     scoresDuplication: scoresDuplication(gate),
     baselineRef: gate.env?.BASELINE_REF,
