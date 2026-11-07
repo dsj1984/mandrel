@@ -66,7 +66,6 @@ const claudeArgs = (effort) => [
 const AUTH_ARGS = Object.freeze(['auth', 'status', '--json']);
 const INVOKE_TIMEOUT_MS = 10 * 60 * 1000;
 const AUTH_TIMEOUT_MS = 15 * 1000;
-const AUTH_RETRY_DELAY_MS = 2000;
 /** Larger diffs are reviewed in file-aligned chunks of at most this size. */
 const MAX_DIFF_CHARS = 200_000;
 /** Files packed past this many chunks are not reviewed; each is degraded by name. */
@@ -309,9 +308,7 @@ async function reviewInTempDir(prompt, effort, deps) {
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-code-review-'));
   try {
     const auth = readAuthStatus(await runAuthStatus(runDir, deps));
-    if (!auth.ok) {
-      return auth.retryable ? { ...auth, delayMs: AUTH_RETRY_DELAY_MS } : auth;
-    }
+    if (!auth.ok) return auth;
     deps.logger?.info?.(
       `[code-review] Invoking claude --print --effort ${effort} (${auth.detail})...`,
     );
@@ -321,6 +318,11 @@ async function reviewInTempDir(prompt, effort, deps) {
   }
 }
 
+/** Waits out the failure's `delayMs`, when it names one. */
+async function pauseFor({ delayMs }, deps) {
+  if (delayMs) await (deps.sleepFn ?? defaultSleep)(delayMs);
+}
+
 /** One invocation, re-run once when its failure is transient-shaped. */
 async function reviewWithRetry(prompt, effort, deps) {
   const first = await reviewInTempDir(prompt, effort, deps);
@@ -328,7 +330,7 @@ async function reviewWithRetry(prompt, effort, deps) {
   deps.logger?.warn?.(
     `[code-review] No verdict (${first.reason}); retrying once.`,
   );
-  if (first.delayMs) await (deps.sleepFn ?? defaultSleep)(first.delayMs);
+  await pauseFor(first, deps);
   return reviewInTempDir(prompt, effort, deps);
 }
 

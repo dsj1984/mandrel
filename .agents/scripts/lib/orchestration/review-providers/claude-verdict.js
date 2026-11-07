@@ -65,6 +65,7 @@ function tryParseJson(text) {
 }
 
 const AUTH_PREFIX_CHARS = 200;
+const AUTH_RETRY_DELAY_MS = 2000;
 
 /** A PII-free, length-capped prefix of raw CLI output. */
 const prefixOf = (text) =>
@@ -74,10 +75,10 @@ const prefixOf = (text) =>
  * `claude auth status --json`. Only `authMethod` and `subscriptionType`
  * are ever named: the payload also carries the account email, org name
  * and ids, which no reason or log line may repeat. Non-JSON output on a
- * zero exit is transient, so it is `retryable`.
+ * zero exit is transient, so it is `retryable` after `delayMs`.
  *
  * @param {{ status: number, stdout: string, stderr?: string }} result
- * @returns {{ ok: true, detail: string } | { ok: false, reason: string, retryable?: boolean }}
+ * @returns {{ ok: true, detail: string } | { ok: false, reason: string, retryable?: boolean, delayMs?: number }}
  */
 export function readAuthStatus(result) {
   if (result.status !== 0) {
@@ -95,6 +96,7 @@ export function readAuthStatus(result) {
         `(stdout: "${prefixOf(result.stdout)}", ` +
         `stderr: "${prefixOf(result.stderr)}")`,
       retryable: true,
+      delayMs: AUTH_RETRY_DELAY_MS,
     };
   }
   const method =
