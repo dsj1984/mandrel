@@ -20,6 +20,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { buildHandoffRecord } from '../../.agents/scripts/lib/observability/handoff-telemetry.js';
 import {
   appendSignal,
   forEachLine,
@@ -149,6 +150,29 @@ describe('signal contract — every live writer validates against the schema', (
     ['acceptance-eval', null], // filled below
     ['wave tick (epic-level)', waveStart],
     ['trace hook (Bash)', traceBash],
+    // Story #5970 — one record per story-handoff run.
+    [
+      'story-handoff retry',
+      buildHandoffRecord({
+        storyId: 4413,
+        ts: NOW,
+        envelope: {
+          status: 'fix-required',
+          failedStep: 'push',
+          cause: 'push-hook',
+          attempt: 2,
+          steps: [{ name: 'push', durationMs: 12 }],
+        },
+      }),
+    ],
+    [
+      'story-handoff trace',
+      buildHandoffRecord({
+        storyId: 4413,
+        ts: NOW,
+        envelope: { status: 'ready', attempt: 1, steps: [] },
+      }),
+    ],
   ];
 
   for (const [label, record] of cases) {

@@ -212,6 +212,7 @@ export function settleOverBudget(ctx, name, extra) {
     outcome: 'failed',
     detail: `${ctx.depositor} over budget (${exit}) under delivery.quality.gates.coverage.onOverBudget: block`,
     reason: OVER_BUDGET_BLOCK_HINT,
+    cause: 'capture-over-budget',
     stop: 'blocked',
     ...extra,
   };
