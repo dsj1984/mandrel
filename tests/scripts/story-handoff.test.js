@@ -3786,20 +3786,32 @@ describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
   });
 
   test('AC-4: eligibility is exactly a deposit plus close independent-gate predicate', async () => {
-    const { isLaneEligible } = await import(
+    const { runPreflightLanes } = await import(
       '../../.agents/scripts/lib/orchestration/preflight-lanes.js'
     );
     const deposit = { cmd: 'npm', args: ['run', 'x'] };
-    for (const key of ['typecheck', 'lint', 'format']) {
-      assert.equal(isLaneEligible({ key, deposit }), true, key);
-      assert.equal(isLaneEligible({ key }), false, `${key} without deposit`);
-    }
-    for (const { key } of [
-      { key: 'quality-preview' },
-      ...STANDALONE_RATCHETS,
-    ]) {
-      assert.equal(isLaneEligible({ key, deposit }), false, key);
-    }
+    const keys = [
+      'quality-preview',
+      ...STANDALONE_RATCHETS.map((r) => r.key),
+      'typecheck',
+      'lint',
+      'format',
+    ];
+    const checks = [
+      ...keys.map((key) => ({ key, deposit })),
+      { key: 'lint', held: true },
+    ];
+    const admittedKeys = [];
+    const ctx = {
+      progress: () => {},
+      admitSuite: async (_opts, spawn) => spawn({ env: {} }),
+    };
+    const run = await runPreflightLanes(ctx, checks, 9, async (check, env) => {
+      if (env) admittedKeys.push(check.key);
+      return null;
+    });
+    assert.deepEqual(run.admitted, ['typecheck', 'lint', 'format']);
+    assert.deepEqual(admittedKeys.sort(), ['format', 'lint', 'typecheck']);
   });
 
   for (const exit of [75, 78]) {

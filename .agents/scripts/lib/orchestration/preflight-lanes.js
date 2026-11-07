@@ -52,7 +52,7 @@ function serialReason(ctx) {
 }
 
 /** A deposited close gate close itself runs in its independent bucket. */
-export function isLaneEligible(check) {
+function isLaneEligible(check) {
   return Boolean(check.deposit) && isIndependentGate(check.key);
 }
 
