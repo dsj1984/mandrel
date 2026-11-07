@@ -3703,6 +3703,276 @@ describe('story-handoff — seat order, step env and post-seat checks (Story #59
   });
 });
 
+describe('story-handoff — admitted preflight lanes (Story #5997)', () => {
+  const RESERVATION = '/locks/reservations/w2-lint';
+  // A suite run (a capture's reservation, a lock-off hatch) must not leak in.
+  const { MANDREL_SUITE_RESERVATION, MANDREL_FULL_SUITE_LOCK, ...cleanEnv } =
+    process.env;
+  const lanesHarness = (opts) => {
+    const h = harness(opts);
+    h.deps.env = cleanEnv;
+    return h;
+  };
+  const lanesConfig = (execution = {}, project = {}) =>
+    configFor({
+      project: { baseBranch: 'main', paths: { tempRoot }, ...project },
+      delivery: { execution: { preflightConcurrency: 2, ...execution } },
+    });
+  const gateOf = (args) => args[args.indexOf('--gate') + 1];
+  /** An admission double: `answer(check)` is a miss exit code, else it spawns. */
+  const admission = (h, answer = () => null) => {
+    const calls = [];
+    h.deps.admitSuite = async (opts, spawn) => {
+      calls.push(opts);
+      const miss = answer(opts);
+      if (miss !== null) return miss;
+      return spawn({
+        lockWaitMs: 0,
+        env: { MANDREL_SUITE_RESERVATION: RESERVATION },
+      });
+    };
+    return calls;
+  };
+  const progressLines = (h) => {
+    const lines = [];
+    h.deps.progress = (tag, msg) => lines.push({ tag, msg });
+    return lines;
+  };
+  const preflightOf = (envelope) =>
+    envelope.steps.find((s) => s.name === 'preflight');
+  const reservationOf = (h, key) =>
+    h.runCommand.calls.find((c) => c.key === key).opts.env
+      .MANDREL_SUITE_RESERVATION;
+
+  test('AC-1: unset or 1 makes no admission call and adds no step field', async () => {
+    for (const [i, config] of [
+      configFor(),
+      lanesConfig({ preflightConcurrency: 1 }),
+    ].entries()) {
+      const h = lanesHarness({ config });
+      h.deps.logDir = path.join(tempRoot, `orchestration-${i}`);
+      const calls = admission(h);
+      const { envelope } = await h.run();
+      assert.equal(calls.length, 0);
+      assert.equal(envelope.status, 'ready');
+      assert.ok(!('concurrency' in preflightOf(envelope)));
+      assert.deepEqual(spawned(h.runCommand).slice(1, 4), [
+        'typecheck',
+        'lint',
+        'quality-preview.js',
+      ]);
+    }
+  });
+
+  test('AC-3/AC-9: an admitted lane runs lint under close argv with the reservation env', async () => {
+    const h = lanesHarness({ config: lanesConfig() });
+    const calls = admission(h);
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.equal(calls.length, 1);
+    const lint = h.runCommand.calls.find((c) => c.key === 'lint');
+    assert.deepEqual(
+      calls[0].argv,
+      lint.args.slice(lint.args.indexOf('--') + 1),
+    );
+    assert.deepEqual(calls[0].lockOptions, { waitMs: 0 });
+    assert.equal(reservationOf(h, 'lint'), RESERVATION);
+    assert.equal(reservationOf(h, 'typecheck'), undefined);
+    assert.deepEqual(preflightOf(envelope).concurrency, {
+      requested: 2,
+      admitted: ['lint'],
+    });
+    assert.equal(typeof preflightOf(envelope).durationMs, 'number');
+  });
+
+  test('AC-4: only deposited close-independent gates reach an admitted lane', async () => {
+    const h = lanesHarness({
+      config: lanesConfig({ preflightConcurrency: 4 }),
+    });
+    const calls = admission(h);
+    await h.run();
+    const admittedGates = calls.map((c) =>
+      gateOf(
+        h.runCommand.calls.find(
+          (x) =>
+            x.args.indexOf('--') !== -1 &&
+            x.args.slice(x.args.indexOf('--') + 1).join(' ') ===
+              c.argv.join(' '),
+        ).args,
+      ),
+    );
+    assert.deepEqual(admittedGates, ['lint']);
+    assert.equal(reservationOf(h, 'quality-preview.js'), undefined);
+  });
+
+  test('AC-4: eligibility is exactly a deposit plus close independent-gate predicate', async () => {
+    const { runPreflightLanes } = await import(
+      '../../.agents/scripts/lib/orchestration/preflight-lanes.js'
+    );
+    const deposit = { cmd: 'npm', args: ['run', 'x'] };
+    const keys = [
+      'quality-preview',
+      ...STANDALONE_RATCHETS.map((r) => r.key),
+      'typecheck',
+      'lint',
+      'format',
+    ];
+    const checks = [
+      ...keys.map((key) => ({ key, deposit })),
+      { key: 'lint', held: true },
+    ];
+    const admittedKeys = [];
+    const ctx = {
+      progress: () => {},
+      admitSuite: async (_opts, spawn) => spawn({ env: {} }),
+    };
+    const run = await runPreflightLanes(ctx, checks, 9, async (check, env) => {
+      if (env) admittedKeys.push(check.key);
+      return null;
+    });
+    assert.deepEqual(run.admitted, ['typecheck', 'lint', 'format']);
+    assert.deepEqual(admittedKeys.sort(), ['format', 'lint', 'typecheck']);
+  });
+
+  for (const exit of [75, 78]) {
+    test(`AC-5: a miss (exit ${exit}) hands the check to the base lane and retires the lane`, async () => {
+      const config = lanesConfig(
+        {},
+        { commands: { formatCheck: 'npx prettier --check .' } },
+      );
+      const h = lanesHarness({ config });
+      h.deps.scopeGate = applyChangedFileScope;
+      const lines = progressLines(h);
+      const calls = admission(h, () => exit);
+      const { envelope } = await h.run();
+      assert.equal(envelope.status, 'ready');
+      assert.equal(calls.length, 1, 'the retired lane admits nothing else');
+      const keys = spawned(h.runCommand);
+      for (const key of ['typecheck', 'lint', 'format']) {
+        assert.equal(keys.filter((k) => k === key).length, 1, key);
+        assert.equal(reservationOf(h, key), undefined, key);
+      }
+      assert.deepEqual(keys.slice(1, 4), ['typecheck', 'lint', 'format']);
+      assert.ok(
+        lines.some(
+          (l) =>
+            l.tag === 'preflight' &&
+            new RegExp(`lint back to the serial lane: .*exit ${exit}`).test(
+              l.msg,
+            ),
+        ),
+      );
+      assert.deepEqual(preflightOf(envelope).concurrency.admitted, []);
+    });
+  }
+
+  test('AC-6: findings settle in check order when completion order differs', async () => {
+    const h = lanesHarness({
+      config: lanesConfig(),
+      outputs: {
+        typecheck: { status: 2, stdout: 'error TS1: bad' },
+        lint: { status: 1, stdout: 'lint error' },
+      },
+    });
+    admission(h);
+    const run = h.deps.runCommand;
+    const finished = [];
+    h.deps.runCommand = async (cmd, args, opts) => {
+      const key = commandKey(cmd, args);
+      if (key === 'typecheck') await new Promise((r) => setTimeout(r, 30));
+      const res = await run(cmd, args, opts);
+      finished.push(key);
+      return res;
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.ok(
+      finished.indexOf('lint') < finished.indexOf('typecheck'),
+      'lint completes first',
+    );
+    const step = stopStep(envelope);
+    assert.deepEqual(
+      step.findings.map((f) => f.check),
+      ['typecheck', 'lint'],
+    );
+    assert.match(step.detail, /^typecheck finding[^\n]*\nlint finding/);
+    assert.match(envelope.evidencePath, /preflight-typecheck\.log$/);
+    // #5970's closed set: the first finding in check order names the cause.
+    assert.equal(envelope.cause, 'other');
+    assert.equal(typeof step.durationMs, 'number');
+    assert.ok(spawned(h.runCommand).includes('quality-preview.js'));
+    assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
+  });
+
+  const serialCases = [
+    ['fullSuiteLock: false', { fullSuiteLock: false }, {}, /admission is off/],
+    [
+      'MANDREL_FULL_SUITE_LOCK=0',
+      {},
+      { MANDREL_FULL_SUITE_LOCK: '0' },
+      /admission is off/,
+    ],
+    [
+      'an inherited reservation',
+      {},
+      { MANDREL_SUITE_RESERVATION: RESERVATION },
+      /inside a suite reservation/,
+    ],
+  ];
+  for (const [label, execution, env, why] of serialCases) {
+    test(`AC-7: ${label} runs serially with one line naming why`, async () => {
+      const h = lanesHarness({ config: lanesConfig(execution) });
+      h.deps.env = { ...cleanEnv, ...env };
+      const lines = progressLines(h);
+      const calls = admission(h);
+      const { envelope } = await h.run();
+      assert.equal(calls.length, 0);
+      assert.ok(!('concurrency' in preflightOf(envelope)));
+      const named = lines.filter(
+        (l) => l.tag === 'preflight' && /running serially/.test(l.msg),
+      );
+      assert.equal(named.length, 1);
+      assert.match(named[0].msg, why);
+      assert.deepEqual(spawned(h.runCommand).slice(1, 4), [
+        'typecheck',
+        'lint',
+        'quality-preview.js',
+      ]);
+    });
+  }
+
+  test('AC-8: a lost deposit is re-recorded with close hash so close skips the gate', async () => {
+    const h = lanesHarness({ config: lanesConfig() });
+    admission(h);
+    await h.run();
+    const lint = h.runCommand.calls.find((c) => c.key === 'lint');
+    const [cmd, ...args] = lint.args.slice(lint.args.indexOf('--') + 1);
+    const configHash = hashCommandConfig({ cmd, args, cwd: '/work' });
+    const skip = shouldSkip(
+      { storyId: STORY, gateName: 'lint', currentSha: HEAD, configHash },
+      { cwd: tempRoot, standalone: true },
+    );
+    assert.equal(skip.skip, true);
+  });
+
+  test('AC-8: a failed re-record only warns', async () => {
+    const h = lanesHarness({ config: lanesConfig() });
+    admission(h);
+    const blocker = path.join(tempRoot, 'not-a-dir');
+    writeFileSync(blocker, 'x');
+    h.deps.evidenceCwd = blocker;
+    const lines = progressLines(h);
+    const { envelope } = await h.run();
+    assert.equal(preflightOf(envelope).outcome, 'ran');
+    assert.ok(
+      lines.some(
+        (l) =>
+          l.tag === 'preflight' && /lint deposit not re-recorded/.test(l.msg),
+      ),
+    );
+  });
+});
+
 /**
  * Story #5970 — every handoff run leaves one signal naming its stopping step,
  * cause and per-step time; the envelope carries the same cause and attempt.

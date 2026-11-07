@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   buildDefaultGates,
+  isIndependentGate,
   partitionGates,
 } from '../../.agents/scripts/lib/close-validation/gates.js';
 import {
@@ -504,6 +505,31 @@ describe('buildDefaultGates — lint command resolution', () => {
         'lint must stay in the parallel partition',
       );
       assert.ok(!serial.some((g) => g.name === 'lint'));
+    }
+  });
+});
+
+describe('isIndependentGate (Story #5997)', () => {
+  it('names exactly the gates partitionGates puts in the independent bucket', () => {
+    const names = [
+      'typecheck',
+      'lint',
+      'format',
+      'test',
+      'quality-preview-crap',
+      'coverage',
+      'unknown',
+    ];
+    const { independent } = partitionGates(names.map((name) => ({ name })));
+    assert.deepEqual(
+      names.filter(isIndependentGate),
+      independent.map((g) => g.name),
+    );
+    for (const name of ['typecheck', 'lint', 'format']) {
+      assert.equal(isIndependentGate(name), true, name);
+    }
+    for (const name of ['test', 'quality-preview-crap', 'quality-preview']) {
+      assert.equal(isIndependentGate(name), false, name);
     }
   });
 });

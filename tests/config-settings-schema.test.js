@@ -1193,6 +1193,28 @@ describe('AGENTRC_SCHEMA — delivery.execution capacity/workloads (Story #5668)
   });
 });
 
+// Story #5997 — the per-host opt-in for admitted preflight lanes.
+describe('AGENTRC_SCHEMA — delivery.execution.preflightConcurrency (Story #5997)', () => {
+  const execution = (block) => ({ ...REQ, delivery: { execution: block } });
+
+  it('accepts an integer of at least 1 and defaults to 1', () => {
+    for (const preflightConcurrency of [1, 2, 4]) {
+      assert.equal(validate(execution({ preflightConcurrency })), true);
+    }
+    assert.equal(
+      AGENTRC_SCHEMA.properties.delivery.properties.execution.properties
+        .preflightConcurrency.default,
+      1,
+    );
+  });
+
+  it('rejects 0, a negative and a non-integer', () => {
+    expectErrors(execution({ preflightConcurrency: 0 }), /must be >= 1/);
+    expectErrors(execution({ preflightConcurrency: -2 }), /must be >= 1/);
+    expectErrors(execution({ preflightConcurrency: 1.5 }), /must be integer/);
+  });
+});
+
 describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () => {
   it('accepts providers: [{ name: "native" }]', () => {
     assert.equal(
