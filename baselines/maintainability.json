@@ -1036,7 +1036,7 @@
     },
     {
       "path": ".agents/scripts/lib/failure-rows.js",
-      "mi": 103.177
+      "mi": 106.214
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
@@ -1320,7 +1320,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/report.js",
-      "mi": 115.467
+      "mi": 117.274
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-state.js",
