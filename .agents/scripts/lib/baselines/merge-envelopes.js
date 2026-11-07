@@ -10,7 +10,7 @@
  * @module lib/baselines/merge-envelopes
  */
 
-import { deepEqual } from '../json-utils.js';
+import { deepEqual, isObject } from '../json-utils.js';
 import { KNOWN_KINDS } from './envelope.js';
 import { getKindModule } from './kernel.js';
 
@@ -308,6 +308,51 @@ export function mergePlainBaseline({ base, ours, theirs, kind } = {}) {
     envelope,
     conflicts: [...stampConflicts, ...conflicts],
   };
+}
+
+/**
+ * Three-way merge where every row and stamp conflict takes theirs, so a row
+ * only ours carries survives a conflicted file. `null` for an unknown kind or
+ * a missing side.
+ *
+ * @param {{ base: object|null, ours: object, theirs: object }} params
+ * @returns {{ kind: string, envelopeKind: boolean, envelope: object, storyOnlyRows: number }|null}
+ */
+export function mergeBaselineTheirsWins({ base, ours, theirs } = {}) {
+  const envelopeKind = kindFromEnvelope(ours) ?? kindFromEnvelope(theirs);
+  const kind =
+    envelopeKind ??
+    plainKindFromEnvelope(ours) ??
+    plainKindFromEnvelope(theirs);
+  if (!kind || !isObject(ours) || !isObject(theirs)) return null;
+  const merge = envelopeKind ? mergeEnvelopes : mergePlainBaseline;
+  const { conflicts } = merge({ base, ours, theirs, kind });
+  const rowConflicts = conflicts.filter((c) => c.scope === 'row');
+  const replaced = new Set(rowConflicts.map((c) => c.ours));
+  const resolved = {
+    ...ours,
+    rows: [
+      ...(ours.rows ?? []).filter((row) => !replaced.has(row)),
+      ...rowConflicts.flatMap((c) =>
+        c.theirs === undefined ? [] : [c.theirs],
+      ),
+    ],
+  };
+  for (const c of conflicts.filter((c) => c.scope === 'envelope')) {
+    if (c.theirs === undefined) delete resolved[c.identity];
+    else resolved[c.identity] = c.theirs;
+  }
+  const { envelope } = merge({ base, ours: resolved, theirs, kind });
+  const rowIdentity = envelopeKind
+    ? getKindModule(kind).rowIdentity
+    : plainSpec(kind).rowIdentity;
+  const elsewhere = new Set(
+    [...(base?.rows ?? []), ...(theirs.rows ?? [])].map(rowIdentity),
+  );
+  const storyOnlyRows = (ours.rows ?? []).filter(
+    (row) => !elsewhere.has(rowIdentity(row)),
+  ).length;
+  return { kind, envelopeKind: Boolean(envelopeKind), envelope, storyOnlyRows };
 }
 
 const REGENERATE_COMMANDS = Object.freeze({

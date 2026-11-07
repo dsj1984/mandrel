@@ -489,13 +489,34 @@ async function runPreflightCheck(ctx, check, pass, env) {
     check.args,
     env,
   );
-  const detail = preflightFinding(check, run);
-  if (check.key === 'lint') pass.lint = detail ? 'failed' : 'passed';
-  if (!detail) {
+  const finding = preflightFinding(check, run);
+  if (check.key === 'lint') pass.lint = finding ? 'failed' : 'passed';
+  if (!finding) {
     creditCheck(ctx, check);
     return null;
   }
+  const detail = check.key === 'lint' ? finding + seatHint(ctx) : finding;
   return { check: check.key, detail, evidencePath: run.evidencePath };
+}
+
+/**
+ * A failed lint on a change set that adds files may be a missing coverage or
+ * CRAP row the seat writes only after preflight: name the downgrade contract.
+ */
+function seatHint(ctx) {
+  const added = gitLine(ctx.git, ctx.cwd, [
+    'diff',
+    '--name-only',
+    '--diff-filter=A',
+    `origin/${ctx.baseBranch}...HEAD`,
+  ]);
+  if (!added) return '';
+  return (
+    '\n  hint: this change set adds files, whose coverage and CRAP rows are seated after preflight; ' +
+    'a check refusing a missing row for a change-set file must downgrade under ' +
+    'MANDREL_HANDOFF_STEP=preflight and be declared in delivery.handoff.postSeatChecks ' +
+    '(.agents/docs/configuration.md § delivery.handoff.postSeatChecks)'
+  );
 }
 
 /**

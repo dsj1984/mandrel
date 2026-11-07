@@ -16,6 +16,7 @@ import {
   gitFetchWithRetry as defaultGitFetchWithRetry,
   gitSpawn as defaultGitSpawn,
 } from '../git-utils.js';
+import { keepStoryRowsIn } from './baseline-conflict-rows.js';
 
 /**
  * Refuse when the declared baseline merge driver is unregistered: git would
@@ -75,23 +76,32 @@ function diffPaths(gitSpawn, cwd, fromSha) {
 const DRIVER_OWNED_BASELINE = /^baselines\/[^/]+\.json$/;
 
 /**
- * Take `origin/<base>`'s side of each conflicted baseline and commit the
- * merge; the seat and close's gates re-derive the Story's rows. False on any
- * failed step.
+ * Row-merge each conflicted baseline (Story-only rows survive), take
+ * `origin/<base>`'s whole file where that cannot decode, and commit the
+ * merge. The kept Story-only row count, or null on any failed step.
  *
  * @param {typeof defaultGitSpawn} gitSpawn
  * @param {string} cwd
  * @param {string} baseBranch
  * @param {string[]} files
- * @returns {boolean}
+ * @returns {number|null}
  */
 function resolveBaselinesToBase(gitSpawn, cwd, baseBranch, files) {
+  const { kept, wholeFile } = keepStoryRowsIn(gitSpawn, cwd, files);
+  const checkout = wholeFile.length > 0 ? [wholeFile] : [];
   const steps = [
-    ['checkout', `origin/${baseBranch}`, '--', ...files],
+    ...checkout.map((paths) => [
+      'checkout',
+      `origin/${baseBranch}`,
+      '--',
+      ...paths,
+    ]),
     ['add', '--', ...files],
     ['commit', '--no-edit'],
   ];
-  return steps.every((args) => gitSpawn(cwd, ...args).status === 0);
+  return steps.every((args) => gitSpawn(cwd, ...args).status === 0)
+    ? kept
+    : null;
 }
 
 function unmergedPaths(gitSpawn, cwd) {
@@ -104,7 +114,8 @@ function unmergedPaths(gitSpawn, cwd) {
 }
 
 /**
- * A baseline-only conflict resolves to the base (`resolvedBaselineFiles`);
+ * A baseline-only conflict resolves row by row, base winning
+ * (`resolvedBaselineFiles`);
  * any other conflict is aborted for the caller to surface.
  *
  * @param {object} opts
@@ -230,15 +241,13 @@ function resolveBaselineOnlyConflict({
     driver.declared &&
     conflictFiles.length > 0 &&
     conflictFiles.every((f) => DRIVER_OWNED_BASELINE.test(f));
-  if (
-    !baselineOnly ||
-    !resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles)
-  ) {
-    return null;
-  }
+  const kept = baselineOnly
+    ? resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles)
+    : null;
+  if (kept === null) return null;
   log(
     'SYNC',
-    `Resolved baseline-only conflict to origin/${baseBranch}: ${conflictFiles.join(', ')}`,
+    `Resolved baseline-only conflict to origin/${baseBranch} (${kept} Story-only row(s) kept): ${conflictFiles.join(', ')}`,
   );
   return {
     synced: true,
