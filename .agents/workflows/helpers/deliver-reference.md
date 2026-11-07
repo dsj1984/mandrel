@@ -410,6 +410,12 @@ run because a fix commit afterwards would void that run's credit.
   `arch-cycles.json`, `cyclomatic.json`) exists, and is judged by its exit
   code and `(gate fail)` line; the finding names the offending `+` / `!`
   rows. Close does not run them — CI stays their backstop.
+- **Findings quote their rows.** A non-ratchet finding (lint, format,
+  quality-preview) quotes the failing lint, biome or guard lines it parsed —
+  at most 10, via `lib/failure-rows.js` — and falls back to the bare
+  `<key> finding` text when none parse. A baselines finding, at post-capture
+  or close, names its regressed rows and the kind's diff-scoped remedy
+  command from the `check-baselines --format text` report.
 - **Close stays authoritative.** Its `quality-preview-crap` gate scores a
   fresh capture after `coverage-capture`; a preflight pass never skips it.
   The handoff's post-capture step (§ Credited run) runs that gate early too.

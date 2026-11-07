@@ -187,6 +187,20 @@ const CHECK_BASELINES_HINT =
   'Unified baselines gate breached. Inspect the JSON report (`node .agents/scripts/check-baselines.js`) to see which kind/component/axis fell below floor; remediate the underlying file(s) or — when the regression is intentional — refresh the relevant baseline through its per-kind update script and commit with a `baseline-refresh:` tagged subject.';
 
 /**
+ * A failed gate whose hint quotes the baselines rows it printed; unchanged
+ * (its fixed hint) when none was retained.
+ *
+ * @param {Gate} gate
+ * @param {string[]} [rows]
+ * @returns {Gate}
+ */
+export function withFailureRows(gate, rows) {
+  if (!rows?.length) return gate;
+  const hint = `Baselines gate failed: ${rows.join('; ')} — full report: node .agents/scripts/check-baselines.js --format json`;
+  return { ...gate, hint };
+}
+
+/**
  * Baselines gate names. `single` is the unsplit fail-closed fallback;
  * `independent` runs in the parallel partition, `coverage` stays serial
  * behind coverage-capture. Every name MUST be in the `gateName` enum of
@@ -315,6 +329,8 @@ function buildBaselinesGateEntries({ decision, kinds, env }) {
       'text',
     ],
     hint: decision.hint ?? CHECK_BASELINES_HINT,
+    // A registration hint stays as-is; the fixed hint yields to quoted rows.
+    ...(decision.hint ? {} : { retainFailureRows: true }),
     ...(env ? { env } : {}),
     ...coverageReaderFlag(gateKinds),
   });
