@@ -64,9 +64,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_shared-metric.js",
-      "duplicatedLines": 14,
-      "totalLines": 165,
-      "percentage": 8.48
+      "duplicatedLines": 6,
+      "totalLines": 106,
+      "percentage": 5.66
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
@@ -76,9 +76,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
-      "duplicatedLines": 14,
-      "totalLines": 171,
-      "percentage": 8.19
+      "duplicatedLines": 6,
+      "totalLines": 178,
+      "percentage": 3.37
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",

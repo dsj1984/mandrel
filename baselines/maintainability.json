@@ -132,7 +132,7 @@
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
-      "mi": 93.616
+      "mi": 94.305
     },
     {
       "path": ".agents/scripts/file-ci-gap.js",
@@ -472,7 +472,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-codec.js",
-      "mi": 104.461
+      "mi": 105.491
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js",
@@ -484,7 +484,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_shared-metric.js",
-      "mi": 98.015
+      "mi": 108.43
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
@@ -732,7 +732,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/crap.js",
-      "mi": 95.981
+      "mi": 97.303
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
@@ -936,7 +936,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-deferral.js",
-      "mi": 114.786
+      "mi": 115.377
     },
     {
       "path": ".agents/scripts/lib/coverage-ratchet.js",
@@ -1660,7 +1660,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/preflight-lanes.js",
-      "mi": 107.81
+      "mi": 108.766
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
@@ -1700,7 +1700,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
-      "mi": 101.378
+      "mi": 102.365
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
@@ -1856,7 +1856,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/land-review-record.js",
-      "mi": 94.994
+      "mi": 96.948
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
@@ -1896,7 +1896,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
-      "mi": 86.789
+      "mi": 88.779
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/push.js",
@@ -2180,7 +2180,7 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/report-stalled-executing.js",
-      "mi": 91.94
+      "mi": 97.873
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
@@ -2616,7 +2616,7 @@
     },
     {
       "path": ".agents/scripts/role-scope-guard.js",
-      "mi": 94.685
+      "mi": 96.896
     },
     {
       "path": ".agents/scripts/run-tests.js",
