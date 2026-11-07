@@ -376,41 +376,20 @@ test('sweepStaleStoryWorktrees: provider reads fan out at concurrency=8', async 
   });
   const { logger } = quietLogger();
 
-  const start = Date.now();
   const result = await sweepStaleStoryWorktrees({
     provider,
     repoRoot: REPO,
     git,
     logger,
   });
-  const elapsed = Date.now() - start;
 
   // All open → all skipped, none reaped.
   assert.equal(result.reaped.length, 0);
   assert.equal(result.skipped.length, N);
 
-  // ceil(10/8) = 2 batches; bound generously to absorb timer jitter on
-  // CI but stay well below the sequential 10 × LATENCY_MS = 800 ms floor.
-  const batches = Math.ceil(N / 8);
-  const upperBound = batches * LATENCY_MS + 200;
-  assert.ok(
-    elapsed < upperBound,
-    `expected elapsed ${elapsed}ms < ${upperBound}ms (sequential floor would be ~${N * LATENCY_MS}ms)`,
-  );
-  assert.ok(
-    elapsed < N * LATENCY_MS - 100,
-    `expected elapsed ${elapsed}ms to clearly beat sequential ${N * LATENCY_MS}ms`,
-  );
-
-  // Concurrency was actually exercised — at least 2 in flight, capped at 8.
-  assert.ok(
-    peakInFlight >= 2,
-    `expected peakInFlight >= 2, got ${peakInFlight}`,
-  );
-  assert.ok(
-    peakInFlight <= 8,
-    `expected peakInFlight <= 8, got ${peakInFlight}`,
-  );
+  // The fan-out is proven by the in-flight peak, not a wall-clock bound a
+  // loaded host can blow: 10 reads at concurrency 8 peak at exactly 8.
+  assert.equal(peakInFlight, 8, `expected peakInFlight 8, got ${peakInFlight}`);
 });
 
 test('sweepStaleStoryWorktrees: drains the pending-cleanup manifest when Stage 1 retry succeeds', async () => {
