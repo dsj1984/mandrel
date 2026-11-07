@@ -48,6 +48,7 @@ import {
 } from '../full-suite-lock.js';
 import { handoffRerunSkip } from '../git/base-sync-probe.js';
 import { syncBranchFromBase } from '../git/sync-from-base.js';
+import { remoteBranchSha } from '../git-branch-lifecycle.js';
 import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import {
@@ -916,28 +917,6 @@ async function runSeats(ctx, name, kinds) {
   return { total, evidencePath };
 }
 
-/**
- * @param {object} ctx
- * @returns {{ reachable: boolean, sha: string|null, detail: string }}
- */
-function remoteBranchSha(ctx) {
-  const res = ctx.git(
-    ctx.cwd,
-    'ls-remote',
-    'origin',
-    `refs/heads/${ctx.branch}`,
-  );
-  if (res?.status !== 0) {
-    return {
-      reachable: false,
-      sha: null,
-      detail: `${res?.stderr ?? ''}`.trim(),
-    };
-  }
-  const sha = (res.stdout ?? '').toString().trim().split(/\s+/)[0] || null;
-  return { reachable: true, sha, detail: '' };
-}
-
 const PORCELAIN_STATUS = /^\s*[ MADRCUT?!]{1,2}\s/;
 
 // GitHub's ruleset engine failing mid-evaluation; it prints a `[remote
@@ -1107,7 +1086,7 @@ async function pushOrStep(ctx, tip) {
 /** @param {object} ctx @returns {Promise<StepResult>} */
 async function stepPush(ctx) {
   const name = 'push';
-  const before = remoteBranchSha(ctx);
+  const before = remoteBranchSha(ctx.cwd, ctx.branch, ctx.git);
   if (!before.reachable) {
     return blocked(name, 'remote-unreachable', before.detail);
   }
@@ -1116,7 +1095,7 @@ async function stepPush(ctx) {
   }
   const push = await pushOrStep(ctx, before.sha);
   if (push.failure) return push.failure;
-  const after = remoteBranchSha(ctx);
+  const after = remoteBranchSha(ctx.cwd, ctx.branch, ctx.git);
   if (after.sha !== ctx.head) {
     return blocked(
       name,

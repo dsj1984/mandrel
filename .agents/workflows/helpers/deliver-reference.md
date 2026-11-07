@@ -637,6 +637,11 @@ that writes `$MANDREL_SUITE_READY_FILE` when its tests start (after a
 consumer load gate) gets a fresh bound for them, so worst-case wall is lock
 wait + 2 × `timeoutMs`.
 
+The close terminal's `pushOutcome` (also on the close result) reads its
+`phaseDurations.push`: `pushed`, or `skipped-already-at-head` when origin
+already held the Story-branch tip, so no `git push` (and no `pre-push`) ran.
+`--skip-validation` always pushes; an unreadable tip or `ls-remote` pushes.
+
 **Delta re-credit after a base move.** When close's base sync merged
 incoming paths (`BASE MOVED`), the `test` gate is the suite gate, the
 pre-sync head holds `test` credit and `project.commands.testChanged` is set,

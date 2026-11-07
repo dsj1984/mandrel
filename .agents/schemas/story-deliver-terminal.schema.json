@@ -299,6 +299,10 @@
       },
       "additionalProperties": false
     },
+    "pushOutcome": {
+      "enum": ["pushed", "skipped-already-at-head", null],
+      "description": "Story #5967 — whether close's PR-opening push ran or was skipped because origin already held the Story-branch tip (read phaseDurations.push against it). Optional and additive; absent on every non-close envelope, null when the PR had already landed."
+    },
     "timestamp": { "type": "string", "format": "date-time" }
   },
   "allOf": [
