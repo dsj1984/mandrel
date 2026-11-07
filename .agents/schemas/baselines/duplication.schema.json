@@ -4,6 +4,7 @@
   "title": "DuplicationBaselineV2",
   "description": "Per-kind baseline schema for the code-duplication (DRY) gate, envelope-shaped. Extends the shared baseline-envelope contract. Rows record per-file copy-paste duplication reported by a clone detector (jscpd); the rollup recomputes an exact aggregate ratio from raw line counts.",
   "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "required": ["rows"],
   "type": "object",
   "properties": {
     "rows": {

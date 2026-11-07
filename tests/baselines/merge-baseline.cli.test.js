@@ -254,6 +254,60 @@ describe('merge-baseline — grouped CRAP layout (AC-3, AC-7)', () => {
     );
     fs.rmSync(dir, { recursive: true, force: true });
   });
+
+  /** Keep one side of every hunk. */
+  const resolveTo = (text, side) =>
+    text.replace(
+      /<<<<<<< ours\n([\s\S]*?)=======\n([\s\S]*?)>>>>>>> theirs\n/g,
+      (_, ours, theirs) => (side === 'ours' ? ours : theirs),
+    );
+  const filesOf = (text) => JSON.parse(text).files['a/b.js'];
+
+  for (const { name, ours, theirs, expected } of [
+    {
+      name: 'ours deletes the last method, theirs modifies it',
+      ours: [sibling, other],
+      theirs: [{ ...target, crap: 4 }, sibling, other],
+      expected: { ours: { sibling: 12 }, theirs: { sibling: 12, target: 4 } },
+    },
+    {
+      name: 'ours modifies the last method, theirs deletes it',
+      ours: [{ ...target, crap: 4 }, sibling, other],
+      theirs: [sibling, other],
+      expected: { ours: { sibling: 12, target: 4 }, theirs: { sibling: 12 } },
+    },
+    {
+      name: 'the method before the deleted one conflicts too',
+      ours: [{ ...sibling, crap: 13 }, other],
+      theirs: [{ ...target, crap: 4 }, { ...sibling, crap: 11 }, other],
+      expected: { ours: { sibling: 13 }, theirs: { sibling: 11, target: 4 } },
+    },
+  ]) {
+    it(`a delete/modify conflict resolves to valid JSON on either side: ${name}`, () => {
+      const dir = makeTempDir('mandrel-merge-crap-delete-');
+      const paths = stage(dir, {
+        base: env([target, sibling, other]),
+        ours: env(ours),
+        theirs: env(theirs),
+      });
+      const res = runDriver(
+        paths.base,
+        paths.ours,
+        paths.theirs,
+        'baselines/crap.json',
+      );
+      assert.equal(res.status, 1);
+      const text = fs.readFileSync(paths.ours, 'utf8');
+      for (const side of ['ours', 'theirs']) {
+        assert.deepEqual(
+          { ...filesOf(resolveTo(text, side)) },
+          expected[side],
+          side,
+        );
+      }
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+  }
 });
 
 describe('merge-baseline — the swarm-os reproduction (AC-4)', () => {

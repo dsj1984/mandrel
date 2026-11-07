@@ -369,7 +369,12 @@ function landedPrePush(ctx) {
 }
 
 function landedPr(ctx) {
-  ctx.pr = { ...ctx.landedPr, alreadyMerged: true, reviewOverride: null };
+  ctx.pr = {
+    ...ctx.landedPr,
+    alreadyMerged: true,
+    reviewOverride: null,
+    reviewSkipped: true,
+  };
   return null;
 }
 
@@ -457,6 +462,7 @@ function buildPrContext(ctx, deps) {
       ctx.prePush.validationGates,
       ctx.pr.reviewOverride,
       ctx.pr.reviewDegradations,
+      { reviewSkipped: ctx.pr.reviewSkipped === true },
     ),
   };
 }

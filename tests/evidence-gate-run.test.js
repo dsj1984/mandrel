@@ -471,6 +471,38 @@ test('runEvidenceGate: a test gate that lost workers (exit 77) logs host resourc
   assert.ok(!logger.calls.error.some((m) => /failed \(exit 77\)/.test(m)));
 });
 
+for (const status of [75, 77]) {
+  test(`runEvidenceGate: a non-suite gate's exit ${status} is an ordinary failure`, async () => {
+    const logger = makeLogger();
+    const priorExitCode = process.exitCode;
+    const out = await runEvidenceGate(
+      {
+        scopeId: 1,
+        standalone: true,
+        gate: 'lint',
+        useEvidence: true,
+        cwd: '/repo',
+        runnerArgs: ['npm', 'run', 'lint'],
+      },
+      {
+        gitSpawnFn: fakeGitSpawnHead(
+          'cccccccccccccccccccccccccccccccccccccccc',
+        ),
+        spawnFn: () => ({ status }),
+        shouldSkipFn: () => ({ skip: false }),
+        recordPassFn: () => {},
+        logger,
+      },
+    );
+    process.exitCode = priorExitCode;
+    assert.deepEqual(out, { status, skipped: false });
+    const failed = new RegExp(`lint failed \\(exit ${status}\\)`);
+    assert.ok(logger.calls.error.some((m) => failed.test(m)));
+    const all = [...logger.calls.info, ...logger.calls.error];
+    assert.ok(!all.some((m) => /deferred|host memory/.test(m)));
+  });
+}
+
 // Story #5662 — the gate's lock wait streams `lock-progress` events onto the
 // claimed channel, beside the `lock-wait` outcome close already reads.
 test('runLockedSuite: emits lock-progress on the claimed channel while it waits', async () => {

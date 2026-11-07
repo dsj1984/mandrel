@@ -39,6 +39,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
+import { readDeferralMarker } from '../.agents/scripts/lib/coverage-deferral.js';
 import {
   createGh,
   GhExecError,
@@ -451,6 +452,84 @@ describe('ensurePullRequestWith', () => {
  * only — saw no PR, opened a second one against a branch now identical to
  * base, and squash-merged a zero-file commit onto `main`.
  */
+describe('ensurePullRequestWith — a reused PR carries the deferral marker', () => {
+  const URL = 'https://github.com/owner/repo/pull/7';
+  const BODY = 'Closes #1234\n\n_Auto-opened by `/mandrel-deliver`._';
+
+  async function reuse({ body, coverageDeferred, editThrows = false }) {
+    const edits = [];
+    const gh = {
+      pr: {
+        list: async () => [{ url: URL, state: 'OPEN', body }],
+        edit: async (id, flags) => {
+          if (editThrows) throw new Error('HTTP 502');
+          edits.push({ id, body: flags[flags.indexOf('--body') + 1] });
+        },
+      },
+    };
+    const out = await ensurePullRequestWith({
+      cwd: '/repo',
+      storyId: 1234,
+      storyTitle: 'Test story',
+      storyBranch: 'story-1234',
+      baseBranch: 'main',
+      gh,
+      coverageDeferred,
+    });
+    return { out, edits };
+  }
+
+  it('writes the marker onto a body that has none', async () => {
+    const { out, edits } = await reuse({
+      body: BODY,
+      coverageDeferred: 'over-budget',
+    });
+    assert.equal(out.created, false);
+    assert.equal(edits.length, 1);
+    assert.equal(edits[0].id, URL);
+    assert.equal(readDeferralMarker(edits[0].body), 'over-budget');
+    assert.match(edits[0].body, /^Closes #1234\n\nCoverage deferred to CI/);
+    assert.match(edits[0].body, /over-budget\n\n_Auto-opened/);
+  });
+
+  it('replaces a different marker with exactly one key line', async () => {
+    const stale = [
+      'Closes #1234',
+      '',
+      'Coverage deferred to CI: CI is the coverage and CRAP ratchet of record (suiteOfRecord: ci).',
+      'Coverage-deferred: suite-of-record-ci',
+      '',
+      '_Auto-opened by `/mandrel-deliver`._',
+    ].join('\n');
+    const { edits } = await reuse({
+      body: stale,
+      coverageDeferred: 'over-budget',
+    });
+    assert.equal(edits[0].body.match(/^Coverage-deferred:/gm).length, 1);
+    assert.equal(readDeferralMarker(edits[0].body), 'over-budget');
+    assert.doesNotMatch(edits[0].body, /suiteOfRecord/);
+    assert.match(edits[0].body, /over-budget\n\n_Auto-opened/);
+  });
+
+  it('leaves a matching marker, or a null reason, untouched', async () => {
+    const marked = `Closes #1234\nCoverage-deferred: over-budget`;
+    const matching = await reuse({
+      body: marked,
+      coverageDeferred: 'over-budget',
+    });
+    assert.equal(matching.edits.length, 0);
+    const unmeasured = await reuse({ body: marked, coverageDeferred: null });
+    assert.equal(unmeasured.edits.length, 0);
+  });
+
+  it('fails closed when the marker cannot be written', async () => {
+    await assert.rejects(
+      reuse({ body: BODY, coverageDeferred: 'over-budget', editThrows: true }),
+      /could not write `Coverage-deferred: over-budget` onto .*pull\/7/,
+    );
+  });
+});
+
 describe('ensurePullRequestWith — duplicate empty PR guards (Story #4873)', () => {
   it('AC-1: reports an already-merged PR on the head instead of opening a second one', async () => {
     const calls = [];

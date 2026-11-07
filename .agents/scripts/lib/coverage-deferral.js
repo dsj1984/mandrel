@@ -4,6 +4,8 @@
  * and the handoff envelope's `coverage` field.
  */
 
+import { replaceBeneathCloses } from './pr-body-lines.js';
+
 /** The PR-body key line's key — a stable contract. */
 const COVERAGE_DEFERRED_KEY = 'Coverage-deferred';
 
@@ -20,6 +22,8 @@ const PROSE = Object.freeze({
   [COVERAGE_DEFERRED_REASONS.suiteOfRecordCi]:
     'Coverage deferred to CI: CI is the coverage and CRAP ratchet of record (suiteOfRecord: ci).',
 });
+
+const PROSE_LINES = new Set(Object.values(PROSE));
 
 /** The handoff envelope's `policy` for each reason. */
 const POLICY = Object.freeze({
@@ -50,6 +54,22 @@ export function readDeferralMarker(body) {
     'm',
   ).exec(String(body ?? ''));
   return match ? match[1] : null;
+}
+
+/**
+ * `body` with its deferral lines replaced by `reason`'s, placed beneath
+ * `Closes #<id>` (appended when that line is missing).
+ *
+ * @param {string|null|undefined} body @param {string} reason
+ * @returns {string}
+ */
+export function rewriteDeferralLines(body, reason) {
+  return replaceBeneathCloses(body, isDeferralLine, deferralLines(reason));
+}
+
+/** A prose or key line of any deferral reason. */
+function isDeferralLine(line) {
+  return PROSE_LINES.has(line) || line.startsWith(`${COVERAGE_DEFERRED_KEY}:`);
 }
 
 /**

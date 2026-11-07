@@ -32,14 +32,23 @@ function fakeProvider(tickets) {
 
 /**
  * `heads[branch]`: `{ sha, at }` | 'missing' | Error. `prs[branch]`: rows | Error.
+ * `pushes[branch]`: activity rows | Error; absent is a 404.
  * Every call is recorded so a test can assert only reads were issued.
  */
-function fakeGh({ heads = {}, prs = {} } = {}) {
+function fakeGh({ heads = {}, prs = {}, pushes = {} } = {}) {
   const calls = [];
   return {
     calls,
     api: async ({ method, endpoint }) => {
       calls.push({ kind: 'api', method, endpoint });
+      const ref = /\/activity\?ref=refs%2Fheads%2F([^&]+)/.exec(endpoint);
+      if (ref) {
+        const rows = pushes[decodeURIComponent(ref[1])];
+        if (rows === undefined)
+          throw new GhNotFoundError('not found', { args: [] });
+        if (rows instanceof Error) throw rows;
+        return { stdout: JSON.stringify(rows) };
+      }
       const branch = endpoint.split('/branches/')[1];
       const head = heads[branch];
       if (head === undefined || head === 'missing') {
@@ -98,6 +107,7 @@ describe('reportStalledExecuting (Story #5980)', () => {
         storyId: 101,
         headSha: 'abc123',
         headCommittedAt: hoursAgo(9),
+        headPushedAt: null,
         idleHours: 9,
         pr: { number: 77, state: 'CLOSED' },
         command: 'node .agents/scripts/deliver-recover.js --story 101',
@@ -161,6 +171,53 @@ describe('reportStalledExecuting (Story #5980)', () => {
       .map((c) => c.endpoint.split('/').pop());
     assert.deepEqual(probed, ['story-1', 'story-2', 'story-3']);
     assertReadOnly(gh);
+  });
+
+  it('skips a Story whose old head was just pushed (handoff before the PR)', async () => {
+    const gh = fakeGh({
+      heads: { 'story-8': { sha: 'h', at: hoursAgo(7) } },
+      pushes: {
+        'story-8': [
+          { timestamp: hoursAgo(1 / 60), activity_type: 'branch_creation' },
+        ],
+      },
+    });
+    const out = await run(fakeProvider([story(8)]), gh);
+    assert.deepEqual(out.stalled, []);
+    assert.deepEqual(gh.calls[1].flags, [
+      '--head',
+      'story-8',
+      '--state',
+      'all',
+    ]);
+    assert.match(
+      gh.calls[2].endpoint,
+      /\/repos\/acme\/widgets\/activity\?ref=refs%2Fheads%2Fstory-8&per_page=1$/,
+    );
+    assertReadOnly(gh);
+  });
+
+  it('reports a Story whose commit and last push are both old', async () => {
+    const gh = fakeGh({
+      heads: { 'story-9': { sha: 'h', at: hoursAgo(8) } },
+      pushes: {
+        'story-9': [{ timestamp: hoursAgo(7), activity_type: 'push' }],
+      },
+    });
+    const [row] = (await run(fakeProvider([story(9)]), gh)).stalled;
+    assert.equal(row.idleHours, 7);
+    assert.equal(row.headPushedAt, hoursAgo(7));
+  });
+
+  it('falls back to the committer date when the activity read fails', async () => {
+    const gh = fakeGh({
+      heads: { 'story-10': { sha: 'h', at: hoursAgo(7) } },
+      pushes: { 'story-10': new Error('403 forbidden') },
+    });
+    const out = await run(fakeProvider([story(10)]), gh);
+    assert.deepEqual(out.skipped, []);
+    assert.equal(out.stalled[0].idleHours, 7);
+    assert.equal(out.stalled[0].headPushedAt, null);
   });
 
   it('honours a custom threshold', async () => {

@@ -89,6 +89,55 @@ describe('kinds/crap.compare()', () => {
     assert.deepEqual(a, b);
   });
 
+  it('re-pairs later namesakes when an earlier one is inserted', () => {
+    const base = {
+      rows: [row('src/a.js', 'm', 0, 20), row('src/a.js', 'm#1', 0, 5)],
+    };
+    const head = {
+      rows: [
+        row('src/a.js', 'm', 0, 3),
+        row('src/a.js', 'm#1', 0, 20),
+        row('src/a.js', 'm#2', 0, 5),
+      ],
+    };
+    const out = compare(head, base);
+    assert.equal(out.regressions.length, 0);
+    assert.deepEqual(
+      out.additions.map((a) => a.key),
+      ['src/a.js::m'],
+    );
+  });
+
+  it('still reports a namesake regression with no insert', () => {
+    const base = {
+      rows: [row('src/a.js', 'm', 0, 5), row('src/a.js', 'm#1', 0, 5)],
+    };
+    const head = {
+      rows: [row('src/a.js', 'm', 0, 5), row('src/a.js', 'm#1', 0, 9)],
+    };
+    const out = compare(head, base);
+    assert.deepEqual(
+      out.regressions.map((r) => r.key),
+      ['src/a.js::m#1'],
+    );
+  });
+
+  it('fails safe when an inserted namesake scores above the existing row', () => {
+    const base = { rows: [row('src/a.js', 'm', 0, 5)] };
+    const head = {
+      rows: [row('src/a.js', 'm', 0, 30), row('src/a.js', 'm#1', 0, 5)],
+    };
+    const out = compare(head, base);
+    assert.deepEqual(
+      out.regressions.map((r) => r.key),
+      ['src/a.js::m'],
+    );
+    assert.deepEqual(
+      out.additions.map((a) => a.key),
+      ['src/a.js::m#1'],
+    );
+  });
+
   it('tolerates missing rows arrays', () => {
     const out = compare({}, {});
     assert.deepEqual(out, {

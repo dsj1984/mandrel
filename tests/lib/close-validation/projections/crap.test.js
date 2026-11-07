@@ -239,6 +239,50 @@ describe('projectCrapBreaches', () => {
     assert.equal(res.ok, true);
     assert.deepEqual(res.breaches, []);
   });
+
+  describe('scoringSemantics of the baseline', () => {
+    const regressing = scorer([
+      {
+        file: 'src/a.js',
+        method: 'wide',
+        startLine: 10,
+        cyclomatic: 9,
+        coverage: 0.4,
+        crap: 44,
+      },
+    ]);
+    const run = (peek) =>
+      projectCrapBreaches({
+        ...baseOpts,
+        peekBaseline: peek,
+        git: makeFakeGit({ files: ['src/a.js'] }),
+        scoreFiles: regressing,
+      });
+
+    for (const [stamp, reason] of [
+      ['method-identity-v6', 'semantics-ahead'],
+      ['method-identity-v4', 'semantics-behind'],
+    ]) {
+      it(`skips with "${reason}" for a baseline stamped ${stamp}`, async () => {
+        const res = await run(() => ({ scoringSemantics: stamp }));
+        assert.equal(res.ok, true);
+        assert.equal(res.skipped, reason);
+        assert.deepEqual(res.breaches, []);
+      });
+    }
+
+    it('still compares a baseline stamped with the running semantics', async () => {
+      const res = await run(() => ({ scoringSemantics: 'method-identity-v5' }));
+      assert.equal(res.ok, false);
+      assert.equal(res.breaches[0].kind, 'regression');
+    });
+
+    it('does not read an unreadable baseline file as stamped behind', async () => {
+      const res = await run(() => null);
+      assert.equal(res.skipped, undefined);
+      assert.equal(res.breaches[0].kind, 'regression');
+    });
+  });
 });
 
 describe('formatCrapProjection', () => {

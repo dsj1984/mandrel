@@ -1,7 +1,7 @@
 /**
  * Report-only boot sweep: open `agent::executing` Stories whose `story-<id>`
- * origin head has not moved past the threshold and that have no open PR — a
- * delivery session that died silently. Reads origin over REST (a checkout
+ * origin head has not moved (neither committed nor pushed) past the threshold
+ * and that have no open PR — a delivery session that died silently. Reads origin over REST (a checkout
  * may hold no ref for another Story's branch); writes nothing; never throws.
  */
 
@@ -12,7 +12,7 @@ import { NEXT_COMMANDS } from '../orchestration/story-deliver-terminal.js';
 
 export const DEFAULT_STALLED_AFTER_HOURS = 6;
 
-/** Stories probed per boot (two reads each); the rest count as `unprobed`. */
+/** Stories probed per boot (up to three reads each); the rest are `unprobed`. */
 export const DEFAULT_STALLED_PROBE_LIMIT = 20;
 
 const HOUR_MS = 3_600_000;
@@ -38,11 +38,20 @@ function isExecutingStory(ticket) {
   );
 }
 
-/** `null` when the branch is absent on origin. */
-async function readOriginHead({ gh, config, branch }) {
+function repoPath(config) {
   const owner = config?.github?.owner || '{owner}';
   const repo = config?.github?.repo || '{repo}';
-  const endpoint = `/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`;
+  return `/repos/${owner}/${repo}`;
+}
+
+/** Epoch ms of an ISO timestamp, `NaN` when absent or unparseable. */
+function parseMs(iso) {
+  return Date.parse(iso ?? '');
+}
+
+/** `null` when the branch is absent on origin. */
+async function readOriginHead({ gh, config, branch }) {
+  const endpoint = `${repoPath(config)}/branches/${encodeURIComponent(branch)}`;
   try {
     const { stdout } = await gh.api({ method: 'GET', endpoint });
     const commit = JSON.parse(stdout)?.commit;
@@ -57,32 +66,69 @@ async function readOriginHead({ gh, config, branch }) {
   }
 }
 
+/** Latest push or branch creation on origin; `null` on any read failure. */
+async function readLastPushAt({ gh, config, branch }) {
+  const ref = encodeURIComponent(`refs/heads/${branch}`);
+  const endpoint = `${repoPath(config)}/activity?ref=${ref}&per_page=1`;
+  try {
+    const { stdout } = await gh.api({ method: 'GET', endpoint });
+    const [latest] = JSON.parse(stdout);
+    return typeof latest?.timestamp === 'string' ? latest.timestamp : null;
+  } catch {
+    return null;
+  }
+}
+
+async function listBranchPrs(gh, branch) {
+  const rows = await gh.pr.list(
+    ['--head', branch, '--state', 'all'],
+    ['number', 'state'],
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
+function hasOpenPr(prs) {
+  return prs.some((pr) => pr?.state === 'OPEN');
+}
+
+/** Idle time since the later of the head commit and the last push. */
+function idleSince(nowMs, committedMs, pushedAt) {
+  const pushedMs = parseMs(pushedAt);
+  return (
+    nowMs - Math.max(committedMs, Number.isFinite(pushedMs) ? pushedMs : 0)
+  );
+}
+
+function summarizePr(pr) {
+  return pr ? { number: Number(pr.number) || null, state: pr.state } : null;
+}
+
+function stalledRow({ storyId, head, pushedAt, idleMs, prs }) {
+  return {
+    storyId,
+    headSha: head.sha,
+    headCommittedAt: head.committedAt,
+    headPushedAt: pushedAt,
+    idleHours: Math.round((idleMs / HOUR_MS) * 10) / 10,
+    pr: summarizePr(prs[0]),
+    command: NEXT_COMMANDS.recover(storyId),
+  };
+}
+
 async function probeStory({ story, gh, config, nowMs, thresholdMs }) {
   const storyId = story.id;
   const branch = getStoryBranch(storyId);
   const head = await readOriginHead({ gh, config, branch });
   if (head === null) return null;
-  const committedMs = Date.parse(head.committedAt ?? '');
+  const committedMs = parseMs(head.committedAt);
   if (!Number.isFinite(committedMs)) throw new Error('unreadable origin head');
-  const idleMs = nowMs - committedMs;
+  if (nowMs - committedMs <= thresholdMs) return null;
+  const prs = await listBranchPrs(gh, branch);
+  if (hasOpenPr(prs)) return null;
+  const pushedAt = await readLastPushAt({ gh, config, branch });
+  const idleMs = idleSince(nowMs, committedMs, pushedAt);
   if (idleMs <= thresholdMs) return null;
-  const rows = await gh.pr.list(
-    ['--head', branch, '--state', 'all'],
-    ['number', 'state'],
-  );
-  const prs = Array.isArray(rows) ? rows : [];
-  if (prs.some((pr) => pr?.state === 'OPEN')) return null;
-  const last = prs[0];
-  return {
-    storyId,
-    headSha: head.sha,
-    headCommittedAt: head.committedAt,
-    idleHours: Math.round((idleMs / HOUR_MS) * 10) / 10,
-    pr: last
-      ? { number: Number(last.number) || null, state: last.state }
-      : null,
-    command: NEXT_COMMANDS.recover(storyId),
-  };
+  return stalledRow({ storyId, head, pushedAt, idleMs, prs });
 }
 
 /**

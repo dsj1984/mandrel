@@ -62,6 +62,7 @@ const PULL_FIELDS = Object.freeze({
   number: (p) => p.number,
   url: (p) => p.html_url,
   title: (p) => p.title,
+  body: (p) => p.body ?? '',
   state: (p) => (p.merged === true || p.merged_at ? 'MERGED' : upper(p.state)),
   mergedAt: (p) => p.merged_at ?? null,
   createdAt: (p) => p.created_at ?? null,

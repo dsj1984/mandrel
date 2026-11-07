@@ -129,6 +129,18 @@ describe('Bash mutation classes are denied', { concurrency: true }, () => {
     'cat f | npm install left-pad': 'npm install',
     'FOO=1 pnpm add x': 'pnpm add',
     'echo hi\nyarn remove x': 'yarn remove',
+    '(cd x && git commit)': 'git commit',
+    'true & git push': 'git push',
+    'env FOO=1 git push': 'git push',
+    'command git push': 'git push',
+    'sudo -u me git push': 'git push',
+    'nohup git push': 'git push',
+    'xargs -n1 git push': 'git push',
+    'echo $(git push)': 'git push',
+    'echo `git push`': 'git push',
+    '{ git push; }': 'git push',
+    'sed --in-place=.bak s/a/b/ f': 'sed -i',
+    'gh api repos/{owner}/{repo}/issues -X POST': 'gh api write method',
   };
   for (const [command, rule] of Object.entries(denied)) {
     it(`denies ${JSON.stringify(command)}`, () => {
@@ -148,6 +160,11 @@ describe('Bash mutation classes are denied', { concurrency: true }, () => {
     'node --test tests/scripts/role-scope-guard.test.js',
     'npm test',
     'sed -n 1,20p f.js',
+    '(cd x && git status)',
+    'git log 2>&1 | head',
+    'echo a & echo b',
+    'gh api repos/{owner}/{repo}/issues',
+    `echo $\{HOME}`,
   ];
   for (const command of allowed) {
     it(`allows ${JSON.stringify(command)}`, () => {

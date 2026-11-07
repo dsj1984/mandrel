@@ -389,8 +389,32 @@ describe('runStoryScopeReview (direct)', () => {
     });
     assert.equal(out.skipped, true);
     assert.equal(out.halted, false);
+    assert.deepEqual(
+      out.degradations.map((d) => [d.kind, d.reason]),
+      [['verdict-missing', 'pr-number-unparseable']],
+    );
     assert.equal(ran, false);
     assert.equal(recorder.postedComments.length, 0);
+  });
+
+  it('a null prNumber halts as no-verdict under onNoVerdict: block', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const out = await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
+      prUrl: 'https://example.com/not-a-pr',
+      prNumber: null,
+      provider: fakeProviderRecorder().provider,
+      runCodeReviewFn: async () => ({ halted: false }),
+      progress: () => {},
+      config: { delivery: { codeReview: { onNoVerdict: 'block' } } },
+    });
+    assert.equal(out.halted, true);
+    assert.equal(out.haltCause, 'no-verdict');
+    assert.match(out.blockerReason, /pr-number-unparseable/);
   });
 
   it('does not post cross-ref when the PR-side comment failed to post', async () => {
@@ -870,6 +894,66 @@ describe('runSingleStoryClose review-halt orchestration', () => {
         'a degraded review is reported, not blocking: the PR still arms',
       );
       assert.equal(outcome.terminal.gates.codeReview, expected);
+    });
+  }
+
+  /** `landed`: the branch is gone, so the run short-circuits before any push. */
+  function landedGitUtilsMock() {
+    const mock = gitUtilsMock();
+    const { gitSpawn } = mock.namedExports;
+    mock.namedExports.gitSpawn = (cwd, ...args) =>
+      args[0] === 'ls-remote'
+        ? { status: 2, stdout: '', stderr: '' }
+        : gitSpawn(cwd, ...args);
+    return mock;
+  }
+  for (const [label, gitMock] of [
+    ['merged before the PR phase', gitUtilsMock],
+    ['landed with its branch reaped', landedGitUtilsMock],
+  ]) {
+    it(`gates.codeReview is "skipped" when the PR had already ${label}`, async (t) => {
+      if (typeof t.mock?.module !== 'function') {
+        t.skip(
+          'module mocking unavailable without --experimental-test-module-mocks',
+        );
+        return;
+      }
+      const gh = makeFakeGh((args) => {
+        if (args[1] === 'list') {
+          return [
+            {
+              url: 'https://github.com/owner/repo/pull/557',
+              state: 'MERGED',
+              mergedAt: '2026-07-30T10:00:00Z',
+            },
+          ];
+        }
+        if (args[1] === 'merge') return '';
+        throw new Error(`unexpected gh: ${args.join(' ')}`);
+      });
+      t.mock.module(GIT_UTILS_URL, gitMock());
+      mockCloseValidation(t, closeValidationMock());
+      t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
+      const { runSingleStoryClose } = await import(
+        `${SUT_URL}?t=gate-${label.replaceAll(' ', '-')}`
+      );
+      let reviewed = false;
+      const outcome = await runSingleStoryClose({
+        storyId: 2839,
+        noWaitForMerge: true,
+        cwd: '/repo',
+        skipValidation: true,
+        skipSync: true,
+        injectedProvider: fakeProviderRecorder().provider,
+        injectedConfig: fakeConfig(),
+        injectedGh: gh,
+        injectedRunCodeReview: async () => {
+          reviewed = true;
+          return { halted: false };
+        },
+      });
+      assert.equal(reviewed, false);
+      assert.equal(outcome.terminal.gates.codeReview, 'skipped');
     });
   }
 

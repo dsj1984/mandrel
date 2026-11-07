@@ -646,7 +646,7 @@ can derive scope-path keys, so the re-seed is the migration.
 ordered: `current` when it equals the running stamp, `ahead` only when both are
 `method-identity-v<N>` and the baseline's N is higher, and `behind` otherwise
 (a lower N, an unstamped envelope, or another stamp family). `behind` fails
-closed as above. `ahead` means the code reading the baseline predates it, as
+closed as above, and seat-missing refuses it (exit 1). `ahead` means the code reading the baseline predates it, as
 when a Story that moves the stamp runs its handoff seat and close on the main
 checkout's older scripts: seat-missing and a diff-scoped `crap:update` leave
 the file untouched (`seated: 0`, exit 0), and `check-baselines`, `crap:check`

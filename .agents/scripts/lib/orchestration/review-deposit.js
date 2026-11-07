@@ -245,6 +245,13 @@ export function probeHeldReviewDiff({
   const deposit = diffDigest
     ? readDepositFn(Number(storyId), { config })
     : null;
-  const matches = deposit?.diffDigest === diffDigest;
-  return { baseRef, diffDigest, deposit: matches ? deposit : null };
+  const held = adoptable(deposit, diffDigest) ? deposit : null;
+  return { baseRef, diffDigest, deposit: held };
+}
+
+/** A missing verdict reflects the provider's state, not the diff. */
+function adoptable(deposit, diffDigest) {
+  return (
+    deposit?.diffDigest === diffDigest && deposit.haltCause !== 'no-verdict'
+  );
 }

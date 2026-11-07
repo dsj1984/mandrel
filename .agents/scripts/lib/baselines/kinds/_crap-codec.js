@@ -49,6 +49,10 @@ export function decodeCrapFiles(files) {
   return rows;
 }
 
+const OURS = '<<<<<<< ours';
+const SPLIT = '=======';
+const THEIRS = '>>>>>>> theirs';
+
 /** A method's line in the grouped layout: `"<method key>": <crap>`. */
 function crapLine(row) {
   return `      ${JSON.stringify(row.method)}: ${JSON.stringify(row.crap)}`;
@@ -81,12 +85,74 @@ function markCrapConflict(lines, conflict) {
   lines.splice(
     i,
     1,
-    '<<<<<<< ours',
+    OURS,
     ...side(conflict.ours),
-    '=======',
+    SPLIT,
     ...side(conflict.theirs),
-    '>>>>>>> theirs',
+    THEIRS,
   );
+}
+
+/** A block's lines as units: a shared line, or one hunk's two sides. */
+function blockUnits(lines, start) {
+  const units = [];
+  let i = start;
+  while (i < lines.length && !lines[i].startsWith('    }')) {
+    const unit = lines[i] === OURS ? hunkUnit(lines, i) : sharedUnit(lines, i);
+    units.push(unit);
+    i = unit.next;
+  }
+  return { units, end: i };
+}
+
+/** A line both sides share. */
+function sharedUnit(lines, i) {
+  return { at: i, next: i + 1, ours: [lines[i]], theirs: [lines[i]] };
+}
+
+/** One conflict hunk opening at `i`, split into its two sides. */
+function hunkUnit(lines, i) {
+  const split = lines.indexOf(SPLIT, i);
+  const close = lines.indexOf(THEIRS, split);
+  return {
+    at: i,
+    next: close + 1,
+    ours: lines.slice(i + 1, split),
+    theirs: lines.slice(split + 1, close),
+  };
+}
+
+/** Every line but the side's last carries the separating comma. */
+function terminate(side) {
+  return side.map(
+    (line, n) => `${line.replace(/,$/, '')}${n < side.length - 1 ? ',' : ''}`,
+  );
+}
+
+/**
+ * When a side deletes a block's trailing methods, the line before them keeps
+ * its comma; fold that tail into one hunk so either side parses as JSON.
+ */
+function settleBlockTail(lines, filePath) {
+  const header = lines.indexOf(`    ${JSON.stringify(filePath)}: {`);
+  if (header < 0) return;
+  const { units, end } = blockUnits(lines, header + 1);
+  const from = tailStart(units);
+  if (from >= units.length - 1) return;
+  const span = units.slice(from);
+  lines.splice(span[0].at, end - span[0].at, ...hunkOf(span));
+}
+
+/** The first unit after which some side carries no more lines. */
+function tailStart(units) {
+  const lastWith = (side) => units.findLastIndex((u) => u[side].length > 0);
+  return Math.max(Math.min(lastWith('ours'), lastWith('theirs')), 0);
+}
+
+/** One conflict hunk joining the units' sides, each comma-terminated. */
+function hunkOf(span) {
+  const side = (key) => terminate(span.flatMap((u) => u[key]));
+  return [OURS, ...side('ours'), SPLIT, ...side('theirs'), THEIRS];
 }
 
 /**
@@ -99,5 +165,7 @@ function markCrapConflict(lines, conflict) {
 export function renderCrapConflicts(text, conflicts) {
   const lines = text.split('\n');
   for (const conflict of conflicts) markCrapConflict(lines, conflict);
+  const paths = conflicts.map((c) => (c.ours ?? c.theirs)?.path);
+  for (const filePath of new Set(paths)) settleBlockTail(lines, filePath);
   return lines.join('\n');
 }

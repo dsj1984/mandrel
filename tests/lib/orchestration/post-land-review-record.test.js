@@ -44,7 +44,7 @@ function fakeProvider() {
   };
 }
 
-function deposit({ headSha = HEAD, halted = false } = {}) {
+function deposit({ headSha = HEAD, halted = false, haltCause } = {}) {
   return buildReviewDeposit({
     storyId: STORY,
     headSha,
@@ -52,8 +52,14 @@ function deposit({ headSha = HEAD, halted = false } = {}) {
     diffDigest: 'd'.repeat(64),
     result: {
       providerName: 'fake',
-      severity: { critical: halted ? 1 : 0, high: 2, medium: 0, suggestion: 1 },
+      severity: {
+        critical: halted && haltCause !== 'no-verdict' ? 1 : 0,
+        high: 2,
+        medium: 0,
+        suggestion: 1,
+      },
       halted,
+      haltCause,
       findings: [],
       report: `## 🔬 Code Review — Story #${STORY}\n\nDEPOSIT-REPORT-BODY`,
     },
@@ -70,7 +76,10 @@ function seams({ provider, held = null, probed = null, friction = [] }) {
     provider,
     readPrHeadFn: async () => ({ headSha: HEAD, url: PR_URL }),
     readDepositFn: () => held,
-    probeHeldReviewDiffFn: () => ({ deposit: probed }),
+    probeHeldReviewDiffFn: () => ({
+      deposit: probed,
+      diffDigest: probed?.diffDigest ?? null,
+    }),
     emitRuntimeFrictionFn: async (signal) => {
       friction.push(signal);
       return true;
@@ -119,11 +128,30 @@ describe('recordLandReview — the land review record (Story #5975)', () => {
       ...seams({ provider, held }),
       probeHeldReviewDiffFn: (args) => {
         probedSha = args.sha;
-        return { deposit: args.readDepositFn() };
+        const held = args.readDepositFn();
+        return { deposit: held, diffDigest: held.diffDigest };
       },
     });
     assert.equal(out.detail, 'posted-from-deposit');
     assert.equal(probedSha, HEAD);
+    assert.equal(reviewComments(provider).length, 1);
+  });
+
+  it('AC-1: posts a no-verdict deposit whose diff digest matches after the head moved', async () => {
+    const provider = fakeProvider();
+    const held = deposit({
+      headSha: 'b'.repeat(40),
+      halted: true,
+      haltCause: 'no-verdict',
+    });
+    const out = await recordLandReview({
+      ...seams({ provider, held }),
+      probeHeldReviewDiffFn: () => ({
+        deposit: null,
+        diffDigest: held.diffDigest,
+      }),
+    });
+    assert.equal(out.detail, 'posted-from-deposit');
     assert.equal(reviewComments(provider).length, 1);
   });
 
@@ -187,6 +215,23 @@ describe('recordLandReview — the land review record (Story #5975)', () => {
         RUNTIME_FRICTION_CATEGORIES.REVIEW_RECORDED_AT_LAND,
         RUNTIME_FRICTION_CATEGORIES.REVIEW_CRITICAL_MERGED,
       ],
+    );
+  });
+
+  it('a posted no-verdict halt with no CRITICAL does not emit review-critical-merged', async () => {
+    const provider = fakeProvider();
+    const friction = [];
+    const out = await recordLandReview(
+      seams({
+        provider,
+        held: deposit({ halted: true, haltCause: 'no-verdict' }),
+        friction,
+      }),
+    );
+    assert.equal(out.detail, 'posted-from-deposit');
+    assert.deepEqual(
+      friction.map((f) => f.category),
+      [RUNTIME_FRICTION_CATEGORIES.REVIEW_RECORDED_AT_LAND],
     );
   });
 

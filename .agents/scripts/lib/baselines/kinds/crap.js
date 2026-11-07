@@ -29,7 +29,6 @@ import {
 import { classifyScoringSemantics, SCORING_SEMANTICS } from './_crap-read.js';
 import {
   makeAggregate,
-  makeCompare,
   makeEpsilon,
   makeRollup,
   percentile,
@@ -102,17 +101,77 @@ const aggregate = makeAggregate({
 export const rollup = makeRollup({ aggregate });
 
 /**
- * Pure compare(head, base) keyed by `path::method`; higher CRAP is
- * worse. New methods are `additions`, not regressions — the new-method
- * ceiling is `check-baselines`' job.
+ * Pure compare(head, base); higher CRAP is worse. Rows pair through
+ * {@link compareCrap}'s stem-bucket alignment, so an inserted namesake does
+ * not mis-pair its siblings by ordinal. New methods are `additions`.
  */
-export const compare = makeCompare({
-  identity: rowIdentity,
-  betterIsHigher: false,
-  metricField: 'crap',
-  // Removed methods whose crap > 0 are improvements (the debt is gone).
-  removedIsImprovement: (b) => (b.crap ?? 0) > 0,
-});
+export function compare(head, base) {
+  const headRows = rowsOf(head);
+  const baseRows = rowsOf(base);
+  const pairs = pairByStem(headRows, baseRows);
+  const out = {
+    regressions: [],
+    improvements: [],
+    unchanged: [],
+    additions: [],
+  };
+  for (const row of headRows) binHeadRow(out, row, pairs.get(row));
+  const claimed = new Set(pairs.values());
+  for (const b of baseRows) {
+    if (!claimed.has(b)) binRemovedRow(out, b);
+  }
+  return out;
+}
+
+function rowsOf(snapshot) {
+  return Array.isArray(snapshot?.rows) ? snapshot.rows : [];
+}
+
+/** Head rows grouped with base rows by `[path, method stem]`. */
+function stemBuckets(headRows, baseRows) {
+  const buckets = new Map();
+  const bucketOf = (r) => {
+    const key = JSON.stringify([r.path, methodStem(r.method)]);
+    if (!buckets.has(key)) buckets.set(key, { cur: [], base: [] });
+    return buckets.get(key);
+  };
+  for (const b of baseRows) bucketOf(b).base.push(b);
+  for (const row of headRows) bucketOf(row).cur.push({ row });
+  return buckets.values();
+}
+
+function pairByStem(headRows, baseRows) {
+  const pairs = new Map();
+  for (const { cur, base } of stemBuckets(headRows, baseRows)) {
+    const curSorted = cur.sort((a, b) => byKeyOrder(a.row, b.row));
+    for (const [e, b] of pairBucket(curSorted, base, 0)) pairs.set(e.row, b);
+  }
+  return pairs;
+}
+
+function binHeadRow(out, row, b) {
+  const key = rowIdentity(row);
+  if (!b) {
+    out.additions.push({ key, head: row, base: null });
+    return;
+  }
+  out[deltaBin((row.crap ?? 0) - (b.crap ?? 0))].push({
+    key,
+    head: row,
+    base: b,
+  });
+}
+
+function deltaBin(delta) {
+  if (delta > 0) return 'regressions';
+  return delta < 0 ? 'improvements' : 'unchanged';
+}
+
+/** A removed base row is an improvement only when it carried CRAP. */
+function binRemovedRow(out, b) {
+  const bin = (b.crap ?? 0) > 0 ? 'improvements' : 'unchanged';
+  out[bin].push({ key: rowIdentity(b), head: null, base: b });
+}
 
 /**
  * Canonical row identity. Distinct from `keyField` (`'path'`, the rollup
@@ -314,8 +373,36 @@ function byKeyOrder(a, b) {
  */
 function alignBucket(state, cur, base) {
   const curSorted = [...cur].sort((a, b) => a.row.startLine - b.row.startLine);
+  const pairs = pairBucket(curSorted, base, state.tolerance);
+  for (const e of curSorted) scoreAligned(state, e, pairs.get(e));
+}
+
+/** Score one current entry against the baseline row it paired with, if any. */
+function scoreAligned(state, e, b) {
+  if (!b) {
+    scoreNewMethod(state, e.idx, e.row);
+    return;
+  }
+  state.claimed.add(b);
+  if (b.method === e.row.method) {
+    scorePair(state, e.idx, e.row, b, 'regression');
+    return;
+  }
+  state.drifted += 1;
+  scorePair(state, e.idx, e.row, b, 'drifted-regression');
+}
+
+/**
+ * The pairing core of {@link alignBucket}: maps each entry of `curSorted`
+ * (source order) to its baseline row; an unpaired entry has no mapping.
+ *
+ * @param {Array<{row: {method: string, crap: number}}>} curSorted
+ * @param {Array<{method: string, crap: number}>} base
+ * @param {number} tol
+ * @returns {Map<object, object>}
+ */
+function pairBucket(curSorted, base, tol) {
   const free = [...base].sort(byKeyOrder);
-  const tol = state.tolerance;
   const near = (row) => (b) => Math.abs(row.crap - b.crap) <= tol;
   const sameKey = (row) => (b) => b.method === row.method;
   const passes = [
@@ -333,20 +420,7 @@ function alignBucket(state, cur, base) {
     }
   }
   reclaimOwnRows(pairs, free, tol, curSorted);
-  for (const e of curSorted) {
-    const b = pairs.get(e);
-    if (!b) {
-      scoreNewMethod(state, e.idx, e.row);
-      continue;
-    }
-    state.claimed.add(b);
-    if (b.method === e.row.method) {
-      scorePair(state, e.idx, e.row, b, 'regression');
-      continue;
-    }
-    state.drifted += 1;
-    scorePair(state, e.idx, e.row, b, 'drifted-regression');
-  }
+  return pairs;
 }
 
 /**
@@ -588,7 +662,7 @@ export function buildCrapReport({
 
 /**
  * Replace per-method verdicts with one diagnostic, keeping the counts as
- * evidence. Used when the baseline is incompatible or the basis unsound.
+ * evidence. Used when the baseline is incompatible or stamped ahead.
  *
  * @param {object} envelope
  * @param {{name: string, message: string}} diagnostic

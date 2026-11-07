@@ -7,6 +7,10 @@
  * positively empty diff; an unenumerable diff fails open.
  */
 
+import {
+  readDeferralMarker,
+  rewriteDeferralLines,
+} from '../../../coverage-deferral.js';
 import { gh as defaultGh } from '../../../gh-exec.js';
 import { Logger } from '../../../Logger.js';
 import { computeChangeSet as defaultComputeChangeSet } from '../../change-set.js';
@@ -67,6 +71,26 @@ function emptyDiffError({ storyBranch, baseRef, storyId }) {
 }
 
 /**
+ * A reused PR must carry this run's deferral marker, or confirm-merge skips
+ * the CI ratchet. A null reason may mean "not measured", so no strip.
+ */
+async function syncDeferralMarker({ gh, url, body, coverageDeferred }) {
+  if (!coverageDeferred || readDeferralMarker(body) === coverageDeferred) {
+    return;
+  }
+  try {
+    await gh.pr.edit(url, [
+      '--body',
+      rewriteDeferralLines(body, coverageDeferred),
+    ]);
+  } catch (err) {
+    throw new Error(
+      `[single-story-close] could not write \`Coverage-deferred: ${coverageDeferred}\` onto ${url}: ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
  * @param {{
  *   cwd: string,
  *   storyId: number,
@@ -96,29 +120,38 @@ export async function ensurePullRequestWith({
   coverageDeferred = null,
 }) {
   // `gh-exec` spawns `gh` in the process cwd, not `_cwd`.
+  let rows = [];
+  let existing = null;
   try {
     // `--state all`, not `open`: a merged PR must be seen.
-    const rows = await gh.pr.list(
+    rows = await gh.pr.list(
       ['--head', storyBranch, '--state', 'all'],
-      ['url', 'state', 'mergedAt'],
+      ['url', 'state', 'mergedAt', 'body'],
     );
-    const existing = pickHeadPullRequest(rows);
-    if (existing?.state === 'OPEN') {
-      progress('PR', `Reusing existing PR: ${existing.url}`);
-      return { url: existing.url, alreadyMerged: false, created: false };
-    }
-    if (existing?.state === 'MERGED') {
-      progress(
-        'PR',
-        `✅ PR for ${storyBranch} is already MERGED: ${existing.url} — ` +
-          'reporting that outcome instead of opening a second PR.',
-      );
-      return { url: existing.url, alreadyMerged: true, created: false };
-    }
+    existing = pickHeadPullRequest(rows);
   } catch (err) {
     Logger.warn?.(
       `[single-story-close] ⚠️ \`gh pr list\` probe failed (continuing to create): ${err?.message ?? err}`,
     );
+  }
+  if (existing?.state === 'OPEN') {
+    progress('PR', `Reusing existing PR: ${existing.url}`);
+    const row = rows.find((r) => String(r?.url ?? '').trim() === existing.url);
+    await syncDeferralMarker({
+      gh,
+      url: existing.url,
+      body: row?.body,
+      coverageDeferred,
+    });
+    return { url: existing.url, alreadyMerged: false, created: false };
+  }
+  if (existing?.state === 'MERGED') {
+    progress(
+      'PR',
+      `✅ PR for ${storyBranch} is already MERGED: ${existing.url} — ` +
+        'reporting that outcome instead of opening a second PR.',
+    );
+    return { url: existing.url, alreadyMerged: true, created: false };
   }
 
   const emptyDiff = probeEmptyDiff({

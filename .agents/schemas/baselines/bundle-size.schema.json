@@ -4,6 +4,7 @@
   "title": "BundleSizeBaseline",
   "description": "Per-kind baseline schema for the bundle-size gate. Extends the shared baseline-envelope contract.",
   "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "required": ["rows"],
   "type": "object",
   "properties": {
     "rows": {

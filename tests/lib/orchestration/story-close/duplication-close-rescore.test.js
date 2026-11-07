@@ -82,6 +82,13 @@ describe('runDuplicationCloseRescore — real git (AC-1)', () => {
     });
     assert.equal(out.committed, true, JSON.stringify(out));
     assert.deepEqual(out.movedPaths, ['src/a.js']);
+    assert.equal(out.ran, true);
+    assert.equal(out.sha, git('rev-parse', '--short', 'HEAD'));
+    assert.deepEqual(
+      out.moved.map((m) => m.path),
+      out.movedPaths,
+    );
+    assert.equal(typeof out.partners, 'object');
 
     const subject = git('log', '-1', '--format=%s');
     assert.doesNotMatch(subject, /baseline-refresh:/);

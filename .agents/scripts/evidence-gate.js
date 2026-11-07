@@ -331,14 +331,18 @@ function hostResourcesLine(gate, status) {
   return `⛔ ${gate} lost workers to host memory (exit ${status}) — no test failed and no evidence was recorded.`;
 }
 
-/** Exits that are not a failed gate, each logged as what happened. */
+/** Suite-gate exits that are not a failed gate, each logged as what happened. */
 const NON_FAILURE_EXITS = {
   [LOCK_WAIT_EXPIRED_EXIT_CODE]: ['info', deferredLine],
   [COVERAGE_HOST_RESOURCES_EXIT_CODE]: ['error', hostResourcesLine],
 };
 
+function nonFailureExit(gate, status) {
+  return gate === FULL_SUITE_GATE ? NON_FAILURE_EXITS[status] : undefined;
+}
+
 function reportGateExit({ gate, status, spawnCwd, logger }) {
-  const exit = NON_FAILURE_EXITS[status];
+  const exit = nonFailureExit(gate, status);
   if (exit) {
     logger[exit[0]](`[evidence-gate] ${exit[1](gate, status)}`);
     return;

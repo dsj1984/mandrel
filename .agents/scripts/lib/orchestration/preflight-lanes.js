@@ -131,27 +131,54 @@ async function settleAll(lanes) {
  * @returns {Promise<{ finding: object|null }|{ miss: string }>}
  */
 async function admitAndRun(ctx, check, runCheck) {
+  const crash = {};
+  let out;
   try {
-    const out = await ctx.admitSuite(
-      {
-        argv: [check.deposit.cmd, ...check.deposit.args],
-        cwd: ctx.cwd,
-        env: ctx.env,
-        config: ctx.config,
-        log: () => {},
-        lockOptions: { waitMs: 0 },
-      },
-      async ({ env }) => ({
-        finding: await runCheck(check, { ...ctx.env, ...env }),
-      }),
+    out = await ctx.admitSuite(
+      admissionOptions(ctx, check),
+      guardedRun(ctx, check, runCheck, crash),
     );
-    if (typeof out !== 'number') return out;
-    return {
-      miss: `${MISS_REASONS[out] ?? 'not admitted without a wait'} (exit ${out})`,
-    };
   } catch (err) {
-    return { miss: `admission failed: ${err?.message ?? err}` };
+    // Only an admission-side throw hands the check back; its own throw escapes.
+    return admissionMiss(crash, err);
   }
+  return typeof out === 'number' ? exitMiss(out) : out;
+}
+
+/** Close's argv for `check`, admitted with no wait. */
+function admissionOptions(ctx, check) {
+  return {
+    argv: [check.deposit.cmd, ...check.deposit.args],
+    cwd: ctx.cwd,
+    env: ctx.env,
+    config: ctx.config,
+    log: () => {},
+    lockOptions: { waitMs: 0 },
+  };
+}
+
+/** Run `check` inside the reservation, flagging its own throw on `crash`. */
+function guardedRun(ctx, check, runCheck, crash) {
+  return async ({ env }) => {
+    try {
+      return { finding: await runCheck(check, { ...ctx.env, ...env }) };
+    } catch (err) {
+      crash.err = err;
+      crash.thrown = true;
+      throw err;
+    }
+  };
+}
+
+function admissionMiss(crash, err) {
+  if (crash.thrown) throw crash.err;
+  return { miss: `admission failed: ${err?.message ?? err}` };
+}
+
+function exitMiss(out) {
+  return {
+    miss: `${MISS_REASONS[out] ?? 'not admitted without a wait'} (exit ${out})`,
+  };
 }
 
 /**

@@ -38,6 +38,11 @@ async function readPrHead({
   return { headSha, url: typeof view?.url === 'string' ? view.url : null };
 }
 
+/** Digest equality alone: land-time matching keeps no-verdict deposits. */
+function sameDiff(probed, deposit) {
+  return Boolean(probed.diffDigest) && probed.diffDigest === deposit.diffDigest;
+}
+
 /** Head-SHA equality first: a merge-commit merge empties the three-dot diff. */
 function matchDeposit(ctx, headSha) {
   const deposit = ctx.readDepositFn(Number(ctx.storyId), {
@@ -54,7 +59,7 @@ function matchDeposit(ctx, headSha) {
     config: ctx.config,
     readDepositFn: () => deposit,
   });
-  return probed.deposit
+  return sameDiff(probed, deposit)
     ? { deposit, reason: null }
     : { deposit: null, reason: 'stale-deposit' };
 }
@@ -71,6 +76,11 @@ function buildUnreviewedMarker({ storyId, reason, headSha }) {
     '',
     `Run \`node .agents/scripts/story-review-compute.js --story ${storyId}\` and read the diff before trusting this merge.`,
   ].join('\n');
+}
+
+/** A halt is a merged CRITICAL unless the reviewer never reached a verdict. */
+function mergedOverCritical(deposit) {
+  return Boolean(deposit.halted) && deposit.haltCause !== 'no-verdict';
 }
 
 async function postDeposit(ctx, deposit, pr) {
@@ -97,7 +107,7 @@ async function postDeposit(ctx, deposit, pr) {
     headSha: pr.headSha,
     severity: deposit.severity,
   });
-  if (deposit.halted) {
+  if (mergedOverCritical(deposit)) {
     await emit(ctx, RUNTIME_FRICTION_CATEGORIES.REVIEW_CRITICAL_MERGED, {
       outcome: 'posted-from-deposit',
       headSha: pr.headSha,

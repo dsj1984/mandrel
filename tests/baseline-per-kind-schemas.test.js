@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { loadFile } from '../.agents/scripts/lib/baselines/reader.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import { createAjv } from '../.agents/scripts/lib/util/ajv.js';
 
 // ---------------------------------------------------------------------------
@@ -129,6 +131,30 @@ describe('per-kind baseline schemas (Story #1888)', () => {
           `${filename} rejected its canonical fixture: ${JSON.stringify(validate.errors)}`,
         );
       });
+
+      const { rows: _rows, ...bare } = CANONICAL_FIXTURES[filename];
+      const grouped = { ...bare, files: { 'src/a.js': { foo: 4.2 } } };
+      if (filename === 'crap.schema.json') {
+        it('accepts the grouped files layout', () => {
+          assert.equal(buildAjv().compile(schema)(grouped), true);
+        });
+      } else {
+        it('rejects a files layout with no rows', () => {
+          const validate = buildAjv().compile(schema);
+          assert.equal(validate(grouped), false);
+          assert.ok(
+            validate.errors.some((e) => e.params.missingProperty === 'rows'),
+            JSON.stringify(validate.errors),
+          );
+        });
+
+        it('loadFile refuses a files layout with no rows', () => {
+          const file = path.join(makeTempDir('schema-files-'), filename);
+          writeFileSync(file, JSON.stringify(grouped));
+          const kind = filename.replace('.schema.json', '');
+          assert.throws(() => loadFile(file, { kind }), /schema/i);
+        });
+      }
 
       for (const [key, value] of Object.entries(RETIRED_KEYS)) {
         it(`rejects an envelope carrying the retired "${key}" key`, () => {

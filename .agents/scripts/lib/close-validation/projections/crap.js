@@ -10,10 +10,18 @@
 
 import path from 'node:path';
 import {
+  aheadStampOf,
+  classifyScoringSemantics,
+  SCORING_SEMANTICS,
+} from '../../baselines/kinds/_crap-read.js';
+import {
   compareCrap,
   filterRowsByFileScope,
 } from '../../baselines/kinds/crap.js';
-import { loadFile as loadBaselineFile } from '../../baselines/reader.js';
+import {
+  loadFile as loadBaselineFile,
+  peekFile,
+} from '../../baselines/reader.js';
 import { diffNameOnly } from '../../changed-files.js';
 import { COVERAGE_CAPTURE_DEFAULTS } from '../../config/gates/coverage.schema.js';
 import { loadCoverage } from '../../coverage-utils.js';
@@ -139,6 +147,32 @@ function diffScorableFiles({ cwd, baseBranch, storyBranch, git }) {
 }
 
 /**
+ * Rows scored under other semantics are not comparable. A missing or
+ * unreadable file is no mismatch; it falls through to `no-baseline`.
+ */
+function semanticsMismatch(raw) {
+  if (raw === null || typeof raw !== 'object') return null;
+  const ahead = aheadStampOf(raw);
+  if (ahead) return { reason: 'semantics-ahead', detail: ahead.message };
+  if (classifyScoringSemantics(raw.scoringSemantics) !== 'behind') return null;
+  return { reason: 'semantics-behind', detail: behindDetail(raw) };
+}
+
+/** Invalid inputs, then a semantics mismatch, as a skip; else null. */
+function inputsSkip(inputs, peekBaseline) {
+  const validation = validateProjectionInputs(inputs);
+  if (!validation.ok) {
+    return { reason: normaliseSkipReason(validation.reason) };
+  }
+  return semanticsMismatch(peekBaseline(inputs.baselinePath));
+}
+
+/** The stamp pair a behind baseline reports. */
+function behindDetail(raw) {
+  return `baseline=${raw.scoringSemantics ?? '(unstamped)'} running=${SCORING_SEMANTICS}`;
+}
+
+/**
  * Breaches are vs the baseline row, or `newMethodCeiling` for new methods.
  * Baseline rows are narrowed to changed files so untouched rows do not read
  * as removed.
@@ -152,6 +186,7 @@ function diffScorableFiles({ cwd, baseBranch, storyBranch, git }) {
  *   tolerance?: number,
  *   git?: { gitSpawn: typeof defaultGitSpawn },
  *   loadBaseline?: (path: string) => Array<object>,
+ *   peekBaseline?: (path: string) => unknown,
  *   scoreFiles?: (files: string[]) => Promise<Array<object>|null>|Array<object>|null,
  * }} opts
  * @returns {Promise<{
@@ -170,6 +205,7 @@ export async function projectCrapBreaches({
   tolerance = DEFAULT_CRAP_TOLERANCE,
   git = { gitSpawn: defaultGitSpawn },
   loadBaseline = loadCrapBaselineRows,
+  peekBaseline = peekFile,
   scoreFiles,
 } = {}) {
   const skip = (reason, detail) => ({
@@ -179,13 +215,11 @@ export async function projectCrapBreaches({
     ...(detail === undefined ? {} : { detail }),
   });
 
-  const validation = validateProjectionInputs({
-    cwd,
-    baseBranch,
-    storyBranch,
-    baselinePath,
-  });
-  if (!validation.ok) return skip(normaliseSkipReason(validation.reason));
+  const early = inputsSkip(
+    { cwd, baseBranch, storyBranch, baselinePath },
+    peekBaseline,
+  );
+  if (early) return skip(early.reason, early.detail);
 
   const baselineRows = loadBaseline(baselinePath);
   if (!Array.isArray(baselineRows) || baselineRows.length === 0) {

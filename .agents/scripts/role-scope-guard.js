@@ -42,6 +42,18 @@ const INSTALL_VERBS = new Set([
   'ci',
 ]);
 
+/** Commands that run their argv as a command, each with its valued flags. */
+const WRAPPERS = new Map([
+  ['env', new Set(['-u'])],
+  ['command', new Set()],
+  ['nohup', new Set()],
+  ['time', new Set()],
+  ['exec', new Set()],
+  ['builtin', new Set()],
+  ['sudo', new Set(['-u', '-g', '-C'])],
+  ['xargs', new Set(['-n', '-I', '-L', '-P', '-d', '-s', '-E'])],
+]);
+
 class Denied extends Error {}
 
 /** @param {string} rule */
@@ -77,17 +89,46 @@ function checkWriteTarget(target, { projectDir, cwd, tempRoot }) {
   deny(`write target ${target} is outside ${tempRoot}/`);
 }
 
-/** Whitespace tokens of one segment, quotes stripped, env prefixes dropped. */
-function tokens(segment) {
-  const words = segment
+/** @param {string[]} words drops leading `NAME=value` env prefixes */
+function dropEnvPrefixes(words) {
+  while (words.length && /^[A-Za-z_]\w*=/.test(words[0])) words.shift();
+}
+
+/**
+ * @param {string[]} words argv whose head is a wrapper command
+ * @param {Set<string>} valued the wrapper's flags that take a value
+ */
+function dropWrapper(words, valued) {
+  words.shift();
+  while (words[0]?.startsWith('-')) {
+    words.splice(0, valued.has(words[0]) ? 2 : 1);
+  }
+}
+
+/** @param {string} segment */
+function rawWords(segment) {
+  return segment
     .trim()
-    .replace(/^[({`$]+/, '')
+    .replace(/^[{$]+/, '')
     .split(/\s+/)
     .map((w) => w.replace(/^['"]|['"]$/g, ''))
     .filter(Boolean);
-  while (words.length && /^[A-Za-z_]\w*=/.test(words[0])) words.shift();
-  if (words.length) words[0] = path.posix.basename(words[0]);
-  return words;
+}
+
+/**
+ * Whitespace tokens of one segment, quotes stripped, env prefixes and
+ * wrapper commands (`env`, `sudo`, `xargs`, …) dropped.
+ */
+function tokens(segment) {
+  const words = rawWords(segment);
+  for (;;) {
+    dropEnvPrefixes(words);
+    if (!words.length) return words;
+    words[0] = path.posix.basename(words[0]);
+    const valued = WRAPPERS.get(words[0]);
+    if (!valued) return words;
+    dropWrapper(words, valued);
+  }
 }
 
 /** @param {string[]} args git argv after `git` */
@@ -128,16 +169,21 @@ function ghRule(args) {
   return group === 'api' ? ghApiRule(args.slice(1)) : null;
 }
 
+/** @param {string} arg true when a sed/perl argv entry edits in place */
+function isInPlaceFlag(arg) {
+  return (
+    /^--in-place(=|$)/.test(arg) ||
+    (/^-[A-Za-z]*i/.test(arg) && !/^-M/i.test(arg))
+  );
+}
+
 /** @param {string[]} words */
 function segmentRule(words) {
   const [cmd, ...args] = words;
   if (cmd === 'git') return gitRule(args);
   if (cmd === 'gh') return ghRule(args);
   if (cmd === 'sed' || cmd === 'perl') {
-    const inPlace = args.some(
-      (a) => a === '--in-place' || (/^-[A-Za-z]*i/.test(a) && !/^-M/i.test(a)),
-    );
-    return inPlace ? `${cmd} -i` : null;
+    return args.some(isInPlaceFlag) ? `${cmd} -i` : null;
   }
   if (['npm', 'pnpm', 'yarn'].includes(cmd) && INSTALL_VERBS.has(args[0])) {
     return `${cmd} ${args[0]}`;
@@ -145,10 +191,22 @@ function segmentRule(words) {
   return null;
 }
 
+/**
+ * Subshells, substitutions and brace groups become segment breaks; a brace
+ * only as a whole word, so `{owner}` placeholders and `${VAR}` survive.
+ * @param {string} command
+ */
+function flattenGroups(command) {
+  return command
+    .replace(/\$\(|[`()]/g, ';')
+    .replace(/(^|\s)[{}](?=\s|;|$)/g, '$1;');
+}
+
 /** @param {unknown} command */
 function checkBash(command) {
   if (typeof command !== 'string') deny('Bash command missing');
-  for (const segment of command.split(/\|\||&&|[;|\n]/)) {
+  const flat = flattenGroups(command);
+  for (const segment of flat.split(/\|\||&&|(?<![&>])&(?![&>])|[;|\n]/)) {
     const rule = segmentRule(tokens(segment));
     if (rule) deny(`mutation class '${rule}'`);
   }

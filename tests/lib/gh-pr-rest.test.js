@@ -199,6 +199,20 @@ describe('createRestPr — list', () => {
     assert.equal(calls.length, 1);
   });
 
+  it('maps the body field, empty when REST returns null', async () => {
+    const { pr } = rest({
+      'GET repos/{owner}/{repo}/pulls?head={owner}:story-7&state=all': [
+        { ...PULL, body: 'Closes #7' },
+        { ...PULL, body: null },
+      ],
+    });
+    const rows = await pr.list(
+      ['--head', 'story-7', '--state', 'all'],
+      ['body'],
+    );
+    assert.deepEqual(rows, [{ body: 'Closes #7' }, { body: '' }]);
+  });
+
   it('reads a merged row as MERGED and filters --state merged', async () => {
     const merged = {
       ...PULL,

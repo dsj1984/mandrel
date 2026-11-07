@@ -154,6 +154,19 @@ test('#5982 AC-3: the close envelope gate reads the kinds, not the degraded flag
   );
 });
 
+test('the close envelope reports codeReview "skipped" when no review ran, overridden still wins', () => {
+  const skipped = { reviewSkipped: true };
+  assert.equal(
+    closeEnvelopeGates({}, null, null, undefined, skipped).codeReview,
+    'skipped',
+  );
+  assert.equal(
+    closeEnvelopeGates({}, null, { reason: 'x' }, undefined, skipped)
+      .codeReview,
+    'overridden',
+  );
+});
+
 test('#5982 AC-11: unreviewed and partial reviews say they are not blocked unless onNoVerdict is block', () => {
   for (const [kind, word] of [
     ['verdict-missing', /UNREVIEWED/],
