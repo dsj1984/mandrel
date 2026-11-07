@@ -134,7 +134,10 @@ updates the Story's `story-outcome` comment, which
 **The whole delivery tail** — gates, PR, merge wait, `agent::done` flip,
 post-land tail in one process. Never background it, never delegate it to a
 child, and never end your turn while it is still running: "close is running"
-is not a return value. Branch on the envelope's `status` per **digest § 6**
+is not a return value. On a host that limits background commands (cloud,
+`-p`, Agent SDK, CI) a one-Story close still runs in the foreground but adds
+`--merge-watch-mode async`, so its merge wait moves into the background
+confirm (reference § Async merge-confirm mode). Branch on the envelope's `status` per **digest § 6**
 (`landed` → Step 7; `pending` → run `nextCommand`; `blocked`/`checks-failed`
 → Step 4; `failed` → diagnose, re-run; a `phase: base-sync` conflict comes
 back with labels untouched — resolve it in `workCwd`, commit, run
