@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const DEFAULT_SCAN_HEAP_MB = 4096;
 const STDERR_TAIL_CHARS = 2000;
+const HEAP_FLAG = /^--max[-_]old[-_]space[-_]size=/;
 const CHILD_ENTRY = fileURLToPath(
   new URL('./duplication-scan-child.js', import.meta.url),
 );
@@ -45,7 +46,10 @@ export function scanInChild(
 ) {
   return new Promise((resolve, reject) => {
     const child = forkImpl(CHILD_ENTRY, [], {
-      execArgv: [`--max-old-space-size=${scanHeapMb}`],
+      execArgv: [
+        ...process.execArgv.filter((arg) => !HEAP_FLAG.test(arg)),
+        `--max-old-space-size=${scanHeapMb}`,
+      ],
       silent: true,
     });
     let reply;

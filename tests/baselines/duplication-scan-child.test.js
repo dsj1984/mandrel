@@ -41,7 +41,25 @@ function fakeFork(finish) {
 describe('scanInChild — child lifecycle', () => {
   const scan = { targetDirs: ['src'], cwd: '/tree' };
 
-  it('forks with only the configured heap flag and returns the rows', async () => {
+  it('replaces the parent heap flag and keeps its other flags', async () => {
+    const saved = process.execArgv;
+    process.execArgv = ['--max-old-space-size=9000', '--require=/hook.cjs'];
+    try {
+      const { calls, forkImpl } = fakeFork((child) => {
+        child.emit('message', { rows: [] });
+        child.emit('close', 0, null);
+      });
+      await scanInChild(scan, { scanHeapMb: 777, forkImpl });
+      assert.deepEqual(calls[0].options.execArgv, [
+        '--require=/hook.cjs',
+        '--max-old-space-size=777',
+      ]);
+    } finally {
+      process.execArgv = saved;
+    }
+  });
+
+  it('forks with the configured heap flag and returns the rows', async () => {
     const rows = [{ path: 'src/a.js' }];
     const { calls, forkImpl } = fakeFork((child) => {
       child.emit('message', { rows });
@@ -51,7 +69,7 @@ describe('scanInChild — child lifecycle', () => {
       await scanInChild(scan, { scanHeapMb: 777, forkImpl }),
       rows,
     );
-    assert.deepEqual(calls[0].options.execArgv, ['--max-old-space-size=777']);
+    assert.equal(calls[0].options.execArgv.at(-1), '--max-old-space-size=777');
   });
 
   it('defaults the child heap to 4096 MB', async () => {
@@ -60,7 +78,7 @@ describe('scanInChild — child lifecycle', () => {
       child.emit('close', 0, null);
     });
     await scanInChild(scan, { scanHeapMb: undefined, forkImpl });
-    assert.deepEqual(calls[0].options.execArgv, ['--max-old-space-size=4096']);
+    assert.equal(calls[0].options.execArgv.at(-1), '--max-old-space-size=4096');
   });
 
   it('names scanHeapMb when the child dies of heap exhaustion', async () => {
