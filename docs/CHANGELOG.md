@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.114.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.113.0...mandrel-v2.114.0) (2026-11-08)
+
+
+### Added
+
+* run the duplication re-score's jscpd scan in a child process with its own configurable heap ([#6028](https://github.com/dsj1984/mandrel/issues/6028)) ([#6029](https://github.com/dsj1984/mandrel/issues/6029)) ([3080b96](https://github.com/dsj1984/mandrel/commit/3080b9625a455070f7d30da15c7b01950202788a))
+
 ## [2.113.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.112.0...mandrel-v2.113.0) (2026-11-07)
 
 
