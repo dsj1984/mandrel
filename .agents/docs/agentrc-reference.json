@@ -212,6 +212,7 @@
           },
           "targetDirs": ["src"],
           "additionalFormats": [],
+          "scanHeapMb": 4096,
           "ignoreGlobs": []
         }
       },
