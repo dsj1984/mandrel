@@ -645,6 +645,18 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/baselines/duplication-scan-child.js",
+      "lines": 100,
+      "branches": 83.33,
+      "functions": 0
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scan-fork.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "lines": 96.73,
       "branches": 78.46,

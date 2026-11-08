@@ -1562,6 +1562,22 @@
     ".agents/scripts/lib/baselines/diff-scope-cli.js": {
       "parseDiffScopeFlag": 8
     },
+    ".agents/scripts/lib/baselines/duplication-scan-child.js": {
+      "<anon process.once:message(params)#0/process.send()#0>": 1,
+      "<anon process.once:message(params)#0>": 1
+    },
+    ".agents/scripts/lib/baselines/duplication-scan-fork.js": {
+      "<anon runDuplicationScan/Promise(resolve,reject)#0/child.on:message(message)#0>": 1,
+      "<anon runDuplicationScan/Promise(resolve,reject)#0/child.once:close(code,signal)#0>": 3,
+      "<anon runDuplicationScan/Promise(resolve,reject)#0/child.send()#0>": 1,
+      "<anon runDuplicationScan/Promise(resolve,reject)#0/child.stderr.on:data(chunk)#0>": 1,
+      "<anon runDuplicationScan/Promise(resolve,reject)#0/process.execArgv.filter(arg)#0>": 1,
+      "<anon runDuplicationScan/Promise(resolve,reject)#0>": 1,
+      "childDeathError": 3,
+      "isHeapDeath": 3,
+      "replyError": 2,
+      "runDuplicationScan": 2
+    },
     ".agents/scripts/lib/baselines/duplication-scanner.js": {
       "<anon anchorIgnoreGlobs/ignoreGlobs.map(glob)#0>": 3,
       "<anon resolveFormatExtensions/formats.filter(name)#0>": 1,
