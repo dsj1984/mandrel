@@ -5,6 +5,7 @@
 
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { scanDuplication } from './duplication-scanner.js';
 
 const DEFAULT_SCAN_HEAP_MB = 4096;
 const STDERR_TAIL_CHARS = 2000;
@@ -37,13 +38,15 @@ function replyError({ message, code }) {
 
 /**
  * @param {{ targetDirs: string[], cwd: string, ignoreGlobs?: string[], additionalFormats?: string[] }} scan
- * @param {{ scanHeapMb?: number, forkImpl?: typeof fork }} [opts]
+ * @param {{ detect?: (opts: object) => Promise<object[]>, scanHeapMb?: number, forkImpl?: typeof fork }} [opts]
+ *   an injected `detect` scans in-process and forks nothing
  * @returns {Promise<object[]>} the scan's rows
  */
-export function scanInChild(
+export function runDuplicationScan(
   scan,
-  { scanHeapMb = DEFAULT_SCAN_HEAP_MB, forkImpl = fork } = {},
+  { detect, scanHeapMb = DEFAULT_SCAN_HEAP_MB, forkImpl = fork } = {},
 ) {
+  if (detect) return scanDuplication({ ...scan, detect });
   return new Promise((resolve, reject) => {
     const child = forkImpl(CHILD_ENTRY, [], {
       execArgv: [

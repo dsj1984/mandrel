@@ -452,7 +452,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scan-fork.js",
-      "mi": 116.568
+      "mi": 114.782
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",

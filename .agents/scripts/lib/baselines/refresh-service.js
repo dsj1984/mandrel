@@ -35,11 +35,8 @@ import { isScorableSourceFile } from '../source-extensions.js';
 import { toPosix } from '../util/paths.js';
 import { buildBundleSizeScorer } from './bundle-size-scorer.js';
 import { decodeEnvelope } from './codec.js';
-import { scanInChild } from './duplication-scan-fork.js';
-import {
-  resolveFormatExtensions,
-  scanDuplication,
-} from './duplication-scanner.js';
+import { runDuplicationScan } from './duplication-scan-fork.js';
+import { resolveFormatExtensions } from './duplication-scanner.js';
 import { checkBaselineAhead, getKindModule } from './kernel.js';
 import { filterExcludedRows } from './kinds/maintainability.js';
 import { canonicalizeBaselinePath } from './path-canon.js';
@@ -761,14 +758,14 @@ function buildDefaultDuplicationScorer({ cwd, config, quality, detect } = {}) {
     : [];
   return async (_files, opts) => {
     const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
-    const scan = {
-      targetDirs,
-      cwd: effectiveCwd,
-      ignoreGlobs,
-      additionalFormats: dupCfg.additionalFormats,
-    };
-    return detect
-      ? scanDuplication({ ...scan, detect })
-      : scanInChild(scan, { scanHeapMb: dupCfg.scanHeapMb });
+    return runDuplicationScan(
+      {
+        targetDirs,
+        cwd: effectiveCwd,
+        ignoreGlobs,
+        additionalFormats: dupCfg.additionalFormats,
+      },
+      { detect, scanHeapMb: dupCfg.scanHeapMb },
+    );
   };
 }

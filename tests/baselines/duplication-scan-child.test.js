@@ -4,7 +4,7 @@ import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { scanInChild } from '../../.agents/scripts/lib/baselines/duplication-scan-fork.js';
+import { runDuplicationScan } from '../../.agents/scripts/lib/baselines/duplication-scan-fork.js';
 import {
   resolveDetectClones,
   scanDuplication,
@@ -38,7 +38,7 @@ function fakeFork(finish) {
   return { calls, forkImpl };
 }
 
-describe('scanInChild — child lifecycle', () => {
+describe('runDuplicationScan — child lifecycle', () => {
   const scan = { targetDirs: ['src'], cwd: '/tree' };
 
   it('replaces the parent heap flag and keeps its other flags', async () => {
@@ -49,7 +49,7 @@ describe('scanInChild — child lifecycle', () => {
         child.emit('message', { rows: [] });
         child.emit('close', 0, null);
       });
-      await scanInChild(scan, { scanHeapMb: 777, forkImpl });
+      await runDuplicationScan(scan, { scanHeapMb: 777, forkImpl });
       assert.deepEqual(calls[0].options.execArgv, [
         '--require=/hook.cjs',
         '--max-old-space-size=777',
@@ -66,7 +66,7 @@ describe('scanInChild — child lifecycle', () => {
       child.emit('close', 0, null);
     });
     assert.deepEqual(
-      await scanInChild(scan, { scanHeapMb: 777, forkImpl }),
+      await runDuplicationScan(scan, { scanHeapMb: 777, forkImpl }),
       rows,
     );
     assert.equal(calls[0].options.execArgv.at(-1), '--max-old-space-size=777');
@@ -77,7 +77,7 @@ describe('scanInChild — child lifecycle', () => {
       child.emit('message', { rows: [] });
       child.emit('close', 0, null);
     });
-    await scanInChild(scan, { scanHeapMb: undefined, forkImpl });
+    await runDuplicationScan(scan, { scanHeapMb: undefined, forkImpl });
     assert.equal(calls[0].options.execArgv.at(-1), '--max-old-space-size=4096');
   });
 
@@ -92,7 +92,7 @@ describe('scanInChild — child lifecycle', () => {
         child.emit('close', code, signal);
       });
       await assert.rejects(
-        scanInChild(scan, { scanHeapMb: 512, forkImpl }),
+        runDuplicationScan(scan, { scanHeapMb: 512, forkImpl }),
         /512 MB.*scanHeapMb/,
       );
     }
@@ -103,7 +103,7 @@ describe('scanInChild — child lifecycle', () => {
       child.stderr.emit('data', 'boom');
       child.emit('close', 3, null);
     });
-    await assert.rejects(scanInChild(scan, { forkImpl }), (err) => {
+    await assert.rejects(runDuplicationScan(scan, { forkImpl }), (err) => {
       assert.match(err.message, /exit code 3.*boom/);
       assert.doesNotMatch(err.message, /scanHeapMb/);
       return true;
@@ -118,7 +118,7 @@ describe('scanInChild — child lifecycle', () => {
       child.emit('close', 0, null);
     });
     await assert.rejects(
-      scanInChild(scan, { forkImpl }),
+      runDuplicationScan(scan, { forkImpl }),
       (err) =>
         err.code === 'JSCPD_MISSING' && err.message === 'npm i -D jscpd@^4',
     );
@@ -127,7 +127,7 @@ describe('scanInChild — child lifecycle', () => {
   it('rejects when the child cannot be spawned', async () => {
     const spawnError = new Error('ENOENT');
     const { forkImpl } = fakeFork((child) => child.emit('error', spawnError));
-    await assert.rejects(scanInChild(scan, { forkImpl }), spawnError);
+    await assert.rejects(runDuplicationScan(scan, { forkImpl }), spawnError);
   });
 });
 
@@ -147,7 +147,7 @@ describe('forked duplication scan — real jscpd', () => {
 
   it('returns the rows an in-process scan returns, partners included', async () => {
     const scan = { targetDirs: ['src'], cwd: tree };
-    const forked = await scanInChild(scan, { scanHeapMb: 512 });
+    const forked = await runDuplicationScan(scan, { scanHeapMb: 512 });
     const inProcess = await scanDuplication({
       ...scan,
       detect: resolveDetectClones(),
@@ -159,7 +159,7 @@ describe('forked duplication scan — real jscpd', () => {
 
   it('an unknown format fails the scan with its refusal', async () => {
     await assert.rejects(
-      scanInChild({
+      runDuplicationScan({
         targetDirs: ['src'],
         cwd: tree,
         additionalFormats: ['not-a-format'],
