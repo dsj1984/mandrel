@@ -1335,6 +1335,12 @@
                       "description": "Extra jscpd format names (e.g. `python`, `go`) the duplication gate scans on top of the scorable formats it always reads. Extend-only: the scorable formats cannot be removed, and naming one here is a no-op. An unknown format name fails the scan rather than measuring nothing. The CRAP, MI, coverage and native-review gates still score only the scorable list (Story #5849).",
                       "default": []
                     },
+                    "scanHeapMb": {
+                      "type": "integer",
+                      "minimum": 256,
+                      "description": "V8 old-space limit, in MB, of the child process that runs the whole-tree duplication scan. The need grows with the scanned tree. It is a ceiling, not an allocation, and it reaches only that child.",
+                      "default": 4096
+                    },
                     "ignoreGlobs": {
                       "type": "array",
                       "items": {

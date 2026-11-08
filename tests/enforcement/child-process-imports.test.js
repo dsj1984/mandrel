@@ -98,6 +98,7 @@ const ALLOWLIST = new Set([
   '.agents/scripts/bootstrap.js',
   '.agents/scripts/check-windows-git-perf.js',
   '.agents/scripts/evidence-gate.js',
+  '.agents/scripts/lib/baselines/duplication-scan-fork.js',
   '.agents/scripts/lib/bootstrap/preflight.js',
   '.agents/scripts/lib/bootstrap/project-bootstrap.js',
   '.agents/scripts/lib/bootstrap/prompt.js',
@@ -170,6 +171,11 @@ const RAW_CAPTURE_SITES = {
   '.agents/scripts/lib/checks/state.js': {
     reason: GIT_PROBE_REASON,
     sites: { spawnSync: 1 },
+  },
+  '.agents/scripts/lib/baselines/duplication-scan-fork.js': {
+    reason:
+      'fork() seam: the scan returns rows over IPC with its own heap flag, which child-exec cannot carry, and no stdout is collected',
+    sites: { 'fork (seam)': 1 },
   },
   '.agents/scripts/lib/close-validation/process.js': {
     reason:

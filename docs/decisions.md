@@ -925,6 +925,13 @@ gate key records, and it holds for every run, so it is config rather than a
 flag. It reverses #5663's "no new key" note for this one knob and defaults to
 `report`, which keeps today's non-blocking behaviour.
 
+**Raised to 159 (2026-11-08, Story #6028)** for
+`delivery.quality.gates.duplication.scanHeapMb`. The whole-tree jscpd scan
+moved to a child process so its heap stops competing with the handoff's. The
+memory it needs scales with the consumer's scanned tree, which no shipped
+constant can know, so the child's limit is config. It defaults to 4096 MB, a
+ceiling rather than an allocation.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

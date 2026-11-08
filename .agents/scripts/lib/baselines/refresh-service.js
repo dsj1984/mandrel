@@ -35,11 +35,8 @@ import { isScorableSourceFile } from '../source-extensions.js';
 import { toPosix } from '../util/paths.js';
 import { buildBundleSizeScorer } from './bundle-size-scorer.js';
 import { decodeEnvelope } from './codec.js';
-import {
-  resolveDetectClones,
-  resolveFormatExtensions,
-  scanDuplication,
-} from './duplication-scanner.js';
+import { runDuplicationScan } from './duplication-scan-fork.js';
+import { resolveFormatExtensions } from './duplication-scanner.js';
 import { checkBaselineAhead, getKindModule } from './kernel.js';
 import { filterExcludedRows } from './kinds/maintainability.js';
 import { canonicalizeBaselinePath } from './path-canon.js';
@@ -260,10 +257,10 @@ const KIND_SCORER_BUILDERS = Object.freeze({
  * parallel implementation would report its own disagreement as drift.
  *
  * @param {string} kind
- * @param {{ cwd: string }} opts
+ * @param {{ cwd: string, detect?: (opts: object) => Promise<object[]> }} opts
  * @returns {((files: string[], opts: object) => Promise<object[]> | object[]) | undefined}
  */
-export function resolveDefaultScorer(kind, { cwd } = {}) {
+export function resolveDefaultScorer(kind, { cwd, detect } = {}) {
   const builder = KIND_SCORER_BUILDERS[kind];
   if (typeof builder !== 'function') return undefined;
   const effectiveCwd = cwd ?? process.cwd();
@@ -273,7 +270,7 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
   } catch {
     quality = undefined;
   }
-  return builder({ cwd: effectiveCwd, quality });
+  return builder({ cwd: effectiveCwd, quality, detect });
 }
 
 /** The CRAP stamp anchors where check-baselines does: target dirs + root. */
@@ -761,12 +758,14 @@ function buildDefaultDuplicationScorer({ cwd, config, quality, detect } = {}) {
     : [];
   return async (_files, opts) => {
     const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
-    return scanDuplication({
-      targetDirs,
-      cwd: effectiveCwd,
-      ignoreGlobs,
-      additionalFormats: dupCfg.additionalFormats,
-      detect: detect ?? resolveDetectClones(),
-    });
+    return runDuplicationScan(
+      {
+        targetDirs,
+        cwd: effectiveCwd,
+        ignoreGlobs,
+        additionalFormats: dupCfg.additionalFormats,
+      },
+      { detect, scanHeapMb: dupCfg.scanHeapMb },
+    );
   };
 }
