@@ -42,6 +42,7 @@ import {
   planFastForward,
 } from './lib/orchestration/git-cleanup/phases/fast-forward.js';
 import { verifyRemote } from './lib/orchestration/remote-verifier.js';
+import { resolveSharedBaseRef } from './lib/orchestration/review-base-ref.js';
 import {
   acquireStoryLease,
   releaseStoryLease,
@@ -448,6 +449,7 @@ export async function materializeBaseBranch({
       `Fetch completed after ${fetchResult.attempts} attempt(s) — packed-refs contention.`,
     );
   }
+  deepenShallowClone({ cwd, baseBranch, progress });
 
   const { worktreeSweep } = await reapMergedStoryBranches({
     cwd,
@@ -469,12 +471,47 @@ export async function materializeBaseBranch({
     return { worktreeSweep };
   }
 
-  fastForwardBase({ cwd, baseBranch, progress });
+  reconcileLocalBase({ cwd, baseBranch, progress });
   return { worktreeSweep };
 }
 
 /**
+ * Merge-base probes are meaningless against a truncated history.
+ *
+ * @param {{ cwd: string, baseBranch: string, progress: Function }} opts
+ */
+function deepenShallowClone({ cwd, baseBranch, progress }) {
+  const probe = gitSpawn(cwd, 'rev-parse', '--is-shallow-repository');
+  if (String(probe.stdout ?? '').trim() !== 'true') return;
+  progress('GIT', `Shallow clone — deepening from origin/${baseBranch}.`);
+  const r = gitSpawn(cwd, 'fetch', '--unshallow', 'origin', baseBranch);
+  if (r.status !== 0) {
+    throw new Error(
+      `\`git fetch --unshallow origin ${baseBranch}\` failed: ${r.stderr || '(no stderr)'}`,
+    );
+  }
+}
+
+/**
+ * A base with no history in common cannot fast-forward: warn once and move on.
+ *
+ * @param {{ cwd: string, baseBranch: string, progress: Function }} opts
+ */
+function reconcileLocalBase({ cwd, baseBranch, progress }) {
+  const probe = gitSpawn(cwd, 'merge-base', baseBranch, `origin/${baseBranch}`);
+  if (probe.status === 1) {
+    progress(
+      'GIT',
+      `⚠️ local ${baseBranch} shares no history with origin/${baseBranch}; leaving it as is.`,
+    );
+    return;
+  }
+  fastForwardBase({ cwd, baseBranch, progress });
+}
+
+/**
  * `git fetch` leaves local base at the old tip until fast-forwarded.
+ * Best-effort: the Story branch seeds from the remote base regardless.
  *
  * @param {{ cwd: string, baseBranch: string, progress: Function }} opts
  */
@@ -497,7 +534,7 @@ function fastForwardBase({ cwd, baseBranch, progress }) {
   } else if (ff.reason === 'not-fast-forward') {
     progress(
       'GIT',
-      `⚠️ local ${baseBranch} is not a fast-forward behind origin/${baseBranch}; seeding from local tip.`,
+      `⚠️ local ${baseBranch} is not a fast-forward behind origin/${baseBranch}; leaving it as is.`,
     );
   } else if (ff.reason === 'dirty-tree') {
     progress(
@@ -508,8 +545,9 @@ function fastForwardBase({ cwd, baseBranch, progress }) {
 }
 
 /**
- * Idempotent seed. Assumes `materializeBaseBranch` already fetched, so
- * tracking refs are authoritative (no `ls-remote`).
+ * Idempotent seed from `origin/<base>`, or the local base when no remote ref
+ * resolves. Assumes `materializeBaseBranch` already fetched, so tracking refs
+ * are authoritative (no `ls-remote`).
  *
  * @param {object} opts
  * @param {string} opts.cwd
@@ -521,7 +559,7 @@ export function seedStoryBranch({ cwd, storyBranch, baseBranch, progress }) {
   // No concurrent creator to race here, so create failures are fatal.
   seedStoryBranchRef({
     storyBranch,
-    baseRef: baseBranch,
+    baseRef: resolveSharedBaseRef({ baseBranch, cwd }).ref ?? baseBranch,
     swallowCreateRace: false,
     spawn: (args) => gitSpawn(cwd, ...args),
     existsLocally: (b) => branchExistsLocally(b, cwd),

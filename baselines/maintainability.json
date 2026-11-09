@@ -44,7 +44,7 @@
     },
     {
       "path": ".agents/scripts/ceremony-derive.js",
-      "mi": 90.24
+      "mi": 92.406
     },
     {
       "path": ".agents/scripts/check-arch-cycles.js",
