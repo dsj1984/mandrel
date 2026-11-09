@@ -253,6 +253,7 @@
       "deriveCeremony": 1,
       "main": 2,
       "parseArgv": 3,
+      "resolveDefaultBaseRef": 1,
       "runCeremonyDeriveCli": 2
     },
     ".agents/scripts/check-arch-cycles.js": {
@@ -8755,6 +8756,7 @@
       "assertDepsInstalled": 2,
       "assertNotForeignExecuting": 6.094468817909713,
       "decideStoryBranchSeed": 2,
+      "deepenShallowClone": 4,
       "fastForwardBase": 4.373177842565598,
       "flipStoryToExecuting": 1,
       "materializeBaseBranch": 8.105993671406264,
@@ -8762,6 +8764,7 @@
       "reapClosedStoryWorktrees": 4.017262597144254,
       "reapMergedBranches": 11.103271484375,
       "reapMergedStoryBranches": 1,
+      "reconcileLocalBase": 2,
       "rollbackClaimOnInitFailure": 1.048084147257701,
       "rollUpContainerEpic": 5.31930879038317,
       "runSingleStoryInit": 12.00158024691358,

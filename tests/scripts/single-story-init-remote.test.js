@@ -1,12 +1,130 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 import { composeStoryInitResult } from '../../.agents/scripts/lib/orchestration/story-init-result.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   assertNotForeignExecuting,
   handleRemoteVerificationFailure,
+  materializeBaseBranch,
   runSingleStoryInit,
+  seedStoryBranch,
 } from '../../.agents/scripts/single-story-init.js';
+import { makeGitRepo } from '../fixtures/git-fixture.js';
+
+const CLEAN_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+);
+
+function git(cwd, ...args) {
+  return execFileSync(
+    'git',
+    ['-c', 'user.email=t@example.com', '-c', 'user.name=T', ...args],
+    { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], env: CLEAN_ENV },
+  ).trim();
+}
+
+describe('materializeBaseBranch — clones whose local base cannot seed', () => {
+  let origin;
+  let parent;
+
+  const advanceOrigin = (message) =>
+    git(origin, 'commit', '-q', '--allow-empty', '-m', message);
+  const shallowClone = () => {
+    const clone = path.join(parent, 'clone');
+    git(
+      parent,
+      'clone',
+      '-q',
+      '--depth',
+      '1',
+      pathToFileURL(origin).href,
+      clone,
+    );
+    return clone;
+  };
+  const materialize = async (cwd, baseBranch = 'main') => {
+    const messages = [];
+    await materializeBaseBranch({
+      cwd,
+      baseBranch,
+      storyBranch: 'story-1',
+      config: {},
+      provider: {},
+      injectedSweep: async () => ({}),
+      worktreeSweepFn: async () => ({ reaped: [], skipped: [] }),
+      progress: (_phase, msg) => messages.push(msg),
+    });
+    return messages;
+  };
+  const seed = (cwd) =>
+    seedStoryBranch({
+      cwd,
+      storyBranch: 'story-1',
+      baseBranch: 'main',
+      progress: () => {},
+    });
+
+  beforeEach(() => {
+    origin = makeGitRepo({ prefix: 'ssi-origin-' });
+    parent = makeTempDir('ssi-clone-');
+    advanceOrigin('second');
+  });
+
+  afterEach(() => {
+    fs.rmSync(origin, { recursive: true, force: true });
+    fs.rmSync(parent, { recursive: true, force: true });
+  });
+
+  it('deepens a shallow clone and seeds at the remote tip past a stale local base', async () => {
+    const clone = shallowClone();
+    advanceOrigin('third');
+    fs.writeFileSync(path.join(clone, 'dirty.txt'), 'blocks the fast-forward');
+    const staleLocal = git(clone, 'rev-parse', 'main');
+
+    await materialize(clone);
+    seed(clone);
+
+    assert.equal(git(clone, 'rev-parse', '--is-shallow-repository'), 'false');
+    assert.equal(git(clone, 'rev-parse', 'main'), staleLocal);
+    assert.equal(
+      git(clone, 'rev-parse', 'story-1'),
+      git(origin, 'rev-parse', 'main'),
+    );
+  });
+
+  it('stops init naming the command when the unshallow fails', async () => {
+    await assert.rejects(
+      materialize(shallowClone(), 'no-such-base'),
+      /`git fetch --unshallow origin no-such-base` failed/,
+    );
+  });
+
+  it('warns once on a local base with no shared history and still seeds from the remote', async () => {
+    const clone = path.join(parent, 'unrelated');
+    git(parent, 'clone', '-q', pathToFileURL(origin).href, clone);
+    git(clone, 'checkout', '-q', '--orphan', 'replacement');
+    git(clone, 'commit', '-q', '--allow-empty', '-m', 'unrelated root');
+    git(clone, 'branch', '-M', 'replacement', 'main');
+
+    const messages = await materialize(clone);
+    seed(clone);
+
+    assert.equal(messages.filter((m) => m.includes('⚠️')).length, 1);
+    assert.match(
+      messages.find((m) => m.includes('⚠️')),
+      /local main shares no history with origin\/main/,
+    );
+    assert.equal(
+      git(clone, 'rev-parse', 'story-1'),
+      git(origin, 'rev-parse', 'main'),
+    );
+  });
+});
 
 describe('single-story-init remote verification', () => {
   it('blocks the Story and throws before delivery mutation', async () => {
