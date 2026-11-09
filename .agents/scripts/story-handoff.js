@@ -24,12 +24,16 @@ import { computeStoryReviewDeposit } from './story-review-compute.js';
 
 const USAGE = {
   invocation:
-    'node .agents/scripts/story-handoff.js --story <id> [--cwd <workCwd>]',
+    'node .agents/scripts/story-handoff.js --story <id> [--cwd <workCwd>] [--report-all]',
   summary:
     "Run the story-worker's post-implementation tail — base merge, duplication re-score, preflight, the one credited run, baseline seating, push and held review — and print one envelope: ready (exit 0), fix-required (exit 2) or blocked (exit 1).",
   flags: [
     ['--story <id>', 'Story issue number; the branch is story-<id>.'],
     ['--cwd <path>', "The Story's worktree (default: the current directory)."],
+    [
+      '--report-all',
+      'List every finding from preflight and post-capture in one fix-required envelope: spawns no suite, records no credit, seats, commits and pushes nothing, and runs no review.',
+    ],
   ],
   notes: [
     'Exit codes:\n  0  ready — hand off\n  2  fix-required — fix, commit, re-run (labels untouched)\n  1  blocked — agent::blocked + friction comment, or a usage error',
@@ -67,7 +71,7 @@ export async function runStoryHandoffCli(
   const workCwd = cwd ?? defaultCwd;
   const config = resolveConfigImpl({ cwd: workCwd });
   const outcome = await runHandoffImpl(
-    { storyId, cwd: workCwd, config },
+    { storyId, cwd: workCwd, config, reportAll: argv.includes('--report-all') },
     {
       computeReview: computeStoryReviewDeposit,
       createProviderFn: createProvider,

@@ -264,19 +264,23 @@ export function checkCrapRegression(row, baseline, tolerance, kind) {
  * (`drifted`) instead of reporting them new and removed. Unpaired current
  * rows face the new-method ceiling; unpaired baseline rows are `removed`.
  * Unscorable rows (null crap/coverage) are bucketed and excluded from
- * `comparable` so they cannot dilute a ratio.
+ * `comparable` so they cannot dilute a ratio. A regression whose row
+ * `isJudged` rejects lands in `informational` and fails nothing.
  */
 export function compareCrap({
   currentRows,
   baselineRows,
   newMethodCeiling,
   tolerance,
+  isJudged = () => true,
 }) {
   const rows = currentRows ?? [];
   const state = {
     uncoveredFiles: deriveUncoveredFiles(currentRows),
     newMethodCeiling,
     tolerance: Number.isFinite(tolerance) ? tolerance : 0,
+    isJudged,
+    informational: [],
     claimed: new Set(),
     verdicts: new Array(rows.length).fill(null),
     regressions: 0,
@@ -314,6 +318,7 @@ export function compareCrap({
     unscorable: unscorableRows.length,
     removed: removedRows.length,
     violations: state.verdicts.filter((v) => v !== null),
+    informational: state.informational,
     unscorableRows,
     removedRows,
   };
@@ -322,10 +327,13 @@ export function compareCrap({
 /** Score one (current, baseline) pair into the verdict slot `idx`. */
 function scorePair(state, idx, row, baseline, kind) {
   const v = checkCrapRegression(row, baseline, state.tolerance, kind);
-  if (v) {
-    state.regressions += 1;
-    state.verdicts[idx] = v;
+  if (!v) return;
+  if (!state.isJudged(row)) {
+    state.informational.push(v);
+    return;
   }
+  state.regressions += 1;
+  state.verdicts[idx] = v;
 }
 
 /** A current row with no baseline row: the new-method ceiling. */

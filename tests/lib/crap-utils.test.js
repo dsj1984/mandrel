@@ -561,3 +561,29 @@ test('scanAndScore — preScannedFiles skips the directory walk and produces ide
     rmTmp(cwd);
   }
 });
+
+test('scanAndScore: a coverage entry with no ranges is skipped and does not vote', async () => {
+  const cwd = mkTmpCwd();
+  try {
+    const srcDir = path.join(cwd, 'src');
+    fs.mkdirSync(srcDir, { recursive: true });
+    const abs = path.join(srcDir, 'empty-entry.js');
+    fs.writeFileSync(abs, 'export function f() {\n  return 1;\n}\n');
+    for (const serialThreshold of [Infinity, 0]) {
+      const result = await scanAndScore({
+        targetDirs: ['src'],
+        coverage: {
+          [abs]: { path: abs, fnMap: {}, f: {}, statementMap: {}, s: {} },
+        },
+        requireCoverage: true,
+        cwd,
+        serialThreshold,
+      });
+      assert.strictEqual(result.skippedFilesNoCoverage, 1);
+      assert.strictEqual(result.resolution.joinableMethods, 0);
+      assert.deepStrictEqual(result.rows, []);
+    }
+  } finally {
+    rmTmp(cwd);
+  }
+});

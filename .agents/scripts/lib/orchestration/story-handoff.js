@@ -22,7 +22,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
+import { pruneStaleCrapRows } from '../baselines/crap-prune.js';
+import { isCaptureFresh, SeatRefusal } from '../baselines/seat-missing.js';
 import { spawnStreamAsync } from '../child-exec.js';
 import {
   createLockEventChannel,
@@ -30,12 +31,14 @@ import {
 } from '../close-lock-events.js';
 import { resolveTestGateArgv } from '../close-validation/commands.js';
 import {
+  BASELINES_GATE_NAMES,
   isCrapGateEnabled,
   resolveCreditedDepositor,
 } from '../close-validation/gates.js';
 import { isBiomeNoFilesProcessed } from '../close-validation/process.js';
 import { applyChangedFileScope } from '../close-validation/runner.js';
 import { skipBranchDeposit } from '../close-validation/skip-branch-test.js';
+import { getBaselines } from '../config/baselines.js';
 import { getPostSeatChecks } from '../config/handoff.js';
 import { getQuality } from '../config/quality.js';
 import {
@@ -72,6 +75,7 @@ import { defaultSleep } from '../util/sleep.js';
 import { hashCommandConfig } from '../validation-evidence.js';
 import { runStreamed } from './evidence-stream.js';
 import {
+  baselineComparePreflight,
   carryCoverageDeferral,
   carryCredit,
   carryPreflightCredits,
@@ -346,8 +350,8 @@ function describeSuiteFailure(status) {
 }
 
 /**
- * Typecheck, lint and format (deposited), quality-preview, then each ratchet whose
- * baseline is committed.
+ * Typecheck, lint and format (deposited), quality-preview, each ratchet whose
+ * baseline is committed, then close's artifact-free baseline compare.
  *
  * @param {object} ctx
  * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean, deposit?: object }>}
@@ -375,6 +379,7 @@ function preflightChecks(ctx) {
       ],
     },
     ...ratchets,
+    ...baselineComparePreflight(ctx),
   ];
 }
 
@@ -400,7 +405,7 @@ function preflightFinding(check, run) {
         .slice(0, MAX_OFFENDING_LINES)
     : extractFailureRows(run.output, { max: MAX_OFFENDING_LINES });
   const rows = offending.length > 0 ? `: ${offending.join('; ')}` : '';
-  return `${check.key}${check.gated ? ' ratchet' : ''} finding${rows} — fix and commit, then re-run`;
+  return `${check.label ?? check.key}${check.gated ? ' ratchet' : ''} finding${rows} — fix and commit, then re-run`;
 }
 
 /**
@@ -463,7 +468,10 @@ async function stepPreflight(ctx) {
 
 /** A baselined ratchet's finding is a `ratchet`; any other check is its own key. */
 function preflightCause(key) {
-  return STANDALONE_RATCHETS.some((r) => r.key === key) ? 'ratchet' : key;
+  return key === BASELINES_GATE_NAMES.independent ||
+    STANDALONE_RATCHETS.some((r) => r.key === key)
+    ? 'ratchet'
+    : key;
 }
 
 /**
@@ -487,7 +495,7 @@ async function runPreflightCheck(ctx, check, pass, env) {
     `preflight-${check.key}`,
     check.cmd,
     check.args,
-    env,
+    check.env ? { ...(env ?? ctx.env), ...check.env } : env,
   );
   const finding = preflightFinding(check, run);
   if (check.key === 'lint') pass.lint = finding ? 'failed' : 'passed';
@@ -495,7 +503,10 @@ async function runPreflightCheck(ctx, check, pass, env) {
     creditCheck(ctx, check);
     return null;
   }
-  const detail = finding + seatHint(ctx, check);
+  const detail =
+    finding +
+    raisedDuplicationSuffix(ctx, check, MAX_OFFENDING_LINES) +
+    seatHint(ctx, check);
   return { check: check.key, detail, evidencePath: run.evidencePath };
 }
 
@@ -943,6 +954,30 @@ function seatsCoverage(ctx) {
   );
 }
 
+/**
+ * Drop the stale CRAP rows of change-set files; a refusal stops the step.
+ *
+ * @returns {Promise<StepResult|{ total: number }>}
+ */
+async function pruneCrapRows(ctx, name) {
+  if (!isCrapGateEnabled(ctx.config)) return { total: 0 };
+  try {
+    const { pruned } = await ctx.pruneStaleCrap({
+      writePath: path.resolve(ctx.cwd, getBaselines(ctx.config).crap.path),
+      baseRef: `origin/${ctx.baseBranch}`,
+      cwd: ctx.cwd,
+    });
+    ctx.progress(name, `pruned ${pruned} stale CRAP row(s)`);
+    return { total: pruned };
+  } catch (err) {
+    if (!(err instanceof SeatRefusal)) throw err;
+    return fixRequired(name, err.message, {
+      evidencePath: ctx.writeEvidence('seat-prune', err.message),
+      cause: 'seat-refused',
+    });
+  }
+}
+
 /** Static MI needs no capture, so its seat runs before preflight. */
 function staticSeatKinds(config) {
   const mi = config?.delivery?.quality?.gates?.maintainability?.enabled;
@@ -954,8 +989,11 @@ async function seatAndCommit(ctx, kinds, step) {
   if (ctx.state[step.headKey] === ctx.head) {
     return creditSkip(step.name, `nothing to seat at ${ctx.head.slice(0, 12)}`);
   }
-  const seated = await runSeats(ctx, step.name, kinds);
-  if (seated.stop) return seated;
+  const seats = await runSeats(ctx, step.name, kinds);
+  if (seats.stop) return seats;
+  const pruned = step.prune ? await step.prune(ctx, step.name) : { total: 0 };
+  if (pruned.stop) return pruned;
+  const seated = { ...seats, total: seats.total + pruned.total };
   if (seated.total === 0) {
     ctx.state[step.headKey] = ctx.head;
     return skipped(step.name, 'seated: 0 — nothing to seat', {
@@ -970,6 +1008,7 @@ function stepSeatStatic(ctx) {
   return seatAndCommit(ctx, staticSeatKinds(ctx.config), {
     name: 'seat-static',
     headKey: 'staticSeatHead',
+    prune: pruneCrapRows,
   });
 }
 
@@ -1331,40 +1370,48 @@ async function stepPostCapture(ctx) {
   if (postCaptureHead === ctx.head && postCaptureSettled(ctx)) {
     return creditSkip(name, `already clean at ${ctx.head.slice(0, 12)}`);
   }
-  const { gates, failed } = await scorePostCapture(ctx, (...a) =>
-    runLogged(ctx, ...a),
-  );
-  if (failed) {
-    const rows = raisedDuplicationSuffix(ctx, failed, MAX_OFFENDING_LINES);
-    return fixRequired(name, `${failed.finding}${rows}`, {
-      evidencePath: failed.evidencePath,
-      gate: failed.gate,
-      cause: 'post-capture',
-    });
+  if (ctx.reportAll && !hasFreshArtifact(ctx)) {
+    return skipped(name, 'no fresh coverage artifact to score');
   }
-  const post = await runPostSeatChecks(ctx, (...a) => runLogged(ctx, ...a));
-  if (post.failed) return postSeatFixRequired(name, post.failed);
+  const run = (...a) => runLogged(ctx, ...a);
+  const { gates, failures } = await scorePostCapture(ctx, run);
+  const post = await runPostSeatChecks(ctx, run);
+  const findings = [...failures, ...post.failures];
+  if (findings.length > 0) return postCaptureFixRequired(ctx, name, findings);
   ctx.state.postCaptureHead = ctx.head;
   return settledPostCapture(name, gates, post);
 }
 
+/** Whether any capture stamp vouches for the CRAP artifact at this tree. */
+function hasFreshArtifact(ctx) {
+  const { coveragePath, targetDirs } = getQuality(ctx.config).crap;
+  return ctx.isCaptureFresh({ coveragePath, targetDirs }, { cwd: ctx.cwd });
+}
+
+/** Why the post-seat checks do not run; a `--report-all` run seats nothing. */
+function postSeatSkipReason(ctx) {
+  if (ctx.reportAll) return 'report-all seats nothing';
+  return isCoverageDeferred(ctx) ? 'coverage deferred' : null;
+}
+
 /**
- * Run each `delivery.handoff.postSeatChecks` entry through `run`; the first
- * non-zero exit is the finding. Skipped under a coverage deferral.
+ * Run every `delivery.handoff.postSeatChecks` entry through `run`; each
+ * non-zero exit is a finding, and a clean set releases the held lint.
  *
- * @returns {Promise<{ checks: object[], skipped?: boolean, failed: object|null }>}
+ * @returns {Promise<{ checks: object[], skipped?: string, failures: object[] }>}
  */
 async function runPostSeatChecks(ctx, run) {
   const checks = getPostSeatChecks(ctx.config);
-  if (checks.length === 0) return { checks, failed: null };
-  if (isCoverageDeferred(ctx)) return { checks, skipped: true, failed: null };
+  if (checks.length === 0) return { checks, failures: [] };
+  const skipReason = postSeatSkipReason(ctx);
+  if (skipReason) return { checks, skipped: skipReason, failures: [] };
+  const failures = [];
   for (const [i, check] of checks.entries()) {
     const res = await run(`post-seat-${i + 1}`, check.cmd, check.args);
-    if (res.status !== 0)
-      return { checks, failed: postSeatFailure(check, res) };
+    if (res.status !== 0) failures.push(postSeatFailure(check, res));
   }
-  releaseHeldLint(ctx);
-  return { checks, failed: null };
+  if (failures.length === 0) releaseHeldLint(ctx);
+  return { checks, failures };
 }
 
 /** A failed post-seat check as the handoff's finding. */
@@ -1377,11 +1424,17 @@ function postSeatFailure(check, res) {
   };
 }
 
-/** @param {string} name @param {{ finding: string, evidencePath: string, gate: string }} failed */
-function postSeatFixRequired(name, failed) {
-  return fixRequired(name, failed.finding, {
-    evidencePath: failed.evidencePath,
-    gate: failed.gate,
+/** One `fix-required` listing every post-capture finding, in run order. */
+function postCaptureFixRequired(ctx, name, failed) {
+  const findings = failed.map((f) => ({
+    check: f.gate,
+    detail: `${f.finding}${raisedDuplicationSuffix(ctx, f, MAX_OFFENDING_LINES)}`,
+    evidencePath: f.evidencePath,
+  }));
+  return fixRequired(name, findings.map((f) => f.detail).join('\n'), {
+    evidencePath: findings[0].evidencePath,
+    gate: findings[0].check,
+    findings,
     cause: 'post-capture',
   });
 }
@@ -1392,7 +1445,7 @@ function settledPostCapture(name, gates, post) {
   if (post.checks.length > 0) {
     names.push(
       post.skipped
-        ? 'post-seat checks skipped (coverage deferred)'
+        ? `post-seat checks skipped (${post.skipped})`
         : `${post.checks.length} post-seat check(s)`,
     );
   }
@@ -1441,6 +1494,9 @@ function stepOrder(depositor) {
   ];
 }
 
+/** `--report-all`: the steps that spawn no suite and write nothing. */
+const REPORT_ALL_STEPS = Object.freeze([stepPreflight, stepPostCapture]);
+
 /** `run`'s results, each carrying the call's wall time as `durationMs`. */
 async function timed(ctx, run) {
   const startedAt = ctx.now();
@@ -1459,11 +1515,15 @@ function envelopeStep(ctx, { stop: _stop, ...rest }) {
 
 /**
  * Run the steps in order into `steps`; a step may settle several results.
+ * A `--report-all` run continues past every finding and always ends
+ * `fix-required`: nothing it did makes the branch ready to hand off.
  *
  * @returns {Promise<StepResult|null>} the result that stopped the run.
  */
 async function runSteps(ctx, steps) {
-  for (const step of stepOrder(ctx.depositor)) {
+  const order = ctx.reportAll ? REPORT_ALL_STEPS : stepOrder(ctx.depositor);
+  let first = null;
+  for (const step of order) {
     ctx.stepName = handoffStepName(step);
     ctx.storyProgress.phase(ctx.stepName);
     const results = await timed(ctx, async () => [await step(ctx)].flat());
@@ -1472,9 +1532,29 @@ async function runSteps(ctx, steps) {
       ctx.progress(result.name, `${result.outcome} — ${result.detail}`);
     }
     const stop = results.find((r) => r.stop);
-    if (stop) return stop;
+    if (stop && !ctx.reportAll) return stop;
+    first ??= stop ?? null;
   }
-  return null;
+  if (!ctx.reportAll || first) return first;
+  const none = fixRequired(
+    'report-all',
+    'no findings in the non-suite steps; nothing was credited, seated or pushed, so run without --report-all to hand off',
+    { cause: 'other' },
+  );
+  steps.push(none);
+  return none;
+}
+
+/** Every finding the steps settled; a step without a list is one finding. */
+function reportAllFindings(steps) {
+  return steps
+    .filter((s) => s.stop)
+    .flatMap(
+      (s) =>
+        s.findings ?? [
+          { check: s.name, detail: s.detail, evidencePath: s.evidencePath },
+        ],
+    );
 }
 
 const PRECHECK = Object.freeze({ cause: 'precheck' });
@@ -1574,7 +1654,7 @@ async function defaultBlock({
 }
 
 /**
- * @param {{ storyId: number, cwd: string, config: object }} input
+ * @param {{ storyId: number, cwd: string, config: object, reportAll?: boolean }} input
  * @param {{
  *   git?: typeof gitSpawn,
  *   runCommand?: (cmd: string, args: string[], opts: { cwd: string }) => Promise<{ status: number, stdout: string, stderr: string, timedOut?: boolean }>,
@@ -1611,7 +1691,10 @@ async function defaultBlock({
  *   still gets its whole output written at settle.
  * @returns {Promise<{ envelope: object, exitCode: number }>}
  */
-export async function runStoryHandoff({ storyId, cwd, config }, deps) {
+export async function runStoryHandoff(
+  { storyId, cwd, config, reportAll = false },
+  deps,
+) {
   const {
     git = gitSpawn,
     runCommand = spawnStreamAsync,
@@ -1639,6 +1722,8 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     runDuplicationRescore = runDuplicationCloseRescore,
     emitFriction = emitRuntimeFriction,
     admitSuite = withSuiteAdmission,
+    pruneStaleCrap = pruneStaleCrapRows,
+    isCaptureFreshFn = isCaptureFresh,
     writeSignal,
     readSignals,
   } = deps;
@@ -1685,6 +1770,9 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     runDuplicationRescore,
     emitFriction,
     admitSuite,
+    pruneStaleCrap,
+    isCaptureFresh: isCaptureFreshFn,
+    reportAll,
     state: readState(statePath, progress),
     review: null,
     reviewPending: null,
@@ -1777,7 +1865,9 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
         }
       : {}),
     attempt: await nextHandoffAttempt({ storyId, config, readFn: readSignals }),
+    ...(reportAll ? { reportAll, findings: reportAllFindings(steps) } : {}),
   };
+  if (reportAll) return { envelope, exitCode: EXIT_CODES[status] };
   writeFileAtomic(
     statePath,
     `${JSON.stringify({ state: ctx.state, envelope }, null, 2)}\n`,

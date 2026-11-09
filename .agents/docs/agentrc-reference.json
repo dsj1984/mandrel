@@ -156,6 +156,7 @@
             "skipWhenUnchanged": true,
             "baselineJoin": false
           },
+          "previewScope": "file",
           "coveragePath": null
         },
         "maintainability": {

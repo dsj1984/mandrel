@@ -21,6 +21,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { SeatRefusal } from '../../.agents/scripts/lib/baselines/seat-missing.js';
 import { spawnStreamAsync } from '../../.agents/scripts/lib/child-exec.js';
 import { createLockEventChannel } from '../../.agents/scripts/lib/close-lock-events.js';
 import {
@@ -2931,9 +2932,9 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
       },
     });
 
-  for (const [gate, kind] of [
-    ['check-baselines-independent', 'maintainability'],
-    ['check-baselines-coverage', 'crap'],
+  for (const [gate, kind, step] of [
+    ['check-baselines-independent', 'maintainability', 'preflight'],
+    ['check-baselines-coverage', 'crap', 'post-capture'],
   ]) {
     test(`AC-5: a ${kind} baselines breach names ${gate} and pushes nothing`, async () => {
       const h = harness({
@@ -2943,7 +2944,7 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
       h.deps.presentBaselines = ['maintainability', 'crap'];
       const { envelope, exitCode } = await h.run();
       assert.equal(exitCode, 2);
-      assert.equal(envelope.failedStep, 'post-capture');
+      assert.equal(envelope.failedStep, step);
       const detail = stopStep(envelope).detail;
       assert.match(detail, new RegExp(`${gate} \\(kinds: ${kind}\\)`));
       assert.ok(!spawned(h.runCommand).includes('git'));
@@ -3001,13 +3002,17 @@ describe('story-handoff — close-identity deposits and post-capture scoring (St
     const keys = spawned(h.runCommand);
     assert.deepEqual(keys.slice(keys.indexOf('update-crap-baseline.js') + 1), [
       'quality-preview.js --only crap',
-      'check-baselines.js maintainability',
       'check-baselines.js crap',
       'git',
     ]);
+    assert.ok(
+      keys.indexOf('check-baselines.js maintainability') <
+        keys.indexOf('coverage-capture.js'),
+      'the artifact-free compare runs at preflight',
+    );
     const baselines = callFor(h, 'check-baselines.js crap');
     assert.equal(baselines.opts.env.BASELINE_REF, 'origin/main');
-    for (const call of h.runCommand.calls.slice(-4, -1)) {
+    for (const call of h.runCommand.calls.slice(-3, -1)) {
       assert.ok(
         !Object.keys(call.opts.env).some((k) => /LOCK_EVENT/.test(k)),
         'no lock-event channel reaches a post-capture child',
@@ -3433,7 +3438,7 @@ describe('story-handoff — the duplication re-score (Story #5956)', () => {
     };
   };
 
-  test('AC-1: a raised duplication row is fix-required at post-capture, names base → head and the clone partner, and pushes nothing', async () => {
+  test('AC-1: a raised duplication row is fix-required at preflight, names base → head and the clone partner, and pushes nothing', async () => {
     const cwd = path.join(tempRoot, 'wt');
     mkdirSync(path.join(cwd, 'baselines'), { recursive: true });
     writeFileSync(
@@ -3456,7 +3461,7 @@ describe('story-handoff — the duplication re-score (Story #5956)', () => {
     };
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
-    assert.equal(envelope.failedStep, 'post-capture');
+    assert.equal(envelope.failedStep, 'preflight');
     const detail = stopStep(envelope).detail;
     assert.match(detail, /check-baselines-independent \(kinds: duplication\)/);
     assert.match(detail, /lib\/a\.js 1% → 9% \(clones: lib\/b\.js\)/);
@@ -4441,5 +4446,217 @@ describe('story-handoff — per-run telemetry (Story #5970)', () => {
       'aborted',
     );
     assert.equal(envelope.cause, 'review-critical');
+  });
+});
+
+describe('story-handoff — every finding in one run (Story #6031)', () => {
+  const twoGateConfig = () =>
+    configFor({
+      delivery: {
+        quality: {
+          gates: {
+            maintainability: { enabled: true },
+            duplication: { enabled: true },
+            crap: { enabled: true },
+          },
+        },
+      },
+    });
+  const failing = { status: 1, stdout: '' };
+
+  test('AC-2: a duplication regression joins the lint finding at preflight, before any suite', async () => {
+    const h = harness({
+      config: twoGateConfig(),
+      outputs: {
+        lint: failing,
+        'check-baselines.js maintainability,duplication': failing,
+      },
+    });
+    h.deps.presentBaselines = ['maintainability', 'duplication'];
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    const { detail } = stopStep(envelope);
+    assert.match(detail, /lint finding/);
+    assert.match(detail, /check-baselines-independent \(kinds: /);
+    assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
+  });
+
+  test('AC-3: several failing post-capture gates and post-seat checks settle one fix-required', async () => {
+    const config = twoGateConfig();
+    config.delivery.handoff = {
+      postSeatChecks: [{ cmd: 'consumer-check', args: [] }],
+    };
+    const h = harness({
+      config,
+      outputs: {
+        'quality-preview.js --only crap': failing,
+        'check-baselines.js crap': failing,
+        'consumer-check': failing,
+      },
+    });
+    h.deps.presentBaselines = ['crap'];
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'post-capture');
+    const { detail, findings } = stopStep(envelope);
+    assert.match(detail, /quality-preview-crap/);
+    assert.match(detail, /check-baselines-coverage/);
+    assert.match(detail, /consumer-check/);
+    assert.equal(findings.length, 3);
+  });
+
+  test('a deferred capture still gets the preflight compare and no artifact reader', async () => {
+    const config = twoGateConfig();
+    config.delivery.quality.gates.coverage = { onOverBudget: 'defer-to-ci' };
+    const h = harness({ config });
+    h.deps.presentBaselines = ['maintainability', 'crap'];
+    const { runCommand } = h.deps;
+    h.deps.runCommand = async (cmd, args, opts) =>
+      commandKey(cmd, args) === 'coverage-capture.js'
+        ? { status: 76, stdout: '', stderr: '' }
+        : runCommand(cmd, args, opts);
+    const { envelope } = await h.run();
+    const keys = spawned(h.runCommand);
+    assert.ok(keys.some((k) => /check-baselines\.js maintainability/.test(k)));
+    assert.ok(!keys.includes('check-baselines.js crap'));
+    assert.ok(envelope.steps.some((s) => s.name === 'post-capture'));
+  });
+
+  test('AC-4: seat-static commits pruned rows before preflight, under the baseline-refresh subject', async () => {
+    const h = harness();
+    const prunes = [];
+    h.deps.pruneStaleCrap = async (args) => {
+      prunes.push(args);
+      h.world.dirty = ['baselines/crap.json'];
+      return { pruned: 2 };
+    };
+    const { envelope } = await h.run();
+    assert.equal(prunes[0].baseRef, 'origin/main');
+    assert.match(prunes[0].writePath, /baselines[/\\]crap\.json$/);
+    const commit = h.world.calls.find((c) => c[0] === 'commit');
+    assert.match(commit[2], /^chore\(baselines\): baseline-refresh: /);
+    const seat = envelope.steps.find((s) => s.name === 'seat-static');
+    assert.match(seat.detail, /seated 2 row/);
+  });
+
+  test('a prune refusal is fix-required at seat-static; a disabled gate never prunes', async () => {
+    const h = harness();
+    h.deps.pruneStaleCrap = async () => {
+      throw new SeatRefusal('[CRAP] behind');
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'seat-static');
+    assert.equal(envelope.cause, 'seat-refused');
+
+    const off = harness({
+      config: configFor({
+        delivery: { quality: { gates: { crap: { enabled: false } } } },
+      }),
+    });
+    off.deps.pruneStaleCrap = async () => {
+      throw new Error('must not run');
+    };
+    assert.equal((await off.run()).envelope.status, 'ready');
+  });
+
+  const reportAll = (h) =>
+    runStoryHandoff(
+      {
+        storyId: STORY,
+        cwd: h.cwd ?? '/work',
+        config: h.config,
+        reportAll: true,
+      },
+      h.deps,
+    );
+
+  test('AC-7: --report-all lists preflight and post-capture findings; no suite, commit, push, credit or review', async () => {
+    const config = twoGateConfig();
+    const h = harness({
+      config,
+      outputs: {
+        npm: failing,
+        'quality-preview.js': failing,
+        'quality-preview.js --only crap': failing,
+        'check-baselines.js crap': failing,
+      },
+    });
+    Object.assign(h, { config });
+    h.deps.presentBaselines = ['crap'];
+    h.deps.isCaptureFreshFn = () => true;
+    h.deps.pruneStaleCrap = async () => {
+      throw new Error('report-all must not prune');
+    };
+    const { envelope, exitCode } = await reportAll(h);
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    assert.deepEqual(stepNames(envelope), ['preflight', 'post-capture']);
+    assert.deepEqual(
+      envelope.findings.map((f) => f.check),
+      [
+        'typecheck',
+        'lint',
+        'quality-preview',
+        'quality-preview-crap',
+        'check-baselines-coverage',
+      ],
+    );
+    const keys = spawned(h.runCommand);
+    assert.ok(!keys.includes('coverage-capture.js'));
+    assert.ok(!keys.includes('evidence-gate.js'));
+    assert.ok(!keys.includes('git'));
+    assert.ok(!keys.some((k) => /^update-/.test(k)));
+    assert.ok(!h.world.calls.some((c) => c[0] === 'commit'));
+    assert.equal(h.reviews.length, 0);
+    assert.equal(envelope.review, null);
+    assert.ok(
+      h.runCommand.calls
+        .filter((c) => c.key === 'npm')
+        .every((c) => !c.args.join(' ').includes('evidence-gate.js')),
+    );
+    assert.equal(lintDepositCount(h), 0);
+    assert.ok(
+      !existsSync(
+        path.join(
+          tempRoot,
+          'orchestration',
+          `story-handoff-${STORY}-state.json`,
+        ),
+      ),
+    );
+  });
+
+  const lintDepositCount = (h) =>
+    h.runCommand.calls.filter((c) =>
+      c.args.some((a) => String(a).endsWith('evidence-gate.js')),
+    ).length;
+
+  test('--report-all with no fresh artifact skips the coverage readers, and a clean run still ends fix-required', async () => {
+    const config = twoGateConfig();
+    const h = harness({ config });
+    Object.assign(h, { config });
+    h.deps.isCaptureFreshFn = () => false;
+    const { envelope, exitCode } = await reportAll(h);
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'report-all');
+    assert.equal(envelope.findings.length, 1);
+    const post = envelope.steps.find((s) => s.name === 'post-capture');
+    assert.equal(post.outcome, 'skipped');
+  });
+
+  test('--report-all reaches the engine from the CLI flag', async () => {
+    let seen;
+    await runStoryHandoffCli(['--story', '7', '--cwd', '/w', '--report-all'], {
+      resolveConfigImpl: () => ({}),
+      runHandoffImpl: async (input) => {
+        seen = input;
+        return { envelope: {}, exitCode: 2 };
+      },
+      stdout: { write() {} },
+      stderr: { write() {} },
+    });
+    assert.equal(seen.reportAll, true);
   });
 });

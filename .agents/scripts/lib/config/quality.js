@@ -58,6 +58,7 @@ export const CRAP_GATE_DEFAULTS = Object.freeze({
   // Healthy runs resolve ~98%; a coordinate mismatch resolves 4–6%.
   minMethodResolutionRate: 0.75,
   incrementalCoverage: DEFAULT_INCREMENTAL_COVERAGE,
+  previewScope: 'file',
 });
 
 export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
@@ -86,6 +87,7 @@ const CRAP_GATE_KEYS = new Set([
   'incrementalCoverage',
   'coveragePath',
   'captureScript',
+  'previewScope',
 ]);
 
 const COVERAGE_GATE_KEYS = new Set([
@@ -260,6 +262,7 @@ export function resolveMaintainabilityCrap(userCrap, coverageGate) {
     enabled: userCrap.enabled ?? defaults.enabled,
     targetDirs: resolveListValue(defaults.targetDirs, userCrap.targetDirs),
     newMethodCeiling: userCrap.newMethodCeiling ?? defaults.newMethodCeiling,
+    previewScope: userCrap.previewScope ?? defaults.previewScope,
     ...resolveCrapCoverageSource(userCrap, coverage),
     tolerance: toleranceScalar(
       userCrap.tolerance,
