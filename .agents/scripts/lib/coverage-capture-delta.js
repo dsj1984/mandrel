@@ -16,7 +16,7 @@ import {
   filterSuiteInputPaths,
   stampIsStale,
 } from './coverage-capture.js';
-import { judgeOwnFix } from './coverage-capture-own-fix.js';
+import { judgeOwnFix, supersededSeed } from './coverage-capture-own-fix.js';
 import { gitSpawn } from './git-utils.js';
 
 /** Basenames whose change moves coverage beyond the files it names. */
@@ -268,6 +268,8 @@ function canRestamp(rule, delta) {
   return !delta.some(isCoverageConfigFile);
 }
 
+const OWN_FIX_ONLY = 'a red run left only the own-fix split';
+
 /** Main's committed delta since the stamp, judged by the shared rule. */
 function classifyCommittedDelta({
   cwd,
@@ -318,8 +320,9 @@ function classifyDeltaRefresh({
   gitSpawnImpl: spawn = gitSpawn,
   readFileSync = fs.readFileSync,
   computeContentDigestImpl = computeContentDigest,
+  readStamp = readCaptureStamp,
 }) {
-  const stamp = readCaptureStamp(cwd, crap.coveragePath, { readFileSync });
+  const stamp = readStamp(cwd, crap.coveragePath, { readFileSync });
   const no = (reason) => ({ eligible: false, reason, stamp });
   if (typeof stamp?.digest !== 'string') return no('no digest stamp');
   if (!stampStale({ stamp, cwd, crap, computeContentDigestImpl }))
@@ -377,7 +380,7 @@ function reportPlan(plan, crap, logger) {
  *
  * @returns {{ baseRef: string, dropFiles: string[], runCaptureImpl?: () => Promise<number> } | null}
  */
-export function planDeltaRefresh({
+function planFromStamp({
   freshness,
   crap,
   coverage,
@@ -401,4 +404,24 @@ export function planDeltaRefresh({
     `[coverage-capture] Affected mode: delta refresh not eligible (${plan.reason}${deltaCounts(plan.rule)}) — capturing the Story's affected scope.`,
   );
   return null;
+}
+
+/** A superseded stamp seeds the own-fix split and no other delta. */
+function classifySuperseded(stamp, opts) {
+  const plan = classifyDeltaRefresh({ ...opts, readStamp: () => stamp });
+  if (!plan.eligible || plan.ownFix) return plan;
+  return { ...plan, eligible: false, reason: OWN_FIX_ONLY };
+}
+
+/** @see planFromStamp; after a red run the plan also names the prior to merge. */
+export function planDeltaRefresh(opts) {
+  const seed = supersededSeed(opts);
+  if (!seed) return planFromStamp(opts);
+  const plan = planFromStamp({
+    ...opts,
+    freshness: { reason: 'stale' },
+    prior: seed.prior,
+    classifyDeltaRefreshImpl: (o) => classifySuperseded(seed.stamp, o),
+  });
+  return plan && { ...plan, prior: seed.prior };
 }

@@ -788,7 +788,7 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 50,
-                      "description": "Opt-in own-fix delta refresh for `captureScope: affected`. `0` (default) keeps it off. `N >= 1` lets a delta that today's rule refuses for a Story overlap or a config file be re-measured as a delta when it splits, along HEAD's first-parent chain, into base-sync merges that pass today's rule and the Story's own non-merge commits touching at most `N` suite-input files, with no config file, no deleted or renamed suite input and no net line removal in a test file. Rows outside the delta can go stale high; validate against full captures before raising it. `10` is a reasonable start.",
+                      "description": "Opt-in own-fix delta refresh for `captureScope: affected`. `0` (default) keeps it off. `N >= 1` lets a delta that today's rule refuses for a Story overlap or a config file be re-measured as a delta when it splits, along HEAD's first-parent chain, into base-sync merges that pass today's rule and the Story's own non-merge commits touching at most `N` suite-input files, with no config file, no deleted or renamed suite input and no test file: a changed test moves the rows of sources mandrel cannot name, so it refuses the split. A red capture keeps the last green stamp for this split alone. Rows outside the delta can go stale in either direction; validate against full captures before raising it. `10` is a reasonable start.",
                       "default": 0
                     }
                   },

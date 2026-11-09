@@ -187,7 +187,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.coverage.ciRatchetCheck` | No | `string` \| `null` | `null` | Name of the consumer's CI check (check-run or status context) that runs `coverage-ratchet.js` on a deferred PR. Required by `suiteOfRecord: ci`; when set, confirm-merge holds `agent::done` on a PR carrying the `Coverage-deferred:` key line until this check is green on the PR head. Default `null`. |
 | `quality.gates.coverage.nonInputGlobs` | No | `array<string>` | `[]` | Repo-relative picomatch globs naming paths no test reads. A matching path is dropped from both sides of the coverage delta-refresh overlap check and from the re-measured set — a delta of only matching, baseline and coverage-directory paths restamps without a run — and from the overlap check of close's `test` delta re-credit (its incoming count and emptiness test are unchanged). It never changes the suite-input filter, the tree digest or stamp freshness. Default `[]`: nothing is built in, so Markdown counts as an input unless declared here. |
 | `quality.gates.coverage.captureHandlesConfigChanges` | No | `boolean` | `false` | Declares that the affected capture script, given `MANDREL_COVERAGE_BASE_REF`, widens its own selection when a coverage-determining config file (`package.json`, a lockfile, `tsconfig*.json`, a test-runner config) changes. When `true`, such a file in the coverage delta no longer refuses the delta refresh. Close's `test` delta re-credit refuses on a config file under either value. Default `false`. |
-| `quality.gates.coverage.ownFixDeltaMaxFiles` | No | `integer` | `0` | Opt-in own-fix delta refresh for `captureScope: affected`. `0` (default) keeps it off. `N >= 1` lets a delta that today's rule refuses for a Story overlap or a config file be re-measured as a delta when it splits, along HEAD's first-parent chain, into base-sync merges that pass today's rule and the Story's own non-merge commits touching at most `N` suite-input files, with no config file, no deleted or renamed suite input and no net line removal in a test file. Rows outside the delta can go stale high; validate against full captures before raising it. `10` is a reasonable start. |
+| `quality.gates.coverage.ownFixDeltaMaxFiles` | No | `integer` | `0` | Opt-in own-fix delta refresh for `captureScope: affected`. `0` (default) keeps it off. `N >= 1` lets a delta that today's rule refuses for a Story overlap or a config file be re-measured as a delta when it splits, along HEAD's first-parent chain, into base-sync merges that pass today's rule and the Story's own non-merge commits touching at most `N` suite-input files, with no config file, no deleted or renamed suite input and no test file: a changed test moves the rows of sources mandrel cannot name, so it refuses the split. A red capture keeps the last green stamp for this split alone. Rows outside the delta can go stale in either direction; validate against full captures before raising it. `10` is a reasonable start. |
 | `quality.gates.crap` | No | `object` | — | CRAP (Change Risk Anti-Pattern) ratchet — per-method cyclomatic complexity joined against per-method coverage. |
 | `quality.gates.crap.enabled` | No | `boolean` | `true` | When false, the checker exits 0 with a skip line and the gate is reported as `skipped`, never omitted. |
 | `quality.gates.crap.baselinePath` | No | `string` | `"baselines/crap.json"` | Repo-root-relative path to the gate's committed baseline artifact. |
@@ -552,11 +552,16 @@ only when **every** guard holds:
 - the own part holds no coverage-determining config file;
 - the own part touches at most `N` suite-input paths in the delta;
 - no own commit deletes or renames a suite-input path;
-- no own-part test file (`*.test.*` / `*.spec.*`, or under a `tests`, `test`,
-  `__tests__`, `spec` or `e2e` directory) has net line removals across
-  `<commit>..HEAD`;
+- the own part changes no test file (`*.test.*` / `*.spec.*`, or under a
+  `tests`, `test`, `__tests__`, `spec` or `e2e` directory): only the test
+  graph knows which sources a test reaches;
 - no own commit is reachable from `origin/<baseBranch>` (that would be a
   fast-forwarded base commit).
+
+A red, killed or crashed capture restores the prior artifact and keeps the
+last green stamp as a `.superseded` sibling. It never reads as fresh; it only
+seeds this split, under the same guards, so the next own fix need not re-pay
+the whole slice.
 
 An eligible plan logs `needs an own-fix delta refresh — re-measuring <k>
 file(s) changed since <sha> (<n> own file(s), <m> base file(s))` with

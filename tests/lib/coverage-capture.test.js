@@ -22,6 +22,8 @@ import {
   requireCaptureArtifact,
   runCapture,
   stampCapturedTree,
+  supersededArtifactPath,
+  supersededStampPath,
   writeCaptureStamp,
 } from '../../.agents/scripts/lib/coverage-capture.js';
 import {
@@ -397,6 +399,48 @@ describe('isCoverageFresh', () => {
       assert.equal(await capture(), 1);
       assert.equal(fs.existsSync(captureStampPath(dir, coveragePath)), false);
       assert.deepEqual(incremental(), { fresh: false, reason: 'unstamped' });
+    });
+
+    const seedGreen = () => {
+      fs.mkdirSync(path.dirname(artifactAbs()), { recursive: true });
+      fs.writeFileSync(artifactAbs(), '{"green":1}');
+      writeCaptureStamp({ cwd: dir, coveragePath, digest: 'd1' });
+    };
+    const held = () => supersededStampPath(dir, coveragePath);
+    const heldCopy = () => supersededArtifactPath(dir, coveragePath);
+
+    it('restores the prior artifact and keeps the superseded stamp, across repeated reds', async () => {
+      seedGreen();
+      for (let run = 0; run < 2; run += 1) {
+        assert.equal(await capture(), 1);
+        assert.equal(fs.readFileSync(artifactAbs(), 'utf8'), '{"green":1}');
+        assert.equal(JSON.parse(fs.readFileSync(held(), 'utf8')).digest, 'd1');
+        assert.equal(fs.existsSync(heldCopy()), false);
+      }
+    });
+
+    it('a green run discards what was held', async () => {
+      seedGreen();
+      const greenSuite = (_cmd, _args, _opts) => {
+        const child = new EventEmitter();
+        setImmediate(() => child.emit('exit', 0, null));
+        return child;
+      };
+      assert.equal(
+        await runCapture({ cwd: dir, coveragePath, spawnImpl: greenSuite }),
+        0,
+      );
+      assert.equal(fs.existsSync(held()), false);
+      assert.equal(fs.existsSync(heldCopy()), false);
+    });
+
+    it('a capture that died before restoring keeps the held artifact', async () => {
+      seedGreen();
+      fs.renameSync(captureStampPath(dir, coveragePath), held());
+      fs.copyFileSync(artifactAbs(), heldCopy());
+      fs.writeFileSync(artifactAbs(), '{"torn":1}');
+      assert.equal(await capture(), 1);
+      assert.equal(fs.readFileSync(artifactAbs(), 'utf8'), '{"green":1}');
     });
   });
 });
