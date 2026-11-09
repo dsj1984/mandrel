@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
@@ -26,6 +28,7 @@ import {
   planVerifyExecution,
   resolveVerifyCredit,
 } from '../.agents/scripts/lib/orchestration/verify-credit.js';
+import { makeGitRepo } from './fixtures/git-fixture.js';
 
 /**
  * Story #4780 — `main` scored CRAP 69.1: the gate's whole error table
@@ -1163,6 +1166,71 @@ describe('--init — the verdict skeleton (Story #5518)', () => {
     const skeleton = JSON.parse(readFileSync(out.verdictPath, 'utf8'));
     assert.equal(skeleton.criteria.length, 3);
     assert.match(skeleton.commitSha ?? '', /^[0-9a-f]{7,64}$/);
+  });
+
+  it('scores against the remote base, excluding what only a stale local base disagrees on', async () => {
+    const repo = makeGitRepo({ prefix: 'acceptance-base-' });
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+    );
+    const git = (...args) =>
+      execFileSync(
+        'git',
+        ['-c', 'user.email=t@example.com', '-c', 'user.name=T', ...args],
+        { cwd: repo, encoding: 'utf8', env },
+      ).trim();
+    const commitFile = (name) => {
+      writeFileSync(path.join(repo, name), name);
+      git('add', name);
+      git('commit', '-q', '-m', name);
+    };
+    try {
+      git('branch', 'landed');
+      git('checkout', '-q', 'landed');
+      commitFile('landed-by-others.js');
+      git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+      git('checkout', '-q', '-b', 'story-77');
+      commitFile('story-file.js');
+
+      const out = await initVerdictSkeleton(
+        {
+          storyId: 77,
+          cwd: repo,
+          config: { project: { baseBranch: 'main' } },
+        },
+        {
+          readAcceptanceImpl: async () => acceptance,
+          resolveRoundImpl: () => ({ round: 1, replay: false }),
+          writeFileImpl: () => {},
+        },
+      );
+
+      assert.deepEqual(out.files, ['story-file.js']);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to project.baseBranch when no remote base resolves', async () => {
+    const writes = [];
+    let baseRef;
+    const repo = makeGitRepo({ prefix: 'acceptance-no-remote-' });
+    await initVerdictSkeleton(
+      {
+        storyId: 5518,
+        cwd: repo,
+        config: { project: { baseBranch: 'main' } },
+      },
+      {
+        ...initDeps(writes),
+        deriveCeremonyImpl: (input) => {
+          baseRef = input.baseRef;
+          return { files: [], verdictOwner: 'inline-self-eval' };
+        },
+      },
+    );
+    rmSync(repo, { recursive: true, force: true });
+    assert.equal(baseRef, 'main');
   });
 
   it('refuses to write a skeleton when acceptance[] is unreadable', async () => {

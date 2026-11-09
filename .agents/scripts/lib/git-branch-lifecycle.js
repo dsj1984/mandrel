@@ -137,7 +137,8 @@ export function seedStoryBranchRef({
   }
 
   progress('GIT', messages.create(storyBranch, baseRef));
-  const r = spawn(['branch', storyBranch, baseRef]);
+  // --no-track: a remote base ref must not become the Story's upstream.
+  const r = spawn(['branch', '--no-track', storyBranch, baseRef]);
   if (r.status !== 0) {
     const stderr = r.stderr || r.stdout || '';
     if (swallowCreateRace && /already exists/i.test(stderr)) {
