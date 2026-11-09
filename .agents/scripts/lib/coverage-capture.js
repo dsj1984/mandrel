@@ -675,13 +675,61 @@ export function anyChangedUnderTargets(changedFiles, targetDirs) {
   return filterFilesUnderTargets(changedFiles, targetDirs).length > 0;
 }
 
-/**
- * @param {{ cwd: string, coveragePath?: string }} opts No `coveragePath`,
- *   no stamp to drop.
- */
-function dropCaptureStamp({ cwd, coveragePath }) {
-  if (!coveragePath) return;
-  fs.rmSync(captureStampPath(cwd, coveragePath), { force: true });
+/** The last green capture's stamp, while a later run has not gone green. */
+export function supersededStampPath(cwd, coveragePath) {
+  return `${captureStampPath(cwd, coveragePath)}.superseded`;
+}
+
+/** The artifact held aside for the duration of a capture. */
+export function supersededArtifactPath(cwd, coveragePath) {
+  return `${path.resolve(cwd, coveragePath)}.superseded`;
+}
+
+function heldPaths({ cwd, coveragePath }) {
+  return {
+    stamp: captureStampPath(cwd, coveragePath),
+    held: supersededStampPath(cwd, coveragePath),
+    artifact: path.resolve(cwd, coveragePath),
+    copy: supersededArtifactPath(cwd, coveragePath),
+  };
+}
+
+function retireLiveStamp({ stamp, held, copy }) {
+  if (!fs.existsSync(stamp)) return;
+  fs.renameSync(stamp, held);
+  fs.rmSync(copy, { force: true });
+}
+
+/** A copy that outlived its capture is the good one; never overwrite it. */
+function copyArtifactAside({ held, artifact, copy }) {
+  if (!fs.existsSync(held) || fs.existsSync(copy)) return;
+  if (fs.existsSync(artifact)) fs.copyFileSync(artifact, copy);
+}
+
+function discardHeld({ held, copy }) {
+  fs.rmSync(held, { force: true });
+  fs.rmSync(copy, { force: true });
+}
+
+/** Green discards what was held; anything else puts the artifact back. */
+function settleHeld(paths, code) {
+  if (code === 0 || !fs.existsSync(paths.copy)) return discardHeld(paths);
+  fs.renameSync(paths.copy, paths.artifact);
+}
+
+/** Run with the last green stamp and artifact held aside. */
+async function holdingLastGreen(opts, run) {
+  if (!opts.coveragePath) return run();
+  const paths = heldPaths(opts);
+  retireLiveStamp(paths);
+  copyArtifactAside(paths);
+  let code;
+  try {
+    code = await run();
+    return code;
+  } finally {
+    settleHeld(paths, code);
+  }
 }
 
 /** GNU `timeout(1)` code, so callers tell a hang (124) from failing tests. */
@@ -707,9 +755,9 @@ export const COVERAGE_HOST_RESOURCES_EXIT_CODE = 77;
  * worker. Takes no positional file args: node's runner would execute a
  * forwarded source file as a test instead of filtering the suite. Scope a
  * run through `env` instead. Given `coveragePath`, the capture stamp is
- * removed before the spawn: the suite is about to overwrite the artifact, so
- * a red, killed or crashed run must leave no stamp vouching for it — only
- * `stampCapturedTree` after a green run restores one.
+ * moved aside before the spawn: a red, killed or crashed run must leave no
+ * stamp vouching for the tree — only `stampCapturedTree` after a green run
+ * writes one — and gets the prior artifact back.
  *
  * @param {{
  *   cwd: string,
@@ -724,14 +772,13 @@ export const COVERAGE_HOST_RESOURCES_EXIT_CODE = 77;
  * }} opts
  * @returns {Promise<number>}
  */
-export function runCapture(opts = {}) {
+export async function runCapture(opts = {}) {
   const { script = COVERAGE_CAPTURE_DEFAULTS.captureScript, log = () => {} } =
     opts;
-  dropCaptureStamp(opts);
   const [cmd, ...args] = packageScriptArgv(opts.cwd ?? process.cwd(), script);
   const command = [cmd, ...args].join(' ');
   log(`[coverage-capture] ▶ ${command}`);
-  return runSupervisedSuite({
+  const supervised = {
     ...opts,
     cmd,
     args,
@@ -739,7 +786,8 @@ export function runCapture(opts = {}) {
       log(
         `[coverage-capture] ⏱ ${command} exceeded ${opts.timeoutMs}ms — killed its process group. Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
       ),
-  });
+  };
+  return holdingLastGreen(opts, () => runSupervisedSuite(supervised));
 }
 
 /** @param {number} code */

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import { before, describe, it } from 'node:test';
@@ -9,6 +10,7 @@ import {
   computeContentDigest,
   filterFilesUnderTargets,
   isCoverageFresh,
+  runCapture,
   writeCaptureStamp,
 } from '../../.agents/scripts/lib/coverage-capture.js';
 import { tryScopedCapture } from '../../.agents/scripts/lib/coverage-capture-affected.js';
@@ -172,6 +174,14 @@ async function capture(dir, { coverage = {} } = {}) {
 
 const KEY = { ownFixDeltaMaxFiles: 10 };
 
+/** A suite that clobbers the artifact, then fails. */
+function redSuite(_cmd, _args, opts) {
+  const child = new EventEmitter();
+  fs.writeFileSync(path.join(opts.cwd, CRAP.coveragePath), '{"red":1}');
+  setImmediate(() => child.emit('exit', 1, null));
+  return child;
+}
+
 const freshAffected = (dir) =>
   isCoverageFresh({
     coveragePath: CRAP.coveragePath,
@@ -242,13 +252,31 @@ describe('own-fix delta refresh, eligible (AC-2, AC-3)', () => {
     );
   });
 
-  it('an own commit that only adds test lines stays eligible', async () => {
+  it('after a red capture a source-only fix takes the delta against the last green commit', async () => {
     const repo = fixtureRepo();
-    repo.ownFix({
-      'tests/a.test.js': `${[...TEST_LINES, "test('t6');", "test('t7');"].join('\n')}\n`,
+    const green = repo.readStamp().commit;
+    const artifact = path.join(repo.dir, CRAP.coveragePath);
+    const before = fs.readFileSync(artifact, 'utf8');
+    const code = await runCapture({
+      cwd: repo.dir,
+      coveragePath: CRAP.coveragePath,
+      spawnImpl: redSuite,
     });
+    assert.equal(code, 1);
+    assert.equal(freshAffected(repo.dir), false);
+    assert.equal(fs.readFileSync(artifact, 'utf8'), before);
+
+    repo.ownFix();
     const second = await capture(repo.dir, { coverage: KEY });
+    assert.equal(second.calls[0].env[BASE_REF_ENV], green);
+    assert.deepEqual(runsByFile(repo.dir), {
+      'src/a.js': 2,
+      'src/b.js': 1,
+      'src/c.js': 1,
+      'src/shared.js': 1,
+    });
     assert.match(second.log, /own-fix delta refresh .*\(1 own file\(s\)/);
+    assert.equal(freshAffected(repo.dir), true);
   });
 });
 
@@ -330,16 +358,32 @@ describe('own-fix guards fall back to the Story scope (AC-4)', () => {
     );
   });
 
-  it('an own-part test file with net line removals', async () => {
+  it('a superseded stamp never seeds an ordinary delta', async () => {
     const repo = fixtureRepo();
-    repo.ownFix({
-      'tests/a.test.js': `${TEST_LINES.slice(0, 3).join('\n')}\n`,
+    await runCapture({
+      cwd: repo.dir,
+      coveragePath: CRAP.coveragePath,
+      spawnImpl: redSuite,
     });
-    await assertRefused(
-      repo,
-      /own-fix: own part removes lines from test file tests\/a\.test\.js/,
-    );
+    repo.baseSync('unrelated');
+    const second = await capture(repo.dir, { coverage: KEY });
+    assert.equal(second.calls[0].env[BASE_REF_ENV], 'main');
+    assert.match(second.log, /a red run left only the own-fix split/);
   });
+
+  for (const [what, tests] of [
+    ['adds test cases', [...TEST_LINES, "test('t6');", "test('t7');"]],
+    ['removes test cases', TEST_LINES.slice(0, 3)],
+  ]) {
+    it(`an own commit that ${what}`, async () => {
+      const repo = fixtureRepo();
+      repo.ownFix({ 'tests/a.test.js': `${tests.join('\n')}\n` });
+      await assertRefused(
+        repo,
+        /own-fix: own part changes test file tests\/a\.test\.js/,
+      );
+    });
+  }
 
   it("a stamp not on HEAD's first-parent chain", async () => {
     const repo = fixtureRepo();
