@@ -629,8 +629,20 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
       "lines": 100,
-      "branches": 84.21,
+      "branches": 90.48,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-preview-touched.js",
+      "lines": 100,
+      "branches": 93.75,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-prune.js",
+      "lines": 90.7,
+      "branches": 96,
+      "functions": 75
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
@@ -730,8 +742,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 99.23,
-      "branches": 88.55,
+      "lines": 99.32,
+      "branches": 89.71,
       "functions": 100
     },
     {
@@ -802,9 +814,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/seat-missing.js",
-      "lines": 96.49,
-      "branches": 89.47,
-      "functions": 90.91
+      "lines": 100,
+      "branches": 94.67,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
@@ -1325,7 +1337,7 @@
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "lines": 99.8,
-      "branches": 95.83,
+      "branches": 96.03,
       "functions": 100
     },
     {
@@ -1475,7 +1487,7 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "lines": 100,
-      "branches": 84.62,
+      "branches": 88.37,
       "functions": 100
     },
     {
@@ -1486,8 +1498,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 96.95,
-      "branches": 86.96,
+      "lines": 97.01,
+      "branches": 86.18,
       "functions": 100
     },
     {
@@ -2248,8 +2260,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
-      "lines": 97.41,
-      "branches": 93.85,
+      "lines": 97.65,
+      "branches": 94.74,
       "functions": 100
     },
     {
@@ -3040,9 +3052,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 98.8,
-      "branches": 91,
-      "functions": 98.82
+      "lines": 99.31,
+      "branches": 91.91,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
@@ -3976,8 +3988,8 @@
     },
     {
       "path": ".agents/scripts/story-handoff.js",
-      "lines": 95.6,
-      "branches": 80,
+      "lines": 95.79,
+      "branches": 83.33,
       "functions": 33.33
     },
     {
