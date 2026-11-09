@@ -49,6 +49,13 @@ export const CRAP_GATE = {
       default: [...CRAP_GATE_DEFAULTS.ignoreGlobs],
     },
     incrementalCoverage: INCREMENTAL_COVERAGE_SCHEMA,
+    previewScope: {
+      type: 'string',
+      enum: ['file', 'touched-methods'],
+      description:
+        'What the CRAP preview judges in a changed file. `file` compares every method to its row. `touched-methods` compares only methods whose line range intersects a hunk of the diff against the base: other regressions print as informational rows and pass. New methods always face `newMethodCeiling`, and a method whose hunks cannot be read is judged.',
+      default: CRAP_GATE_DEFAULTS.previewScope,
+    },
     coveragePath: {
       type: ['string', 'null'],
       minLength: 1,

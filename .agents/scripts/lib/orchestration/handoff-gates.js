@@ -66,7 +66,7 @@ function holdsLint(ctx, gate) {
 
 /** The argv a preflight check runs: bare when held, else deposited. */
 function preflightArgv(ctx, gate, run) {
-  if (holdsLint(ctx, gate)) {
+  if (ctx.reportAll || holdsLint(ctx, gate)) {
     return { cmd: run.cmd, args: run.args, held: true };
   }
   return {
@@ -98,6 +98,21 @@ function isWholeTreeLint(gate, run) {
     run.args.length === gate.args.length &&
     run.args.every((arg, i) => arg === gate.args[i])
   );
+}
+
+/** Close's artifact-free baseline compare, as a preflight check. */
+export function baselineComparePreflight(ctx) {
+  return closeGates(ctx)
+    .filter((g) => g.name === BASELINES_GATE_NAMES.independent && !g.skip)
+    .map((gate) => ({
+      key: gate.name,
+      label: describeGate(gate),
+      cmd: gate.cmd,
+      args: gate.args,
+      env: gate.env,
+      scoresDuplication: scoresDuplication(gate),
+      baselineRef: gate.env?.BASELINE_REF,
+    }));
 }
 
 /**
@@ -259,8 +274,9 @@ export function seatableKinds(ctx, kinds) {
 }
 
 /**
- * `quality-preview-crap` (capture depositor only) and every baselines entry;
- * after a deferral, none that reads the coverage artifact.
+ * The coverage-reading half of close's list: `quality-preview-crap` (capture
+ * depositor only) and the baselines entries that read the artifact, none
+ * after a deferral. The artifact-free compare runs at preflight.
  */
 function postCaptureGates(ctx) {
   const names = new Set(Object.values(BASELINES_GATE_NAMES));
@@ -271,10 +287,10 @@ function postCaptureGates(ctx) {
   return closeGates(ctx).filter(keep);
 }
 
-/** A registered, unskipped post-capture gate, minus artifact readers after a deferral. */
+/** A registered, unskipped artifact reader; none after a deferral. */
 function postCaptureFilter(names, deferred) {
   return (g) =>
-    names.has(g.name) && !g.skip && !(deferred && g.readsCoverageArtifact);
+    names.has(g.name) && !g.skip && !deferred && g.readsCoverageArtifact;
 }
 
 /** The kinds a baselines entry scores; `null` without `--gate` (every kind). */
@@ -306,9 +322,10 @@ function failure(gate, res) {
   };
 }
 
-/** Run each post-capture gate through `run`; the first non-zero exit is the finding. */
+/** Run every post-capture gate through `run`; each non-zero exit is a finding. */
 export async function scorePostCapture(ctx, run) {
   const gates = postCaptureGates(ctx);
+  const failures = [];
   for (const gate of gates) {
     const env = gate.env ? { ...ctx.env, ...gate.env } : undefined;
     const res = await run(
@@ -317,7 +334,7 @@ export async function scorePostCapture(ctx, run) {
       gate.args,
       env,
     );
-    if (res.status !== 0) return { gates, failed: failure(gate, res) };
+    if (res.status !== 0) failures.push(failure(gate, res));
   }
-  return { gates, failed: null };
+  return { gates, failures };
 }

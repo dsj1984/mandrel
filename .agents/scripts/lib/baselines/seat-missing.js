@@ -153,7 +153,7 @@ function buildSeatedEnvelope({ kind, priorEnvelope, seated }) {
 }
 
 /** A behind CRAP baseline needs a full re-seed; seating would mix semantics. */
-function assertCrapPriorCurrent(kind, envelope) {
+export function assertCrapPriorCurrent(kind, envelope) {
   if (kind !== 'crap' || !envelope) return;
   const stamp = envelope.scoringSemantics;
   if (classifyScoringSemantics(stamp) !== 'behind') return;

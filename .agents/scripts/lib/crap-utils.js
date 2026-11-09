@@ -270,6 +270,7 @@ function projectScanRow(relPath, mr) {
     // `method` may be a derived anonymous identity.
     anonymous: mr.anonymous === true,
     startLine: mr.startLine,
+    ...(mr.endLine === undefined ? {} : { endLine: mr.endLine }),
     cyclomatic: mr.cyclomatic,
     coverage: mr.coverage,
     crap: mr.crap,
@@ -416,6 +417,15 @@ function compareScanRows(a, b) {
   return 0;
 }
 
+/** A file's coverage entry; one with no ranges has no coordinates to join. */
+function joinableCoverageEntry(coverage, relPath) {
+  const entry = findCoverageEntry(coverage, relPath);
+  const hasRanges =
+    Object.keys(entry?.fnMap ?? {}).length > 0 ||
+    Object.keys(entry?.statementMap ?? {}).length > 0;
+  return hasRanges ? entry : null;
+}
+
 /** In-process scorer; the reference the worker output must match exactly. */
 function scoreFileSerial(
   {
@@ -428,7 +438,7 @@ function scoreFileSerial(
   },
   coverage,
 ) {
-  const entry = findCoverageEntry(coverage, relPath);
+  const entry = joinableCoverageEntry(coverage, relPath);
   if (
     shouldSkipFileForNoCoverage(requireCoverage, entry, touched, baselineByKey)
   ) {
@@ -474,7 +484,7 @@ async function scoreFilesViaPool(queue, coverage) {
   // Send each worker only its file's entry, not the whole coverage map.
   const enrichedQueue = queue.map((item) => ({
     ...item,
-    coverageEntry: findCoverageEntry(coverage, item.relPath),
+    coverageEntry: joinableCoverageEntry(coverage, item.relPath),
   }));
   const results = await runOnPool(CRAP_WORKER_URL, enrichedQueue, {
     workerData: {},

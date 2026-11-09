@@ -575,6 +575,15 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   path the handoff seats first — MI is static and needs no coverage — then
   runs the suite.
 
+**Findings in one run.** Without a fresh coverage artifact the preflight CRAP
+preview prints one `crap-coverage-not-fresh` line and passes. Seat-static also
+prunes the CRAP rows of change-set methods that no longer exist. Post-capture
+runs every coverage-reading gate and post-seat check, then lists every finding
+in one `fix-required`. `story-handoff.js --report-all` lists every preflight
+and post-capture finding the same way, always ends `fix-required`, and spawns
+no suite, records no credit, seats, commits and pushes nothing, and runs no
+review; post-seat checks wait for a real run, because it seats nothing.
+
 ## Held review at hand-off {#held-review}
 
 The one home of this rule; the digest and the worker contract point here.

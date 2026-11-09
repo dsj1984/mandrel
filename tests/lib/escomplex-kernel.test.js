@@ -138,9 +138,10 @@ describe('escomplex-kernel — report parity with the displaced kernel', () => {
       );
       // Labels follow the running identity rule, not the corpus's capture-time
       // one: a named method keeps its own name as its last scope segment, an
-      // anonymous one is not pinned; every other field stays pinned.
+      // anonymous one is not pinned; `endLine` postdates the corpus; every
+      // other field stays pinned.
       const withoutAnonLabel = (rows) =>
-        rows?.map((r) => ({
+        rows?.map(({ endLine: _endLine, ...r }) => ({
           ...r,
           method:
             r.anonymous === true

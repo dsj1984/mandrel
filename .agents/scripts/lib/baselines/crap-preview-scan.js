@@ -4,7 +4,6 @@
  */
 
 import path from 'node:path';
-import { COVERAGE_CAPTURE_DEFAULTS } from '../config/gates/coverage.schema.js';
 import { loadCoverage } from '../coverage-utils.js';
 import {
   KERNEL_VERSION,
@@ -13,6 +12,12 @@ import {
 } from '../crap-utils.js';
 import { CYCLOMATIC_CEILING } from '../cyclomatic-ceiling.js';
 import { resolveCrapPreviewIncremental } from './crap-preview-incremental.js';
+import {
+  outsideDiffDiagnostics,
+  previewCoveragePath,
+  previewNotRun,
+  resolveIsJudged,
+} from './crap-preview-touched.js';
 import { resolveCrapEnvOverrides } from './env-overrides.js';
 import {
   buildCrapReport,
@@ -57,12 +62,6 @@ export function listCyclomaticAdvisories(rows) {
     }));
 }
 
-function loadPreviewCoverage(crap, cwd) {
-  const coveragePath =
-    crap.coveragePath ?? COVERAGE_CAPTURE_DEFAULTS.coveragePath;
-  return loadCoverage(path.resolve(cwd, coveragePath));
-}
-
 /**
  * @param {{
  *   crap: object,
@@ -72,6 +71,7 @@ function loadPreviewCoverage(crap, cwd) {
  *   diffRef: string|null,
  *   baseline: { rows: object[] },
  *   baseBranch?: string,
+ *   git?: Function,
  * }} opts
  * @returns {Promise<{ exitCode: number, envelope: object }>}
  */
@@ -83,19 +83,22 @@ export async function computeCrapPreviewScan({
   diffRef,
   baseline,
   baseBranch,
+  git,
 }) {
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
   const crapIgnoreGlobs = Array.isArray(crap.ignoreGlobs)
     ? crap.ignoreGlobs
     : [];
   const requireCoverage = crap.requireCoverage !== false;
-  const coverage = loadPreviewCoverage(crap, cwd);
   // The configured tolerance keeps the preview aligned with the authoritative
   // gate: deltas at or under it are demoted, not failed.
   const { newMethodCeiling, tolerance } = resolveCrapEnvOverrides(
     crap,
     process.env,
   );
+  const notRun = previewNotRun({ crap, targetDirs, cwd, scope, diffRef });
+  if (notRun) return notRun;
+  const coverage = loadCoverage(path.resolve(cwd, previewCoveragePath(crap)));
   const incremental = resolveCrapPreviewIncremental({
     crap,
     diffRef,
@@ -118,6 +121,7 @@ export async function computeCrapPreviewScan({
     baselineRows,
     newMethodCeiling,
     tolerance,
+    isJudged: resolveIsJudged({ crap, diffRef, baseBranch, cwd, git }),
   });
   const envelope = buildCrapReport({
     compareResult: result,
@@ -128,6 +132,9 @@ export async function computeCrapPreviewScan({
     scopeInfo: { scope, diffRef },
   });
   envelope.cyclomaticAdvisories = listCyclomaticAdvisories(scan.rows);
+  if (result.informational.length > 0) {
+    envelope.diagnostics = outsideDiffDiagnostics(result.informational);
+  }
   const exitCode = hasCrapRegressions(result) ? 1 : 0;
   return { exitCode, envelope };
 }

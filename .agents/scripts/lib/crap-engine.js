@@ -86,18 +86,16 @@ export function methodRowsFromReport(report, coverageForFile, mapLine = null) {
       mapLine,
     );
     const cyclomatic = m?.cyclomatic ?? 0;
+    const endLine = resolveEndLine(m?.lineEnd, mapLine);
     const coverage =
       coverageForFile && coordinateSystem === COORDINATE_ORIGINAL
-        ? coverageForMethodInEntry(
-            coverageForFile,
-            startLine,
-            resolveEndLine(m?.lineEnd, mapLine),
-          )
+        ? coverageForMethodInEntry(coverageForFile, startLine, endLine)
         : null;
     const crap = coverage === null ? null : crapFormula(cyclomatic, coverage);
     rows.push({
       ...identities[i],
       startLine,
+      ...(endLine === undefined ? {} : { endLine }),
       cyclomatic,
       coverage,
       crap,

@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { pruneStaleCrapRows } from '../../../.agents/scripts/lib/baselines/crap-prune.js';
 import {
   buildCrapSeatScorer,
   resolveCrapUpdaterOptions,
@@ -921,5 +922,99 @@ describe('seatCoverageBaseline (Story #5960)', () => {
     const { code, log } = await seatCoverage(cwd, 'HEAD~1');
     assert.equal(code, 0, 'no stale-artifact refusal for an out-of-scope diff');
     assert.match(log, /seated: 0/);
+  });
+});
+
+describe('pruneStaleCrapRows', () => {
+  const rows = [
+    { path: 'src/a.js', method: 'gone', crap: 2 },
+    { path: 'src/a.js', method: 'kept', crap: 2 },
+    { path: 'src/a.js', method: 'twin', crap: 2 },
+    { path: 'src/a.js', method: 'twin#1', crap: 3 },
+    { path: 'src/deleted.js', method: 'x', crap: 2 },
+    { path: 'src/unparseable.js', method: 'y', crap: 2 },
+    { path: 'src/untouched.js', method: 'old', crap: 2 },
+  ];
+  const changed = async () => [
+    'src/a.js',
+    'src/deleted.js',
+    'src/unparseable.js',
+  ];
+
+  function plant() {
+    const cwd = tempDir();
+    fs.mkdirSync(path.join(cwd, 'src'));
+    fs.writeFileSync(
+      path.join(cwd, 'src/a.js'),
+      'export function renamed() {\n  return 1;\n}\nexport function kept() {\n  return 2;\n}\nexport function twin() {\n  return 3;\n}\n',
+    );
+    fs.writeFileSync(path.join(cwd, 'src/unparseable.js'), 'function ( {');
+    return cwd;
+  }
+
+  it('AC-4: removes a renamed method, keeps a surviving namesake, needs no artifact', async () => {
+    const cwd = plant();
+    const { writePath } = seedBaseline('crap', rows);
+    const result = await pruneStaleCrapRows({
+      writePath,
+      baseRef: 'origin/main',
+      cwd,
+      gitDiff: changed,
+    });
+    assert.equal(result.pruned, 2);
+    assert.deepEqual(
+      loadFile(writePath, 'crap').rows.map((r) => `${r.path}::${r.method}`),
+      [
+        'src/a.js::kept',
+        'src/a.js::twin',
+        'src/a.js::twin#1',
+        'src/unparseable.js::y',
+        'src/untouched.js::old',
+      ],
+    );
+  });
+
+  it('writes nothing when no row is stale, or no baseline exists', async () => {
+    const cwd = plant();
+    const { writePath, bytes } = seedBaseline('crap', [
+      { path: 'src/a.js', method: 'kept', crap: 2 },
+    ]);
+    const args = { baseRef: 'origin/main', cwd, gitDiff: changed };
+    assert.equal((await pruneStaleCrapRows({ ...args, writePath })).pruned, 0);
+    assert.equal(fs.readFileSync(writePath, 'utf8'), bytes);
+    const missing = path.join(cwd, 'none.json');
+    assert.equal(
+      (await pruneStaleCrapRows({ ...args, writePath: missing })).pruned,
+      0,
+    );
+  });
+
+  it('keeps the scoringSemantics guards: ahead is untouched, behind refuses', async () => {
+    const cwd = plant();
+    const ahead = path.join(cwd, 'ahead.json');
+    writeAheadCrapBaseline(ahead);
+    const before = fs.readFileSync(ahead, 'utf8');
+    const args = { baseRef: 'origin/main', cwd, gitDiff: changed };
+    assert.equal(
+      (await pruneStaleCrapRows({ ...args, writePath: ahead })).pruned,
+      0,
+    );
+    assert.equal(fs.readFileSync(ahead, 'utf8'), before);
+
+    const { writePath: behind } = seedBaseline('crap', rows);
+    const raw = JSON.parse(fs.readFileSync(behind, 'utf8'));
+    delete raw.scoringSemantics;
+    fs.writeFileSync(behind, JSON.stringify(raw));
+    await assert.rejects(
+      () => pruneStaleCrapRows({ ...args, writePath: behind }),
+      SeatRefusal,
+    );
+  });
+
+  it('AC-5: a refusal for an entry with ranges still names the re-capture remedy', () => {
+    assert.match(
+      checkSeatResolution({ resolvedMethods: 0, joinableMethods: 1 }, 'recap'),
+      /Fix: re-capture coverage for the current tree — recap/,
+    );
   });
 });

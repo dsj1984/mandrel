@@ -7,6 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { encodeCrapFiles } from '../.agents/scripts/lib/baselines/kinds/_crap-codec.js';
 import { envelopeExtras } from '../.agents/scripts/lib/baselines/kinds/crap.js';
 import { runCrapPreview } from '../.agents/scripts/lib/baselines/preview-gates.js';
+import {
+  computeContentDigest,
+  computeTreeDigest,
+  writeCaptureStamp,
+} from '../.agents/scripts/lib/coverage-capture.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   computeExitCode,
@@ -711,7 +716,23 @@ function makeCrapFixture({
         : { files: encodeCrapFiles(baselineRows) }),
     }),
   );
+  if (withCoverage) stampCoverage(dir);
   return dir;
+}
+
+/** Vouch for the planted artifact, as a capture does. */
+function stampCoverage(cwd) {
+  const coveragePath = 'coverage/coverage-final.json';
+  const git = (...args) => execFileSync('git', args, { cwd, stdio: 'ignore' });
+  git('init', '-q');
+  git('add', 'src');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'seed');
+  writeCaptureStamp({
+    cwd,
+    coveragePath,
+    digest: computeContentDigest(cwd, ['src']),
+    treeDigest: computeTreeDigest(cwd, coveragePath),
+  });
 }
 
 function rmFixture(dir) {
@@ -790,27 +811,11 @@ describe('runCrapPreview — absent coverage is not zero coverage (#4871)', () =
       assert.deepEqual(envelope.violations, []);
       assert.equal(envelope.summary.regressions, 0);
       assert.equal(envelope.summary.newViolations, 0);
-      assert.ok(
-        envelope.summary.unscorable > 0,
-        'the unscorable methods must be reported, not silently absent',
+      assert.match(
+        envelope.diagnostics[0].message,
+        /CRAP half did not run: no coverage artifact/,
+        'the absence must be named, not silently passed',
       );
-    } finally {
-      rmFixture(dir);
-    }
-  });
-
-  it('does not let unscorable rows suppress the basis (AC-6)', async () => {
-    // Uniform coordinates plus a pile of unscorable rows must still produce a
-    // sound basis — the unscorable count cannot become a suppression lever.
-    const methodCount = 25;
-    const dir = makeCrapFixture({
-      methodCount,
-      withCoverage: false,
-      baselineRows: baselineRowsFor(methodCount, 0),
-    });
-    try {
-      const { envelope } = await runCrapPreview({ cwd: dir });
-      assert.equal(envelope.diagnostics, undefined);
     } finally {
       rmFixture(dir);
     }

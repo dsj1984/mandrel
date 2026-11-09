@@ -111,9 +111,9 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    **first**, ahead of every check: close's base-sync then no-ops. Then close's **duplication re-score**, committed
    **untagged** before any credit.
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
-   `quality-preview.js --changed-since origin/<baseBranch>`, then each
-   baselined ratchet; one `fix-required` lists every finding. Serial unless
-   a per-host `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
+   `quality-preview.js --changed-since origin/<baseBranch>`, each baselined
+   ratchet, `check-baselines`; one `fix-required` lists all. Serial unless
+   per-host `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
    above 1 (default 1): close's independent gates then run in admitted
    lanes beside the base lane — [`deliver-reference.md`](deliver-reference.md) § Preflight.
 3. **One depositor**, by the one predicate close registers `coverage-capture`

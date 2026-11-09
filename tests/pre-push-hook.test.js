@@ -9,6 +9,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -17,6 +18,11 @@ import { runCoverageCapture } from '../.agents/scripts/coverage-capture.js';
 import { resolveCrapPreviewIncremental } from '../.agents/scripts/lib/baselines/crap-preview-incremental.js';
 import { computeCrapPreviewScan } from '../.agents/scripts/lib/baselines/crap-preview-scan.js';
 import { resolveChangedFilesRef } from '../.agents/scripts/lib/changed-files.js';
+import {
+  computeContentDigest,
+  computeTreeDigest,
+  writeCaptureStamp,
+} from '../.agents/scripts/lib/coverage-capture.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 const REPO_ROOT = path.resolve(
@@ -432,6 +438,22 @@ function previewScan(root, changedFiles) {
   });
 }
 
+/** Vouch for the artifact on disk, as a capture does. */
+function stampArtifact(root) {
+  const coveragePath = FIXTURE_CRAP.coveragePath;
+  const git = (...args) =>
+    execFileSync('git', args, { cwd: root, stdio: 'ignore' });
+  git('init', '-q');
+  git('add', '.');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'seed');
+  writeCaptureStamp({
+    cwd: root,
+    coveragePath,
+    digest: computeContentDigest(root, FIXTURE_CRAP.targetDirs),
+    treeDigest: computeTreeDigest(root, coveragePath),
+  });
+}
+
 test('quality-preview scores the artifact on disk — a stale one invents a violation', async () => {
   // The reason the ordering is load-bearing at all. Same tree, same diff
   // scope, two artifacts: the stale one reports `classify` at 0% coverage and
@@ -443,6 +465,7 @@ test('quality-preview scores the artifact on disk — a stale one invents a viol
   const abs = plantFixture(root);
 
   writeCoverageArtifact(root, abs, { classifyHit: 0 });
+  stampArtifact(root);
   const stale = await previewScan(root, ['src/scored.js']);
   assert.equal(stale.exitCode, 1);
   assert.deepEqual(
@@ -451,6 +474,7 @@ test('quality-preview scores the artifact on disk — a stale one invents a viol
   );
 
   writeCoverageArtifact(root, abs, { classifyHit: 7 });
+  stampArtifact(root);
   const fresh = await previewScan(root, ['src/scored.js']);
   assert.equal(fresh.exitCode, 0);
   assert.deepEqual(fresh.envelope.violations, []);
