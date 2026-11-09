@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.115.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.114.0...mandrel-v2.115.0) (2026-11-09)
+
+
+### Added
+
+* one handoff run reports every finding it can, stale CRAP rows prune themselves, and the CRAP ratchet judges only the methods a Story touched ([#6031](https://github.com/dsj1984/mandrel/issues/6031)) ([#6037](https://github.com/dsj1984/mandrel/issues/6037)) ([58bfa88](https://github.com/dsj1984/mandrel/commit/58bfa88f15843b55dd037742af556fdbb2fa4e1a))
+
+
+### Fixed
+
+* a test added after a green capture counts toward coverage, and a red capture no longer forces the next fix to re-pay the whole slice ([#6032](https://github.com/dsj1984/mandrel/issues/6032)) ([#6035](https://github.com/dsj1984/mandrel/issues/6035)) ([32d39e3](https://github.com/dsj1984/mandrel/commit/32d39e35d848b258f7a39a1c30b3f0e376435eb0))
+* story init seeds from the remote base on any clone, and the self-eval scores the same change set handoff and close do ([#6033](https://github.com/dsj1984/mandrel/issues/6033)) ([#6034](https://github.com/dsj1984/mandrel/issues/6034)) ([79430a6](https://github.com/dsj1984/mandrel/commit/79430a6f69d9c207eed7449ef38660b17f226e51))
+
 ## [2.114.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.113.0...mandrel-v2.114.0) (2026-11-08)
 
 
