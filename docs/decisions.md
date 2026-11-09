@@ -5148,3 +5148,25 @@ permission prompt in a headless spawn stalls delivery.
 - Delivery stays prompt-free; a destructive slip in a common spelling is
   refused. Reopen this entry if the repository starts running agents on
   untrusted forks or untrusted issue content without operator attendance.
+
+## ADR 20261108-6031: `crap.previewScope` raises the `.agentrc` leaf-key ceiling to 160
+
+**Status:** Accepted
+
+### Context
+
+Rows on main are rewritten only when a diff touches the file, so a drifted row
+is charged to whoever next edits a neighbouring method. A consumer needs a way
+to judge only the methods a Story edited.
+
+### Decision
+
+Add `delivery.quality.gates.crap.previewScope` (`file` by default, or
+`touched-methods`) and raise the ceiling by one. No existing source of truth
+holds this: it is a choice about who answers for row drift, which neither the
+diff, the baseline, `tolerance` nor `newMethodCeiling` can derive.
+
+### Consequences
+
+The default keeps every consumer's ratchet unchanged. A consumer opting in lets
+drift outside the diff pass as informational rows.
