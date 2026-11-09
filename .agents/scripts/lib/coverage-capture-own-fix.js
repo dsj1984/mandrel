@@ -6,8 +6,14 @@
  * eligible, and every uncertainty refuses.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import picomatch from 'picomatch';
-import { filterSuiteInputPaths } from './coverage-capture.js';
+import {
+  filterSuiteInputPaths,
+  supersededArtifactPath,
+  supersededStampPath,
+} from './coverage-capture.js';
 
 const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
 const TEST_DIR_RE = /(^|\/)(tests?|__tests__|spec|e2e)\//;
@@ -119,34 +125,21 @@ function judgeOwnChanges(ctx, own) {
   return ctx.inputs(paths).filter((f) => ctx.delta.has(f));
 }
 
-/** A weakened test is how a row outside the delta goes stale high. */
-function judgeOwnTests(ctx, files) {
-  const tests = files.filter(isTestPath);
-  if (tests.length === 0) return;
-  const out = must(ctx, [
-    'diff',
-    '--numstat',
-    ctx.commit,
-    'HEAD',
-    '--',
-    ...tests,
-  ]);
-  for (const [added, deleted, file] of lines(out).map((l) => l.split('\t'))) {
-    if (added === '-' || Number(deleted) > Number(added)) {
-      refuse(`own part removes lines from test file ${file}`);
-    }
-  }
+/** Only the test graph knows which sources a changed test reaches. */
+function refuseOwnTest(files) {
+  const test = files.find(isTestPath);
+  if (test) refuse(`own part changes test file ${test}`);
 }
 
 function judge(ctx, { base, own }) {
   judgeBase(ctx, base);
   const ownFiles = judgeOwnChanges(ctx, own);
+  refuseOwnTest(ownFiles);
   if (ownFiles.length > ctx.max) {
     refuse(
       `own part has ${ownFiles.length} suite-input file(s), over ownFixDeltaMaxFiles ${ctx.max}`,
     );
   }
-  judgeOwnTests(ctx, ownFiles);
   const baseFiles = ctx.inputs(base).filter((f) => ctx.delta.has(f));
   return { own: ownFiles.length, base: baseFiles.length };
 }
@@ -229,4 +222,27 @@ export function judgeOwnFix(opts) {
   const report = (p, crap, logger) =>
     reportOwnFix(p, crap, logger, opts.formatFreshnessDetail);
   return { ...plan, rule, stamp, ownFix: own, report };
+}
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/** A copy still held aside means a dead capture left the artifact unusable. */
+function readSupersededStamp(cwd, coveragePath) {
+  if (fs.existsSync(supersededArtifactPath(cwd, coveragePath))) return null;
+  return readJson(supersededStampPath(cwd, coveragePath));
+}
+
+/** The last green stamp and restored artifact a red run left, when usable. */
+export function supersededSeed({ freshness, coverage, args, crap, changed }) {
+  if (freshness.reason !== 'unstamped' || !changed) return null;
+  if (!(coverage?.ownFixDeltaMaxFiles >= 1)) return null;
+  const stamp = readSupersededStamp(args.cwd, crap.coveragePath);
+  const prior = readJson(path.resolve(args.cwd, crap.coveragePath));
+  return stamp && prior ? { stamp, prior } : null;
 }

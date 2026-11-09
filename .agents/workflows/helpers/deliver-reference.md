@@ -493,10 +493,10 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   `captureScope: affected`, it re-measures only the delta when HEAD's
   first-parent chain splits into base-sync merges sharing no suite input or
   config with the Story and own commits touching at most `N` suite-input
-  files, with no config, no deleted or renamed suite input, no net line
-  removal in a test file and none reachable from the base. Any other shape
-  logs `delta refresh not eligible (own-fix: …)` and captures as before.
-  Rows outside the delta are kept and can go stale high, so validate against
+  files, with no config, no deleted or renamed suite input, no test
+  file and none reachable from the base. Any other shape logs
+  `delta refresh not eligible (own-fix: …)` and captures as before. Rows
+  outside the delta are kept and can go stale either way, so validate against
   full captures before raising the cap
   ([configuration](../../docs/configuration.md)).
 - **Background dispatch.** If the handoff outruns the host's sync Bash ceiling,
