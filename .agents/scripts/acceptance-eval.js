@@ -22,7 +22,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { deriveCeremony } from './ceremony-derive.js';
+import { deriveCeremony, resolveDefaultBaseRef } from './ceremony-derive.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getDeliveryRouting } from './lib/config/delivery-routing.js';
 import { resolvedTempRoot } from './lib/config/temp-paths.js';
@@ -261,7 +261,7 @@ export async function initVerdictSkeleton({ storyId, cwd, config }, deps = {}) {
   }
   const ceremony = deriveCeremonyImpl({
     storyId,
-    baseRef: config?.project?.baseBranch ?? 'main',
+    baseRef: resolveDefaultBaseRef({ config, cwd }),
     cwd,
     ceremonyProfile: getDeliveryRouting(config).ceremonyProfile,
   });

@@ -331,7 +331,9 @@ describe('seedStoryBranchRef', () => {
   it('creates the branch from the base ref when neither side has it', () => {
     const s = seams();
     seedStoryBranchRef(s.args);
-    assert.deepEqual(s.spawned, [['branch', 'story-4780', 'main']]);
+    assert.deepEqual(s.spawned, [
+      ['branch', '--no-track', 'story-4780', 'main'],
+    ]);
     assert.deepEqual(s.progressed, ['GIT:create story-4780 from main']);
   });
 

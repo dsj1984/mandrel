@@ -147,6 +147,38 @@ describe('seedStoryBranch / provisionWorktree — real repository', () => {
     );
   });
 
+  it('seeds from the remote base over a local base ahead of it', () => {
+    git(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    const remoteTip = git(repo, 'rev-parse', 'HEAD');
+    git(
+      repo,
+      '-c',
+      'user.email=t@example.com',
+      '-c',
+      'user.name=T',
+      'commit',
+      '-q',
+      '--allow-empty',
+      '-m',
+      'local only',
+    );
+    const progress = recorder();
+
+    seedStoryBranch({
+      cwd: repo,
+      storyBranch: 'story-10',
+      baseBranch: 'main',
+      progress,
+    });
+
+    assert.equal(git(repo, 'rev-parse', 'story-10'), remoteTip);
+    assert.deepEqual(
+      progress.calls.map(([, msg]) => msg),
+      ['Creating story branch ref: story-10 from origin/main'],
+    );
+    assert.throws(() => git(repo, 'rev-parse', '--abbrev-ref', 'story-10@{u}'));
+  });
+
   it('checks the branch out in place when worktree isolation is off', async () => {
     git(repo, 'branch', 'story-9');
 

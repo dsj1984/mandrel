@@ -19,6 +19,7 @@ import { getDeliveryRouting } from './lib/config/delivery-routing.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { resolveCeremonyForRisk } from './lib/orchestration/ceremony-routing.js';
 import { computeChangeSet } from './lib/orchestration/change-set.js';
+import { resolveSharedBaseRef } from './lib/orchestration/review-base-ref.js';
 import { deriveChangeLevel } from './lib/orchestration/review-depth.js';
 
 const USAGE = {
@@ -30,7 +31,7 @@ const USAGE = {
     ['--story <id>', 'Story issue number; the head ref is story-<id>.'],
     [
       '--base <ref>',
-      'Base ref for the three-dot diff (default: project.baseBranch, normally main).',
+      'Base ref for the three-dot diff (default: origin/<project.baseBranch>, else project.baseBranch).',
     ],
     [
       '--cwd <path>',
@@ -38,6 +39,18 @@ const USAGE = {
     ],
   ],
 };
+
+/**
+ * The default change-set base: the remote ref handoff and close diff against,
+ * so a stale local base cannot score others' commits as the Story's.
+ *
+ * @param {{ config: object, cwd: string }} args
+ * @returns {string}
+ */
+export function resolveDefaultBaseRef({ config, cwd }) {
+  const baseBranch = config?.project?.baseBranch ?? 'main';
+  return resolveSharedBaseRef({ baseBranch, cwd }).ref ?? baseBranch;
+}
 
 /**
  * @param {string[]} argv
@@ -137,7 +150,7 @@ export async function runCeremonyDeriveCli(
   const envelope = deriveCeremony(
     {
       storyId,
-      baseRef: base ?? config?.project?.baseBranch ?? 'main',
+      baseRef: base ?? resolveDefaultBaseRef({ config, cwd: workCwd }),
       cwd: workCwd,
       ceremonyProfile: getDeliveryRouting(config).ceremonyProfile,
     },
