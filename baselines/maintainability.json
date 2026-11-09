@@ -436,7 +436,15 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
-      "mi": 104.694
+      "mi": 98.231
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-preview-touched.js",
+      "mi": 102.378
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-prune.js",
+      "mi": 106.351
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
@@ -504,7 +512,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 103.75
+      "mi": 102.952
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -968,7 +976,7 @@
     },
     {
       "path": ".agents/scripts/lib/crap-engine.js",
-      "mi": 92.189
+      "mi": 91.527
     },
     {
       "path": ".agents/scripts/lib/crap-method-identity.js",
@@ -2012,7 +2020,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "mi": 96.399
+      "mi": 95.389
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
@@ -2652,7 +2660,7 @@
     },
     {
       "path": ".agents/scripts/story-handoff.js",
-      "mi": 100.476
+      "mi": 99.637
     },
     {
       "path": ".agents/scripts/story-outcomes-report.js",
