@@ -471,7 +471,7 @@ export async function materializeBaseBranch({
     return { worktreeSweep };
   }
 
-  fastForwardBase({ cwd, baseBranch, progress });
+  reconcileLocalBase({ cwd, baseBranch, progress });
   return { worktreeSweep };
 }
 
@@ -493,21 +493,29 @@ function deepenShallowClone({ cwd, baseBranch, progress }) {
 }
 
 /**
+ * A base with no history in common cannot fast-forward: warn once and move on.
+ *
+ * @param {{ cwd: string, baseBranch: string, progress: Function }} opts
+ */
+function reconcileLocalBase({ cwd, baseBranch, progress }) {
+  const probe = gitSpawn(cwd, 'merge-base', baseBranch, `origin/${baseBranch}`);
+  if (probe.status === 1) {
+    progress(
+      'GIT',
+      `⚠️ local ${baseBranch} shares no history with origin/${baseBranch}; leaving it as is.`,
+    );
+    return;
+  }
+  fastForwardBase({ cwd, baseBranch, progress });
+}
+
+/**
  * `git fetch` leaves local base at the old tip until fast-forwarded.
  * Best-effort: the Story branch seeds from the remote base regardless.
  *
  * @param {{ cwd: string, baseBranch: string, progress: Function }} opts
  */
 function fastForwardBase({ cwd, baseBranch, progress }) {
-  const unrelated =
-    gitSpawn(cwd, 'merge-base', baseBranch, `origin/${baseBranch}`).status ===
-    1;
-  if (unrelated) {
-    progress(
-      'GIT',
-      `⚠️ local ${baseBranch} shares no history with origin/${baseBranch}; leaving it as is.`,
-    );
-  }
   const ffPlan = planFastForward({ cwd, baseBranch });
   const ff = executeFastForward({
     cwd,
@@ -523,7 +531,7 @@ function fastForwardBase({ cwd, baseBranch, progress }) {
       'GIT',
       `Fast-forwarded local ${baseBranch} by ${ff.behind} commit(s).`,
     );
-  } else if (ff.reason === 'not-fast-forward' && !unrelated) {
+  } else if (ff.reason === 'not-fast-forward') {
     progress(
       'GIT',
       `⚠️ local ${baseBranch} is not a fast-forward behind origin/${baseBranch}; leaving it as is.`,
