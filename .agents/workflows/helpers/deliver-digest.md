@@ -105,17 +105,15 @@ a `commit_refs_rules` push stepping missed or a CRITICAL: fix, commit,
 re-run; labels untouched. `blocked` (exit 1) → only a remote-refused push,
 an unreachable remote, an unconfirmed base branch, an unregistered merge
 driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
-`friction`. A re-run skips every step still valid for HEAD. `--report-all` lists every preflight and post-capture finding in one `fix-required`, with no suite, credit, seat, commit, push or review. Past the sync ceiling → **background**, explicit timeout: parallel-tooling Rule 2.
+`friction`. A re-run skips every step still valid for HEAD. Past the sync ceiling → **background**, explicit timeout: parallel-tooling Rule 2.
 
 1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops. Then close's **duplication re-score**, committed
    **untagged** before any credit.
 2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
-   `quality-preview.js --changed-since origin/<baseBranch>` (its CRAP half
-   prints one line and passes without a fresh artifact), each baselined
-   ratchet, then close's artifact-free `check-baselines` compare; one
-   `fix-required` lists every finding. Serial unless
-   a per-host `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
+   `quality-preview.js --changed-since origin/<baseBranch>`, each baselined
+   ratchet, `check-baselines`; one `fix-required` lists all. Serial unless
+   per-host `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
    above 1 (default 1): close's independent gates then run in admitted
    lanes beside the base lane — [`deliver-reference.md`](deliver-reference.md) § Preflight.
 3. **One depositor**, by the one predicate close registers `coverage-capture`
@@ -128,12 +126,10 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
      --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`;
      a predicted capture skip runs `testChanged --changed-since` the
      merge-base, else says why. Signal: `✓ test passed`.
-4. **Seat.** `--seat-missing` (`seated: N`): MI and the stale-CRAP-row prune
-   before step 2, CRAP and capture-path coverage here, committed
-   `chore(baselines): baseline-refresh: …`; then post-capture checks, every
-   finding in one `fix-required`: close's `quality-preview-crap`, its
-   coverage-reading `check-baselines`, then `delivery.handoff.postSeatChecks`.
-   Children get `MANDREL_HANDOFF_STEP`.
+4. **Seat.** `--seat-missing` (`seated: N`): MI before step 2, CRAP and
+   capture-path coverage here, committed `chore(baselines): baseline-refresh:
+   …`; then post-capture checks: close's `quality-preview-crap` and `check-baselines`,
+   then `delivery.handoff.postSeatChecks`. Children get `MANDREL_HANDOFF_STEP`.
 5. **Push** `story-<id>`; the remote ref must equal HEAD.
 6. **Held review** from step 1, beside 2: a CRITICAL skips or aborts 3,
    one envelope with any finding — [`deliver-reference.md`](deliver-reference.md) § Held review.

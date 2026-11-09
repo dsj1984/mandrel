@@ -36,6 +36,7 @@ superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261108-6031`](#adr-20261108-6031-the-crap-preview-scope-raises-the-agentrc-leaf-key-ceiling-to-160) | The CRAP preview scope raises the agentrc leaf-key ceiling to 160 | `.agents/scripts/lib/config/gates/crap.schema.js` | Accepted |
 | [`20261021-5844`](#adr-20261021-5844-this-repositorys-claude-code-settings-grant-bash-and-write-broadly-the-deny-list-is-a-guardrail) | This repository's Claude Code settings grant Bash and Write broadly; the deny list is a guardrail | `.claude/settings.json` | Accepted |
 | [`20261020-5793`](#adr-20261020-5793-close-merge-and-confirm-over-repo-scoped-rest-when-graphql-is-blocked) | Close, merge and confirm over repo-scoped REST when GraphQL is blocked | `.agents/scripts/lib/gh-pr-rest.js` | Accepted |
 | [`20261017-5767`](#adr-20261017-5767-hook-injected-session-context-and-a-codebase-map--rejected) | No hook-injected session context and no shipped codebase map | — | Rejected |
@@ -5149,9 +5150,12 @@ permission prompt in a headless spawn stalls delivery.
   refused. Reopen this entry if the repository starts running agents on
   untrusted forks or untrusted issue content without operator attendance.
 
-## ADR 20261108-6031: `crap.previewScope` raises the `.agentrc` leaf-key ceiling to 160
+## ADR 20261108-6031: The CRAP preview scope raises the agentrc leaf-key ceiling to 160
 
 **Status:** Accepted
+**Date:** 2026-11-08
+**Surface:** `.agents/scripts/lib/config/gates/crap.schema.js`
+**Story:** #6031
 
 ### Context
 
