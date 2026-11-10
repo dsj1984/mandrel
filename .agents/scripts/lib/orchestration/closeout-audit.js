@@ -4,8 +4,8 @@
  * owns it. Probes, repairs and the lock are injected; the evaluation is pure.
  */
 
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { spawnChild } from '../child-exec.js';
 import { readDeferralMarker } from '../coverage-deferral.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { deleteBranchRemote } from '../git-branch-cleanup.js';
@@ -438,7 +438,7 @@ export function buildRepairs({
   config,
   provider,
   logger,
-  spawnFn = spawnSync,
+  spawnFn = spawnChild,
   deleteRemoteFn = deleteBranchRemote,
   sweepBranchesFn = sweepMergedBranches,
   sweepWorktreesFn = sweepStaleStoryWorktrees,
