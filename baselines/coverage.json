@@ -1947,6 +1947,36 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestrate/classify.js",
+      "lines": 99.58,
+      "branches": 84.38,
+      "functions": 93.75
+    },
+    {
+      "path": ".agents/scripts/lib/orchestrate/conflicts.js",
+      "lines": 100,
+      "branches": 86.21,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestrate/inherited-failure.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestrate/inventory.js",
+      "lines": 99.48,
+      "branches": 64.66,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestrate/ledger.js",
+      "lines": 100,
+      "branches": 96.67,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/acceptance-eval-decision.js",
       "lines": 99.61,
       "branches": 79.49,
@@ -3756,6 +3786,18 @@
       "path": ".agents/scripts/nav-registry-diff.js",
       "lines": 100,
       "branches": 99.21,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/orchestrate-inventory.js",
+      "lines": 82.86,
+      "branches": 75,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/orchestrate-ledger.js",
+      "lines": 97.16,
+      "branches": 100,
       "functions": 100
     },
     {
