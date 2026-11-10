@@ -107,7 +107,7 @@ function presenceRow(check, storyId, present, evidence) {
  * @param {object} r `{ ticket, pr, board, branch, remote, scratch }`
  * @returns {object[]}
  */
-export function evaluateStory(storyId, r) {
+function evaluateStory(storyId, r) {
   const branchName = getStoryBranch(storyId);
   if (!isPrMerged(r.pr)) {
     const why = r.pr?.error
@@ -217,7 +217,7 @@ function markOutcome(before, after, reasonFor) {
   return { ...after, checks };
 }
 
-export function summarize(stories) {
+function summarize(stories) {
   const all = stories.flatMap((s) => s.checks);
   const count = (pred) => all.filter(pred).length;
   return {
