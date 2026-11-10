@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { parseCloseoutArgv } from '../.agents/scripts/closeout-audit.js';
@@ -437,7 +438,7 @@ describe('closeout-audit argv', () => {
       sinceHours: 24,
       execute: true,
       json: true,
-      cwd: '/r',
+      cwd: path.resolve('/r'),
     });
     assert.equal(parseCloseoutArgv(['--since-hours', '6']).sinceHours, 6);
   });
