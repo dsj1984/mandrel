@@ -1284,7 +1284,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestrate/classify.js",
-      "mi": 103.796
+      "mi": 104.769
     },
     {
       "path": ".agents/scripts/lib/orchestrate/conflicts.js",
@@ -1728,7 +1728,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/required-checks.js",
-      "mi": 90.974
+      "mi": 92.292
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolve-stories.js",
