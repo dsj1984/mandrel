@@ -122,7 +122,7 @@ When the inventory lists `merge-queue` in `degraded[]`, queue state is
 unknown: nothing is classified `ejected` or `green-not-queued`, so say so in
 the report instead of guessing.
 
-## Guardrails
+## Constraints
 
 - **Strictly reactive.** Never dispatch `/mandrel-deliver` for a Story nobody
   holds, never push to another session's branch, and never dispatch a release
