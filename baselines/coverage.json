@@ -129,6 +129,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/closeout-audit.js",
+      "lines": 75.76,
+      "branches": 100,
+      "functions": 40
+    },
+    {
       "path": ".agents/scripts/coverage-capture.js",
       "lines": 98.41,
       "branches": 97.06,
@@ -2065,6 +2071,12 @@
       "lines": 99.64,
       "branches": 82.68,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/closeout-audit.js",
+      "lines": 95.5,
+      "branches": 74.67,
+      "functions": 94.44
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",

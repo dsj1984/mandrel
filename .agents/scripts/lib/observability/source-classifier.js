@@ -41,6 +41,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'ceremony-derive.js',
   'clean-temp.js',
   'clean-worktrees.js',
+  'closeout-audit.js',
   'cleanup-repo-test-temp.js',
   'coverage-capture.js',
   'coverage-ratchet.js',
