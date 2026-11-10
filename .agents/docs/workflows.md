@@ -51,7 +51,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (38)
+## Commands (39)
 
 | Command | Description |
 | --- | --- |
@@ -86,6 +86,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/git-deliver` | Single ad-hoc delivery command for working-tree changes. Detects the git setup and escalates to the right terminal step — commit only, commit + push, or commit + push + open a PR with native auto-merge — picking the default from observable state and letting flags pin any level explicitly. Replaces the retired git-commit-all, git-push, and git-pr-all trio. |
 | `/mandrel-deliver` | Unified delivery entry point. Takes Story ids or a plain-language prompt, derives which path the work belongs on, and lands it via the single deliver-story engine — story-<id> → PR → main. |
 | `/mandrel-leverage` | Evidence-cited leverage review — draft five to twelve bets on how the project could be ~10x more useful, reliable or valuable, refute most of them with two maker-blind skeptics each, write the survivors, downgrades and refutations to temp/leverage/<run-id>/bets.md, and hand each survivor to /mandrel-plan behind a HITL gate. |
+| `/mandrel-orchestrate` | One session that keeps every in-flight delivery moving — sweep the open PRs into exactly one state each, act only within the authority the operator recorded, message each owner once, close out every landed Story, and print the hand-back summary on stop. Reactive only; the host loop paces the sweeps. |
 | `/mandrel-plan` | Unified planning entry point. Interrogate → author → persist. Emits one Story by default; splits into N>1 only under the default-single split policy. |
 | `/mandrel-update` | npm-era upgrade wraparound for a Mandrel consumer. Runs `npx mandrel update` (resolve newest published version → install → re-materialize `.agents/` → migrate → doctor → surface changelog) as the single mechanical step, then walks the operator through the judgment wraparound the CLI deliberately leaves unowned: reconcile `.agentrc.json`, install the stabilized quality-gate surface, refresh the harness permission allowlist, reconcile the consumer's `AGENTS.md` / runbooks against the surfaced changelog, and stage + commit the dependency bump the CLI's closing report describes. |
 | `/memory-consolidate` | Attended consolidation pass over this project's agent memory pool — merge duplicates, verify claims against the current tree, prune with operator confirmation, rewrite the index, and stamp the pool with the date and entry count the /mandrel-plan advisory measures its next nudge against. |

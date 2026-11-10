@@ -673,6 +673,7 @@ ticket and still refused.
 | `/mandrel-deliver <storyId> [<storyId>…]` | Deliver one Story inline, or a set / range in `depends_on` order, then the per-run epilogue. |
 | `/mandrel-deliver <epicId>` | Deliver every open Story under a container Epic. |
 | `/mandrel-deliver <prompt>` | Unplanned small work via the light path — risk gate, receipt Story, same close. |
+| `/mandrel-orchestrate` | Keep every in-flight delivery moving: classify each open PR, act within the operator's recorded authority, close out landed Stories, and hand back a summary. Paced by the host loop. |
 | `/git-deliver` | Ad-hoc delivery of working-tree changes — escalates to commit, commit + push, or commit + push + PR (auto-merge armed). |
 | `/prototype` | Operator-invoked single-file UI prototype before UI acceptance criteria are frozen. |
 | `/audit-<dimension>` · `/audit-to-stories` | Run an audit lens; convert findings into a plan seed or Stories. |

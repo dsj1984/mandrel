@@ -42,6 +42,8 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'clean-temp.js',
   'clean-worktrees.js',
   'closeout-audit.js',
+  'orchestrate-inventory.js',
+  'orchestrate-ledger.js',
   'cleanup-repo-test-temp.js',
   'coverage-capture.js',
   'coverage-ratchet.js',

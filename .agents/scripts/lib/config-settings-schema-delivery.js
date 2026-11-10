@@ -376,6 +376,39 @@ const HANDOFF_SCHEMA = {
   additionalProperties: false,
 };
 
+const ORCHESTRATE_COMMAND_PROPS = {
+  cmd: { type: 'string', minLength: 1 },
+  args: { type: 'array', items: { type: 'string' } },
+};
+
+const ORCHESTRATE_SCHEMA = {
+  type: 'object',
+  description:
+    'Story #6040. Project facts `/mandrel-orchestrate` cannot derive: how this repository re-queues an ejected PR, and the release veto. Thresholds and authority defaults are constants, not config.',
+  properties: {
+    requeueCommand: {
+      type: 'object',
+      properties: ORCHESTRATE_COMMAND_PROPS,
+      required: ['cmd'],
+      additionalProperties: false,
+      description:
+        'Story #6040. `{ cmd, args? }` the inventory offers for an eligible ejected PR; `{pr}` in an arg is replaced by the PR number. Run without a shell, and only when the operator granted `requeue`. Unset, the inventory reports `command: null`.',
+    },
+    releaseVeto: {
+      type: 'object',
+      properties: {
+        prLabel: { type: 'string', minLength: 1 },
+        ...ORCHESTRATE_COMMAND_PROPS,
+      },
+      required: ['prLabel', 'cmd'],
+      additionalProperties: false,
+      description:
+        'Story #6040. `{ prLabel, cmd, args? }`: on a PR carrying `prLabel`, the inventory runs `cmd` (no shell, main checkout) and a non-zero exit holds a re-queue or auto-merge arm on that PR. Unset, no PR is vetoed.',
+    },
+  },
+  additionalProperties: false,
+};
+
 const REFACTOR_STAGE_SCHEMA = {
   type: 'object',
   description:
@@ -517,6 +550,7 @@ export const DELIVERY_SCHEMA = {
     ci: CI_DELIVERY_SCHEMA,
     pullRequest: PULL_REQUEST_DELIVERY_SCHEMA,
     handoff: HANDOFF_SCHEMA,
+    orchestrate: ORCHESTRATE_SCHEMA,
     routing: ROUTING_SCHEMA,
   },
   additionalProperties: false,

@@ -260,6 +260,18 @@ export function runTempDir(rid, config) {
 }
 
 /**
+ * `<tempRoot>/orchestrate/<run-id>`: one `/mandrel-orchestrate` run's ledger.
+ *
+ * @param {string} rid
+ * @param {object} [config]
+ * @returns {string}
+ */
+export function orchestrateRunDir(rid, config) {
+  const root = anchorTempRoot(tempRootFrom(config));
+  return path.join(root, 'orchestrate', artifactName(rid));
+}
+
+/**
  * `eid === null` routes to `<tempRoot>/standalone/stories/story-<sid>/`.
  *
  * @param {number|null} eid
