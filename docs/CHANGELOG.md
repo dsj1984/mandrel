@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.116.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.115.0...mandrel-v2.116.0) (2026-11-10)
+
+
+### Added
+
+* /mandrel-orchestrate — one session that keeps every in-flight delivery moving and closes each one out ([#6040](https://github.com/dsj1984/mandrel/issues/6040)) ([#6043](https://github.com/dsj1984/mandrel/issues/6043)) ([24959ce](https://github.com/dsj1984/mandrel/commit/24959cea9c98f1d405f0780c6f6b737d5020d5f1))
+* closeout-audit — one command reports every landed Story whose close-out did not finish, and repairs it through the existing seams ([#6039](https://github.com/dsj1984/mandrel/issues/6039)) ([#6041](https://github.com/dsj1984/mandrel/issues/6041)) ([b779c6b](https://github.com/dsj1984/mandrel/commit/b779c6b2071f0e1cbb670d67235609900daa82f3))
+
 ## [2.115.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.114.0...mandrel-v2.115.0) (2026-11-09)
 
 
