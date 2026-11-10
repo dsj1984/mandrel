@@ -99,6 +99,10 @@
       "mi": 101.974
     },
     {
+      "path": ".agents/scripts/closeout-audit.js",
+      "mi": 97.499
+    },
+    {
       "path": ".agents/scripts/coverage-capture.js",
       "mi": 95.113
     },
@@ -1361,6 +1365,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "mi": 96.92
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/closeout-audit.js",
+      "mi": 103.415
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
