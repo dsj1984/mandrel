@@ -374,6 +374,24 @@ in the foreground, now bounded to the gates plus the ~60s probe, and the long
 merge wait moves into the background confirm that carries the explicit
 timeout. A local session need not pass the flag.
 
+## Close-out audit {#closeout-audit}
+
+`deliver-recover.js` names the next command for one stranded Story;
+`closeout-audit.js` finds every landed Story whose close-out did not finish.
+It checks each Story whose `story-<id>` PR merged in the last 24 hours
+(`--since-hours <n>`), or exactly the ids passed with `--story`. For each
+Story it reports `story-state`, `board-status`, `remote-branch`,
+`local-branch`, `worktree` and `scratch` as `ok`, `drift` or `unknown`, each
+with one line of evidence and the command that fixes it. It is a dry run by
+default. `--execute` repairs each drift through the seam that already owns
+it: confirm-merge goes first, then the status resync, the branch delete, the
+protected sweeps and the per-Story temp purge. All repairs run under the
+sweep lock, and the audit re-probes after them. A row stays drifted, with
+its reason, when a seam refuses (dirty tree, unpushed work, the running
+tree). An `unknown` row is never repaired. Exit 0 means nothing remains
+drifted, 2 means drift remains, and 1 means the audit could not run. With
+`--json`, stdout carries one `closeout-audit` envelope.
+
 ## Preflight (before close) {#preflight}
 
 Digest § 5 states the rule: `story-handoff.js` runs, after the base merge
