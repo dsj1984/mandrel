@@ -6,12 +6,10 @@ import {
   buildProbes,
   buildRepairs,
   buildWithLock,
-  CHECKS,
   exitCodeFor,
   listMergedStoryIds,
   renderAudit,
   runCloseoutAudit,
-  selectMergedStoryIds,
 } from '../.agents/scripts/lib/orchestration/closeout-audit.js';
 import { NEXT_COMMANDS } from '../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
 
@@ -226,7 +224,14 @@ describe('closeout-audit core', () => {
     assert.equal(env.stories.length, 1);
     assert.deepEqual(
       env.stories[0].checks.map((c) => c.check),
-      CHECKS,
+      [
+        'story-state',
+        'board-status',
+        'remote-branch',
+        'local-branch',
+        'worktree',
+        'scratch',
+      ],
     );
     assert.equal(env.stories[0].readings, undefined);
     assert.equal(JSON.parse(JSON.stringify(env)).summary.ok, 6);
@@ -244,15 +249,12 @@ describe('closeout-audit scope', () => {
     { headRefName: 'story-1', mergedAt: '2026-11-10T02:00:00Z' },
   ];
 
-  it('AC-2: only exact story-<id> heads merged inside the window', () => {
-    assert.deepEqual(
-      selectMergedStoryIds(rows, { sinceHours: 24, nowMs: now }),
-      [1],
-    );
-    assert.deepEqual(
-      selectMergedStoryIds(rows, { sinceHours: 72, nowMs: now }),
-      [1, 2],
-    );
+  it('AC-2: only exact story-<id> heads merged inside the window', async () => {
+    const gh = { pr: { list: async () => rows } };
+    const ids = (sinceHours) =>
+      listMergedStoryIds({ gh, baseBranch: 'main', sinceHours, nowMs: now });
+    assert.deepEqual(await ids(24), [1]);
+    assert.deepEqual(await ids(72), [1, 2]);
   });
 
   it('lists merged PRs against the base branch', async () => {

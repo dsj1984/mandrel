@@ -29,7 +29,7 @@ import { sweepStaleStoryWorktrees } from './plan-runner/worktree-sweep.js';
 import { NEXT_COMMANDS } from './story-deliver-terminal.js';
 
 /** Repair order: `story-state` first, its land tail clears most of the rest. */
-export const CHECKS = Object.freeze([
+const CHECKS = Object.freeze([
   'story-state',
   'board-status',
   'remote-branch',
@@ -305,7 +305,7 @@ export function renderAudit(envelope) {
  * @param {{ sinceHours: number, nowMs: number }} window
  * @returns {number[]}
  */
-export function selectMergedStoryIds(rows, { sinceHours, nowMs }) {
+function selectMergedStoryIds(rows, { sinceHours, nowMs }) {
   const cutoff = nowMs - sinceHours * 3_600_000;
   const ids = new Set();
   for (const r of Array.isArray(rows) ? rows : []) {
