@@ -78,12 +78,16 @@ function classifyPr(pr, ctx) {
       ctx.inheritedPrs.has(pr.number) ? 'red-inherited' : 'red-own-failure',
     );
   }
-  if (checks.queued && !checks.running) return done('waiting-on-runner');
+  return done(quietState(pr, checks, ctx));
+}
+
+/** The states below red: waiting-on-runner, green-not-queued, stale, moving. */
+function quietState(pr, checks, ctx) {
+  if (checks.queued && !checks.running) return 'waiting-on-runner';
   const unqueued = ctx.queueReadable && pr.inQueue === false && !pr.autoMerge;
-  if (checks.green && unqueued && !pr.draft) return done('green-not-queued');
-  if (!checks.green && ctx.now - Date.parse(pr.activityAt ?? '') > STALE_MS)
-    return done('stale');
-  return done('moving');
+  if (checks.green && unqueued && !pr.draft) return 'green-not-queued';
+  const idleMs = ctx.now - Date.parse(pr.activityAt ?? '');
+  return !checks.green && idleMs > STALE_MS ? 'stale' : 'moving';
 }
 
 /**
@@ -142,6 +146,13 @@ function redSigs(pr, required) {
     .map(failureSignature);
 }
 
+function conflictFields({ paths }) {
+  return {
+    conflicted: paths ? paths.slice(0, CONFLICTS_SHOWN) : null,
+    conflictedCount: paths ? paths.length : null,
+  };
+}
+
 function prEntry(pr, verdict, opts) {
   const vetoed = opts.vetoLabel ? pr.labels.includes(opts.vetoLabel) : false;
   const entry = {
@@ -154,11 +165,7 @@ function prEntry(pr, verdict, opts) {
     pathCount: pr.pathCount,
   };
   if (verdict.state.startsWith('red-')) entry.red = pr.sigs.slice(0, RED_SHOWN);
-  if (verdict.conflict) {
-    entry.conflicted =
-      verdict.conflict.paths?.slice(0, CONFLICTS_SHOWN) ?? null;
-    entry.conflictedCount = verdict.conflict.paths?.length ?? null;
-  }
+  if (verdict.conflict) Object.assign(entry, conflictFields(verdict.conflict));
   if (vetoed) entry.veto = opts.vetoHeld ? 'held' : 'clear';
   if (verdict.state === 'ejected') {
     entry.requeue = requeueOf(pr, {
