@@ -1283,6 +1283,26 @@
       "mi": 93.901
     },
     {
+      "path": ".agents/scripts/lib/orchestrate/classify.js",
+      "mi": 103.796
+    },
+    {
+      "path": ".agents/scripts/lib/orchestrate/conflicts.js",
+      "mi": 105.881
+    },
+    {
+      "path": ".agents/scripts/lib/orchestrate/inherited-failure.js",
+      "mi": 115.205
+    },
+    {
+      "path": ".agents/scripts/lib/orchestrate/inventory.js",
+      "mi": 99.662
+    },
+    {
+      "path": ".agents/scripts/lib/orchestrate/ledger.js",
+      "mi": 107.983
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/acceptance-eval-decision.js",
       "mi": 94.435
     },
@@ -2497,6 +2517,14 @@
     {
       "path": ".agents/scripts/notify.js",
       "mi": 91.093
+    },
+    {
+      "path": ".agents/scripts/orchestrate-inventory.js",
+      "mi": 98.141
+    },
+    {
+      "path": ".agents/scripts/orchestrate-ledger.js",
+      "mi": 89.819
     },
     {
       "path": ".agents/scripts/plan-context.js",
