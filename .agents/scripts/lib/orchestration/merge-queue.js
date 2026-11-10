@@ -59,7 +59,7 @@ async function readMergeQueueStateRest({ prRef, prNodeId, facade, timeoutMs }) {
  * @param {{ stdout?: string }|string|undefined} result
  * @returns {object|null}
  */
-function parseGraphqlData(result) {
+export function parseGraphqlData(result) {
   const text = typeof result === 'string' ? result : result?.stdout;
   const parsed = JSON.parse(String(text ?? ''));
   if (Array.isArray(parsed?.errors) && parsed.errors.length > 0) {

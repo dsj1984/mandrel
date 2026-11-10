@@ -1700,6 +1700,53 @@
           },
           "additionalProperties": false
         },
+        "orchestrate": {
+          "type": "object",
+          "description": "Story #6040. Project facts `/mandrel-orchestrate` cannot derive: how this repository re-queues an ejected PR, and the release veto. Thresholds and authority defaults are constants, not config.",
+          "properties": {
+            "requeueCommand": {
+              "type": "object",
+              "properties": {
+                "cmd": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["cmd"],
+              "additionalProperties": false,
+              "description": "Story #6040. `{ cmd, args? }` the inventory offers for an eligible ejected PR; `{pr}` in an arg is replaced by the PR number. Run without a shell, and only when the operator granted `requeue`. Unset, the inventory reports `command: null`."
+            },
+            "releaseVeto": {
+              "type": "object",
+              "properties": {
+                "prLabel": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "cmd": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["prLabel", "cmd"],
+              "additionalProperties": false,
+              "description": "Story #6040. `{ prLabel, cmd, args? }`: on a PR carrying `prLabel`, the inventory runs `cmd` (no shell, main checkout) and a non-zero exit holds a re-queue or auto-merge arm on that PR. Unset, no PR is vetoed."
+            }
+          },
+          "additionalProperties": false
+        },
         "routing": {
           "type": "object",
           "description": "v2 delivery-spawn routing: role-scoped boot contexts and the ceremony profile. The v1 singleDelivery epic-route kill-switch was removed in Stage 6; the freshCriticSampleRate sampling floor was retired in Story #5313 and the derived-level ceremony routing in Story #5343.",

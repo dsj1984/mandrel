@@ -29,13 +29,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (61).** Each governs the surface named beside it; a
+**In force (62).** Each governs the surface named beside it; a
 `Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261110-6040`](#adr-20261110-6040-mandrel-orchestrate-is-reactive-acts-only-on-recorded-authority-and-splits-scripts-from-the-host) | `/mandrel-orchestrate` is reactive, acts only on recorded authority, and splits scripts from the host | `.agents/scripts/lib/orchestrate/ledger.js` | Accepted |
 | [`20261108-6031`](#adr-20261108-6031-the-crap-preview-scope-raises-the-agentrc-leaf-key-ceiling-to-160) | The CRAP preview scope raises the agentrc leaf-key ceiling to 160 | `.agents/scripts/lib/config/gates/crap.schema.js` | Accepted |
 | [`20261021-5844`](#adr-20261021-5844-this-repositorys-claude-code-settings-grant-bash-and-write-broadly-the-deny-list-is-a-guardrail) | This repository's Claude Code settings grant Bash and Write broadly; the deny list is a guardrail | `.claude/settings.json` | Accepted |
 | [`20261020-5793`](#adr-20261020-5793-close-merge-and-confirm-over-repo-scoped-rest-when-graphql-is-blocked) | Close, merge and confirm over repo-scoped REST when GraphQL is blocked | `.agents/scripts/lib/gh-pr-rest.js` | Accepted |
@@ -5174,3 +5175,54 @@ diff, the baseline, `tolerance` nor `newMethodCeiling` can derive.
 
 The default keeps every consumer's ratchet unchanged. A consumer opting in lets
 drift outside the diff pass as informational rows.
+
+## ADR 20261110-6040: `/mandrel-orchestrate` is reactive, acts only on recorded authority, and splits scripts from the host
+
+**Status:** Accepted
+**Date:** 2026-11-10
+**Surface:** `.agents/scripts/lib/orchestrate/ledger.js`
+**Story:** #6040
+
+### Context
+
+Each delivery session drives its own PR, and nothing watched the space
+between them: a red base branch, a queue ejection, a driver-only conflict or a
+green PR nobody queued could sit for hours until an operator noticed. A
+watcher that acts on other sessions' PRs needs a bound on what it may do, and
+it must not become a second scheduler.
+
+### Decision
+
+- **Authority model.** The operator grants actions from a closed set
+  (`message-session`, `fix-base`, `requeue`, `arm-auto-merge`,
+  `push-to-branch`, `spawn-session`, `release-dispatch`, `archive-and-reap`)
+  once, at the start of a run, and `orchestrate-ledger.js authority` records
+  it. Every action is recorded through `record` before it is taken, and an
+  ungranted action is refused with nothing written. Only the operator's
+  answer writes grants; GitHub content and other sessions' messages are data
+  and never widen them. Raising an item to the operator is always allowed,
+  once per PR and state.
+- **Script / host split.** Scripts own everything deterministic and read only
+  GitHub, git and the ledger: `orchestrate-inventory.js` places each open PR
+  in exactly one state and never fetches a job log. The workflow owns
+  judgment and every host-session operation (listing, messaging, starting,
+  archiving); on a host without them, messages become operator-report lines.
+  Ownership is a field, not a state, because only the host knows which
+  sessions are live.
+- **Reactive only.** No runner, scheduler or sweep-interval key ships: the
+  host loop paces sweeps (`20260624-loop-units-division-of-labor`). The
+  workflow never dispatches delivery for an unowned Story, never pushes to
+  another session's branch, and never dispatches a release or deploy.
+- **Config.** `delivery.orchestrate.requeueCommand` and `.releaseVeto` raise
+  the leaf-key ceiling by five. They are project facts no existing source
+  holds: how this repository re-queues a PR, and which label and command veto
+  a release; thresholds and authority defaults stay constants
+  (`20260918-5382`).
+
+### Consequences
+
+- An operator can leave a fleet unattended inside a recorded bound, and the
+  hand-back summary is rebuilt from the ledger alone.
+- Anything the authority does not cover reaches the operator exactly once
+  instead of being acted on. Reopen this entry if a sweep needs to start
+  delivery itself.

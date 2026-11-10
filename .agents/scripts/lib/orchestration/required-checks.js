@@ -108,9 +108,19 @@ async function readRequiredNamesRest({ prNumber, gh, timeoutMs }) {
   const view = await gh.pr.view(String(prNumber), ['baseRefName']);
   const base = view?.baseRefName;
   if (!base) throw new Error('PR base branch unreadable');
+  return readBaseRequiredNames({ api: gh.api, base, timeoutMs });
+}
+
+/**
+ * The base branch's required check names, over REST on either transport.
+ *
+ * @param {{ api: Function, base: string, timeoutMs?: number }} args
+ * @returns {Promise<Set<string>>}
+ */
+export async function readBaseRequiredNames({ api, base, timeoutMs }) {
   const [rules, contexts] = await Promise.all([
-    readBranchRules({ api: gh.api, base, timeoutMs }),
-    readProtectionContexts({ api: gh.api, base, timeoutMs }),
+    readBranchRules({ api, base, timeoutMs }),
+    readProtectionContexts({ api, base, timeoutMs }),
   ]);
   const names = new Set(contexts.filter(Boolean));
   for (const rule of rules) {
