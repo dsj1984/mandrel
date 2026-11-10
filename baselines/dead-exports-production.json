@@ -880,18 +880,6 @@
       "symbol": "decideRecovery"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "symbol": "probeBranch"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "symbol": "probePr"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "symbol": "probeTicket"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/file-assumptions.js",
       "symbol": "FILE_ASSUMPTION_VALUES"
     },
