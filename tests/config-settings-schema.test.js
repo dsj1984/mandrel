@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { getQuality } from '../.agents/scripts/lib/config/quality.js';
 import {
@@ -8,6 +9,7 @@ import {
   WEBHOOK_EVENT_NAMES,
 } from '../.agents/scripts/lib/config-settings-schema.js';
 import { STANDALONE_RATCHETS } from '../.agents/scripts/lib/standalone-ratchets.js';
+import { createAjv2020 } from '../.agents/scripts/lib/util/ajv.js';
 
 const validate = getAgentrcValidator();
 
@@ -440,6 +442,35 @@ describe('delivery.* shape', () => {
       { ...REQ, delivery: { close: { other: true } } },
       /additional properties/,
     );
+  });
+
+  // Story #6050 AC-5 — the post-merge revalidation keys, runtime and mirror.
+  it('accepts a populated revalidation block in the runtime schema and the mirror', () => {
+    const mirror = JSON.parse(
+      readFileSync(
+        new URL('../.agents/schemas/agentrc.schema.json', import.meta.url),
+        'utf8',
+      ),
+    );
+    const mirrorValidate = createAjv2020({ allErrors: true }).compile(mirror);
+    const withClose = (close) => ({ ...REQ, delivery: { close } });
+    const populated = withClose({
+      baseSync: 'always',
+      revalidateAfterBaseSync: 'ci',
+      revalidateCiChecks: ['ci / test', 'ci / lint'],
+      revalidateAlwaysPaths: ['.github/**', 'package-lock.json'],
+    });
+    assert.equal(validate(populated), true);
+    assert.equal(mirrorValidate(populated), true);
+    assert.equal(
+      validate(withClose({ revalidateAfterBaseSync: 'full' })),
+      true,
+    );
+    const unknownMode = withClose({ revalidateAfterBaseSync: 'never' });
+    expectErrors(unknownMode, /allowed values/);
+    assert.equal(mirrorValidate(unknownMode), false);
+    expectErrors(withClose({ revalidateCiChecks: ['ci', 'ci'] }), /duplicate/);
+    expectErrors(withClose({ revalidateAlwaysPaths: [''] }), /fewer than 1/);
   });
 
   it('accepts coverage.nonInputGlobs and captureHandlesConfigChanges', () => {

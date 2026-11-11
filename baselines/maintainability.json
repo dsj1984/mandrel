@@ -735,8 +735,12 @@
       "mi": 112.976
     },
     {
+      "path": ".agents/scripts/lib/close-validation/base-sync-revalidation.js",
+      "mi": 98.973
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/ci-deferral.js",
-      "mi": 103.475
+      "mi": 105.088
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
@@ -744,7 +748,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "mi": 97.761
+      "mi": 98.522
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
@@ -1884,7 +1888,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
-      "mi": 94.984
+      "mi": 96.294
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
@@ -1944,7 +1948,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-push.js",
-      "mi": 86.449
+      "mi": 89.804
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",

@@ -222,7 +222,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
 const CLOSE_SCHEMA = {
   type: 'object',
   description:
-    'Close-time posture (Story #5954). `baseSync` decides whether close and a handoff re-run merge `origin/<baseBranch>` before validating.',
+    'Close-time posture (Story #5954). `baseSync` decides whether close and a handoff re-run merge `origin/<baseBranch>` before validating; the `revalidate*` keys decide what close re-runs after that merge.',
   properties: {
     baseSync: {
       type: 'string',
@@ -230,6 +230,26 @@ const CLOSE_SCHEMA = {
       description:
         "`always` (default) merges `origin/<baseBranch>` on every close, as before. `on-conflict` first runs a conflict-only probe and skips the merge when it is conflict-free (`git merge-tree --write-tree`) and the incoming and Story paths are disjoint (raw paths, `baselines/` and renames included); `check-baselines` then compares against the merge-base and the terminal envelope's `baseSync` says why. Any other probe answer merges as today. A handoff applies the probe only on a re-run. Opt in only behind a merge queue that re-tests the merged tree and with no up-to-date-branch requirement: a semantic conflict the probe cannot see surfaces in CI, and coverage is measured on the pre-merge tree.",
       default: 'always',
+    },
+    revalidateAfterBaseSync: {
+      type: 'string',
+      enum: ['full', 'ci'],
+      description:
+        "What close re-runs after base-sync merged `origin/<baseBranch>`. `full` (default) re-runs every gate, as before. `ci` defers `typecheck`, `lint` and the coverage capture to the CI checks named in `revalidateCiChecks` — never spawned, reported `deferred`, the capture writing `Coverage-deferred: base-sync-ci` — but only for a conflict-free merge commit whose pre-sync head carries `typecheck` and `lint` pass evidence, with no incoming path under `revalidateAlwaysPaths` and, when the capture is registered, a `coverage.ciRatchetCheck`. Any other close re-runs everything and the terminal envelope's `revalidation` names why.",
+      default: 'full',
+    },
+    revalidateCiChecks: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      uniqueItems: true,
+      description:
+        'The CI check names (check-run or status context) a `revalidateAfterBaseSync: "ci"` deferral leans on. Absent or empty, the mode falls back to a full re-run.',
+    },
+    revalidateAlwaysPaths: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      description:
+        'Globs (picomatch, dotfiles included) for whole-repo invariants: a base merge bringing in any matching path always re-runs every gate under `revalidateAfterBaseSync: "ci"`.',
     },
   },
   additionalProperties: false,

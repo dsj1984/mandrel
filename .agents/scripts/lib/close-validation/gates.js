@@ -41,7 +41,8 @@ import { closeTestGate, closeTestScope } from './skip-branch-test.js';
  * @property {boolean} [lockEventChannel] - The child reports on close's lock-event channel.
  * @property {boolean} [deferOnOverBudget] - An exit 76 defers to CI instead of failing.
  * @property {{ ciRatchetCheck: string|null }} [suiteOfRecordCi] - Deferred to CI without spawning; fails when no check is declared.
- * @property {boolean} [readsCoverageArtifact] - Skipped once the capture deferred.
+ * @property {boolean} [readsCoverageArtifact] - Skipped once a suite gate deferred.
+ * @property {{ reason: string, checks: string[] }} [ciDeferred] - Deferred to the named CI checks without spawning.
  * @property {{ cmd: string, args: string[] }} [evidenceIdentity] - Evidence argv, if not the spawned one.
  * @property {{ scope: 'delta', since: string }} [evidenceNote]
  * @property {string} [label]
@@ -722,6 +723,11 @@ export function isIndependentGate(name) {
   return INDEPENDENT_GATE_NAMES.has(name);
 }
 
+/** A `ciDeferred` gate is settled up front by the serial loop. */
+function runsIndependently(gate) {
+  return isIndependentGate(gate.name) && !gate.ciDeferred;
+}
+
 /**
  * Order is preserved within each bucket.
  *
@@ -732,7 +738,7 @@ export function partitionGates(gates) {
   const independent = [];
   const serial = [];
   for (const gate of gates) {
-    if (isIndependentGate(gate.name)) independent.push(gate);
+    if (runsIndependently(gate)) independent.push(gate);
     else serial.push(gate);
   }
   return { independent, serial };

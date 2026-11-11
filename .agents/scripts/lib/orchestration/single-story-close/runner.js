@@ -456,6 +456,7 @@ function buildPrContext(ctx, deps) {
     lockWait: ctx.prePush.lockWait,
     baseSync: ctx.baseSync?.decision ?? null,
     pushOutcome: ctx.pr.pushOutcome ?? null,
+    revalidation: ctx.prePush.revalidation,
     suiteTimings: envelopeSuiteTimings(ctx, deps),
     gates: closeEnvelopeGates(
       options,

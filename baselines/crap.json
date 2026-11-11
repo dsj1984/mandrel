@@ -2585,8 +2585,22 @@
       "summarizeLockEvents": 2,
       "timingsOf": 1
     },
+    ".agents/scripts/lib/close-validation/base-sync-revalidation.js": {
+      "<anon applyBaseSyncCiDeferral/gates.map(gate)#0>": 4,
+      "<anon ciIneligibility/gates.find(g)#0>": 3,
+      "<anon ciIneligibility/gates.find(g)#1>": 2,
+      "<anon isLive(gate)#0>": 1,
+      "<anon mergeIneligibility/incoming.find(path)#0>": 1,
+      "applyBaseSyncCiDeferral": 4,
+      "ciIneligibility": 6,
+      "hasPassAt": 1,
+      "mergeIneligibility": 6,
+      "revalidationMode": 2
+    },
     ".agents/scripts/lib/close-validation/ci-deferral.js": {
-      "presetCiDeferral": 3
+      "deferToChecks": 1,
+      "presetCiDeferral": 3,
+      "presetSuiteOfRecord": 3
     },
     ".agents/scripts/lib/close-validation/commands.js": {
       "buildFormatHint": 3,
@@ -2631,6 +2645,7 @@
       "probeBaselinesGate": 5,
       "resolveCreditedDepositor": 3,
       "resolveTestCredited": 2,
+      "runsIndependently": 2,
       "suiteOfRecord": 1,
       "suiteOfRecordFlag": 2,
       "toKindSet": 3.072,
@@ -2712,7 +2727,6 @@
       "<anon runCloseValidation/independent.map(gate)#0>": 8.008452725702384,
       "<anon runCloseValidation/recordIfActive(gate,configHash,durationMs)#0>": 3,
       "<anon runSerialGates/failGate(gate,status,failureRows)#0>": 1,
-      "<anon runSerialGates/failGate(gate,status)#0>": 1,
       "<anon runSerialGates/recordPass()#0>": 2,
       "applyChangedFileScope": 5.990502911344854,
       "deferOverBudget": 2,
@@ -3255,10 +3269,14 @@
       "writeCaptureStamp": 3
     },
     ".agents/scripts/lib/coverage-deferral.js": {
+      "<anon suiteGateDeferral/find(d)#0>": 1,
       "deferCoverage": 1,
       "deferralEnvelope": 1,
       "deferralLines": 2,
-      "readDeferralMarker": 2
+      "isDeferralLine": 2,
+      "readDeferralMarker": 2,
+      "rewriteDeferralLines": 1,
+      "suiteGateDeferral": 1
     },
     ".agents/scripts/lib/coverage-ratchet.js": {
       "<anon dirtyTracked/filter(line)#0>": 1,
@@ -4295,15 +4313,16 @@
       "toScanString": 2
     },
     ".agents/scripts/lib/observability/story-outcome.js": {
-      "<anon failedGateNames/filter(outcome)#0>": 1,
-      "<anon failedGateNames/map(name)#0>": 1,
+      "<anon gateNamesWith/filter(outcome)#0>": 1,
+      "<anon gateNamesWith/map(name)#0>": 1,
       "<anon normalizeSummary/raw.mandrelVersions.filter(v)#0>": 1,
       "<anon readLocalRows/readFn(parsed)#0>": 1.010973936899863,
       "buildAttempt": 1,
+      "clip": 2,
       "countMap": 3,
       "emitCloseCrashSignals": 1,
-      "failedGateNames": 1,
       "finishCloseTerminal": 1,
+      "gateNamesWith": 1,
       "intOrNull": 2,
       "mergeOutcomeRecord": 7,
       "nonNegInt": 3,
@@ -4313,6 +4332,7 @@
       "readJsonOrNull": 1,
       "readLocalRows": 1.010973936899863,
       "recordStoryOutcome": 5,
+      "renderBoundedBody": 3.7901234567901234,
       "renderOutcomeBody": 2,
       "resolveMandrelVersion": 3,
       "shouldRecord": 4,
@@ -6524,6 +6544,7 @@
       "handleSyncFailure": 1,
       "isHandedBack": 2,
       "mergeAdvice": 2,
+      "phaseResult": 2,
       "resolveCoveragePath": 1,
       "resolveHandedBack": 2,
       "runBaseSyncPhase": 4,
@@ -6533,6 +6554,8 @@
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js": {
       "<anon teeLockLines/(line)#0>": 2,
+      "buildGateList": 1,
+      "coverageDeferralReason": 1,
       "gateOutcomes": 1,
       "isDeferredLockWait": 2,
       "prepareTree": 2,
@@ -6800,7 +6823,8 @@
     ".agents/scripts/lib/orchestration/single-story-close/phases/pre-push.js": {
       "<anon runPrePushPhases/onPreGateStepsDone()#0>": 1,
       "runPrePushPhases": 3,
-      "runSyncStep": 2
+      "runSyncStep": 2,
+      "validatedResult": 1
     },
     ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js": {
       "emptyDiffError": 1,
@@ -6898,12 +6922,13 @@
       "runWrongTreeGuardPhase": 7.001755640808895
     },
     ".agents/scripts/lib/orchestration/single-story-close/result.js": {
+      "<anon isUnreviewed(reviewOverride,reviewSkipped)#0>": 2,
       "alreadyClosedResult": 2,
       "baselinesEnvelopeGates": 2,
       "closeEnvelopeGates": 3,
       "closeResult": 1,
       "codeReviewGate": 3,
-      "deferredCaptureGate": 2,
+      "deferredGates": 2,
       "deriveObservedMerge": 3,
       "elapsedSecondsSince": 1,
       "emitTerminal": 2,
