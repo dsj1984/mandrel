@@ -70,3 +70,29 @@ test('the * rollup over a branch-free row and a 50% row is 75, not 25', () => {
   });
   assert.strictEqual(rollup(rows)['*'].branches, 75);
 });
+
+test('coverageRowFromScores — the one row builder every writer shares (#6047)', async () => {
+  const { coverageRowFromScores } = await import(
+    '../.agents/scripts/lib/coverage-baseline.js'
+  );
+  assert.deepStrictEqual(
+    coverageRowFromScores(
+      'flat.js',
+      scoreEntry({ s: { 0: 1 }, b: {}, f: { 0: 1 } }),
+    ),
+    { path: 'flat.js', lines: 100, branches: 100, functions: 100 },
+  );
+  assert.deepStrictEqual(coverageRowFromScores('gone.js', null), {
+    path: 'gone.js',
+    lines: 100,
+    branches: 100,
+    functions: 100,
+  });
+  assert.strictEqual(
+    coverageRowFromScores(
+      'u.js',
+      scoreEntry({ s: { 0: 0 }, b: { 0: [0, 0] }, f: { 0: 0 } }),
+    ).branches,
+    0,
+  );
+});

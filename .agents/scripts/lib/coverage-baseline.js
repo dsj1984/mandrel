@@ -149,16 +149,27 @@ export function readBaseline(cwd, fsImpl = fs) {
  */
 const NO_DENOMINATOR_PCT = 100;
 
+/**
+ * One baseline row from a file's `scoreEntry` scores. Every writer builds
+ * its rows here, so a 0/0 axis persists as 100 on every path.
+ *
+ * @param {string} file Repo-relative path.
+ * @param {{ lines?: number|null, branches?: number|null, functions?: number|null }|null|undefined} scores
+ * @returns {{ path: string, lines: number, branches: number, functions: number }}
+ */
+export function coverageRowFromScores(file, scores) {
+  return {
+    path: file,
+    lines: scores?.lines ?? NO_DENOMINATOR_PCT,
+    branches: scores?.branches ?? NO_DENOMINATOR_PCT,
+    functions: scores?.functions ?? NO_DENOMINATOR_PCT,
+  };
+}
+
 function projectFlatToRows(baseline) {
-  return Object.entries(baseline ?? {}).map(([file, scores]) => {
-    const { denominators: _ignored, ...rest } = scores ?? {};
-    return {
-      path: file,
-      lines: rest.lines ?? NO_DENOMINATOR_PCT,
-      branches: rest.branches ?? NO_DENOMINATOR_PCT,
-      functions: rest.functions ?? NO_DENOMINATOR_PCT,
-    };
-  });
+  return Object.entries(baseline ?? {}).map(([file, scores]) =>
+    coverageRowFromScores(file, scores),
+  );
 }
 
 function writeEnvelopeViaFsImpl(abs, envelope, fsImpl) {
