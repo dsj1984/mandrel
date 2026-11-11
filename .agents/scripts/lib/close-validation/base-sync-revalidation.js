@@ -16,7 +16,7 @@ const DEFERRABLE_GATES = new Set(['typecheck', 'lint', 'coverage-capture']);
 const PREFLIGHT_GATES = ['typecheck', 'lint'];
 
 /** @param {object|null|undefined} config @returns {'full'|'ci'} */
-export function revalidationMode(config) {
+function revalidationMode(config) {
   return config?.delivery?.close?.revalidateAfterBaseSync === 'ci'
     ? 'ci'
     : 'full';
