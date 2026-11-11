@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { COVERAGE_CAPTURE_DEFAULTS } from '../config/gates/coverage.schema.js';
+import { loadCoverage } from '../coverage-utils.js';
 import { COORDINATE_ORIGINAL } from '../crap-coordinates.js';
 import { KERNEL_VERSION, resolveEscomplexVersion } from '../crap-utils.js';
 import { gitSpawn } from '../git-utils.js';
@@ -17,7 +18,7 @@ import {
 } from './kinds/crap.js';
 import { isCaptureFresh } from './seat-missing.js';
 
-export function previewCoveragePath(crap) {
+function previewCoveragePath(crap) {
   return crap.coveragePath ?? COVERAGE_CAPTURE_DEFAULTS.coveragePath;
 }
 
@@ -47,11 +48,25 @@ function notRunResult({ reason, scope, diffRef, newMethodCeiling }) {
 }
 
 /** The not-run result when no artifact matches the tree, else `null`. */
-export function previewNotRun({ crap, targetDirs, cwd, scope, diffRef }) {
+function previewNotRun({ crap, targetDirs, cwd, scope, diffRef }) {
   const reason = coverageAbsence(crap, targetDirs, cwd);
   if (!reason) return null;
   const { newMethodCeiling } = crap;
   return notRunResult({ reason, scope, diffRef, newMethodCeiling });
+}
+
+/** The coverage to score, or the not-run result; a named artifact skips the stamp check. */
+export function resolvePreviewCoverage({
+  coverageArtifact,
+  crap,
+  cwd,
+  ...rest
+}) {
+  if (coverageArtifact) return { coverage: loadCoverage(coverageArtifact) };
+  const notRun = previewNotRun({ crap, cwd, ...rest });
+  if (notRun) return { notRun };
+  const configured = path.resolve(cwd, previewCoveragePath(crap));
+  return { coverage: loadCoverage(configured) };
 }
 
 /**

@@ -3,8 +3,6 @@
  * its baseline is loaded and judged compatible.
  */
 
-import path from 'node:path';
-import { loadCoverage } from '../coverage-utils.js';
 import {
   KERNEL_VERSION,
   resolveEscomplexVersion,
@@ -14,9 +12,8 @@ import { CYCLOMATIC_CEILING } from '../cyclomatic-ceiling.js';
 import { resolveCrapPreviewIncremental } from './crap-preview-incremental.js';
 import {
   outsideDiffDiagnostics,
-  previewCoveragePath,
-  previewNotRun,
   resolveIsJudged,
+  resolvePreviewCoverage,
 } from './crap-preview-touched.js';
 import { resolveCrapEnvOverrides } from './env-overrides.js';
 import {
@@ -60,15 +57,6 @@ export function listCyclomaticAdvisories(rows) {
       startLine,
       cyclomatic,
     }));
-}
-
-/** A named artifact is vouched for by its caller: no capture-stamp check. */
-function resolvePreviewCoverage({ coverageArtifact, crap, cwd, ...rest }) {
-  if (coverageArtifact) return { coverage: loadCoverage(coverageArtifact) };
-  const notRun = previewNotRun({ crap, cwd, ...rest });
-  if (notRun) return { notRun };
-  const configured = path.resolve(cwd, previewCoveragePath(crap));
-  return { coverage: loadCoverage(configured) };
 }
 
 /**
