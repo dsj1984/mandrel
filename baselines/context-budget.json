@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-11-10T12:39:26.009Z",
+  "generatedAt": "2026-11-11T14:58:59.840Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -25,7 +25,7 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 501232,
+      "totalBytes": 503465,
       "files": [
         {
           "path": "docs/architecture.md",
@@ -33,11 +33,11 @@
         },
         {
           "path": "docs/data-dictionary.md",
-          "bytes": 38069
+          "bytes": 38560
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 310033
+          "bytes": 311775
         },
         {
           "path": "docs/patterns.md",
@@ -46,7 +46,7 @@
       ]
     },
     "workflow": {
-      "totalBytes": 397977,
+      "totalBytes": 397978,
       "files": [
         {
           "path": ".agents/workflows/audit-accessibility.md",
@@ -182,7 +182,7 @@
         },
         {
           "path": ".agents/workflows/mandrel-orchestrate.md",
-          "bytes": 6481
+          "bytes": 6482
         },
         {
           "path": ".agents/workflows/mandrel-plan.md",
@@ -236,7 +236,7 @@
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 614060,
+    "reachableTotalBytes": 614061,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -400,8 +400,8 @@
       },
       {
         "path": ".agents/workflows/mandrel-orchestrate.md",
-        "mandatoryBytes": 6481,
-        "reachableBytes": 6481
+        "mandatoryBytes": 6482,
+        "reachableBytes": 6482
       },
       {
         "path": ".agents/workflows/mandrel-plan.md",
