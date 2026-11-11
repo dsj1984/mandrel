@@ -229,7 +229,8 @@
       "maxBudgetSeconds": 3600
     },
     "close": {
-      "baseSync": "always"
+      "baseSync": "always",
+      "revalidateAfterBaseSync": "full"
     },
     "codeReview": {
       "providers": [

@@ -3,6 +3,8 @@ import nodeFs from 'node:fs';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
+import { applyBaseSyncCiDeferral } from '../../../../.agents/scripts/lib/close-validation/base-sync-revalidation.js';
+import { runCloseValidation } from '../../../../.agents/scripts/lib/close-validation/runner.js';
 import { runCloseValidationPhase } from '../../../../.agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js';
 import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
 
@@ -250,6 +252,135 @@ describe('runCloseValidationPhase — standalone parity (Story #4250)', () => {
  * reported the defer exit AND a wait that announced its expiry is a pending
  * close; either half alone is an ordinary gate failure.
  */
+describe('runCloseValidationPhase — revalidateAfterBaseSync (Story #6050)', () => {
+  const GATES = [
+    { name: 'typecheck', cmd: 'node', args: ['typecheck'] },
+    { name: 'lint', cmd: 'node', args: ['lint'] },
+    { name: 'test', cmd: 'node', args: ['test'] },
+    { name: 'coverage-capture', cmd: 'node', args: ['capture'] },
+    {
+      name: 'quality-preview-crap',
+      cmd: 'node',
+      args: ['preview'],
+      readsCoverageArtifact: true,
+    },
+  ];
+  const MERGE = {
+    kind: 'merge-commit',
+    changedPaths: ['src/a.js'],
+    creditedCommit: 'p'.repeat(40),
+    resolvedBaselineFiles: [],
+  };
+  const CI = {
+    delivery: {
+      close: { revalidateAfterBaseSync: 'ci', revalidateCiChecks: ['ci'] },
+      quality: { gates: { coverage: { ciRatchetCheck: 'ratchet' } } },
+    },
+  };
+
+  async function phase({ config, credited = true, baseSync = MERGE }) {
+    const spawned = [];
+    const out = await runCloseValidationPhase({
+      cwd: '/main/repo',
+      worktreePath: '/main/repo/.worktrees/story-6050',
+      config,
+      baseBranch: 'main',
+      storyBranch: 'story-6050',
+      storyId: 6050,
+      baseSync,
+      progress: noopProgress,
+      buildDefaultGates: () => GATES,
+      applyTestDelta: (gates) => gates,
+      applyBaseSyncCiDeferral: (gates, opts) =>
+        applyBaseSyncCiDeferral(gates, {
+          ...opts,
+          shouldSkipImpl: () => ({ skip: credited }),
+        }),
+      runCloseValidation: (opts) =>
+        runCloseValidation({
+          ...opts,
+          getHeadSha: () => null,
+          runner: (_cmd, args) => {
+            spawned.push(args[0]);
+            return { status: 0 };
+          },
+          runProjections: async () => ({}),
+        }),
+      runPreGateSteps: async () => {},
+    });
+    return { out, spawned };
+  }
+
+  it('defers typecheck, lint and the capture after a credited conflict-free merge', async () => {
+    const { out, spawned } = await phase({ config: CI });
+    assert.deepEqual(spawned, ['test']);
+    assert.deepEqual(out.gates, {
+      typecheck: 'deferred',
+      lint: 'deferred',
+      test: 'passed',
+      'coverage-capture': 'deferred',
+      'quality-preview-crap': 'skipped',
+    });
+    assert.equal(out.coverageDeferred, 'base-sync-ci');
+    assert.deepEqual(out.revalidation, {
+      mode: 'ci',
+      applied: 'deferred-to-ci',
+      reason: 'conflict-free-merge',
+      deferredGates: ['typecheck', 'lint', 'coverage-capture'],
+      ciChecks: ['ci'],
+    });
+  });
+
+  it('runs every gate with no preflight credit and names the gate', async () => {
+    const { out, spawned } = await phase({ config: CI, credited: false });
+    assert.deepEqual(spawned, [
+      'typecheck',
+      'lint',
+      'test',
+      'capture',
+      'preview',
+    ]);
+    assert.equal(out.coverageDeferred, null);
+    assert.equal(out.revalidation.applied, 'full');
+    assert.equal(out.revalidation.reason, 'no-preflight-credit');
+    assert.equal(out.revalidation.detail, 'typecheck');
+  });
+
+  it('changes nothing and reports no revalidation when the mode is absent', async () => {
+    const { out, spawned } = await phase({ config: {} });
+    assert.deepEqual(spawned, [
+      'typecheck',
+      'lint',
+      'test',
+      'capture',
+      'preview',
+    ]);
+    assert.equal(out.revalidation, null);
+    assert.ok(Object.values(out.gates).every((o) => o === 'passed'));
+  });
+
+  it('a typecheck deferral alone is not a coverage deferral', async () => {
+    const typecheck = { name: 'typecheck', cmd: 'node', args: [] };
+    const out = await runCloseValidationPhase({
+      cwd: '/main/repo',
+      config: {},
+      baseBranch: 'main',
+      storyId: 6050,
+      progress: noopProgress,
+      buildDefaultGates: () => [typecheck],
+      runCloseValidation: () => ({
+        ok: true,
+        failed: [],
+        skipped: [],
+        deferred: [{ gate: typecheck, status: null, reason: 'base-sync-ci' }],
+      }),
+      runPreGateSteps: async () => {},
+    });
+    assert.equal(out.gates.typecheck, 'deferred');
+    assert.equal(out.coverageDeferred, null);
+  });
+});
+
 describe('runCloseValidationPhase — full-suite lock waits (Story #5377)', () => {
   const phaseWith = (runCloseValidation) =>
     runCloseValidationPhase({

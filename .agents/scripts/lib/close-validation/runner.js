@@ -9,6 +9,7 @@ import {
   COVERAGE_OVER_BUDGET_EXIT_CODE,
   COVERAGE_TIMEOUT_EXIT_CODE,
 } from '../coverage-capture.js';
+import { SUITE_GATE_NAMES, suiteGateDeferral } from '../coverage-deferral.js';
 import {
   fullSuiteLockPolicy,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -142,12 +143,12 @@ export function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   shouldSkip?: typeof defaultShouldSkip,
  * }} opts An expired full-suite lock wait spawns nothing (here or in any gate
  *   child) and reports `LOCK_WAIT_EXPIRED_EXIT_CODE`.
- * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'host-resources'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }>, deferred: Array<{ gate: Gate, status: number|null, reason: 'over-budget'|'suite-of-record-ci' }> }}
+ * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'over-budget'|'host-resources'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }>, deferred: Array<{ gate: Gate, status: number|null, reason: 'over-budget'|'suite-of-record-ci'|'base-sync-ci' }> }}
  *   `outcome` classifies the exit: `deferred` (75), `timeout` (124),
  *   `over-budget` (76 under `block`), `host-resources` (77 from a suite gate),
  *   else `failed`. `deferred[]` holds a
- *   `deferOnOverBudget` gate that exited 76, or a `suiteOfRecordCi` capture
- *   never spawned: not a failure, no evidence.
+ *   `deferOnOverBudget` gate that exited 76, or a `suiteOfRecordCi` capture or
+ *   `ciDeferred` gate never spawned: not a failure, no evidence.
  */
 export async function runCloseValidation({
   cwd,
@@ -508,16 +509,13 @@ function isDeferredOverBudget(gate, status) {
 /** A suite gate's exit 76 the policy blocks. @param {Gate} gate @param {number} status */
 function isBlockedOverBudget(gate, status) {
   return (
-    status === COVERAGE_OVER_BUDGET_EXIT_CODE && SUITE_GATES.has(gate.name)
+    status === COVERAGE_OVER_BUDGET_EXIT_CODE && SUITE_GATE_NAMES.has(gate.name)
   );
 }
 
 /** Replaces a suite gate's own hint on exit 77: lost workers, no failing test. */
 const GATE_HOST_RESOURCES_HINT =
   'The suite lost workers to host memory (exit 77) and no test failed — do not re-run it unchanged on this host. Use fewer workers or a larger host, or — when CI runs the suite with a coverage floor — have the capture script declare the slice over budget (exit 76) under `delivery.quality.gates.coverage.onOverBudget: "defer-to-ci"`.';
-
-/** The gates that run the suite, the only ones whose 77 means lost workers. */
-const SUITE_GATES = new Set(['test', 'coverage-capture']);
 
 /**
  * A non-failure exit that carries its own hint in place of the gate's: a
@@ -546,7 +544,7 @@ function overBudgetExit(gate, status) {
 /** A suite gate's 77; any other gate's 77 is an ordinary failure. @param {Gate} gate @param {number} status */
 function hostResourcesExit(gate, status) {
   if (status !== COVERAGE_HOST_RESOURCES_EXIT_CODE) return null;
-  if (!SUITE_GATES.has(gate.name)) return null;
+  if (!SUITE_GATE_NAMES.has(gate.name)) return null;
   const line = `⛔ ${gate.name} lost workers to host memory (exit ${status}) — no test failed`;
   return { outcome: 'host-resources', hint: GATE_HOST_RESOURCES_HINT, line };
 }
@@ -558,11 +556,11 @@ function reportHintedExit({ gate, status, cwd, log, outcome, hint, line }) {
 }
 
 /**
- * The gate's execution: a skip once a capture deferred and the gate reads
+ * The gate's execution: a skip once a suite gate deferred and the gate reads
  * its artifact, else its changed-file scope.
  */
 function resolveSerialExecution({ gate, spawnCwd, log, deferred }) {
-  if (deferred.length === 0 || !gate.readsCoverageArtifact) {
+  if (!(gate.readsCoverageArtifact && suiteGateDeferral(deferred))) {
     return applyChangedFileScope({ gate, spawnCwd, log });
   }
   log(

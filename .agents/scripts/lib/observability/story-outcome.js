@@ -70,10 +70,10 @@ function resolveMandrelVersion(root = PROJECT_ROOT) {
   return typeof pkg?.version === 'string' ? pkg.version : null;
 }
 
-/** @param {Record<string, string>|null|undefined} gates */
-function failedGateNames(gates) {
+/** @param {Record<string, string>|null|undefined} gates @param {string} wanted */
+function gateNamesWith(gates, wanted) {
   return Object.entries(gates ?? {})
-    .filter(([, outcome]) => outcome === 'failed')
+    .filter(([, outcome]) => outcome === wanted)
     .map(([name]) => name)
     .sort();
 }
@@ -130,7 +130,8 @@ function buildAttempt({
     phase: envelope.phase ?? null,
     cause: retryCauseForTerminal(envelope),
     blockClass: envelope.blocked?.blockClass ?? null,
-    failedGates: failedGateNames(envelope.gates),
+    failedGates: gateNamesWith(envelope.gates, 'failed'),
+    deferredGates: gateNamesWith(envelope.gates, 'deferred'),
     prNumber: intOrNull(envelope.pr?.number),
     mandrelVersion,
     workerModel: clip(worker.workerModel),

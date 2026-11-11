@@ -121,6 +121,8 @@ function compact(obj) {
  * @param {{ mode: string, outcome: string, reason: string, incoming: number }|null} [args.baseSync]
  *   Close's base-sync decision; `null` when no sync ran, absent when not passed.
  * @param {'pushed'|'skipped-already-at-head'|null} [args.pushOutcome]
+ * @param {{ mode: 'ci', applied: 'full'|'deferred-to-ci', reason: string, detail?: string, deferredGates: string[], ciChecks: string[] }} [args.revalidation]
+ *   Close's post-merge revalidation; absent unless `revalidateAfterBaseSync` is `ci`.
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]
  *   Test seam.
@@ -146,6 +148,7 @@ export function buildTerminalEnvelope({
   phaseDurations,
   baseSync,
   pushOutcome,
+  revalidation,
   timestamp = new Date().toISOString(),
   schemaSource,
 }) {
@@ -171,6 +174,7 @@ export function buildTerminalEnvelope({
     phaseDurations,
     baseSync,
     pushOutcome,
+    revalidation,
     timestamp,
   });
 

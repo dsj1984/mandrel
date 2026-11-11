@@ -1094,7 +1094,7 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
    * runs. Under the pre-#5172 order those last two disagreed on every close
    * that merged anything — the gates validated a tree the push then replaced.
    */
-  function orderHarness(t, { syncResult, gh }) {
+  function orderHarness(t, { syncResult, gh, gates = [] }) {
     const order = [];
     const observed = { validatedSha: null, pushedSha: null };
     let head = 'a'.repeat(40);
@@ -1114,12 +1114,20 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
       namedExports: {
         buildDefaultGates: (opts) => {
           observed.gateOpts = opts;
-          return [];
+          return gates;
         },
-        runCloseValidation: async () => {
+        runCloseValidation: async (opts) => {
           order.push('close-validation');
           observed.validatedSha = head;
-          return { ok: true, failed: [] };
+          // A `ciDeferred` gate settles deferred, as the real runner does.
+          const deferred = (opts.gates ?? [])
+            .filter((gate) => gate.ciDeferred)
+            .map((gate) => ({
+              gate,
+              status: null,
+              reason: gate.ciDeferred.reason,
+            }));
+          return { ok: true, failed: [], deferred };
         },
       },
     });
@@ -1279,6 +1287,83 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
       outcome: 'merged',
       reason: 'always',
       incoming: 1,
+    });
+  });
+
+  // Story #6050 — the revalidation record reaches the terminal envelope.
+  describe('revalidateAfterBaseSync', () => {
+    const MERGED = {
+      synced: true,
+      kind: 'merge-commit',
+      changedPaths: ['src/x.js'],
+      preSyncHead: 'c'.repeat(40),
+    };
+    // Pre-skipped typecheck and lint need no credit, so only the capture defers.
+    const GATES = [
+      { name: 'typecheck', cmd: 'x', args: [], skip: { reason: 'disabled' } },
+      { name: 'lint', cmd: 'x', args: [], skip: { reason: 'disabled' } },
+      { name: 'coverage-capture', cmd: 'node', args: ['capture'] },
+    ];
+    const ciConfig = (close = {}) => ({
+      ...fakeConfig(),
+      delivery: {
+        close: {
+          revalidateAfterBaseSync: 'ci',
+          revalidateCiChecks: ['ci'],
+          ...close,
+        },
+        quality: { gates: { coverage: { ciRatchetCheck: 'ratchet' } } },
+      },
+    });
+
+    it('a deferred-to-ci close reports the deferred gate and the record', async (t) => {
+      const h = orderHarness(t, {
+        syncResult: MERGED,
+        gh: happyGh(),
+        gates: GATES,
+      });
+      const out = await h.run({ injectedConfig: ciConfig() });
+      assert.equal(out.success, true);
+      assert.equal(out.terminal.gates['coverage-capture'], 'deferred');
+      assert.deepEqual(out.terminal.revalidation, {
+        mode: 'ci',
+        applied: 'deferred-to-ci',
+        reason: 'conflict-free-merge',
+        deferredGates: ['coverage-capture'],
+        ciChecks: ['ci'],
+      });
+      assert.equal(validateTerminalEnvelope(out.terminal).valid, true);
+    });
+
+    it('a fallback runs every gate and names the rule', async (t) => {
+      const h = orderHarness(t, {
+        syncResult: MERGED,
+        gh: happyGh(),
+        gates: GATES,
+      });
+      const out = await h.run({
+        injectedConfig: ciConfig({ revalidateAlwaysPaths: ['src/**'] }),
+      });
+      assert.equal(out.terminal.gates['coverage-capture'], undefined);
+      assert.deepEqual(out.terminal.revalidation, {
+        mode: 'ci',
+        applied: 'full',
+        reason: 'always-revalidate-path',
+        detail: 'src/x.js',
+        deferredGates: [],
+        ciChecks: ['ci'],
+      });
+    });
+
+    it('carries no revalidation field when the mode is absent', async (t) => {
+      const h = orderHarness(t, {
+        syncResult: MERGED,
+        gh: happyGh(),
+        gates: GATES,
+      });
+      const out = await h.run();
+      assert.equal('revalidation' in out.terminal, false);
+      assert.equal(out.terminal.gates['coverage-capture'], undefined);
     });
   });
 
@@ -1735,7 +1820,21 @@ describe('runBaseSyncPhase — the result the gate chain reads (Story #5880)', (
       creditedCommit: 'c'.repeat(40),
       baselineRef: undefined,
       decision: null,
+      kind: 'merge-commit',
+      resolvedBaselineFiles: [],
     });
+  });
+
+  it('carries the sync kind and the baseline files it auto-resolved', async () => {
+    const out = await run({
+      synced: true,
+      kind: 'merge-commit',
+      changedPaths: ['baselines/coverage.json'],
+      preSyncHead: 'c'.repeat(40),
+      resolvedBaselineFiles: ['baselines/coverage.json'],
+    });
+    assert.equal(out.kind, 'merge-commit');
+    assert.deepEqual(out.resolvedBaselineFiles, ['baselines/coverage.json']);
   });
 
   it('a no-op sync reports no incoming path and no credited commit', async () => {
@@ -1749,6 +1848,8 @@ describe('runBaseSyncPhase — the result the gate chain reads (Story #5880)', (
       creditedCommit: null,
       baselineRef: undefined,
       decision: null,
+      kind: 'noop-already-current',
+      resolvedBaselineFiles: [],
     });
   });
 });

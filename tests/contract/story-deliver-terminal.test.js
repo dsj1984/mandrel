@@ -617,6 +617,64 @@ describe('story-deliver-terminal — pushOutcome (Story #5967)', () => {
   });
 });
 
+describe('story-deliver-terminal — revalidation (Story #6050)', () => {
+  const base = {
+    kind: 'story-deliver-terminal',
+    storyId: 6050,
+    status: 'pending',
+    phase: 'auto-merge',
+    nextCommand: NEXT_COMMANDS.confirmMerge(6050),
+    elapsedSeconds: 1,
+  };
+  const deferred = {
+    mode: 'ci',
+    applied: 'deferred-to-ci',
+    reason: 'conflict-free-merge',
+    deferredGates: ['typecheck', 'lint', 'coverage-capture'],
+    ciChecks: ['ci / test'],
+  };
+
+  it('carries the record and stays optional', () => {
+    assert.deepEqual(
+      buildTerminalEnvelope({ ...base, revalidation: deferred }).revalidation,
+      deferred,
+    );
+    const full = {
+      ...deferred,
+      applied: 'full',
+      reason: 'no-preflight-credit',
+      detail: 'lint',
+      deferredGates: [],
+    };
+    assert.deepEqual(
+      buildTerminalEnvelope({ ...base, revalidation: full }).revalidation,
+      full,
+    );
+    assert.equal('revalidation' in buildTerminalEnvelope(base), false);
+  });
+
+  it('accepts deferred typecheck and lint gates', () => {
+    const gates = { typecheck: 'deferred', lint: 'deferred' };
+    assert.deepEqual(buildTerminalEnvelope({ ...base, gates }).gates, gates);
+  });
+
+  it('the schema refuses an unknown key, mode or applied value', () => {
+    for (const revalidation of [
+      { ...deferred, extra: true },
+      { ...deferred, mode: 'full' },
+      { ...deferred, applied: 'skipped' },
+      { ...deferred, ciChecks: undefined },
+      null,
+    ]) {
+      assert.equal(
+        validateTerminalEnvelope({ ...base, revalidation }).valid,
+        false,
+        `expected ${JSON.stringify(revalidation)} to be rejected`,
+      );
+    }
+  });
+});
+
 describe('story-deliver-terminal — blocked / failed', () => {
   it('blocked carries a shared-classifier class and a friction pointer', () => {
     const env = buildTerminalEnvelope({

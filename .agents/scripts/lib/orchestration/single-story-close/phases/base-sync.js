@@ -35,7 +35,7 @@ import {
  *   resolveConfigImpl?: typeof resolveConfig,
  *   progress: (tag: string, msg: string) => void,
  * }} args
- * @returns {Promise<{ changedPaths: string[], creditedCommit: string|null, baselineRef?: string, decision: object|null }>}
+ * @returns {Promise<{ changedPaths: string[], creditedCommit: string|null, baselineRef?: string, decision: object|null, kind: string, resolvedBaselineFiles: string[] }>}
  *   The pre-sync head is the credited commit; a skipped sync pins `baselineRef`.
  */
 export async function runBaseSyncPhase({
@@ -91,6 +91,11 @@ export async function runBaseSyncPhase({
   })) {
     progress('SYNC', line);
   }
+  return phaseResult(syncResult, resolved);
+}
+
+/** What the gate chain reads from a completed sync. */
+function phaseResult(syncResult, resolvedBaselineFiles) {
   return {
     changedPaths: Array.isArray(syncResult.changedPaths)
       ? syncResult.changedPaths
@@ -98,6 +103,8 @@ export async function runBaseSyncPhase({
     creditedCommit: syncResult.preSyncHead ?? null,
     baselineRef: syncResult.baselineRef,
     decision: syncResult.decision ?? null,
+    kind: syncResult.kind,
+    resolvedBaselineFiles,
   };
 }
 

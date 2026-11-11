@@ -77,7 +77,7 @@
     },
     "gates": {
       "type": "object",
-      "description": "Outcome of each close gate this invocation was responsible for. A gate the run skipped (--skip-validation, or a phase it never reached) reports \"skipped\" rather than being omitted, so a missing gate is never mistaken for a passing one. \"overridden\" is distinct from both: the gate ran, it FAILED, and an operator authorized delivery anyway via --override-review-block with a recorded reason. Reporting that as \"passed\" would erase the one fact a reader of this envelope most needs, and reporting it as \"skipped\" would claim the gate never ran. codeReview alone also reports \"unreviewed\" (a review produced no verdict at all: CLI not logged in, out of quota, unparseable output, a skipped optional reviewer, an unresolvable base), \"partial\" (part of the diff went unreviewed) and \"degraded\" (the diff was reviewed with reduced context only), with precedence overridden > unreviewed > partial > degraded > passed. All three are reported, not blocking, unless delivery.codeReview.onNoVerdict is \"block\", which halts on unreviewed or partial. \"deferred\" (coverage-capture only, Story #5949) means the capture script declared its slice over this host's budget (exit 76) under coverage.onOverBudget: defer-to-ci, or that coverage.suiteOfRecord: ci (Story #5955) deferred it before anything spawned — no suite ran, the coverage-reading gates report \"skipped\", and CI owns the run.",
+      "description": "Outcome of each close gate this invocation was responsible for. A gate the run skipped (--skip-validation, or a phase it never reached) reports \"skipped\" rather than being omitted, so a missing gate is never mistaken for a passing one. \"overridden\" is distinct from both: the gate ran, it FAILED, and an operator authorized delivery anyway via --override-review-block with a recorded reason. Reporting that as \"passed\" would erase the one fact a reader of this envelope most needs, and reporting it as \"skipped\" would claim the gate never ran. codeReview alone also reports \"unreviewed\" (a review produced no verdict at all: CLI not logged in, out of quota, unparseable output, a skipped optional reviewer, an unresolvable base), \"partial\" (part of the diff went unreviewed) and \"degraded\" (the diff was reviewed with reduced context only), with precedence overridden > unreviewed > partial > degraded > passed. All three are reported, not blocking, unless delivery.codeReview.onNoVerdict is \"block\", which halts on unreviewed or partial. \"deferred\" means CI owns the gate and nothing ran here: the coverage capture declared its slice over this host's budget (exit 76) under coverage.onOverBudget: defer-to-ci, or coverage.suiteOfRecord: ci (Story #5955) deferred it before anything spawned, or — for typecheck, lint and coverage-capture — delivery.close.revalidateAfterBaseSync: ci (Story #6050) handed them to CI after a conflict-free base merge. A deferred capture leaves the coverage-reading gates \"skipped\"; a typecheck or lint deferral alone does not.",
       "additionalProperties": {
         "type": "string",
         "enum": [
@@ -304,6 +304,20 @@
     "pushOutcome": {
       "enum": ["pushed", "skipped-already-at-head", null],
       "description": "Story #5967 — whether close's PR-opening push ran or was skipped because origin already held the Story-branch tip (read phaseDurations.push against it). Optional and additive; absent on every non-close envelope, null when the PR had already landed."
+    },
+    "revalidation": {
+      "type": "object",
+      "description": "Story #6050 — what close re-ran after base-sync under delivery.close.revalidateAfterBaseSync: ci. applied is deferred-to-ci (reason conflict-free-merge; deferredGates names the gates handed to CI) or full (every gate re-ran; reason names the first failing rule: no-base-merge, conflict-resolved, always-revalidate-path, no-ci-checks, no-ci-ratchet-check, no-preflight-credit, with detail naming the path or gate). ciChecks are the configured revalidateCiChecks. Absent unless the mode is ci.",
+      "required": ["mode", "applied", "reason", "deferredGates", "ciChecks"],
+      "properties": {
+        "mode": { "const": "ci" },
+        "applied": { "enum": ["full", "deferred-to-ci"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string", "minLength": 1 },
+        "deferredGates": { "type": "array", "items": { "type": "string" } },
+        "ciChecks": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
     },
     "timestamp": { "type": "string", "format": "date-time" }
   },

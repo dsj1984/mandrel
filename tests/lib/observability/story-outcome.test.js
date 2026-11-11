@@ -149,6 +149,29 @@ test('blocked then landed leaves one comment with summed counts (AC-2)', async (
   assert.deepEqual(rec.summary.failedGates, { baseSync: 1, validation: 1 });
 });
 
+test('an attempt lists the gates its envelope deferred (Story #6050)', async (t) => {
+  const provider = fakeProvider();
+  await record({
+    envelope: envelope('pending', {
+      gates: {
+        validation: 'passed',
+        lint: 'deferred',
+        'coverage-capture': 'deferred',
+        typecheck: 'deferred',
+      },
+    }),
+    config: config(t),
+    provider,
+  });
+  const [attempt] = onlyRecord(provider).attempts;
+  assert.deepEqual(attempt.deferredGates, [
+    'coverage-capture',
+    'lint',
+    'typecheck',
+  ]);
+  assert.deepEqual(attempt.failedGates, []);
+});
+
 test('a prior record from another machine keeps its counts (AC-3)', async (t) => {
   const other = fakeProvider();
   const cfg = config(t);

@@ -29,13 +29,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (62).** Each governs the surface named beside it; a
+**In force (63).** Each governs the surface named beside it; a
 `Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261111-6050`](#adr-20261111-6050-closes-ci-revalidation-after-a-base-merge-raises-the-agentrc-leaf-key-ceiling-to-168) | Close's CI revalidation after a base merge raises the agentrc leaf-key ceiling to 168 | `.agents/scripts/lib/close-validation/base-sync-revalidation.js` | Accepted |
 | [`20261110-6040`](#adr-20261110-6040-mandrel-orchestrate-is-reactive-acts-only-on-recorded-authority-and-splits-scripts-from-the-host) | `/mandrel-orchestrate` is reactive, acts only on recorded authority, and splits scripts from the host | `.agents/scripts/lib/orchestrate/ledger.js` | Accepted |
 | [`20261108-6031`](#adr-20261108-6031-the-crap-preview-scope-raises-the-agentrc-leaf-key-ceiling-to-160) | The CRAP preview scope raises the agentrc leaf-key ceiling to 160 | `.agents/scripts/lib/config/gates/crap.schema.js` | Accepted |
 | [`20261021-5844`](#adr-20261021-5844-this-repositorys-claude-code-settings-grant-bash-and-write-broadly-the-deny-list-is-a-guardrail) | This repository's Claude Code settings grant Bash and Write broadly; the deny list is a guardrail | `.claude/settings.json` | Accepted |
@@ -5226,3 +5227,36 @@ it must not become a second scheduler.
 - Anything the authority does not cover reaches the operator exactly once
   instead of being acted on. Reopen this entry if a sweep needs to start
   delivery itself.
+
+## ADR 20261111-6050: Close's CI revalidation after a base merge raises the agentrc leaf-key ceiling to 168
+
+**Status:** Accepted
+**Date:** 2026-11-11
+**Surface:** `.agents/scripts/lib/close-validation/base-sync-revalidation.js`
+**Story:** #6050
+
+### Context
+
+When close's base-sync merges the base into a Story branch, every handoff
+credit is spent and close re-runs typecheck, lint and the coverage capture on
+a tree that PR CI and the merge queue check again anyway.
+
+### Decision
+
+Add three `delivery.close` keys and raise the ceiling by three:
+`revalidateAfterBaseSync` (`full` by default, or `ci`),
+`revalidateCiChecks` and `revalidateAlwaysPaths`. Under `ci`, a conflict-free
+merge commit whose pre-sync head carries typecheck and lint pass evidence
+defers those two gates and the capture to CI; any other close re-runs
+everything and the envelope's `revalidation` names why. None of the three
+derives from an existing source: `github.branchProtection.requiredChecks`
+always resolves to a non-empty default list, so it cannot express "the
+consumer named the checks", and it carries local argv the deferral never
+runs; the always-revalidate set is a consumer judgement about whole-repo
+invariants no gate config holds.
+
+### Consequences
+
+The default changes nothing. A consumer opting in records typecheck, lint and
+the capture as `deferred`, never passed, and the existing `ciRatchetCheck`
+hold covers the deferred capture at confirm-merge.

@@ -104,13 +104,18 @@ export async function runPrePushPhases(ctx, deps) {
     }
     throw err;
   }
-  const gates = validation?.gates ?? null;
-  ctx.setObservedGates(gates);
+  ctx.setObservedGates(validation?.gates ?? null);
+  return validatedResult(validation);
+}
+
+/** The pre-push result of a gate chain that ran. */
+function validatedResult(validation) {
   return {
-    validationGates: gates,
+    validationGates: validation?.gates ?? null,
     lockWait: validation?.lockWait ?? null,
     suiteTimings: validation?.suiteTimings ?? null,
     pending: validation?.pending === true,
     coverageDeferred: validation?.coverageDeferred ?? null,
+    revalidation: validation?.revalidation ?? null,
   };
 }

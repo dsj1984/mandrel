@@ -14,12 +14,14 @@ import {
   sourcedTimings,
   summarizeLockEvents,
 } from '../../../close-lock-events.js';
+import { applyBaseSyncCiDeferral as defaultApplyBaseSyncCiDeferral } from '../../../close-validation/base-sync-revalidation.js';
 import {
   BASELINES_GATE_NAMES,
   buildDefaultGates as defaultBuildDefaultGates,
 } from '../../../close-validation/gates.js';
 import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
 import { applyTestDelta as defaultApplyTestDelta } from '../../../close-validation/test-delta.js';
+import { suiteGateDeferral } from '../../../coverage-deferral.js';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../../full-suite-lock.js';
 import { createGateLogSink as defaultCreateGateLogSink } from '../gate-log.js';
 import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
@@ -36,11 +38,12 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   baseBranch: string,
  *   storyBranch?: string,
  *   storyId: number,
- *   baseSync?: { changedPaths: string[], creditedCommit: string|null, baselineRef?: string }|null,
+ *   baseSync?: { changedPaths: string[], creditedCommit: string|null, baselineRef?: string, kind?: string, resolvedBaselineFiles?: string[] }|null,
  *   progress: (tag: string, msg: string) => void,
  *   runCloseValidation?: typeof defaultRunCloseValidation,
  *   buildDefaultGates?: typeof defaultBuildDefaultGates,
  *   applyTestDelta?: typeof defaultApplyTestDelta,
+ *   applyBaseSyncCiDeferral?: typeof defaultApplyBaseSyncCiDeferral,
  *   runPreGateSteps?: typeof defaultRunPreGateSteps,
  *   runScopedFormatAutofix?: Function,
  *   runBaselineUpwardWriteback?: Function,
@@ -54,8 +57,11 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   lockWait: { waitedSeconds: number, expired: boolean, holder?: object }|null,
  *   suiteTimings: { lockWaitMs: number, hostWaitMs: number|null, testRunMs: number, source: 'close', spawns: object[] }|null,
  *   pending: boolean,
+ *   coverageDeferred?: string|null,
+ *   revalidation?: object|null,
  * }>} `pending` (with `gates: null`) when a lock wait expired; any other
- *   failure throws with `err.closeGate` naming the gate.
+ *   failure throws with `err.closeGate` naming the gate. `revalidation` is
+ *   non-null only under `revalidateAfterBaseSync: "ci"`.
  */
 export async function runCloseValidationPhase({
   cwd,
@@ -69,6 +75,7 @@ export async function runCloseValidationPhase({
   runCloseValidation = defaultRunCloseValidation,
   buildDefaultGates = defaultBuildDefaultGates,
   applyTestDelta = defaultApplyTestDelta,
+  applyBaseSyncCiDeferral = defaultApplyBaseSyncCiDeferral,
   runPreGateSteps = defaultRunPreGateSteps,
   runScopedFormatAutofix,
   runBaselineUpwardWriteback,
@@ -106,10 +113,10 @@ export async function runCloseValidationPhase({
     evidenceCwd: cwd,
     baselineRef: baseSync?.baselineRef,
   };
-  const gateList = applyTestDelta(buildDefaultGates(gateOpts), {
-    ...gateOpts,
-    baseSync,
-  });
+  const { gates: gateList, revalidation } = buildGateList(
+    { buildDefaultGates, applyTestDelta, applyBaseSyncCiDeferral },
+    { ...gateOpts, baseSync },
+  );
   reportGateLabels(gateList, progress);
   const { validation, lockWait, ...timings } = await runGateChain({
     runCloseValidation,
@@ -139,8 +146,20 @@ export async function runCloseValidationPhase({
     lockWait,
     suiteTimings: sourcedTimings(timings, 'close'),
     pending: false,
-    coverageDeferred: validation.deferred?.[0]?.reason ?? null,
+    coverageDeferred: coverageDeferralReason(validation),
+    revalidation,
   };
+}
+
+/** Built gates, then the `test` delta, then the post-merge CI deferral. */
+function buildGateList(build, opts) {
+  const gates = build.applyTestDelta(build.buildDefaultGates(opts), opts);
+  return build.applyBaseSyncCiDeferral(gates, opts);
+}
+
+/** The suite gate's deferral reason; a typecheck or lint deferral is not one. */
+function coverageDeferralReason(validation) {
+  return suiteGateDeferral(validation.deferred)?.reason ?? null;
 }
 
 /** A labelled gate (the `test` delta re-credit) names itself on the progress line. */

@@ -390,3 +390,107 @@ describe('suiteOfRecord: "ci" (Story #5955)', () => {
     assert.match(body, /\nCoverage-deferred: suite-of-record-ci\n/);
   });
 });
+
+describe('ciDeferred after a conflict-free base merge (Story #6050)', () => {
+  const ciDeferred = { reason: 'base-sync-ci', checks: ['ci / test'] };
+  const TYPECHECK = { name: 'typecheck', cmd: 'node', args: ['typecheck'] };
+  const LINT = { name: 'lint', cmd: 'node', args: ['lint'] };
+
+  async function runDeferred(gates) {
+    const spawned = [];
+    const recorded = [];
+    const lines = [];
+    const validation = await runCloseValidation({
+      cwd: '/repo',
+      gates,
+      runner: (_cmd, args) => {
+        spawned.push(args[0]);
+        return { status: 0 };
+      },
+      log: (m) => lines.push(m),
+      storyId: 6050,
+      standalone: true,
+      getHeadSha: () => 'a'.repeat(40),
+      getTreeFingerprint: () => 'tree',
+      shouldSkip: () => ({ skip: false }),
+      recordPass: (record) => recorded.push(record.gateName),
+      runProjections: async () => ({}),
+    });
+    return { validation, spawned, recorded, lines };
+  }
+
+  it('settles typecheck, lint and the capture as deferred, spawning and recording nothing', async () => {
+    const { validation, spawned, recorded, lines } = await runDeferred([
+      { ...TYPECHECK, ciDeferred },
+      { ...LINT, ciDeferred },
+      { ...CAPTURE, ciDeferred },
+      CRAP_PREVIEW,
+      COVERAGE_BASELINES,
+    ]);
+    assert.equal(validation.ok, true);
+    assert.deepEqual(
+      validation.deferred.map((d) => [d.gate.name, d.reason, d.status]).sort(),
+      [
+        ['coverage-capture', 'base-sync-ci', null],
+        ['lint', 'base-sync-ci', null],
+        ['typecheck', 'base-sync-ci', null],
+      ],
+    );
+    assert.deepEqual(
+      validation.skipped.map((s) => [s.gate.name, s.reason]),
+      [
+        ['quality-preview-crap', COVERAGE_DEFERRED_SKIP_REASON],
+        ['check-baselines-coverage', COVERAGE_DEFERRED_SKIP_REASON],
+      ],
+    );
+    assert.deepEqual(spawned, []);
+    assert.deepEqual(recorded, []);
+    assert.ok(
+      lines.some((l) => /typecheck deferred to CI .*ci \/ test/.test(l)),
+    );
+  });
+
+  it('a typecheck or lint deferral alone never skips a coverage reader', async () => {
+    const { validation, spawned } = await runDeferred([
+      { ...TYPECHECK, ciDeferred },
+      { ...LINT, ciDeferred },
+      CAPTURE,
+      CRAP_PREVIEW,
+      COVERAGE_BASELINES,
+    ]);
+    assert.equal(validation.ok, true);
+    assert.deepEqual(validation.skipped, []);
+    assert.deepEqual(spawned, ['capture', 'preview', 'baselines']);
+  });
+
+  it('reports every deferred gate in the envelope', () => {
+    const gates = closeEnvelopeGates(
+      {},
+      {
+        typecheck: 'deferred',
+        lint: 'deferred',
+        'coverage-capture': 'deferred',
+        format: 'passed',
+      },
+      null,
+      false,
+    );
+    assert.equal(gates.typecheck, 'deferred');
+    assert.equal(gates.lint, 'deferred');
+    assert.equal(gates['coverage-capture'], 'deferred');
+    assert.equal(gates.format, undefined);
+  });
+
+  it('puts the base-sync key line in the PR body', () => {
+    const { body } = buildPullRequestFields({
+      storyTitle: 'Revalidate',
+      storyId: 6050,
+      storyBranch: 'story-6050',
+      baseBranch: 'main',
+      gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
+      coverageDeferred: 'base-sync-ci',
+    });
+    assert.match(body, /revalidateAfterBaseSync: ci/);
+    assert.match(body, /\nCoverage-deferred: base-sync-ci\n/);
+  });
+});
