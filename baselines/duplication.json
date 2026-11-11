@@ -221,8 +221,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
       "duplicatedLines": 20,
-      "totalLines": 264,
-      "percentage": 7.58
+      "totalLines": 285,
+      "percentage": 7.02
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
