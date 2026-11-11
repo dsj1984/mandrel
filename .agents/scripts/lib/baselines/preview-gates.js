@@ -215,6 +215,7 @@ export async function runCrapPreview({
   cwd = process.cwd(),
   changedSinceRef = null,
   staged = false,
+  coverageArtifact = null,
 } = {}) {
   const { scopeSet, scope, diffRef } = resolvePreviewScope({
     staged,
@@ -256,5 +257,6 @@ export async function runCrapPreview({
     diffRef,
     baseline,
     baseBranch: config?.project?.baseBranch,
+    coverageArtifact,
   });
 }

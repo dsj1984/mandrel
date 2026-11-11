@@ -3,19 +3,16 @@
  * its baseline is loaded and judged compatible.
  */
 
-import path from 'node:path';
-import { loadCoverage } from '../coverage-utils.js';
 import {
   KERNEL_VERSION,
   resolveEscomplexVersion,
   scanAndScore,
 } from '../crap-utils.js';
 import { CYCLOMATIC_CEILING } from '../cyclomatic-ceiling.js';
+import { resolvePreviewCoverage } from './crap-preview-coverage.js';
 import { resolveCrapPreviewIncremental } from './crap-preview-incremental.js';
 import {
   outsideDiffDiagnostics,
-  previewCoveragePath,
-  previewNotRun,
   resolveIsJudged,
 } from './crap-preview-touched.js';
 import { resolveCrapEnvOverrides } from './env-overrides.js';
@@ -72,6 +69,7 @@ export function listCyclomaticAdvisories(rows) {
  *   baseline: { rows: object[] },
  *   baseBranch?: string,
  *   git?: Function,
+ *   coverageArtifact?: string|null,
  * }} opts
  * @returns {Promise<{ exitCode: number, envelope: object }>}
  */
@@ -84,6 +82,7 @@ export async function computeCrapPreviewScan({
   baseline,
   baseBranch,
   git,
+  coverageArtifact = null,
 }) {
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
   const crapIgnoreGlobs = Array.isArray(crap.ignoreGlobs)
@@ -96,9 +95,15 @@ export async function computeCrapPreviewScan({
     crap,
     process.env,
   );
-  const notRun = previewNotRun({ crap, targetDirs, cwd, scope, diffRef });
+  const { notRun, coverage } = resolvePreviewCoverage({
+    coverageArtifact,
+    crap,
+    targetDirs,
+    cwd,
+    scope,
+    diffRef,
+  });
   if (notRun) return notRun;
-  const coverage = loadCoverage(path.resolve(cwd, previewCoveragePath(crap)));
   const incremental = resolveCrapPreviewIncremental({
     crap,
     diffRef,

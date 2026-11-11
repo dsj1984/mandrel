@@ -147,6 +147,36 @@ describe('CRAP preview without a fresh artifact', () => {
   });
 });
 
+describe('CRAP preview against a named coverage artifact', () => {
+  it('scores an unstamped artifact outside the configured path', async () => {
+    const cwd = plant({ stamp: false });
+    const named = path.join(cwd, 'ci', 'coverage-final.json');
+    fs.mkdirSync(path.dirname(named));
+    fs.renameSync(path.join(cwd, COVERAGE), named);
+    const { exitCode, envelope } = await computeCrapPreviewScan({
+      crap: crapConfig(),
+      cwd,
+      scopeSet: new Set([REL]),
+      scope: 'diff',
+      diffRef: 'origin/main',
+      baseline: REGRESSED_BASELINE,
+      coverageArtifact: named,
+    });
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.violations.length, 2);
+    assert.equal(envelope.diagnostics, undefined);
+  });
+
+  it('without one, an unstamped configured artifact is still not run', async () => {
+    const { exitCode, envelope } = await scan(
+      plant({ stamp: false }),
+      crapConfig(),
+    );
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.diagnostics[0].name, 'crap-coverage-not-fresh');
+  });
+});
+
 describe('crap.previewScope: touched-methods', () => {
   const touched = crapConfig({ previewScope: 'touched-methods' });
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, test } from 'node:test';
@@ -1151,6 +1152,157 @@ describe('runCli — --only selects one half (Story #5471)', () => {
     assert.equal(exitCode, 2);
     assert.deepEqual(calls, []);
     assert.match(err.lines.join(''), /--only takes mi or crap/);
+  });
+});
+
+describe('runCli — --coverage-artifact scores a named artifact read-only', () => {
+  const methodCount = 5;
+  function artifactFixture() {
+    const dir = makeCrapFixture({
+      methodCount,
+      cyclomaticPerMethod: 2,
+      baselineRows: baselineRowsFor(methodCount, 0),
+    });
+    fs.appendFileSync(path.join(dir, 'src', 'mod.js'), '// touched\n');
+    execFileSync(
+      'git',
+      ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'touch'],
+      {
+        cwd: dir,
+        stdio: 'ignore',
+      },
+    );
+    fs.mkdirSync(path.join(dir, 'ci'));
+    fs.copyFileSync(
+      path.join(dir, 'coverage', 'coverage-final.json'),
+      path.join(dir, 'ci', 'coverage-final.json'),
+    );
+    return dir;
+  }
+  const run = async (dir, argv) => {
+    const out = makeStreamCapture();
+    const err = makeStreamCapture();
+    const result = await runCli({ argv, cwd: dir, stdout: out, stderr: err });
+    return { ...result, out: out.lines.join(''), err: err.lines.join('') };
+  };
+  function hashTree(root) {
+    const hashes = {};
+    for (const rel of fs.readdirSync(root, { recursive: true })) {
+      const abs = path.join(root, rel);
+      if (rel.split(path.sep)[0] === '.git' || !fs.statSync(abs).isFile()) {
+        continue;
+      }
+      hashes[rel] = createHash('sha256')
+        .update(fs.readFileSync(abs))
+        .digest('hex');
+    }
+    return hashes;
+  }
+
+  it('AC-1/AC-4: scores the named artifact with the configured one absent', async () => {
+    const dir = artifactFixture();
+    try {
+      fs.rmSync(path.join(dir, 'coverage'), { recursive: true });
+      const argv = ['--only', 'crap', '--changed-since', 'HEAD~1'];
+      const named = ['--coverage-artifact', 'ci/coverage-final.json'];
+      const json = await run(dir, [...argv, ...named, '--json']);
+      assert.equal(json.exitCode, 1);
+      const payload = JSON.parse(json.out);
+      assert.equal(
+        payload.coverageArtifact,
+        path.join(dir, 'ci', 'coverage-final.json'),
+      );
+      assert.equal(payload.crap.envelope.diagnostics, undefined);
+      assert.equal(payload.crap.envelope.summary.total, methodCount);
+      assert.ok(payload.crap.envelope.summary.regressions > 0);
+      const text = await run(dir, [...argv, ...named]);
+      assert.match(
+        text.out,
+        /scope=diff ref=HEAD~1\ncoverage=ci\/coverage-final\.json \(named artifact; capture stamp not checked\)\n/,
+      );
+    } finally {
+      rmFixture(dir);
+    }
+  });
+
+  it('AC-2: leaves every file outside .git byte-identical', async () => {
+    const dir = artifactFixture();
+    try {
+      const before = hashTree(dir);
+      assert.ok(Object.keys(before).some((f) => f.includes('.capture-stamp')));
+      await run(dir, [
+        '--changed-since',
+        'HEAD~1',
+        '--coverage-artifact',
+        'ci/coverage-final.json',
+      ]);
+      assert.deepEqual(hashTree(dir), before);
+    } finally {
+      rmFixture(dir);
+    }
+  });
+
+  it('AC-3: a bare flag or an unloadable file exits 2 before either half runs', async () => {
+    const dir = artifactFixture();
+    try {
+      fs.writeFileSync(path.join(dir, 'ci', 'bad.json'), '[1]');
+      for (const tail of [
+        [],
+        ['ci/missing.json'],
+        ['ci/bad.json'],
+        ['--json'],
+      ]) {
+        const calls = [];
+        const err = makeStreamCapture();
+        const track = (label) => async () => {
+          calls.push(label);
+          return { exitCode: 0, envelope: null };
+        };
+        const { exitCode } = await runCli({
+          argv: ['--coverage-artifact', ...tail],
+          cwd: dir,
+          stdout: makeStreamCapture(),
+          stderr: err,
+          runMi: track('mi'),
+          runCrap: track('crap'),
+        });
+        assert.equal(exitCode, 2);
+        assert.deepEqual(calls, []);
+        assert.match(
+          err.lines.join(''),
+          /\[quality:preview\] --coverage-artifact/,
+        );
+      }
+    } finally {
+      rmFixture(dir);
+    }
+  });
+
+  it('AC-5: without the flag an unstamped configured artifact is not run and the envelope gains no key', async () => {
+    const dir = artifactFixture();
+    try {
+      const coverageDir = path.join(dir, 'coverage');
+      for (const f of fs.readdirSync(coverageDir)) {
+        if (f.startsWith('.capture-stamp'))
+          fs.rmSync(path.join(coverageDir, f));
+      }
+      const { exitCode, out } = await run(dir, [
+        '--only',
+        'crap',
+        '--changed-since',
+        'HEAD~1',
+        '--json',
+      ]);
+      assert.equal(exitCode, 0);
+      const payload = JSON.parse(out);
+      assert.equal('coverageArtifact' in payload, false);
+      assert.equal(
+        payload.crap.envelope.diagnostics[0].name,
+        'crap-coverage-not-fresh',
+      );
+    } finally {
+      rmFixture(dir);
+    }
   });
 });
 
