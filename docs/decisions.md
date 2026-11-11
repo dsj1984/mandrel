@@ -36,6 +36,7 @@ superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261111-6054`](#adr-20261111-6054-over-rest-a-merge-queue-base-is-armed-through-the-ccr-route) | Over REST, a merge-queue base is armed through the CCR route | `.agents/scripts/lib/orchestration/merge-queue.js` | Accepted |
 | [`20261111-6050`](#adr-20261111-6050-closes-ci-revalidation-after-a-base-merge-raises-the-agentrc-leaf-key-ceiling-to-168) | Close's CI revalidation after a base merge raises the agentrc leaf-key ceiling to 168 | `.agents/scripts/lib/close-validation/base-sync-revalidation.js` | Accepted |
 | [`20261110-6040`](#adr-20261110-6040-mandrel-orchestrate-is-reactive-acts-only-on-recorded-authority-and-splits-scripts-from-the-host) | `/mandrel-orchestrate` is reactive, acts only on recorded authority, and splits scripts from the host | `.agents/scripts/lib/orchestrate/ledger.js` | Accepted |
 | [`20261108-6031`](#adr-20261108-6031-the-crap-preview-scope-raises-the-agentrc-leaf-key-ceiling-to-160) | The CRAP preview scope raises the agentrc leaf-key ceiling to 160 | `.agents/scripts/lib/config/gates/crap.schema.js` | Accepted |
