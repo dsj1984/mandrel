@@ -56,6 +56,17 @@ function textIncludesAny(text, markers) {
   return markers.some((marker) => lower.includes(marker));
 }
 
+function describeExhaustion(prProbe) {
+  const mergeState = `mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'}`;
+  if (prProbe?.checksStatus === 'success') {
+    return `watch budget exhausted with every check green but the PR did not land (${mergeState}, autoMergeArmed=${prProbe?.autoMergeArmed ?? 'unknown'}, inMergeQueue=${prProbe?.inMergeQueue ?? 'unknown'})`;
+  }
+  if (prProbe?.checksStatus === 'unknown') {
+    return `watch budget exhausted with no checks reported (${mergeState})`;
+  }
+  return `watch budget exhausted with an unrecognised checks status (${prProbe?.checksStatus ?? 'unknown'})`;
+}
+
 /** The most specific `api-race-other` reason the signals allow. */
 function describeApiRaceFallback(prProbe, budget) {
   if (prProbe?.error) {
@@ -67,7 +78,7 @@ function describeApiRaceFallback(prProbe, budget) {
     return `PR did not land although its failing checks are not required (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'}); the red checks are not the block — check that auto-merge is still armed`;
   }
   if (budget && budget.exhausted === true) {
-    return `watch budget exhausted with an unrecognised checks status (${prProbe?.checksStatus ?? 'unknown'})`;
+    return describeExhaustion(prProbe);
   }
   return 'no definitive block signal observed; classified as a transient API race or other condition';
 }

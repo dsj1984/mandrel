@@ -48,6 +48,7 @@ import {
   ADVISORY_GATE_INCONCLUSIVE_CLASS,
   ADVISORY_GATE_RED_CLASS,
   CHECKS_FAILED_CLASS,
+  CHECKS_STATUSES,
   DEFAULT_INTERVAL_SECONDS,
   DEFAULT_MAX_BUDGET_SECONDS,
   decideAdvisoryGateBlock,
@@ -1159,9 +1160,14 @@ function singleProbeOrContinue(limits, overBudget, checksStatus) {
   return settles ? 'single-probe' : 'continue';
 }
 
+/** No budget turns a status outside the closed vocabulary into one inside it. */
+function isUnrecognisedChecksStatus(checksStatus) {
+  return checksStatus != null && !CHECKS_STATUSES.includes(checksStatus);
+}
+
 /**
- * Pure: state + probe + clock → next state and verdict. `merged`, `closed`
- * and `checks-failed` are definitive; `budget-exhausted`, `wait-bound`,
+ * Pure: state + probe + clock → next state and verdict. `merged`, `closed`,
+ * `checks-status-unrecognised` and `checks-failed` are definitive; `budget-exhausted`, `wait-bound`,
  * `single-probe` and `continue` hold only if the loop's advisory check does not block first.
  * The two clock reads (wait bound, then budget) keep a stepping test clock's
  * call sequence.
@@ -1205,6 +1211,9 @@ export function decideMergeWaitPoll({
   if (isPrMerged(probe)) return { state: polled, verdict: 'merged', ...timing };
   if (probe.state === 'CLOSED') {
     return { state: polled, verdict: 'closed', ...timing };
+  }
+  if (isUnrecognisedChecksStatus(probe.checksStatus)) {
+    return { state: polled, verdict: 'checks-status-unrecognised', ...timing };
   }
   // No remaining budget turns a red required check green; fail fast.
   const failFast = decideMergeWaitFailFast({
@@ -1280,9 +1289,19 @@ async function settleChecksFailed(ctx, decision, probe) {
   });
 }
 
+function settleUnrecognisedChecks(ctx, decision, probe) {
+  return blockWith(ctx, {
+    prProbe: probe,
+    budget: { exhausted: false, elapsedSeconds: decision.elapsedSeconds },
+    blockClassOverride: CLOSED_UNMERGED_BLOCK_CLASS,
+    reasonOverride: `unrecognised checks status (${probe.checksStatus})`,
+  });
+}
+
 const DEFINITIVE_SETTLERS = Object.freeze({
   merged: settleMerged,
   closed: settleClosed,
+  'checks-status-unrecognised': settleUnrecognisedChecks,
   'checks-failed': settleChecksFailed,
 });
 
@@ -1368,17 +1387,30 @@ async function recoverOpenPr(ctx, decision, probe) {
 /**
  * Close owns the merge when the CCR route would not arm it: the arm said so,
  * or (a `--wait` resume, which has no arm outcome) the PR transport is REST
- * and GitHub holds no auto-merge request. Only a PR close itself armed.
+ * and GitHub holds no auto-merge request. Only a PR close itself armed, and
+ * never on a queue base: GitHub clears the request when it enqueues.
  *
  * @returns {Promise<boolean>}
  */
 async function closeOwnsMerge(ctx, probe) {
   if (ctx.closeArmed !== true) return false;
-  if (ctx.autoMergeReason === REST_MERGE_ON_GREEN) return true;
-  return (
-    probe.autoMergeArmed !== true &&
-    (await prTransportOf(ctx.waitGh)) === 'rest'
-  );
+  const owns =
+    ctx.autoMergeReason === REST_MERGE_ON_GREEN ||
+    (probe.autoMergeArmed !== true &&
+      (await prTransportOf(ctx.waitGh)) === 'rest');
+  return owns && !(await baseRequiresQueue(ctx));
+}
+
+/** Read once per invocation; a failed read (`null`) is not a queue. */
+function baseRequiresQueue(ctx) {
+  ctx.queueRequiredRead ??= ctx
+    .readMergeQueueStateFn({
+      prNumber: ctx.prNumber,
+      gh: ctx.waitGh,
+      timeoutMs: ctx.ghTimeoutMs,
+    })
+    .then((queue) => queue?.queueRequired === true);
+  return ctx.queueRequiredRead;
 }
 
 function isCleanAndGreen(probe) {
@@ -1557,6 +1589,7 @@ function neverArmedOverride(autoMergeReason, advisoryGate) {
  * @param {Function} [args.disarmAutoMergeFn]
  * @param {Function} [args.recordRequiredRedFn] The shared first-red handling (disarm + CI digest).
  * @param {Function} [args.mergeOnGreenFn] The merge-on-green squash-merge (`auto-merge.js#mergeOnGreen`).
+ * @param {Function} [args.readMergeQueueStateFn] Whether the base requires a merge queue.
  * @param {object} [args.recoverySeams] DIRTY-sync / re-arm seams (`mergeWaitRecoverySeams`).
  * @param {(ms: number) => Promise<void>} [args.sleepFn]
  * @param {() => number} [args.nowMsFn]
@@ -1577,6 +1610,7 @@ export async function runConfirmMergePhase({
   disarmAutoMergeFn = disarmAutoMerge,
   recordRequiredRedFn = defaultRecordRequiredRed,
   mergeOnGreenFn = mergeOnGreen,
+  readMergeQueueStateFn = readMergeQueueState,
   sleepFn = defaultSleep,
   nowMsFn = Date.now,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
@@ -1625,6 +1659,7 @@ export async function runConfirmMergePhase({
     disarmAutoMergeFn,
     recordRequiredRedFn,
     mergeOnGreenFn,
+    readMergeQueueStateFn,
     nowMsFn,
     ghTimeoutMs,
     waitGh: args.injectedGh ?? defaultGh,

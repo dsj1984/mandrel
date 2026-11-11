@@ -336,6 +336,42 @@ describe('merge-block-class (Story #4426)', () => {
     assert.match(verdict.reason, /auto-merge/i);
   });
 
+  it('a green budget exhaustion says the checks are green and names the merge state (Story #6054 AC-6)', () => {
+    const verdict = classifyMergeBlock({
+      prProbe: {
+        checksStatus: 'success',
+        mergeStateStatus: 'CLEAN',
+        autoMergeArmed: false,
+      },
+      budget: { exhausted: true, elapsedSeconds: 120 },
+    });
+    assert.equal(verdict.blockClass, 'api-race-other');
+    assert.doesNotMatch(verdict.reason, /unrecognised/);
+    assert.match(verdict.reason, /every check green but the PR did not land/);
+    assert.match(verdict.reason, /mergeStateStatus=CLEAN/);
+    assert.match(verdict.reason, /autoMergeArmed=false/);
+    assert.match(verdict.reason, /inMergeQueue=unknown/);
+  });
+
+  it('a budget exhaustion with no checks reported says so (Story #6054 AC-6)', () => {
+    const verdict = classifyMergeBlock({
+      prProbe: { checksStatus: 'unknown', mergeStateStatus: 'CLEAN' },
+      budget: { exhausted: true, elapsedSeconds: 120 },
+    });
+    assert.equal(verdict.blockClass, 'api-race-other');
+    assert.match(verdict.reason, /no checks reported/);
+    assert.doesNotMatch(verdict.reason, /unrecognised/);
+  });
+
+  it('keeps "unrecognised" for an out-of-vocabulary checks status', () => {
+    const verdict = classifyMergeBlock({
+      prProbe: { checksStatus: 'neutral', mergeStateStatus: 'CLEAN' },
+      budget: { exhausted: true, elapsedSeconds: 120 },
+    });
+    assert.equal(verdict.blockClass, 'api-race-other');
+    assert.match(verdict.reason, /unrecognised checks status \(neutral\)/);
+  });
+
   it('no classifyMergeBlock output is a direct-only attribution (Stories #4472, #5096)', () => {
     const evidences = [
       undefined,
