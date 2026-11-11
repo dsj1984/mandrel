@@ -731,6 +731,10 @@
       "mi": 112.976
     },
     {
+      "path": ".agents/scripts/lib/close-validation/base-sync-revalidation.js",
+      "mi": 98.973
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/ci-deferral.js",
       "mi": 103.475
     },
