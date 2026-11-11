@@ -27,13 +27,13 @@ export const MERGE_QUEUE_REFUSAL = /when merge queue enabled/i;
 /** Block class: a merge-queue base reached over the REST transport. */
 export const MERGE_QUEUE_REST_BLOCK_CLASS = 'merge-queue-rest-unsupported';
 
-/** The remedy that block carries: enqueueing is GraphQL-only. */
+/** The remedy that block carries: the CCR route refused to arm the queue base. */
 export const MERGE_QUEUE_REST_REMEDY =
   "The PR's base branch requires a merge queue, and this session reaches GitHub over " +
-  'repo-scoped REST only (GraphQL answers 403). Enqueueing is GraphQL-only, and a direct ' +
-  'merge would bypass the queue, so close did not merge. Enqueue the PR from a session ' +
-  'that can reach GraphQL (arm auto-merge there) or from the GitHub UI, then confirm with ' +
-  '`node .agents/scripts/single-story-confirm-merge.js --story <id>`.';
+  'repo-scoped REST only (GraphQL answers 403). The CCR auto-merge route refused this PR, ' +
+  'and a direct merge would bypass the queue, so close did not merge. Enqueue the PR from a ' +
+  'session that can reach GraphQL (arm auto-merge there) or from the GitHub UI, then confirm ' +
+  'with `node .agents/scripts/single-story-confirm-merge.js --story <id>`.';
 
 /**
  * REST reading: the base's active rulesets name a `merge_queue` rule.
@@ -153,10 +153,17 @@ async function dequeuePullRequest({ prNodeId, gh }) {
   }
 }
 
+function queueArmOutcome(result) {
+  return result.mergeOnGreen
+    ? { enabled: false, mergeQueue: true, reason: MERGE_QUEUE_REST_BLOCK_CLASS }
+    : { enabled: true, mergeQueue: true };
+}
+
 /**
  * Arm on a merge-queue base: a bare `--auto`, and never the direct-merge
  * fallback — a merge that bypassed the queue would defeat the protection it
- * exists for.
+ * exists for. Over REST a CCR refusal resolves with `mergeOnGreen`, which on
+ * a queue base is the REST block, never an arm.
  *
  * @returns {Promise<{ enabled: boolean, mergeQueue: true, reason?: string }>}
  */
@@ -165,7 +172,7 @@ export async function armForMergeQueue({ exec, prNumber, armCwd }) {
     const result = await exec(['pr', 'merge', String(prNumber), '--auto'], {
       cwd: armCwd,
     });
-    if (result.status === 0) return { enabled: true, mergeQueue: true };
+    if (result.status === 0) return queueArmOutcome(result);
     return {
       enabled: false,
       mergeQueue: true,

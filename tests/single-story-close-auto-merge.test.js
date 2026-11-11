@@ -869,7 +869,7 @@ describe('disarmAutoMerge — enqueued PR (Story #5395)', () => {
 
 /**
  * Story #5793 — the arm over the REST transport: the CCR route arms, its
- * refusal hands the merge to the wait, and a merge-queue base refuses.
+ * refusal hands the merge to the wait; a queue base arms through it too.
  */
 describe('auto-merge over the REST transport (Story #5793)', () => {
   afterEach(() => setGraphqlAvailability(null));
@@ -935,21 +935,59 @@ describe('auto-merge over the REST transport (Story #5793)', () => {
     assert.ok(lines.some((l) => /merge wait squash-merges it/.test(l)));
   });
 
-  it('refuses a merge-queue base with a named reason, issuing no merge (AC-5)', async () => {
-    const { gh, argvs } = restGh({ ccr: {} });
+  /** The queue-base close over REST, with every `gh.pr.merge` flag list recorded. */
+  async function closeOnQueueBase(ccr) {
+    const { gh, argvs } = restGh({ ccr });
+    const mergeFlags = [];
+    const merge = gh.pr.merge;
+    gh.pr.merge = (id, flags) => {
+      mergeFlags.push(flags);
+      return merge(id, flags);
+    };
+    const lines = [];
     const outcome = await runAutoMergePhase({
       cwd: '/repo',
       prNumber: 5,
       prUrl: 'https://github.com/o/r/pull/5',
       noAutoMerge: false,
       gh,
-      progress: () => {},
+      progress: (_tag, msg) => lines.push(msg),
       readPrWaitProbeFn: noAdvisory,
       readMergeQueueStateFn: async () => ({ queueRequired: true }),
     });
+    return { outcome, argvs, mergeFlags, lines };
+  }
+
+  it('arms a merge-queue base through the CCR route with one bare --auto (Story #6054 AC-1)', async () => {
+    const { outcome, argvs, mergeFlags, lines } = await closeOnQueueBase({});
+    assert.equal(outcome.autoMergeEnabled, true);
+    assert.equal(outcome.autoMergeReason, null);
+    assert.equal(outcome.mergeQueue, true);
+    assert.ok(lines.some((l) => /merge queue/.test(l)));
+    assert.deepEqual(mergeFlags, [['--auto']]);
+    assert.equal(argvs.length, 1);
+    assert.equal(argvs[0][3], 'repos/{owner}/{repo}/pulls/5/ccr/auto_merge');
+  });
+
+  it('a refused CCR route on a merge-queue base blocks, never merging (Story #6054 AC-2)', async () => {
+    const { outcome, argvs, mergeFlags } = await closeOnQueueBase(
+      new GhExecError('gh-exec: gh exited with code 1', {
+        args: [],
+        stderr: 'gh: Not Found (HTTP 404)',
+        code: 1,
+      }),
+    );
     assert.equal(outcome.autoMergeEnabled, false);
     assert.equal(outcome.autoMergeReason, 'merge-queue-rest-unsupported');
-    assert.deepEqual(argvs, [], 'neither an enqueue nor a direct merge');
+    assert.deepEqual(
+      mergeFlags,
+      [['--auto']],
+      'the one --auto is the only merge call',
+    );
+    assert.deepEqual(
+      argvs.map((argv) => argv[3]),
+      ['repos/{owner}/{repo}/pulls/5/ccr/auto_merge'],
+    );
   });
 });
 

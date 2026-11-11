@@ -208,6 +208,7 @@ function phaseArgs(overrides = {}) {
       detail: 'disarmed',
     }),
     recordRequiredRedFn: fakeRecordRequiredRed,
+    readMergeQueueStateFn: async () => ({ queueRequired: false }),
     ...overrides,
   };
 }
@@ -489,6 +490,26 @@ describe('merge wait — pending (the resumable terminal)', () => {
 });
 
 describe('merge wait — blocked terminals', () => {
+  it('an out-of-vocabulary checks status blocks on its first poll (Story #6054 AC-5)', async () => {
+    const emitted = [];
+    let polls = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { maxBudgetSeconds: 3600 } } },
+        readPrWaitProbeFn: async () => {
+          polls += 1;
+          return openProbe({ checksStatus: 'neutral' });
+        },
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.equal(outcome.blockClass, 'api-race-other');
+    assert.match(outcome.reason, /unrecognised checks status \(neutral\)/);
+    assert.equal(polls, 1, 'exactly one probe was read');
+    assert.equal(emitted[0].blockClass, 'api-race-other');
+  });
+
   it('a GENUINELY red required check fails fast as checks-failed on the first evidence-bearing probe (Story #4695 AC-2)', async () => {
     const provider = makeFakeProvider();
     const emitted = [];
@@ -4033,6 +4054,32 @@ describe('merge wait — merge-on-green over REST (Story #5793)', () => {
     assert.equal(rec.merges.length, 0);
   });
 
+  it('never merges a queue base itself, even over REST with no auto-merge request (Story #6054 AC-4)', async (t) => {
+    t.after(() => setGraphqlAvailability(null));
+    setGraphqlAvailability({ verdict: 'unavailable' });
+    const rec = mergeRecorder();
+    let queueReads = 0;
+    const states = [green(), green(), { state: 'MERGED', mergedAt: 'x' }];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        autoMergeReason: null,
+        injectedGh: createGh(async () => ({ stdout: '{}' })),
+        mergeOnGreenFn: rec.mergeOnGreenFn,
+        readMergeQueueStateFn: async () => {
+          queueReads += 1;
+          return { queueRequired: true, inQueue: null };
+        },
+        recoverySeams: NO_REARM,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(rec.merges.length, 0, 'no merge-on-green call');
+    assert.equal(queueReads, 1, 'the queue read happens once per invocation');
+  });
+
   // AC-5 — a merge-queue base under REST blocks with its own class and remedy.
   it('blocks a merge-queue refusal with its named class and remedy', async () => {
     const emitted = [];
@@ -4046,7 +4093,7 @@ describe('merge wait — merge-on-green over REST (Story #5793)', () => {
     assert.equal(outcome.terminal, 'blocked');
     assert.equal(outcome.blockClass, 'merge-queue-rest-unsupported');
     assert.match(outcome.reason, /merge queue/);
-    assert.match(outcome.reason, /GraphQL-only/);
+    assert.match(outcome.reason, /CCR auto-merge route refused/);
     assert.equal(emitted[0].blockClass, 'merge-queue-rest-unsupported');
     const terminal = terminalFromWaitOutcome({
       waitOutcome: outcome,
