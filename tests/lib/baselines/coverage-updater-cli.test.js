@@ -216,18 +216,40 @@ describe('buildCoverageUpdaterScorer — rows', () => {
     assert.equal(scorer([], { fullScope: false }).length, 2);
   });
 
-  it('defaults a missing metric to 0 rather than undefined', () => {
+  it('persists a 0/0 (null) axis as 100, the istanbul/c8 convention (#6047)', () => {
     const scorer = buildCoverageUpdaterScorer(
       '/repo',
       stubDeps(recordingLogger(), {
-        score: () => ({ 'a.js': {}, 'b.js': null }),
+        score: () => ({
+          'a.js': {},
+          'b.js': null,
+          'flat.js': { lines: 100, branches: null, functions: 100 },
+        }),
       }),
     );
     for (const row of scorer([], { fullScope: true })) {
-      assert.equal(row.lines, 0);
-      assert.equal(row.branches, 0);
-      assert.equal(row.functions, 0);
+      assert.equal(row.lines, 100);
+      assert.equal(row.branches, 100);
+      assert.equal(row.functions, 100);
     }
+  });
+
+  it('keeps real 0/N coverage at 0 in diff scope (#6047)', () => {
+    const scorer = buildCoverageUpdaterScorer(
+      '/repo',
+      stubDeps(recordingLogger(), {
+        score: () => ({
+          '.agents/scripts/a.js': { lines: 0, branches: 0, functions: 0 },
+        }),
+      }),
+    );
+    const [row] = scorer(['.agents/scripts/a.js'], { fullScope: false });
+    assert.deepEqual(row, {
+      path: '.agents/scripts/a.js',
+      lines: 0,
+      branches: 0,
+      functions: 0,
+    });
   });
 
   it('hands the c8 include/exclude through to the scope predicate', () => {

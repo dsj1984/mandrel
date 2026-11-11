@@ -888,7 +888,7 @@ describe('seatCoverageBaseline (Story #5960)', () => {
     );
     assert.deepEqual(
       after.rows.find((r) => r.path === 'src/second.js'),
-      { path: 'src/second.js', lines: 0, branches: 0, functions: 0 },
+      { path: 'src/second.js', lines: 100, branches: 100, functions: 100 },
     );
     const text = fs.readFileSync(writePath, 'utf8');
     for (const row of JSON.parse(bytes).rows) {

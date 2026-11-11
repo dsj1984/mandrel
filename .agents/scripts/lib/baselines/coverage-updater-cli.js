@@ -10,6 +10,7 @@ import path from 'node:path';
 import { getBaselineEpsilon } from '../config/quality.js';
 import {
   buildScopePredicate,
+  coverageRowFromScores,
   readCoverageFinal,
   scoreCoverageFinal,
 } from '../coverage-baseline.js';
@@ -108,12 +109,7 @@ function projectScoredRows(scores, files, opts, logger) {
       : null;
   const rows = Object.entries(scores)
     .filter(([relPath]) => inScope === null || inScope.has(relPath))
-    .map(([relPath, s]) => ({
-      path: relPath,
-      lines: s?.lines ?? 0,
-      branches: s?.branches ?? 0,
-      functions: s?.functions ?? 0,
-    }));
+    .map(([relPath, s]) => coverageRowFromScores(relPath, s));
   logger.info(
     `[Coverage] Scored ${Object.keys(scores).length} file(s)${inScope ? ` (${rows.length} in scope)` : ''}.`,
   );

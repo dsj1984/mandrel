@@ -12,6 +12,7 @@ import { execFileCaptureAsync } from '../child-exec.js';
 import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
 import {
   buildScopePredicate,
+  coverageRowFromScores,
   scoreCoverageFinal,
 } from '../coverage-baseline.js';
 import { isCoverageFresh } from '../coverage-capture.js';
@@ -313,14 +314,6 @@ export function seatMaintainabilityBaseline(
   });
 }
 
-/** One coverage baseline row from a file's scores. */
-const coverageRow = (relPath, s) => ({
-  path: relPath,
-  lines: s?.lines ?? 0,
-  branches: s?.branches ?? 0,
-  functions: s?.functions ?? 0,
-});
-
 /** @param {string} coveragePath @param {string[]} inScope @param {string} cwd */
 function staleRefusal(coveragePath, inScope, cwd) {
   return new SeatRefusal(
@@ -339,7 +332,7 @@ function measuredRows(scores, inScope, logger) {
       `[Coverage] not seated — the fresh artifact did not measure: ${unmeasured.join(', ')}`,
     );
   }
-  return measured.map((file) => coverageRow(file, scores[file]));
+  return measured.map((file) => coverageRowFromScores(file, scores[file]));
 }
 
 /**

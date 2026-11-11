@@ -16,6 +16,7 @@ import { COVERAGE_GATE_DEFAULTS } from '../config/quality.js';
 import { getQuality, resolveConfig } from '../config-resolver.js';
 import {
   buildScopePredicate,
+  coverageRowFromScores,
   scoreCoverageFinal,
 } from '../coverage-baseline.js';
 import { MissingCoverageArtifactError } from '../coverage-capture.js';
@@ -181,12 +182,7 @@ function buildDefaultCoverageScorer({ cwd, config, quality } = {}) {
         : null;
     return Object.entries(scores)
       .filter(([relPath]) => inScope === null || inScope.has(relPath))
-      .map(([relPath, score]) => ({
-        path: relPath,
-        lines: score?.lines ?? 0,
-        branches: score?.branches ?? 0,
-        functions: score?.functions ?? 0,
-      }));
+      .map(([relPath, score]) => coverageRowFromScores(relPath, score));
   };
 }
 
