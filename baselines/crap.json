@@ -6621,7 +6621,6 @@
       "formatFlipFailedFriction": 4,
       "formatUnlandedFriction": 4,
       "isCleanAndGreen": 6,
-      "isUnrecognisedChecksStatus": 2,
       "maybeMergeOnGreen": 4,
       "maybeRerunAdvisory": 3,
       "maybeUpdateBehindPr": 1,
