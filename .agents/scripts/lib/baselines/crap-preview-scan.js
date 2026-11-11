@@ -9,11 +9,11 @@ import {
   scanAndScore,
 } from '../crap-utils.js';
 import { CYCLOMATIC_CEILING } from '../cyclomatic-ceiling.js';
+import { resolvePreviewCoverage } from './crap-preview-coverage.js';
 import { resolveCrapPreviewIncremental } from './crap-preview-incremental.js';
 import {
   outsideDiffDiagnostics,
   resolveIsJudged,
-  resolvePreviewCoverage,
 } from './crap-preview-touched.js';
 import { resolveCrapEnvOverrides } from './env-overrides.js';
 import {
