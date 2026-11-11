@@ -2642,6 +2642,7 @@
       "probeBaselinesGate": 5,
       "resolveCreditedDepositor": 3,
       "resolveTestCredited": 2,
+      "runsIndependently": 2,
       "suiteOfRecord": 1,
       "suiteOfRecordFlag": 2,
       "toKindSet": 3.072,
