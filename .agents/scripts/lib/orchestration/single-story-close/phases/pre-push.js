@@ -116,6 +116,7 @@ function validatedResult(validation) {
     suiteTimings: validation?.suiteTimings ?? null,
     pending: validation?.pending === true,
     coverageDeferred: validation?.coverageDeferred ?? null,
-    revalidation: validation?.revalidation ?? null,
+    // Undefined, not null, so the envelope omits it outside the `ci` mode.
+    revalidation: validation?.revalidation ?? undefined,
   };
 }

@@ -723,6 +723,11 @@ export function isIndependentGate(name) {
   return INDEPENDENT_GATE_NAMES.has(name);
 }
 
+/** A `ciDeferred` gate is settled up front by the serial loop. */
+function runsIndependently(gate) {
+  return isIndependentGate(gate.name) && !gate.ciDeferred;
+}
+
 /**
  * Order is preserved within each bucket.
  *
@@ -733,9 +738,7 @@ export function partitionGates(gates) {
   const independent = [];
   const serial = [];
   for (const gate of gates) {
-    // A `ciDeferred` gate is settled up front by the serial loop.
-    if (isIndependentGate(gate.name) && !gate.ciDeferred)
-      independent.push(gate);
+    if (runsIndependently(gate)) independent.push(gate);
     else serial.push(gate);
   }
   return { independent, serial };

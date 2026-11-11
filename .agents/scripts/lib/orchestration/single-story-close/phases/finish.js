@@ -165,7 +165,7 @@ export async function finishWithMergeWait(prCtx, deps) {
   return { success: terminal.status === 'landed', result, terminal };
 }
 
-/** The close-only envelope fields both finishes carry; `revalidation` only when set. */
+/** The close-only envelope fields both finishes carry; an undefined one is dropped. */
 function closeEnvelopeFields({
   lockWait,
   suiteTimings,
@@ -173,13 +173,7 @@ function closeEnvelopeFields({
   pushOutcome,
   revalidation,
 }) {
-  return {
-    lockWait,
-    suiteTimings,
-    baseSync,
-    pushOutcome,
-    ...(revalidation ? { revalidation } : {}),
-  };
+  return { lockWait, suiteTimings, baseSync, pushOutcome, revalidation };
 }
 
 /**
