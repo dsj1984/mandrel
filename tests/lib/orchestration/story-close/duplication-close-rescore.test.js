@@ -19,7 +19,11 @@ import {
 } from '../../../../.agents/scripts/lib/orchestration/check-baselines/phases/compare.js';
 import { applyRefreshAcknowledgment } from '../../../../.agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js';
 import { runPreGateSteps } from '../../../../.agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js';
-import { runDuplicationCloseRescore } from '../../../../.agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js';
+import {
+  applyDuplicationRescore,
+  runDuplicationCloseRescore,
+  scanDuplicationRescore,
+} from '../../../../.agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js';
 import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
 import { installStrictCommitMsgHook } from '../../../fixtures/git-fixture.js';
 
@@ -639,5 +643,64 @@ describe('runDuplicationCloseRescore — handoff then close (Story #5956)', () =
     assert.deepEqual(close.moved, []);
     assert.deepEqual(close.partners['src/a.js'], ['src/b.js']);
     assert.equal(git('rev-parse', 'HEAD'), handedOff, 'HEAD is unmoved');
+  });
+});
+
+describe('scanDuplicationRescore / applyDuplicationRescore — the split re-score', () => {
+  const withPartners = (r, partners) => ({ ...r, partners });
+  const scorer = () => [
+    withPartners(row('src/a.js', 20), ['src/b.js']),
+    withPartners(row('src/b.js', 8), ['src/a.js']),
+  ];
+  const opts = (root) => ({
+    cwd: root,
+    worktreePath: root,
+    storyId: 7,
+    baseBranch: 'main',
+    storyBranch: 'story-7',
+    config: {},
+    logger: QUIET,
+    scorer,
+  });
+
+  test('AC-2: the scan writes nothing and commits nothing, yet returns the moved rows and partners', async () => {
+    const { root, git } = realRepo([row('src/a.js', 5), row('src/b.js', 8)]);
+    const head = git('rev-parse', 'HEAD');
+    const scan = await scanDuplicationRescore(opts(root));
+    assert.equal(git('status', '--porcelain'), '', 'git status stays clean');
+    assert.equal(git('rev-parse', 'HEAD'), head, 'HEAD is unmoved');
+    assert.equal(scan.head, head);
+    assert.equal(scan.changed, true);
+    assert.deepEqual(scan.moved, [{ path: 'src/a.js', before: 5, after: 20 }]);
+    assert.deepEqual(scan.partners['src/a.js'], ['src/b.js']);
+
+    const applied = await applyDuplicationRescore(scan, opts(root));
+    assert.equal(applied.committed, true, JSON.stringify(applied));
+    assert.equal(
+      readRows(root).find((r) => r.path === 'src/a.js').percentage,
+      20,
+    );
+  });
+
+  test('AC-5: a HEAD that moved since the scan refuses the apply and leaves the baseline as committed', async () => {
+    const { root, git } = realRepo([row('src/a.js', 5), row('src/b.js', 8)]);
+    const scan = await scanDuplicationRescore(opts(root));
+    fs.writeFileSync(path.join(root, 'src/b.js'), 'export const b = 2;\n');
+    git('commit', '-q', '-am', 'feat: change b');
+    const moved = git('rev-parse', 'HEAD');
+    const applied = await applyDuplicationRescore(scan, opts(root));
+    assert.equal(applied.committed, false);
+    assert.equal(applied.reason, 'head-moved');
+    assert.equal(git('rev-parse', 'HEAD'), moved);
+    assert.equal(git('status', '--porcelain'), '');
+    assert.equal(
+      readRows(root).find((r) => r.path === 'src/a.js').percentage,
+      5,
+    );
+  });
+
+  test('a scan skip passes through the apply untouched', async () => {
+    const skipped = { ran: false, committed: false, reason: 'gate-disabled' };
+    assert.equal(await applyDuplicationRescore(skipped, {}), skipped);
   });
 });

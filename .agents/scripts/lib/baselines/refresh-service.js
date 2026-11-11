@@ -312,7 +312,8 @@ function requireScorer(kind, scorer, cwd) {
  * `fullScope` derives scope from `git diff baseRef..headRef`; `fullScope`
  * requires `scopeFiles: null`. `requireRowsForScopeFiles` fails loud when a
  * scoped file produced no row. A scoped refresh never rewrites an
- * `excludeWriteFiles` row.
+ * `excludeWriteFiles` row. `write: false` computes the envelope and reports
+ * `changed` without touching the file.
  *
  * @param {{
  *   kind: 'maintainability' | 'crap' | 'coverage' | 'duplication' | 'bundle-size',
@@ -330,6 +331,7 @@ function requireScorer(kind, scorer, cwd) {
  *   requiredScopeFilePredicate?: (file: string) => boolean,
  *   extrasContext?: { cwd?: string, targetDirs?: string[] },
  *   excludeWriteFiles?: string[],
+ *   write?: boolean,
  * }} opts
  * @returns {Promise<{
  *   kind: string,
@@ -337,6 +339,7 @@ function requireScorer(kind, scorer, cwd) {
  *   scope: { mode: 'full' | 'diff' | 'explicit', ref?: string, files: string[] },
  *   envelope: object | null,
  *   wrote: boolean,
+ *   changed?: boolean,
  *   partners?: Record<string, string[]>,
  *   ahead?: object,
  * }>} `partners`: each write-scope file's scored clone partners. `ahead` (with a null `envelope`): a narrower-than-full refresh left a
@@ -359,6 +362,7 @@ export async function refreshBaseline(opts = {}) {
     requiredScopeFilePredicate,
     extrasContext,
     excludeWriteFiles = [],
+    write = true,
   } = opts;
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
@@ -433,11 +437,13 @@ export async function refreshBaseline(opts = {}) {
 
   // The writer returns the prior object itself when nothing changed; skip the
   // write so on-disk bytes stay verbatim.
-  let wrote = false;
-  if (priorEnvelope === null || envelope !== priorEnvelope) {
-    writeEnvelopeFile(writePath, envelope, { fsImpl: fs });
-    wrote = true;
-  }
+  const { changed, wrote } = persistEnvelope({
+    priorEnvelope,
+    envelope,
+    write,
+    writePath,
+    fs,
+  });
 
   return {
     kind,
@@ -449,8 +455,17 @@ export async function refreshBaseline(opts = {}) {
     },
     envelope,
     wrote,
+    changed,
     partners: partnersOf(canonicalRows, writeFiles),
   };
+}
+
+/** Write a changed envelope unless `write` is off. */
+function persistEnvelope({ priorEnvelope, envelope, write, writePath, fs }) {
+  const changed = priorEnvelope === null || envelope !== priorEnvelope;
+  const wrote = changed && write;
+  if (wrote) writeEnvelopeFile(writePath, envelope, { fsImpl: fs });
+  return { changed, wrote };
 }
 
 /** Each listed file's scored clone partners; the envelope never stores them. */

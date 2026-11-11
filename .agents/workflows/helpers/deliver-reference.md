@@ -576,7 +576,16 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   no lint/format credit, `test` credit or capture stamp, and close's re-score
   over the same tree and base reports `unchanged`. Best-effort: a failed scan
   or refused commit settles `error` and the run continues; close's re-score
-  stays authoritative. A re-run at the HEAD it settled skips it.
+  stays authoritative. A re-run at the HEAD it settled skips it. When
+  preflight lanes are admitted (`delivery.execution.preflightConcurrency`
+  above 1, suite admission on, not inside a suite reservation, not
+  `--report-all`), the re-score scan instead overlaps preflight: it writes
+  nothing while the checks run, and a moved row is committed at a join
+  before the independent baseline compare, which then scores the new HEAD.
+  The commit touches only the duplication baseline, so the preflight credits,
+  a held lint and the static-seat marker re-key onto it. `steps[]` lists
+  `duplication-rescore` just before `preflight`, with
+  `concurrentWith: "preflight"` and its own scan time as `durationMs`.
 - **Post-capture checks.** After depositor and seat, the handoff runs close's
   `quality-preview-crap` entry — only when the depositor is
   `coverage-capture`, so a project with no capture keeps its CRAP behaviour —

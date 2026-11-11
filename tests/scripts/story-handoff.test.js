@@ -203,11 +203,16 @@ function harness({
   changed = null,
   // Close's re-score double: no test runs a real jscpd scan.
   rescore = { ran: false, committed: false, reason: 'no-changed-files' },
+  // The overlapped scan/apply doubles, used once preflight lanes are admitted.
+  scan = { ran: false, committed: false, reason: 'no-changed-files' },
+  apply = { ran: false, committed: false, reason: 'unchanged' },
 } = {}) {
   const runCommand = commandDouble(world, outputs);
   const blocks = [];
   const reviews = [];
   const rescores = [];
+  const scans = [];
+  const applies = [];
   const frictions = [];
   const deps = {
     emitFriction: async (record) => {
@@ -217,6 +222,14 @@ function harness({
     runDuplicationRescore: async (input) => {
       rescores.push(input);
       return typeof rescore === 'function' ? rescore(input) : rescore;
+    },
+    scanDuplicationRescore: async (input) => {
+      scans.push(input);
+      return typeof scan === 'function' ? scan(input) : scan;
+    },
+    applyDuplicationRescore: async (scanned, input) => {
+      applies.push(scanned);
+      return typeof apply === 'function' ? apply(scanned, input) : apply;
     },
     git: world.git,
     runCommand,
@@ -244,6 +257,8 @@ function harness({
     blocks,
     reviews,
     rescores,
+    scans,
+    applies,
     frictions,
     world,
     deps,
@@ -4658,5 +4673,222 @@ describe('story-handoff — every finding in one run (Story #6031)', () => {
       stderr: { write() {} },
     });
     assert.equal(seen.reportAll, true);
+  });
+});
+
+describe('story-handoff — the re-score overlaps preflight under admitted lanes', () => {
+  const RESCORED_HEAD = 'c'.repeat(40);
+  const COMPARE = 'check-baselines.js duplication';
+  const { MANDREL_SUITE_RESERVATION, MANDREL_FULL_SUITE_LOCK, ...cleanEnv } =
+    process.env;
+  const overlapConfig = (delivery = {}) =>
+    configFor({
+      delivery: {
+        execution: { preflightConcurrency: 2 },
+        quality: { gates: { duplication: { enabled: true } } },
+        ...delivery,
+      },
+    });
+  const overlapHarness = (opts = {}) => {
+    const h = harness({ config: overlapConfig(), ...opts });
+    h.deps.env = cleanEnv;
+    h.deps.presentBaselines = ['duplication'];
+    h.deps.admitSuite = async (_opts, spawn) =>
+      spawn({ lockWaitMs: 0, env: {} });
+    return h;
+  };
+  const scanned = (moved) => ({
+    head: HEAD,
+    relPath: 'baselines/duplication.json',
+    changed: moved.length > 0,
+    moved,
+    partners: {},
+  });
+  const MOVED = [{ path: 'lib/a.js', before: 1, after: 9 }];
+  const commits = (h) => () => {
+    h.world.head = RESCORED_HEAD;
+    return {
+      ran: true,
+      committed: true,
+      sha: 'c'.repeat(7),
+      movedPaths: ['lib/a.js'],
+      moved: MOVED,
+      partners: {},
+    };
+  };
+  const readState = () =>
+    JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+  const stepOf = (envelope, name) =>
+    envelope.steps.find((s) => s.name === name);
+  /** Wrap the command double; `onCall(key)` runs after each spawn settles. */
+  const afterEachSpawn = (h, onCall) => {
+    const run = h.deps.runCommand;
+    h.deps.runCommand = async (cmd, args, opts) => {
+      const out = await run(cmd, args, opts);
+      onCall(commandKey(cmd, args));
+      return out;
+    };
+  };
+  const credited = (gateName, sha, configHash) =>
+    shouldSkip(
+      { storyId: STORY, gateName, currentSha: sha, configHash },
+      { cwd: tempRoot, standalone: true },
+    ).skip;
+  const hashOf = (script) =>
+    hashCommandConfig({ cmd: 'npm', args: ['run', script], cwd: '/work' });
+
+  test('AC-1/AC-3: the scan runs beside the preflight checks, timed by its own wall time; nothing moved commits nothing', async () => {
+    let release;
+    const settled = new Promise((resolve) => {
+      release = resolve;
+    });
+    const h = overlapHarness({
+      scan: async () => {
+        await settled;
+        return scanned([]);
+      },
+    });
+    let clock = 0;
+    h.deps.now = () => clock;
+    let spawnedBeforeSettle = null;
+    afterEachSpawn(h, (key) => {
+      if (key === 'quality-preview.js' && spawnedBeforeSettle === null) {
+        spawnedBeforeSettle = spawned(h.runCommand);
+        clock = 40;
+        release();
+      }
+      if (key === COMPARE) clock = 100;
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.deepEqual(stepNames(envelope).slice(0, 4), [
+      'base-merge',
+      'seat-static',
+      'duplication-rescore',
+      'preflight',
+    ]);
+    assert.ok(spawnedBeforeSettle.includes('typecheck'));
+    assert.ok(spawnedBeforeSettle.includes('quality-preview.js'));
+    assert.ok(!spawnedBeforeSettle.includes(COMPARE), 'compare waits');
+    const rescore = stepOf(envelope, 'duplication-rescore');
+    assert.deepEqual(
+      {
+        outcome: rescore.outcome,
+        detail: rescore.detail,
+        concurrentWith: rescore.concurrentWith,
+        durationMs: rescore.durationMs,
+      },
+      {
+        outcome: 'ran',
+        detail: 'unchanged',
+        concurrentWith: 'preflight',
+        durationMs: 40,
+      },
+    );
+    assert.equal(stepOf(envelope, 'preflight').durationMs, 100);
+    assert.equal(h.scans.length, 1);
+    assert.equal(h.scans[0].storyBranch, `story-${STORY}`);
+    assert.equal(h.rescores.length, 0, 'no serial re-score step');
+    assert.equal(h.applies.length, 0);
+    assert.ok(!h.world.calls.some((c) => c[0] === 'commit'));
+    assert.equal(readState().preflightHead, HEAD);
+    assert.equal(envelope.headSha, HEAD);
+  });
+
+  test('AC-4: a moved row commits at the join before the compare, which runs at the new HEAD, and every credit re-keys onto it', async () => {
+    const h = overlapHarness({
+      config: overlapConfig({
+        handoff: { postSeatChecks: [{ cmd: 'consumer-check', args: [] }] },
+      }),
+      scan: scanned(MOVED),
+    });
+    h.deps.applyDuplicationRescore = async (scan) => {
+      h.applies.push(scan);
+      return commits(h)();
+    };
+    let compareHead = null;
+    let typecheckHead = null;
+    afterEachSpawn(h, (key) => {
+      if (key === COMPARE) compareHead ??= h.world.head;
+      if (key === 'typecheck') typecheckHead ??= h.world.head;
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.equal(typecheckHead, HEAD);
+    assert.equal(compareHead, RESCORED_HEAD);
+    assert.match(
+      stepOf(envelope, 'duplication-rescore').detail,
+      /lib\/a\.js 1% → 9%; committed untagged c{7}/,
+    );
+    const state = readState();
+    assert.equal(state.preflightHead, RESCORED_HEAD);
+    assert.equal(state.creditHead, RESCORED_HEAD);
+    assert.equal(state.staticSeatHead, RESCORED_HEAD);
+    assert.equal(state.duplicationRescore.head, RESCORED_HEAD);
+    assert.equal(state.preflightCredits.typecheck.head, RESCORED_HEAD);
+    assert.equal(state.preflightCredits.lint.head, RESCORED_HEAD);
+    assert.ok(credited('typecheck', RESCORED_HEAD, hashOf('typecheck')));
+    assert.ok(credited('lint', RESCORED_HEAD, hashOf('lint')), 'held lint');
+    assert.equal(envelope.headSha, RESCORED_HEAD);
+  });
+
+  for (const reason of ['head-moved', 'git-failed: hook refused']) {
+    test(`AC-5: a ${reason} join settles error, records nothing, and keeps credits at HEAD`, async () => {
+      const h = overlapHarness({
+        scan: scanned(MOVED),
+        apply: { ran: false, committed: false, reason },
+      });
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 0);
+      const rescore = stepOf(envelope, 'duplication-rescore');
+      assert.equal(rescore.outcome, 'error');
+      assert.equal(rescore.detail, reason);
+      const state = readState();
+      assert.equal(state.duplicationRescore, undefined);
+      assert.equal(state.preflightCredits.typecheck.head, HEAD);
+      assert.equal(envelope.headSha, HEAD);
+      await h.run();
+      assert.equal(h.scans.length, 2, 'a re-run retries the scan');
+    });
+  }
+
+  test('a re-run at the same HEAD credit-skips preflight and scans nothing', async () => {
+    const h = overlapHarness();
+    await h.run();
+    const again = await h.run();
+    assert.equal(stepOf(again.envelope, 'preflight').outcome, 'skipped');
+    assert.equal(h.scans.length, 1);
+  });
+
+  test('AC-6: inside a suite reservation or under --report-all, the serial step order stands', async () => {
+    const h = overlapHarness();
+    h.deps.env = { ...cleanEnv, MANDREL_SUITE_RESERVATION: '/locks/r' };
+    const { envelope } = await h.run();
+    assert.deepEqual(stepNames(envelope).slice(0, 3), [
+      'base-merge',
+      'duplication-rescore',
+      'seat-static',
+    ]);
+    assert.ok(!('concurrentWith' in envelope.steps[1]));
+    assert.equal(h.scans.length, 0);
+
+    const all = overlapHarness();
+    const report = await runStoryHandoff(
+      {
+        storyId: STORY,
+        cwd: '/work',
+        config: overlapConfig(),
+        reportAll: true,
+      },
+      all.deps,
+    );
+    assert.ok(!stepNames(report.envelope).includes('duplication-rescore'));
+    assert.equal(all.scans.length, 0);
+    assert.equal(all.rescores.length, 0);
   });
 });

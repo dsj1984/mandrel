@@ -493,7 +493,7 @@
               "type": "integer",
               "minimum": 1,
               "default": 1,
-              "description": "Story #5997. The most handoff preflight checks that may run at once. `1` (the default) is the serial preflight. Above 1, typecheck, lint and format (close's independent gates) may also run in up to N − 1 extra lanes, each admitted through suite admission with no wait under close's argv for that gate; a miss hands the check back to the serial lane. Set it per host in `.agentrc.local.json`: whether a host can afford a second CPU-heavy check is a per-host fact."
+              "description": "Story #5997. The most handoff preflight checks that may run at once. `1` (the default) is the serial preflight. Above 1, typecheck, lint and format (close's independent gates) may also run in up to N − 1 extra lanes, each admitted through suite admission with no wait under close's argv for that gate; a miss hands the check back to the serial lane. When lanes are admitted (and not under `--report-all`), the handoff's duplication re-score scan also overlaps preflight instead of running before it: a moved row is committed at a join before the independent baseline compare runs, and the preflight credits re-key onto that commit. Set it per host in `.agentrc.local.json`: whether a host can afford a second CPU-heavy check is a per-host fact."
             }
           },
           "additionalProperties": false
