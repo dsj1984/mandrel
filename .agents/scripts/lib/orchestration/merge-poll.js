@@ -31,6 +31,15 @@ export function probeSettlesAsyncWait(checksStatus) {
   return checksStatus !== 'success' && checksStatus !== 'failure';
 }
 
+/** Every `checksStatus` a merge-wait probe carries: the rollup's four, plus `pending` on a probe error. */
+export const CHECKS_STATUSES = Object.freeze([
+  'success',
+  'failure',
+  'still-running',
+  'pending',
+  'unknown',
+]);
+
 /** Bounds every `gh` spawn so a hang degrades to the probe-error path. */
 export const MERGE_WAIT_GH_TIMEOUT_MS = 60_000;
 

@@ -9,11 +9,7 @@
  * repo's `delete_branch_on_merge` owns the remote branch reap.
  */
 
-import {
-  gh as defaultGh,
-  describeGhFailure,
-  prTransportOf,
-} from '../../../gh-exec.js';
+import { gh as defaultGh, describeGhFailure } from '../../../gh-exec.js';
 import { REST_MERGE_ON_GREEN } from '../../../gh-pr-rest.js';
 import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
 import {
@@ -24,7 +20,6 @@ import {
   armForMergeQueue,
   disarmByDequeue,
   MERGE_QUEUE_REFUSAL,
-  MERGE_QUEUE_REST_BLOCK_CLASS,
   readMergeQueueState,
 } from '../../merge-queue.js';
 
@@ -145,28 +140,10 @@ export async function enableAutoMergeWith({
   resolveArmCwd = resolveAutoMergeArmCwd,
   queueRequired = false,
 }) {
-  const facade = gh ?? defaultGh;
-  const refused = await refuseQueueOverRest(facade, queueRequired);
-  if (refused) return refused;
-  const exec = runner ?? makeDefaultGhAutoMergeRunner(facade);
+  const exec = runner ?? makeDefaultGhAutoMergeRunner(gh ?? defaultGh);
   const armCwd = resolveArmCwd(cwd);
   const arm = queueRequired ? armForMergeQueue : armNativeAutoMerge;
   return arm({ exec, prNumber, armCwd });
-}
-
-/**
- * A merge-queue base over the REST transport: enqueueing is GraphQL-only, and
- * a direct merge would bypass the queue, so the arm refuses.
- *
- * @returns {Promise<{ enabled: false, mergeQueue: true, reason: string }|null>}
- */
-async function refuseQueueOverRest(facade, queueRequired) {
-  if (!queueRequired || (await prTransportOf(facade)) !== 'rest') return null;
-  return {
-    enabled: false,
-    mergeQueue: true,
-    reason: MERGE_QUEUE_REST_BLOCK_CLASS,
-  };
 }
 
 /** The hand-run equivalent of the arm, for an operator-facing remedy. */

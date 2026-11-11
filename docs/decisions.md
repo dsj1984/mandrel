@@ -36,6 +36,7 @@ superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261111-6054`](#adr-20261111-6054-over-rest-a-merge-queue-base-is-armed-through-the-ccr-route) | Over REST, a merge-queue base is armed through the CCR route | `.agents/scripts/lib/orchestration/merge-queue.js` | Accepted |
 | [`20261111-6050`](#adr-20261111-6050-closes-ci-revalidation-after-a-base-merge-raises-the-agentrc-leaf-key-ceiling-to-168) | Close's CI revalidation after a base merge raises the agentrc leaf-key ceiling to 168 | `.agents/scripts/lib/close-validation/base-sync-revalidation.js` | Accepted |
 | [`20261110-6040`](#adr-20261110-6040-mandrel-orchestrate-is-reactive-acts-only-on-recorded-authority-and-splits-scripts-from-the-host) | `/mandrel-orchestrate` is reactive, acts only on recorded authority, and splits scripts from the host | `.agents/scripts/lib/orchestrate/ledger.js` | Accepted |
 | [`20261108-6031`](#adr-20261108-6031-the-crap-preview-scope-raises-the-agentrc-leaf-key-ceiling-to-160) | The CRAP preview scope raises the agentrc leaf-key ceiling to 160 | `.agents/scripts/lib/config/gates/crap.schema.js` | Accepted |
@@ -5260,3 +5261,32 @@ invariants no gate config holds.
 The default changes nothing. A consumer opting in records typecheck, lint and
 the capture as `deferred`, never passed, and the existing `ciRatchetCheck`
 hold covers the deferred capture at confirm-merge.
+
+## ADR 20261111-6054: Over REST, a merge-queue base is armed through the CCR route
+
+**Status:** Accepted
+**Date:** 2026-11-11
+**Surface:** `.agents/scripts/lib/orchestration/merge-queue.js`
+**Story:** #6054
+
+### Context
+
+[`20261020-5793`](#adr-20261020-5793-close-merge-and-confirm-over-repo-scoped-rest-when-graphql-is-blocked)
+made a merge-queue base refuse over REST, so a cloud close on a queue
+repository always blocked. The CCR route asks GitHub to enable native
+auto-merge, and on a queue base GitHub enqueues the PR once it is green.
+
+### Decision
+
+This amends the bullet "A merge-queue base refuses". Over REST a queue base
+is armed with the same bare `--auto` the GraphQL path uses, which the REST
+facade sends to the CCR route. Only a CCR refusal keeps
+`merge-queue-rest-unsupported`; it never falls back to merge-on-green or a
+direct squash, which would bypass the queue. The merge wait never
+squash-merges a PR whose base requires a queue, because GitHub clears the
+auto-merge request on enqueue and queue membership is unreadable over REST.
+
+### Consequences
+
+A cloud session can land a Story on a merge-queue base when the CCR route
+accepts. A refusal still needs a GraphQL session or the GitHub UI.

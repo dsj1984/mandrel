@@ -1114,7 +1114,9 @@ your own token. Close detects that during `init` and runs the pull-request
 surface over repo-scoped REST instead: it opens the PR, arms auto-merge
 through the proxy's route or, when that route refuses, squash-merges the PR
 itself once it is CLEAN with green checks, and confirms the land. A base
-branch behind a merge queue still needs a session that reaches GraphQL.
+branch behind a merge queue is armed through the same route, and GitHub
+enqueues the PR once it is green; when that route refuses, close blocks
+instead of merging around the queue.
 Projects v2 is GraphQL-only, so board Status never syncs from a cloud
 session. Labels stay authoritative, and each skipped Status flip is reported
 as a warning.
