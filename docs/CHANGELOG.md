@@ -15,6 +15,16 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.119.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.118.0...mandrel-v2.119.0) (2026-11-11)
+
+
+### Added
+
+* arm a merge-queue base through the CCR route over REST, and name a green-but-unlanded merge wait honestly ([#6054](https://github.com/dsj1984/mandrel/issues/6054)) ([#6058](https://github.com/dsj1984/mandrel/issues/6058)) ([c065158](https://github.com/dsj1984/mandrel/commit/c065158420e4ab4c3cdb4f20faf7481cb6deacb4))
+* close defers typecheck, lint and the coverage capture to CI after a conflict-free base merge when delivery.close.revalidateAfterBaseSync is ci ([#6050](https://github.com/dsj1984/mandrel/issues/6050)) ([#6057](https://github.com/dsj1984/mandrel/issues/6057)) ([23e0a72](https://github.com/dsj1984/mandrel/commit/23e0a727fe7ad8aec802670353a822e3971d2650))
+* overlap the handoff duplication re-score with preflight under the lanes opt-in ([#6051](https://github.com/dsj1984/mandrel/issues/6051)) ([#6059](https://github.com/dsj1984/mandrel/issues/6059)) ([c2fe41f](https://github.com/dsj1984/mandrel/commit/c2fe41f086378fca8c5d6afba754083390e24186))
+* quality-preview: score CRAP against a named coverage artifact, read-only (--coverage-artifact) ([#6052](https://github.com/dsj1984/mandrel/issues/6052)) ([#6055](https://github.com/dsj1984/mandrel/issues/6055)) ([c4fdddc](https://github.com/dsj1984/mandrel/commit/c4fdddc7324e21a30c4085dd51972c1afda08c34))
+
 ## [2.118.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.117.0...mandrel-v2.118.0) (2026-11-11)
 
 
