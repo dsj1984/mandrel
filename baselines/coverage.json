@@ -1071,6 +1071,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/close-validation/base-sync-revalidation.js",
+      "lines": 100,
+      "branches": 95,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/ci-deferral.js",
       "lines": 100,
       "branches": 100,
