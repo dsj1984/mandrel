@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.117.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.116.0...mandrel-v2.117.0) (2026-11-11)
+
+
+### Fixed
+
+* **baselines:** persist a 0/0 coverage axis as 100, not 0 (refs [#6044](https://github.com/dsj1984/mandrel/issues/6044)) ([#6045](https://github.com/dsj1984/mandrel/issues/6045)) ([e577cd4](https://github.com/dsj1984/mandrel/commit/e577cd41fac39b68228111a4a79565d090218d62))
+
 ## [2.116.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.115.0...mandrel-v2.116.0) (2026-11-10)
 
 
