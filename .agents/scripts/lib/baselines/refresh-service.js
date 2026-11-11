@@ -437,8 +437,13 @@ export async function refreshBaseline(opts = {}) {
 
   // The writer returns the prior object itself when nothing changed; skip the
   // write so on-disk bytes stay verbatim.
-  const changed = priorEnvelope === null || envelope !== priorEnvelope;
-  if (changed && write) writeEnvelopeFile(writePath, envelope, { fsImpl: fs });
+  const { changed, wrote } = persistEnvelope({
+    priorEnvelope,
+    envelope,
+    write,
+    writePath,
+    fs,
+  });
 
   return {
     kind,
@@ -449,10 +454,18 @@ export async function refreshBaseline(opts = {}) {
       files: writeFiles,
     },
     envelope,
-    wrote: changed && write,
+    wrote,
     changed,
     partners: partnersOf(canonicalRows, writeFiles),
   };
+}
+
+/** Write a changed envelope unless `write` is off. */
+function persistEnvelope({ priorEnvelope, envelope, write, writePath, fs }) {
+  const changed = priorEnvelope === null || envelope !== priorEnvelope;
+  const wrote = changed && write;
+  if (wrote) writeEnvelopeFile(writePath, envelope, { fsImpl: fs });
+  return { changed, wrote };
 }
 
 /** Each listed file's scored clone partners; the envelope never stores them. */

@@ -1541,7 +1541,7 @@ function stepOrder({ depositor, overlapRescore }) {
       : [beforeRun(stepCreditedRun), stepSeat];
   return [
     stepBaseMerge,
-    ...(overlapRescore ? [] : [stepDuplicationRescore]),
+    ...serialRescore(overlapRescore),
     stepSeatStatic,
     stepPreflight,
     ...middle,
@@ -1549,6 +1549,17 @@ function stepOrder({ depositor, overlapRescore }) {
     stepPush,
     stepReview,
   ];
+}
+
+/** The standalone re-score step, absent when it overlaps preflight. */
+function serialRescore(overlapRescore) {
+  return overlapRescore ? [] : [stepDuplicationRescore];
+}
+
+/** Admit preflight lanes once per run; the re-score overlaps them unless `--report-all`. */
+function resolveLanes(ctx) {
+  ctx.lanes = requestedLanes(ctx);
+  ctx.overlapRescore = Boolean(ctx.lanes) && !ctx.reportAll;
 }
 
 /** `--report-all`: the steps that spawn no suite and write nothing. */
@@ -1578,8 +1589,7 @@ function envelopeStep(ctx, { stop: _stop, ...rest }) {
  * @returns {Promise<StepResult|null>} the result that stopped the run.
  */
 async function runSteps(ctx, steps) {
-  ctx.lanes = requestedLanes(ctx);
-  ctx.overlapRescore = Boolean(ctx.lanes) && !ctx.reportAll;
+  resolveLanes(ctx);
   const order = ctx.reportAll ? REPORT_ALL_STEPS : stepOrder(ctx);
   let first = null;
   for (const step of order) {
