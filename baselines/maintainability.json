@@ -1580,7 +1580,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-queue.js",
-      "mi": 92.848
+      "mi": 94.183
     },
     {
       "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
