@@ -6525,7 +6525,6 @@
       "mergeOnGreen": 2,
       "readAdvisoryProbe": 2,
       "rearmAutoMerge": 1,
-      "refuseQueueOverRest": 3,
       "reportArmed": 1,
       "runAutoMergePhase": 6,
       "successEnvelope": 2,
