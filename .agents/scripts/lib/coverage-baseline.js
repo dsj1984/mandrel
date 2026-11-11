@@ -141,14 +141,22 @@ export function readBaseline(cwd, fsImpl = fs) {
   return normaliseParsedBaseline(JSON.parse(fsImpl.readFileSync(abs, 'utf8')));
 }
 
+/**
+ * An axis with no denominator (`null` from `scoreEntry`: a file with no
+ * branches, functions or statements) persists as 100, the istanbul/c8
+ * convention for 0/0. Persisting 0 would score a branch-free file as fully
+ * uncovered and drag the unweighted `*` rollup below its floor.
+ */
+const NO_DENOMINATOR_PCT = 100;
+
 function projectFlatToRows(baseline) {
   return Object.entries(baseline ?? {}).map(([file, scores]) => {
     const { denominators: _ignored, ...rest } = scores ?? {};
     return {
       path: file,
-      lines: rest.lines ?? 0,
-      branches: rest.branches ?? 0,
-      functions: rest.functions ?? 0,
+      lines: rest.lines ?? NO_DENOMINATOR_PCT,
+      branches: rest.branches ?? NO_DENOMINATOR_PCT,
+      functions: rest.functions ?? NO_DENOMINATOR_PCT,
     };
   });
 }
