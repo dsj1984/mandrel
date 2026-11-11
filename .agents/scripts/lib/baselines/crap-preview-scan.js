@@ -62,6 +62,15 @@ export function listCyclomaticAdvisories(rows) {
     }));
 }
 
+/** A named artifact is vouched for by its caller: no capture-stamp check. */
+function resolvePreviewCoverage({ coverageArtifact, crap, cwd, ...rest }) {
+  if (coverageArtifact) return { coverage: loadCoverage(coverageArtifact) };
+  const notRun = previewNotRun({ crap, cwd, ...rest });
+  if (notRun) return { notRun };
+  const configured = path.resolve(cwd, previewCoveragePath(crap));
+  return { coverage: loadCoverage(configured) };
+}
+
 /**
  * @param {{
  *   crap: object,
@@ -98,14 +107,15 @@ export async function computeCrapPreviewScan({
     crap,
     process.env,
   );
-  // A named artifact is vouched for by its caller: no capture-stamp check.
-  const notRun = coverageArtifact
-    ? null
-    : previewNotRun({ crap, targetDirs, cwd, scope, diffRef });
+  const { notRun, coverage } = resolvePreviewCoverage({
+    coverageArtifact,
+    crap,
+    targetDirs,
+    cwd,
+    scope,
+    diffRef,
+  });
   if (notRun) return notRun;
-  const coverage = loadCoverage(
-    coverageArtifact ?? path.resolve(cwd, previewCoveragePath(crap)),
-  );
   const incremental = resolveCrapPreviewIncremental({
     crap,
     diffRef,
