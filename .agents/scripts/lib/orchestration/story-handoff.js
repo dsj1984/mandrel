@@ -91,14 +91,20 @@ import {
   settleOverBudget,
 } from './handoff-gates.js';
 import {
+  joinDuplicationScan,
   raisedDuplicationSuffix,
   rescoreDuplication,
+  startDuplicationScan,
 } from './handoff-rescore.js';
 import { handoffStatePath } from './handoff-state.js';
 import { settleSuiteOfRecord } from './handoff-suite-of-record.js';
 import { requestedLanes, runPreflightLanes } from './preflight-lanes.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
-import { runDuplicationCloseRescore } from './story-close/duplication-close-rescore.js';
+import {
+  applyDuplicationRescore,
+  runDuplicationCloseRescore,
+  scanDuplicationRescore,
+} from './story-close/duplication-close-rescore.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
 import {
   STATE_LABELS,
@@ -412,13 +418,15 @@ function preflightFinding(check, run) {
  * Runs every check — serially, or over admitted lanes when
  * `preflightConcurrency` asks (preflight-lanes.js) — then settles one
  * `fix-required` listing each finding in check order; a passed carryable
- * check keeps its credit either way.
+ * check keeps its credit either way. With the re-score overlapped, the scan
+ * runs beside the checks and the independent baseline compare waits for its
+ * join, so it scores the committed rows.
  *
- * @param {object} ctx @returns {Promise<StepResult>}
+ * @param {object} ctx @returns {Promise<StepResult|StepResult[]>}
  */
 async function stepPreflight(ctx) {
   const name = 'preflight';
-  if (ctx.state.preflightHead === ctx.head) {
+  if (preflightCredited(ctx)) {
     return creditSkip(
       name,
       `preflight already passed at ${ctx.head.slice(0, 12)}`,
@@ -436,22 +444,52 @@ async function stepPreflight(ctx) {
       { cause: 'preflight-unresolved' },
     );
   }
-  let findings = [];
   const pass = { checks, lint: null, covered: [] };
-  const lanes = requestedLanes(ctx);
-  let extra = {};
-  if (lanes) {
-    const run = await runPreflightLanes(ctx, checks, lanes, (check, env) =>
-      runPreflightCheck(ctx, check, pass, env),
-    );
-    findings = run.findings;
-    extra = { concurrency: { requested: lanes, admitted: run.admitted } };
-  } else {
+  if (!ctx.overlapRescore) {
+    return settlePreflight(ctx, await runChecks(ctx, checks, pass));
+  }
+  const scan = startDuplicationScan(ctx);
+  const isCompare = (c) => c.key === BASELINES_GATE_NAMES.independent;
+  const run = await runChecks(
+    ctx,
+    checks.filter((c) => !isCompare(c)),
+    pass,
+  );
+  const rescore = await joinRescore(ctx, scan);
+  for (const check of checks.filter(isCompare)) {
+    const finding = await runPreflightCheck(ctx, check, pass);
+    if (finding) run.findings.push(finding);
+  }
+  return [rescore, settlePreflight(ctx, run)];
+}
+
+/** Preflight passed at HEAD and, when overlapped, the re-score ran there. */
+function preflightCredited(ctx) {
+  const { preflightHead, duplicationRescore } = ctx.state;
+  if (preflightHead !== ctx.head) return false;
+  return !ctx.overlapRescore || duplicationRescore?.head === ctx.head;
+}
+
+/** Run `checks` over the admitted lanes, or serially. */
+async function runChecks(ctx, checks, pass) {
+  if (!ctx.lanes) {
+    const findings = [];
     for (const check of checks) {
       const finding = await runPreflightCheck(ctx, check, pass);
       if (finding) findings.push(finding);
     }
+    return { findings, pass, extra: {} };
   }
+  const run = await runPreflightLanes(ctx, checks, ctx.lanes, (check, env) =>
+    runPreflightCheck(ctx, check, pass, env),
+  );
+  const concurrency = { requested: ctx.lanes, admitted: run.admitted };
+  return { findings: run.findings, pass, extra: { concurrency } };
+}
+
+/** One `fix-required` naming every finding, or the clean pass at HEAD. */
+function settlePreflight(ctx, { findings, pass, extra }) {
+  const name = 'preflight';
   if (findings.length > 0) {
     const { check, evidencePath } = findings[0];
     return fixRequired(name, findings.map((f) => f.detail).join('\n'), {
@@ -464,6 +502,22 @@ async function stepPreflight(ctx) {
   }
   ctx.state.preflightHead = ctx.head;
   return ran(name, preflightSummary(pass), extra);
+}
+
+/**
+ * Join the overlapped scan; a re-score commit touches only the duplication
+ * baseline, so the credits minted at the prior HEAD carry onto it.
+ */
+async function joinRescore(ctx, scan) {
+  const priorHead = ctx.head;
+  const result = await joinDuplicationScan(ctx, scan, () => headSha(ctx));
+  if (ctx.head !== priorHead) {
+    carryBaselineCredits(ctx, priorHead);
+    if (ctx.state.staticSeatHead === priorHead) {
+      ctx.state.staticSeatHead = ctx.head;
+    }
+  }
+  return result;
 }
 
 /** A baselined ratchet's finding is a `ratchet`; any other check is its own key. */
@@ -563,9 +617,11 @@ function creditCheck(ctx, check) {
   };
 }
 
-/** A baselines-only seat commit re-keys a held `lint`; any other commit drops it. */
-function carryHeldLint(state, priorHead, head) {
-  if (state.heldLint?.head === priorHead) state.heldLint.head = head;
+/** A baselines-only commit re-keys the preflight credits and a held `lint`. */
+function carryBaselineCredits(ctx, priorHead) {
+  carryPreflightCredits(ctx, priorHead);
+  const held = ctx.state.heldLint;
+  if (held?.head === priorHead) held.head = ctx.head;
 }
 
 /** Record a held `lint` once every post-seat check passed at HEAD. */
@@ -919,8 +975,7 @@ async function commitSeatedRows(
     recordCredit(ctx, { ...ctx.state.creditTimings, head: ctx.head });
   }
   if (paths.every((p) => p.startsWith('baselines/'))) {
-    carryPreflightCredits(ctx, priorHead);
-    carryHeldLint(ctx.state, priorHead, ctx.head);
+    carryBaselineCredits(ctx, priorHead);
   }
   return ran(name, `seated ${total} row(s) and committed them`, {
     evidencePath,
@@ -1474,17 +1529,19 @@ function appendReview(steps, review) {
  * it; the capture stamp's digests leave `baselines/` out, so the CRAP and
  * coverage seat after the capture keeps the stamp fresh.
  *
- * @param {'coverage-capture'|'test'} depositor
+ * Under admitted preflight lanes the re-score runs inside preflight instead.
+ *
+ * @param {{ depositor: 'coverage-capture'|'test', overlapRescore?: boolean }} ctx
  * @returns {Array<(ctx: object) => Promise<StepResult>>}
  */
-function stepOrder(depositor) {
+function stepOrder({ depositor, overlapRescore }) {
   const middle =
     depositor === 'test'
       ? [beforeRun(stepSeat), beforeRun(stepCreditedRun)]
       : [beforeRun(stepCreditedRun), stepSeat];
   return [
     stepBaseMerge,
-    stepDuplicationRescore,
+    ...(overlapRescore ? [] : [stepDuplicationRescore]),
     stepSeatStatic,
     stepPreflight,
     ...middle,
@@ -1497,12 +1554,12 @@ function stepOrder(depositor) {
 /** `--report-all`: the steps that spawn no suite and write nothing. */
 const REPORT_ALL_STEPS = Object.freeze([stepPreflight, stepPostCapture]);
 
-/** `run`'s results, each carrying the call's wall time as `durationMs`. */
+/** `run`'s results, each carrying the call's wall time unless it set its own. */
 async function timed(ctx, run) {
   const startedAt = ctx.now();
   const results = await run();
   const durationMs = ctx.now() - startedAt;
-  return results.map((r) => ({ ...r, durationMs }));
+  return results.map((r) => ({ ...r, durationMs: r.durationMs ?? durationMs }));
 }
 
 /**
@@ -1521,7 +1578,9 @@ function envelopeStep(ctx, { stop: _stop, ...rest }) {
  * @returns {Promise<StepResult|null>} the result that stopped the run.
  */
 async function runSteps(ctx, steps) {
-  const order = ctx.reportAll ? REPORT_ALL_STEPS : stepOrder(ctx.depositor);
+  ctx.lanes = requestedLanes(ctx);
+  ctx.overlapRescore = Boolean(ctx.lanes) && !ctx.reportAll;
+  const order = ctx.reportAll ? REPORT_ALL_STEPS : stepOrder(ctx);
   let first = null;
   for (const step of order) {
     ctx.stepName = handoffStepName(step);
@@ -1682,6 +1741,8 @@ async function defaultBlock({
  *   scopeGate?: typeof applyChangedFileScope,
  *   presentBaselines?: string[],
  *   runDuplicationRescore?: typeof runDuplicationCloseRescore,
+ *   scanDuplicationRescore?: typeof scanDuplicationRescore,
+ *   applyDuplicationRescore?: typeof applyDuplicationRescore,
  *   emitFriction?: typeof emitRuntimeFriction,
  *   writeSignal?: typeof import('../signals/write.js').appendSignal,
  *   readSignals?: typeof import('../signals/write.js').forEachLine,
@@ -1720,6 +1781,8 @@ export async function runStoryHandoff(
     scopeGate = applyChangedFileScope,
     presentBaselines,
     runDuplicationRescore = runDuplicationCloseRescore,
+    scanDuplicationRescore: scanRescore = scanDuplicationRescore,
+    applyDuplicationRescore: applyRescore = applyDuplicationRescore,
     emitFriction = emitRuntimeFriction,
     admitSuite = withSuiteAdmission,
     pruneStaleCrap = pruneStaleCrapRows,
@@ -1768,6 +1831,8 @@ export async function runStoryHandoff(
     presentBaselines,
     getChangedFilesFn,
     runDuplicationRescore,
+    scanDuplicationRescore: scanRescore,
+    applyDuplicationRescore: applyRescore,
     emitFriction,
     admitSuite,
     pruneStaleCrap,

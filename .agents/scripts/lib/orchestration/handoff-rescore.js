@@ -1,7 +1,9 @@
 /**
  * handoff-rescore.js — the handoff runs close's own duplication re-score
  * before any credit, so close's later re-score over the same tree no-ops;
- * and names the duplication rows a branch raised in a post-capture finding.
+ * under admitted preflight lanes it scans beside preflight and commits at a
+ * join instead. Also names the duplication rows a branch raised in a
+ * post-capture finding.
  */
 
 import fs from 'node:fs';
@@ -43,6 +45,42 @@ function settle(ctx, result, readHead) {
   return { outcome: 'error', detail: result?.reason ?? 'no result' };
 }
 
+/** Close's re-score inputs for this handoff. */
+function rescoreInput(ctx) {
+  const log = (m) => ctx.progress('duplication-rescore', m);
+  return {
+    cwd: ctx.cwd,
+    worktreePath: ctx.cwd,
+    storyId: ctx.storyId,
+    baseBranch: ctx.baseBranch,
+    storyBranch: ctx.branch,
+    baselineRef: ctx.baselineRef,
+    config: ctx.config,
+    logger: { info: log, warn: log },
+  };
+}
+
+/** Settle `result`; anything but an `error` records the re-score at HEAD. */
+function record(ctx, result, readHead) {
+  const settled = settle(ctx, result, readHead);
+  if (settled.outcome !== 'error') {
+    ctx.state.duplicationRescore = {
+      head: ctx.head,
+      partners: result?.partners ?? {},
+    };
+  }
+  return settled;
+}
+
+/** The skip a HEAD already re-scored settles; `null` when it was not. */
+function alreadyRescored(ctx) {
+  if (ctx.state.duplicationRescore?.head !== ctx.head) return null;
+  return {
+    outcome: 'skipped',
+    detail: `already re-scored at ${ctx.head.slice(0, 12)}`,
+  };
+}
+
 /**
  * Run the re-score once per HEAD; best-effort, it never stops the run. An
  * `error` records nothing, so a re-run retries.
@@ -53,37 +91,69 @@ function settle(ctx, result, readHead) {
  * @returns {Promise<{ outcome: string, detail: string }>}
  */
 export async function rescoreDuplication(ctx, readHead) {
-  const prior = ctx.state.duplicationRescore;
-  if (prior?.head === ctx.head) {
-    return {
-      outcome: 'skipped',
-      detail: `already re-scored at ${ctx.head.slice(0, 12)}`,
-    };
-  }
-  const log = (m) => ctx.progress('duplication-rescore', m);
+  const already = alreadyRescored(ctx);
+  if (already) return already;
   let result;
   try {
-    result = await ctx.runDuplicationRescore({
-      cwd: ctx.cwd,
-      worktreePath: ctx.cwd,
-      storyId: ctx.storyId,
-      baseBranch: ctx.baseBranch,
-      storyBranch: ctx.branch,
-      baselineRef: ctx.baselineRef,
-      config: ctx.config,
-      logger: { info: log, warn: log },
-    });
+    result = await ctx.runDuplicationRescore(rescoreInput(ctx));
   } catch (err) {
     return { outcome: 'error', detail: `threw: ${err?.message ?? err}` };
   }
-  const settled = settle(ctx, result, readHead);
-  if (settled.outcome !== 'error') {
-    ctx.state.duplicationRescore = {
-      head: ctx.head,
-      partners: result?.partners ?? {},
+  return record(ctx, result, readHead);
+}
+
+/**
+ * Start close's scan beside preflight at `ctx.head`; it writes nothing.
+ *
+ * @param {object} ctx `ctx.scanDuplicationRescore` is close's scan.
+ * @returns {{ already?: object, input?: object, done?: Promise<{ scan?: object, error?: string, durationMs: number }> }}
+ */
+export function startDuplicationScan(ctx) {
+  const already = alreadyRescored(ctx);
+  if (already) return { already };
+  const input = rescoreInput(ctx);
+  const startedAt = ctx.now();
+  const done = Promise.resolve()
+    .then(() => ctx.scanDuplicationRescore(input))
+    .then(
+      (scan) => ({ scan }),
+      (err) => ({ error: `threw: ${err?.message ?? err}` }),
+    )
+    .then((out) => ({ ...out, durationMs: ctx.now() - startedAt }));
+  return { input, done };
+}
+
+/**
+ * Await the scan and, when rows moved, apply them through close's commit.
+ * The result carries the scan's own wall time and its concurrency marker.
+ *
+ * @param {object} ctx `ctx.applyDuplicationRescore` is close's apply.
+ * @param {ReturnType<typeof startDuplicationScan>} started
+ * @param {() => string|null} readHead
+ * @returns {Promise<{ name: string, outcome: string, detail: string, concurrentWith: string, durationMs: number }>}
+ */
+export async function joinDuplicationScan(ctx, started, readHead) {
+  const step = { name: 'duplication-rescore', concurrentWith: 'preflight' };
+  if (started.already) return { ...step, ...started.already, durationMs: 0 };
+  const { scan, error, durationMs } = await started.done;
+  const base = { ...step, durationMs };
+  if (error) return { ...base, outcome: 'error', detail: error };
+  if (!scan?.changed) {
+    const result = scan?.reason
+      ? scan
+      : { reason: 'unchanged', partners: scan?.partners };
+    return { ...base, ...record(ctx, result, readHead) };
+  }
+  try {
+    const result = await ctx.applyDuplicationRescore(scan, started.input);
+    return { ...base, ...record(ctx, result, readHead) };
+  } catch (err) {
+    return {
+      ...base,
+      outcome: 'error',
+      detail: `threw: ${err?.message ?? err}`,
     };
   }
-  return settled;
 }
 
 /** @returns {string} the configured duplication baseline path. */
