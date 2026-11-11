@@ -1160,9 +1160,15 @@ function singleProbeOrContinue(limits, overBudget, checksStatus) {
   return settles ? 'single-probe' : 'continue';
 }
 
-/** No budget turns a status outside the closed vocabulary into one inside it. */
-function isUnrecognisedChecksStatus(checksStatus) {
-  return checksStatus != null && !CHECKS_STATUSES.includes(checksStatus);
+/** A verdict no budget changes: merged, closed, or a status outside the closed vocabulary. */
+function settledVerdictOf(probe) {
+  if (isPrMerged(probe)) return 'merged';
+  if (probe.state === 'CLOSED') return 'closed';
+  const status = probe.checksStatus;
+  if (status != null && !CHECKS_STATUSES.includes(status)) {
+    return 'checks-status-unrecognised';
+  }
+  return null;
 }
 
 /**
@@ -1208,13 +1214,8 @@ export function decideMergeWaitPoll({
       maxBudgetSeconds: limits.maxBudgetSeconds,
     },
   };
-  if (isPrMerged(probe)) return { state: polled, verdict: 'merged', ...timing };
-  if (probe.state === 'CLOSED') {
-    return { state: polled, verdict: 'closed', ...timing };
-  }
-  if (isUnrecognisedChecksStatus(probe.checksStatus)) {
-    return { state: polled, verdict: 'checks-status-unrecognised', ...timing };
-  }
+  const settled = settledVerdictOf(probe);
+  if (settled) return { state: polled, verdict: settled, ...timing };
   // No remaining budget turns a red required check green; fail fast.
   const failFast = decideMergeWaitFailFast({
     probe,
@@ -1393,12 +1394,18 @@ async function recoverOpenPr(ctx, decision, probe) {
  * @returns {Promise<boolean>}
  */
 async function closeOwnsMerge(ctx, probe) {
-  if (ctx.closeArmed !== true) return false;
-  const owns =
-    ctx.autoMergeReason === REST_MERGE_ON_GREEN ||
-    (probe.autoMergeArmed !== true &&
-      (await prTransportOf(ctx.waitGh)) === 'rest');
-  return owns && !(await baseRequiresQueue(ctx));
+  if (ctx.closeArmed !== true || !(await restOwnsMerge(ctx, probe))) {
+    return false;
+  }
+  return !(await baseRequiresQueue(ctx));
+}
+
+async function restOwnsMerge(ctx, probe) {
+  if (ctx.autoMergeReason === REST_MERGE_ON_GREEN) return true;
+  return (
+    probe.autoMergeArmed !== true &&
+    (await prTransportOf(ctx.waitGh)) === 'rest'
+  );
 }
 
 /** Read once per invocation; a failed read (`null`) is not a queue. */

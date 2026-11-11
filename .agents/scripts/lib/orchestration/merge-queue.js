@@ -153,6 +153,12 @@ async function dequeuePullRequest({ prNodeId, gh }) {
   }
 }
 
+function queueArmOutcome(result) {
+  return result.mergeOnGreen
+    ? { enabled: false, mergeQueue: true, reason: MERGE_QUEUE_REST_BLOCK_CLASS }
+    : { enabled: true, mergeQueue: true };
+}
+
 /**
  * Arm on a merge-queue base: a bare `--auto`, and never the direct-merge
  * fallback — a merge that bypassed the queue would defeat the protection it
@@ -166,15 +172,7 @@ export async function armForMergeQueue({ exec, prNumber, armCwd }) {
     const result = await exec(['pr', 'merge', String(prNumber), '--auto'], {
       cwd: armCwd,
     });
-    if (result.status === 0) {
-      return result.mergeOnGreen
-        ? {
-            enabled: false,
-            mergeQueue: true,
-            reason: MERGE_QUEUE_REST_BLOCK_CLASS,
-          }
-        : { enabled: true, mergeQueue: true };
-    }
+    if (result.status === 0) return queueArmOutcome(result);
     return {
       enabled: false,
       mergeQueue: true,
