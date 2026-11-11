@@ -1536,6 +1536,9 @@
       "readOrRefuse": 1,
       "resolveCoverageUpdaterScope": 3
     },
+    ".agents/scripts/lib/baselines/crap-preview-coverage.js": {
+      "resolvePreviewCoverage": 3
+    },
     ".agents/scripts/lib/baselines/crap-preview-incremental.js": {
       "readTouched": 1,
       "resolveCrapPreviewIncremental": 2
