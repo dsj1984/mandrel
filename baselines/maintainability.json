@@ -435,6 +435,10 @@
       "mi": 108.347
     },
     {
+      "path": ".agents/scripts/lib/baselines/crap-preview-coverage.js",
+      "mi": 109.842
+    },
+    {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
       "mi": 115.048
     },
