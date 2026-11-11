@@ -1536,6 +1536,9 @@
       "readOrRefuse": 1,
       "resolveCoverageUpdaterScope": 3
     },
+    ".agents/scripts/lib/baselines/crap-preview-coverage.js": {
+      "resolvePreviewCoverage": 3
+    },
     ".agents/scripts/lib/baselines/crap-preview-incremental.js": {
       "readTouched": 1,
       "resolveCrapPreviewIncremental": 2
@@ -8898,6 +8901,7 @@
       "<anon tableBodyLines/rows.map(row)#0>": 1,
       "advisoriesOf": 2,
       "computeExitCode": 6,
+      "coverageArtifactField": 2,
       "emitReport": 6,
       "foldCrapViolation": 7,
       "halfLine": 2,
@@ -8906,6 +8910,7 @@
       "normalizeFlag": 2,
       "onlyField": 2,
       "parseChangedSinceArg": 5,
+      "parseCoverageArtifactArg": 4,
       "parseJsonFlag": 1,
       "parseOnlyArg": 2,
       "parseStagedFlag": 1,
@@ -8919,6 +8924,8 @@
       "runHalves": 1,
       "stagedScopeLine": 3,
       "tableBodyLines": 2,
+      "usageError": 5,
+      "withArtifactLine": 2,
       "writeAdvisories": 2
     },
     ".agents/scripts/resolve-doc-tiers.js": {

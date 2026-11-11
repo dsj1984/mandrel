@@ -6,6 +6,7 @@
  * scored for the branch's own work, not everything the base landed.
  */
 
+import path from 'node:path';
 import process from 'node:process';
 import {
   runCrapPreview,
@@ -14,10 +15,11 @@ import {
 import { resolveMergeHead } from './lib/changed-files.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { CODING_GUARDRAILS } from './lib/config/quality.js';
+import { loadCoverage } from './lib/coverage-utils.js';
 
 const USAGE = {
   invocation:
-    'node .agents/scripts/quality-preview.js [--staged | --changed-since <ref>] [--only mi|crap] [--json]',
+    'node .agents/scripts/quality-preview.js [--staged | --changed-since <ref>] [--only mi|crap] [--coverage-artifact <path>] [--json]',
   summary:
     'Preview the per-file maintainability and CRAP deltas for the change set, and exit non-zero on any threshold violation.',
   flags: [
@@ -32,6 +34,10 @@ const USAGE = {
     [
       '--only mi|crap',
       'Run one half only — maintainability (`mi`) or CRAP (`crap`); the other half is reported as not run. Default: both, serially.',
+    ],
+    [
+      '--coverage-artifact <path>',
+      'Score the CRAP half against this coverage-final.json (e.g. a CI artifact) instead of the configured one, without checking its capture stamp. Read-only; exit 2 when it cannot be loaded.',
     ],
     ['--json', 'Emit both gate envelopes plus the merged table as JSON.'],
   ],
@@ -91,6 +97,27 @@ function parseOnlyArg(argv) {
   return at === -1 ? null : (argv[at + 1] ?? '');
 }
 
+/** `--coverage-artifact` (last wins): `null` absent, `''` bare, else `{ given, path }`. */
+function parseCoverageArtifactArg(argv, cwd) {
+  const at = argv.lastIndexOf('--coverage-artifact');
+  if (at === -1) return null;
+  const given = argv[at + 1];
+  if (!given || given.startsWith('--')) return '';
+  return { given, path: path.resolve(cwd, given) };
+}
+
+/** The refusal for an unusable argv, or `null`. */
+function usageError({ only, artifact }) {
+  if (isUnknownHalf(only)) {
+    return `--only takes mi or crap (got "${only}").`;
+  }
+  if (artifact === '') return '--coverage-artifact needs a path.';
+  if (artifact && !loadCoverage(artifact.path)) {
+    return `--coverage-artifact ${artifact.given} is missing or not a coverage JSON object.`;
+  }
+  return null;
+}
+
 /**
  * @param {string|null} only
  * @returns {boolean}
@@ -118,6 +145,17 @@ function runHalf({ only, half, run }) {
  */
 function onlyField(only) {
   return only ? { only } : {};
+}
+
+/** The `--json` field naming the scored artifact; empty without the flag. */
+function coverageArtifactField(artifact) {
+  return artifact ? { coverageArtifact: artifact.path } : {};
+}
+
+/** The scope header, then the named artifact's line when there is one. */
+function withArtifactLine(scopeLine, artifact) {
+  if (!artifact) return scopeLine;
+  return `${scopeLine.trimEnd()}\ncoverage=${artifact.given} (named artifact; capture stamp not checked)\n\n`;
 }
 
 /**
@@ -380,7 +418,7 @@ export function renderTable(merged) {
  * A thrown runner degrades to the `{ exitCode: 1, envelope: null }` shape.
  *
  * @param {(args: object) => Promise<{exitCode: number, envelope: object|null}>} runner
- * @param {{cwd: string, staged: boolean, changedSinceRef: string|null}} args
+ * @param {{cwd: string, staged: boolean, changedSinceRef: string|null, coverageArtifact: string|null}} args
  * @param {'MI'|'CRAP'} label
  * @param {{ write: (s: string) => void }} stderr
  * @returns {Promise<{exitCode: number, envelope: object|null}>}
@@ -419,6 +457,7 @@ function stagedScopeLine({ staged, ref, cwd }) {
  * @param {{
  *   json: boolean,
  *   only: string|null,
+ *   artifact: { given: string, path: string } | null,
  *   staged: boolean,
  *   ref: string|null,
  *   cwd: string,
@@ -433,6 +472,7 @@ function stagedScopeLine({ staged, ref, cwd }) {
 function emitReport({
   json,
   only,
+  artifact,
   staged,
   ref,
   cwd,
@@ -451,6 +491,7 @@ function emitReport({
           ref: staged ? null : ref,
           staged,
           ...onlyField(only),
+          ...coverageArtifactField(artifact),
           mi: { exit: miExit, envelope: miResult.envelope },
           crap: { exit: crapExit, envelope: crapResult.envelope },
           merged,
@@ -463,7 +504,9 @@ function emitReport({
   }
   stdout.write('\n--- quality:preview ---\n');
   stdout.write(halfLine(only));
-  stdout.write(stagedScopeLine({ staged, ref, cwd }));
+  stdout.write(
+    withArtifactLine(stagedScopeLine({ staged, ref, cwd }), artifact),
+  );
   stdout.write(`${renderTable(merged)}\n`);
   writeAdvisories(merged.advisories, stdout);
   const diagnostics = renderDiagnostics([miResult, crapResult]);
@@ -498,16 +541,21 @@ export async function runCli({
   const staged = parseStagedFlag(argv);
   const ref = resolveRef(argv, staged);
   const only = parseOnlyArg(argv);
-  if (isUnknownHalf(only)) {
-    stderr.write(
-      `[quality:preview] --only takes mi or crap (got "${only}").\n`,
-    );
+  const artifact = parseCoverageArtifactArg(argv, cwd);
+  const refusal = usageError({ only, artifact });
+  if (refusal) {
+    stderr.write(`[quality:preview] ${refusal}\n`);
     return { exitCode: 2, merged: mergeEnvelopes(null, null) };
   }
 
   const { miResult, crapResult } = await runHalves({
     only,
-    args: { cwd, staged, changedSinceRef: ref },
+    args: {
+      cwd,
+      staged,
+      changedSinceRef: ref,
+      coverageArtifact: artifact?.path ?? null,
+    },
     runMi,
     runCrap,
     stderr,
@@ -520,6 +568,7 @@ export async function runCli({
   emitReport({
     json,
     only,
+    artifact,
     staged,
     ref,
     cwd,
