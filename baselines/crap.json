@@ -4513,6 +4513,7 @@
       "<anon scoreVerifyRuns/verifyRuns.map(run)#0/criteria.some(c)#0/some(i)#0>": 2,
       "<anon scoreVerifyRuns/verifyRuns.map(run)#0/criteria.some(c)#0>": 1,
       "<anon scoreVerifyRuns/verifyRuns.map(run)#0>": 1,
+      "<anon withGateInputs/verifyRuns.map(r)#0>": 1,
       "buildAcceptanceEvalSignal": 5,
       "computeVerdictFingerprint": 2,
       "decideAcceptanceEval": 5,
@@ -4520,7 +4521,8 @@
       "partitionCriteria": 2,
       "readPriorAcceptanceEvalRecords": 11.001327846364884,
       "resolveAcceptanceEvalRound": 6,
-      "scoreVerifyRuns": 2
+      "scoreVerifyRuns": 2,
+      "withGateInputs": 3
     },
     ".agents/scripts/lib/orchestration/auto-merge-cwd.js": {
       "parseWorktreeList": 6,
