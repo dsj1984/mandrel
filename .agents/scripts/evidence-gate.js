@@ -124,6 +124,41 @@ function resolveEvidenceKeys({ spawnCwd, gitSpawnFn, useEvidence }) {
 }
 
 /**
+ * Why evidence must be bypassed — the tree differs from HEAD, or the probe
+ * failed — or `null` on a clean tree. Gitignored files are not counted.
+ */
+function dirtyTreeReason(spawnCwd, gitSpawnFn) {
+  let res;
+  try {
+    res = gitSpawnFn(
+      spawnCwd,
+      'status',
+      '--porcelain',
+      '--untracked-files=normal',
+    );
+  } catch {
+    res = null;
+  }
+  if (res?.status !== 0) return 'git status probe failed';
+  // The runner trims stdout: strip the status code by shape, not width.
+  const paths = (res.stdout || '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[ MADRCUT?!]{1,2}\s/, '').trim())
+    .filter(Boolean);
+  if (paths.length === 0) return null;
+  return `tree differs from HEAD: ${paths[0]}, ${paths.length} changed path(s)`;
+}
+
+/** Evidence applies only with a HEAD and a tree matching it. */
+function evidenceUsable({ gate, headSha, spawnCwd, gitSpawnFn, logger }) {
+  if (!headSha) return false;
+  const reason = dirtyTreeReason(spawnCwd, gitSpawnFn);
+  if (!reason) return true;
+  logger.info(`[evidence-gate] ⚠ ${gate} evidence bypassed (${reason})`);
+  return false;
+}
+
+/**
  * @param {object} params
  * @param {number}   params.scopeId
  * @param {boolean}  [params.standalone]
@@ -182,8 +217,11 @@ export async function runEvidenceGate(params, deps = {}) {
     gitSpawnFn,
     useEvidence,
   });
+  const credited =
+    useEvidence &&
+    evidenceUsable({ gate, headSha, spawnCwd, gitSpawnFn, logger });
 
-  if (useEvidence && headSha) {
+  if (credited) {
     const verdict = shouldSkipFn(
       {
         storyId: scopeId,
@@ -224,7 +262,7 @@ export async function runEvidenceGate(params, deps = {}) {
   }
 
   logger.info(`[evidence-gate] ✓ ${gate} passed`);
-  if (useEvidence && headSha) {
+  if (credited) {
     try {
       recordPassFn(
         {

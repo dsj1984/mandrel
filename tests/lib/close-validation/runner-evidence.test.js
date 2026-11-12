@@ -332,7 +332,10 @@ describe('the skip-branch scoped deposit credits close at the same HEAD (Story #
         changedSince: since,
       },
       {
-        gitSpawnFn: () => ({ status: 0, stdout: head }),
+        gitSpawnFn: (_cwd, verb) =>
+          verb === 'status'
+            ? { status: 0, stdout: '' }
+            : { status: 0, stdout: head },
         runSuiteFn: async () => 0,
         shouldSkipFn: () => ({ skip: false }),
         recordPassFn: (record) => store.push(record),

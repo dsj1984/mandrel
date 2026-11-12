@@ -35,8 +35,80 @@ function makeLogger() {
   };
 }
 
-function fakeGitSpawnHead(sha) {
-  return () => ({ status: 0, stdout: `${sha}\n`, stderr: '' });
+function fakeGitSpawnHead(sha, porcelain = '') {
+  return (_cwd, verb) =>
+    verb === 'status'
+      ? { status: 0, stdout: porcelain, stderr: '' }
+      : { status: 0, stdout: `${sha}\n`, stderr: '' };
+}
+
+async function runDirty(gitSpawnFn) {
+  const logger = makeLogger();
+  const calls = { spawn: 0, skip: 0, record: 0 };
+  const out = await runEvidenceGate(
+    {
+      scopeId: 6070,
+      standalone: true,
+      gate: 'lint',
+      useEvidence: true,
+      cwd: '/repo',
+      runnerArgs: ['npm', 'run', 'lint'],
+    },
+    {
+      gitSpawnFn,
+      spawnFn: () => {
+        calls.spawn += 1;
+        return { status: 0 };
+      },
+      shouldSkipFn: () => {
+        calls.skip += 1;
+        return { skip: true };
+      },
+      recordPassFn: () => {
+        calls.record += 1;
+      },
+      logger,
+    },
+  );
+  return { out, calls, logger };
+}
+
+for (const porcelain of ['?? new-helper.ts', ' M a.ts', 'M a.ts']) {
+  test(`runEvidenceGate: a dirty tree (${JSON.stringify(porcelain)}) runs the gate without consulting or recording evidence`, async () => {
+    const { out, calls, logger } = await runDirty(
+      fakeGitSpawnHead('e'.repeat(40), porcelain),
+    );
+    assert.deepEqual(out, { status: 0, skipped: false });
+    assert.deepEqual(calls, { spawn: 1, skip: 0, record: 0 });
+    const first = porcelain.replace(/^\s*\S+\s/, '');
+    const bypass = logger.calls.info.filter((m) => /evidence bypassed/.test(m));
+    assert.equal(bypass.length, 1);
+    assert.match(bypass[0], new RegExp(`${first}, 1 changed`));
+  });
+}
+
+for (const [label, probe] of [
+  ['exits non-zero', () => ({ status: 128, stdout: '', stderr: 'boom' })],
+  [
+    'throws',
+    () => {
+      throw new Error('spawn failed');
+    },
+  ],
+]) {
+  test(`runEvidenceGate: a status probe that ${label} bypasses evidence`, async () => {
+    const head = fakeGitSpawnHead('e'.repeat(40));
+    const { out, calls, logger } = await runDirty((cwd, verb, ...rest) =>
+      verb === 'status' ? probe() : head(cwd, verb, ...rest),
+    );
+    assert.deepEqual(out, { status: 0, skipped: false });
+    assert.deepEqual(calls, { spawn: 1, skip: 0, record: 0 });
+    assert.ok(
+      logger.calls.info.some((m) =>
+        /bypassed \(git status probe failed\)/.test(m),
+      ),
+    );
+  });
 }
 
 test('runEvidenceGate: skips runner when evidence verdict says skip', async () => {
