@@ -6694,6 +6694,7 @@
       "settleChecksFailed": 2,
       "settleClosed": 1,
       "settledVerdictOf": 5,
+      "settleEjection": 3,
       "settleMerged": 1,
       "settleProvisional": 3,
       "settleQueueEjected": 2.002630064929728,
