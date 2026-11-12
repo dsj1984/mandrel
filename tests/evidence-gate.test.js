@@ -101,10 +101,12 @@ test('AC-8: a HEAD move that changed no content keeps the gate credited', async 
   const store = [];
   // HEAD moves between the deposit and the read; the tree does not.
   let head = 'c'.repeat(40);
-  const gitSpawnFn = (_cwd, ...args) =>
-    args[1] === 'HEAD^{tree}'
+  const gitSpawnFn = (_cwd, ...args) => {
+    if (args[0] === 'status') return { status: 0, stdout: '' };
+    return args[1] === 'HEAD^{tree}'
       ? { status: 0, stdout: `${TREE}\n` }
       : { status: 0, stdout: `${head}\n` };
+  };
 
   const params = {
     scopeId: 5278,
