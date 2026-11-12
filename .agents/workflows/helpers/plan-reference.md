@@ -381,7 +381,9 @@ half with the second suppressed. Either way every gate runs before the first
 where the second half is read:
 
 **Hard — the run refuses:** a body that does not parse, a ticket that is not
-a Story, an empty `acceptance[]`, an unknown or cyclic `depends_on`, the
+a Story, an empty `acceptance[]`, a `verify[]` entry that can exit 0 after a
+failure (`|| true`, `|| :`, `|| break`, `|| continue`, or a loop with no
+failing `exit`; use `|| exit 1`), an unknown or cyclic `depends_on`, the
 same-wave collision refusal at N>1, a supersede claim on a non-source id or
 one claimed twice, and a `deletes` entry naming a path absent at base.
 Commit subjects are not scanned — the `commit-msg` hook and
