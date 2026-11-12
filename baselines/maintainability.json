@@ -1584,7 +1584,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-queue.js",
-      "mi": 94.183
+      "mi": 100.876
     },
     {
       "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
@@ -1900,7 +1900,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "mi": 92.438
+      "mi": 93.445
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
