@@ -9,10 +9,7 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import {
-  MAX_INHERITED_REARMS,
-  readQueueEjection,
-} from '../../../.agents/scripts/lib/orchestration/merge-queue.js';
+import { readQueueEjection } from '../../../.agents/scripts/lib/orchestration/merge-queue.js';
 
 const HEAD = 'head-sha-1';
 const PARENT = 'parent-sha-9';
@@ -122,7 +119,7 @@ describe('readQueueEjection', () => {
     assert.equal(out.verdict, 'own');
   });
 
-  it(`settles as own past ${MAX_INHERITED_REARMS} inherited entries on one head`, async () => {
+  it('settles as own past three inherited entries on one head', async () => {
     const runs = [1, 2, 3, 4].map((n) =>
       queueRun({
         id: 500 + n,

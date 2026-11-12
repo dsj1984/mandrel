@@ -30,7 +30,7 @@ const EJECTION_QUERY =
 const QUEUE_RUNS = 'repos/{owner}/{repo}/actions/runs?event=merge_group';
 
 /** Inherited ejections re-armed per head; the next one counts as own. */
-export const MAX_INHERITED_REARMS = 3;
+const MAX_INHERITED_REARMS = 3;
 
 /** Block class: the merge queue ejected the PR on its own failure. */
 export const QUEUE_EJECTED_BLOCK_CLASS = 'queue-ejected';
