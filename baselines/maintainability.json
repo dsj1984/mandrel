@@ -1544,7 +1544,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-suite-of-record.js",
-      "mi": 103.707
+      "mi": 105.639
     },
     {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
