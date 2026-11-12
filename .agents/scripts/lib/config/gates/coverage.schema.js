@@ -100,7 +100,7 @@ export const COVERAGE_GATE = {
       type: 'string',
       enum: ['local', 'ci'],
       description:
-        "Where the coverage capture runs. `local` (default) changes nothing. `ci` — meant for a small host's `.agentrc.local.json` — makes CI the coverage and CRAP ratchet of record: handoff and close settle the coverage gate as deferred (reason `suite-of-record-ci`) without spawning the capture, the PR body carries the `Coverage-deferred:` key line, and confirm-merge waits for `ciRatchetCheck` to go green. Requires `ciRatchetCheck`; without it handoff blocks and close fails.",
+        "Where the coverage capture runs. `local` (default) changes nothing. `ci` — meant for a small host's `.agentrc.local.json` — makes CI the coverage and CRAP ratchet of record: handoff and close settle the coverage gate as deferred (reason `suite-of-record-ci`) without spawning the capture, the PR body carries the `Coverage-deferred:` key line, and confirm-merge waits for `ciRatchetCheck` to go green. When `project.commands.testChanged` is set, the handoff first runs it as a changed-tests guard. Requires `ciRatchetCheck`; without it handoff blocks and close fails.",
       default: COVERAGE_GATE_DEFAULTS.suiteOfRecord,
     },
     ciRatchetCheck: {

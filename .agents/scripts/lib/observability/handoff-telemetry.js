@@ -30,6 +30,7 @@ const HANDOFF_CAUSES = Object.freeze(
     'host-admission',
     'suite-timeout',
     'red-suite',
+    'changed-tests',
     'capture-over-budget',
     'no-credit-signal',
     'seat-refused',

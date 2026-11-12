@@ -1527,6 +1527,10 @@
       "mi": 95.98
     },
     {
+      "path": ".agents/scripts/lib/orchestration/handoff-changed-tests.js",
+      "mi": 99.35
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/handoff-gates.js",
       "mi": 106.788
     },
@@ -1540,7 +1544,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-suite-of-record.js",
-      "mi": 103.707
+      "mi": 105.639
     },
     {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
@@ -2817,6 +2821,10 @@
     {
       "path": "lib/cli/doctor-checks/spawn.js",
       "mi": 118.049
+    },
+    {
+      "path": "lib/cli/doctor-checks/suite-ownership.js",
+      "mi": 111.176
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",

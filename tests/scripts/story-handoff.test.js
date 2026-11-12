@@ -3223,6 +3223,152 @@ describe('story-handoff — CI is the suite of record (Story #5955)', () => {
   });
 });
 
+describe('story-handoff — the changed-tests guard under suiteOfRecord: ci (Story #6061)', () => {
+  const GUARD = 'npm run test:changed';
+  const guardConfig = (testChanged = GUARD) =>
+    configFor({
+      project: {
+        baseBranch: 'main',
+        paths: { tempRoot },
+        ...(testChanged ? { commands: { testChanged } } : {}),
+      },
+      delivery: {
+        quality: {
+          gates: {
+            crap: { enabled: true },
+            coverage: {
+              suiteOfRecord: 'ci',
+              ciRatchetCheck: 'coverage-ratchet',
+              timeoutMs: 4321,
+            },
+          },
+        },
+      },
+    });
+  const guardHarness = (status, extra = {}) =>
+    harness({
+      config: guardConfig(),
+      outputs: { npm: { status, stdout: 'changed tests' } },
+      ...extra,
+    });
+  const noLock = (h) => {
+    h.deps.createLockChannel = () => {
+      throw new Error('the guard must not open a full-suite lock channel');
+    };
+  };
+  const stateFile = () =>
+    JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+  const credited = (envelope) =>
+    envelope.steps.find((s) => s.name === 'credited-run');
+
+  test('AC-1: a red guard ends fix-required with cause changed-tests and pushes nothing', async () => {
+    const h = guardHarness(1);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    assert.equal(envelope.failedStep, 'credited-run');
+    assert.equal(envelope.cause, 'changed-tests');
+    assert.match(stopStep(envelope).detail, /npm run test:changed/);
+    assert.ok(envelope.evidencePath.endsWith('-changed-tests.log'));
+    assert.ok(!spawned(h.runCommand).includes('git'), 'nothing was pushed');
+    assert.equal(envelope.coverage, undefined, 'no deferral recorded');
+  });
+
+  test('a timed-out guard is fix-required with the host-contention wording', async () => {
+    const h = guardHarness(124);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.match(stopStep(envelope).detail, /timed out.*host contention/);
+    const call = h.runCommand.calls.find((c) => c.key === 'npm');
+    assert.equal(call.opts.timeoutMs, 4321, 'bounded by coverage.timeoutMs');
+  });
+
+  test('AC-2: a passing guard settles ready, deferred, with no lock and no credit', async () => {
+    const h = guardHarness(0);
+    noLock(h);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.status, 'ready');
+    assert.equal(envelope.coverage.reason, 'suite-of-record-ci');
+    assert.match(credited(envelope).detail, /changed-tests guard passed/);
+    const call = h.runCommand.calls.find((c) => c.key === 'npm');
+    assert.deepEqual(call.args, ['run', 'test:changed']);
+    assert.equal(call.opts.cwd, '/work');
+    assert.equal(call.opts.env.MANDREL_CHANGED_SINCE, 'origin/main');
+    assert.equal(call.opts.env.MANDREL_HANDOFF_STEP, 'credited-run');
+    const keys = spawned(h.runCommand);
+    assert.ok(!keys.includes('coverage-capture.js'));
+    assert.ok(!keys.includes('evidence-gate.js'), 'no test credit deposited');
+    assert.equal(stateFile().creditHead, undefined);
+  });
+
+  test('AC-3: an over-budget guard (76) or no testChanged leaves the deferral unchanged', async () => {
+    for (const h of [
+      guardHarness(76),
+      harness({ config: guardConfig(null) }),
+    ]) {
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 0);
+      assert.equal(envelope.status, 'ready');
+      assert.equal(credited(envelope).outcome, 'deferred');
+      assert.deepEqual(envelope.coverage, {
+        status: 'deferred',
+        reason: 'suite-of-record-ci',
+        policy: 'suite-of-record',
+      });
+    }
+    const none = harness({ config: guardConfig(null) });
+    await none.run();
+    assert.ok(!spawned(none.runCommand).includes('npm'), 'no guard ran');
+  });
+
+  test('AC-4: a held-review CRITICAL aborts the guard and is the finding', async () => {
+    const h = harness({
+      config: guardConfig(),
+      deposit: { halted: true, severity: { critical: 1 } },
+    });
+    let guardStarted;
+    const started = new Promise((resolve) => {
+      guardStarted = resolve;
+    });
+    const { runCommand, computeReview } = h.deps;
+    h.deps.computeReview = async (input) => {
+      await started;
+      return computeReview(input);
+    };
+    h.deps.runCommand = (cmd, args, opts) => {
+      if (cmd !== 'npm') return runCommand(cmd, args, opts);
+      guardStarted();
+      return new Promise((resolve) => {
+        opts.signal.addEventListener('abort', () =>
+          resolve({ status: 143, stdout: '', stderr: '' }),
+        );
+      });
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'review');
+    assert.equal(credited(envelope).outcome, 'aborted');
+    assert.ok(!spawned(h.runCommand).includes('git'), 'nothing was pushed');
+    assert.equal(stateFile().changedTestsHead, undefined);
+  });
+
+  test('AC-5: a re-run at a head whose guard passed does not run it again', async () => {
+    const h = guardHarness(0);
+    await h.run();
+    h.runCommand.calls.length = 0;
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.ok(!spawned(h.runCommand).includes('npm'), 'guard skipped');
+    assert.match(credited(envelope).detail, /guard already passed/);
+  });
+});
+
 describe('story-handoff — a suite that lost workers to host memory (exit 77, Story #5959)', () => {
   const counts = {
     testsPassed: 812,

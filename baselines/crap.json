@@ -5221,6 +5221,11 @@
       "planStashes": 1,
       "stashRefIndex": 2
     },
+    ".agents/scripts/lib/orchestration/handoff-changed-tests.js": {
+      "changedTestsGuard": 4,
+      "guardFailure": 2,
+      "settleGuard": 3
+    },
     ".agents/scripts/lib/orchestration/handoff-gates.js": {
       "<anon baselineComparePreflight/filter(g)#0>": 2,
       "<anon baselineComparePreflight/map(gate)#0>": 1,
@@ -5280,6 +5285,7 @@
       "readCreditTimings": 3
     },
     ".agents/scripts/lib/orchestration/handoff-suite-of-record.js": {
+      "deferred": 1,
       "settleSuiteOfRecord": 4
     },
     ".agents/scripts/lib/orchestration/lease-guard-shared.js": {
@@ -7252,6 +7258,7 @@
       "<anon commitSeatedRows/paths.every(p)#0>": 1,
       "<anon countsSuffix/HOST_COUNT_KEYS.filter(k)#0>": 1,
       "<anon countsSuffix/map(k)#0>": 1,
+      "<anon creditedRun/run(cmd)#0>": 1,
       "<anon creditedRun/withLockProgress(env)#0>": 1,
       "<anon creditSkip(name,detail,extra)#0>": 1,
       "<anon durations/seconds(ms)#0>": 1,
@@ -7350,6 +7357,7 @@
       "resolveLanes": 2,
       "reviewVerdict": 2,
       "rulesetFailure": 2,
+      "runChangedTests": 2,
       "runChecks": 3,
       "runLogged": 1,
       "runPostSeatChecks": 5,
@@ -9395,6 +9403,11 @@
       "createRunner": 1,
       "spawn": 1
     },
+    "lib/cli/doctor-checks/suite-ownership.js": {
+      "<anon isSet(value)#0>": 2,
+      "<anon runSuiteOwnership/()#0>": 1,
+      "runSuiteOwnership": 4
+    },
     "lib/cli/doctor-checks/sync-parity.js": {
       "<anon runAgentsInSync/()#0>": 1.000125,
       "<anon runAgentsInSync/expected()#0>": 1,
@@ -9490,6 +9503,10 @@
       "runMigrate": 4
     },
     "lib/cli/registry.js": {
+      "<anon advisory:suite-ownership(opts)#0>": 1,
+      "<anon advisory:test-credit-path(opts)#0>": 1,
+      "<anon advisory:version-current(opts)#0>": 1,
+      "<anon advisory(name,run)#0>": 1,
       "<anon run(opts)#0>": 1,
       "<anon run(opts)#1>": 1,
       "<anon run(opts)#10>": 1,
