@@ -2400,7 +2400,7 @@
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
-      "mi": 96.25
+      "mi": 96.838
     },
     {
       "path": ".agents/scripts/lib/wave-runner/cross-run-overlap.js",

@@ -22,6 +22,7 @@ import {
 } from '../coverage-deferral.js';
 import { quoteFailureRows } from '../failure-rows.js';
 import {
+  assertCleanTree,
   hashCommandConfig,
   recordPass,
   treeFingerprint,
@@ -153,6 +154,7 @@ export function recordPreflightCredit(ctx, check) {
 /** Re-key one credit onto the seated HEAD; best-effort, like close's rerun. */
 export function carryCredit(ctx, gateName, credit) {
   try {
+    assertCleanTree(ctx.cwd, ctx.git);
     recordPass(
       {
         storyId: ctx.storyId,

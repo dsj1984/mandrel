@@ -251,8 +251,8 @@
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
       "duplicatedLines": 14,
-      "totalLines": 295,
-      "percentage": 4.75
+      "totalLines": 333,
+      "percentage": 4.2
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/force-drain.js",

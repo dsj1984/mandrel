@@ -31,6 +31,7 @@ import {
   runSupervisedSuite,
 } from './lib/supervised-suite.js';
 import {
+  dirtyTreeReason,
   hashCommandConfig,
   recordPass,
   shouldSkip,
@@ -121,32 +122,6 @@ function resolveEvidenceKeys({ spawnCwd, gitSpawnFn, useEvidence }) {
     headSha: resolveHeadShaDefault(spawnCwd, gitSpawnFn),
     inputFingerprint: treeFingerprint(spawnCwd, gitSpawnFn),
   };
-}
-
-/**
- * Why evidence must be bypassed — the tree differs from HEAD, or the probe
- * failed — or `null` on a clean tree. Gitignored files are not counted.
- */
-function dirtyTreeReason(spawnCwd, gitSpawnFn) {
-  let res;
-  try {
-    res = gitSpawnFn(
-      spawnCwd,
-      'status',
-      '--porcelain',
-      '--untracked-files=normal',
-    );
-  } catch {
-    res = null;
-  }
-  if (res?.status !== 0) return 'git status probe failed';
-  // The runner trims stdout: strip the status code by shape, not width.
-  const paths = (res.stdout || '')
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*[ MADRCUT?!]{1,2}\s/, '').trim())
-    .filter(Boolean);
-  if (paths.length === 0) return null;
-  return `tree differs from HEAD: ${paths[0]}, ${paths.length} changed path(s)`;
 }
 
 /** Evidence applies only with a HEAD and a tree matching it. */
