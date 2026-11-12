@@ -1666,14 +1666,19 @@
       "<anon cleanGitEnv/filter(k)#0>": 1,
       "<anon readRangeCommitsTouchingFile/filter(commit)#0>": 2,
       "<anon readRangeCommitsTouchingFile/map(line)#0>": 2,
+      "addRename": 4,
       "cacheKey": 1,
       "cleanGitEnv": 1,
       "isNonEmptyString": 2,
+      "parseRenames": 2,
       "readBaseFromGit": 6,
       "readRangeCommitsTouchingFile": 4,
+      "readRenamesFromGit": 2,
+      "renameArgs": 1,
       "runGit": 1,
       "stdoutOf": 2,
-      "touch": 2.2109375
+      "touch": 2.2109375,
+      "tryRunGit": 1
     },
     ".agents/scripts/lib/baselines/kernel.js": {
       "bindKindModule": 1,
@@ -1696,8 +1701,11 @@
     },
     ".agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js": {
       "buildNewViolation": 2,
+      "complexityScore": 2,
       "deriveUncoveredFiles": 4,
       "formatNewViolationMeasure": 2.0625,
+      "isUntestableWiring": 2,
+      "matchesAny": 1,
       "newMethodGateScore": 3
     },
     ".agents/scripts/lib/baselines/kinds/_crap-read.js": {
@@ -1821,6 +1829,7 @@
     ".agents/scripts/lib/baselines/kinds/kind-factory.js": {
       "<anon makeBaselineKind/()#0>": 1,
       "<anon makeBaselineKind/applyEpsilon/regenRows.map(row)#0>": 3,
+      "<anon makeBaselineKind/judgeAddition/axes.filter(a)#0>": 1,
       "<anon makeBaselineKind/keyOf(row)#0>": 1,
       "<anon makeBaselineKind/rollup/filter(r)#0>": 1,
       "<anon makeBaselineKind/sortRows/sort(a,b)#0>": 1,
@@ -1831,6 +1840,8 @@
       "makeBaselineKind/applyEpsilon": 5,
       "makeBaselineKind/classify": 7,
       "makeBaselineKind/compare": 9.780173949895495,
+      "makeBaselineKind/direction": 5,
+      "makeBaselineKind/judgeAddition": 4,
       "makeBaselineKind/mergeRows": 1,
       "makeBaselineKind/rollup": 1,
       "makeBaselineKind/rowIdentity": 1,
@@ -2689,14 +2700,17 @@
       "<anon diffScorableFiles/files.filter(f)#0>": 1,
       "<anon loadCrapBaselineRows/rows.map(row)#0>": 2,
       "<anon projectCrapBreaches/skip(reason,detail)#0>": 2,
+      "behindDetail": 1,
       "createCrapScorer": 1.1984953703703702,
       "diffScorableFiles": 1,
       "formatBreach": 2,
       "formatCrapProjection": 4,
+      "inputsSkip": 2,
       "loadCrapBaselineRows": 6,
       "normaliseSkipReason": 2,
       "projectCrapBreaches": 11,
-      "refreshBaseRef": 4
+      "refreshBaseRef": 4,
+      "semanticsMismatch": 5
     },
     ".agents/scripts/lib/close-validation/projections/head-sha.js": {
       "defaultGetHeadSha": 2,
@@ -2955,6 +2969,7 @@
       "<anon resolveIncrementalCoverage/pick(explicit,fallback)#0>": 2,
       "getBaselineEpsilon": 2,
       "getQuality": 1,
+      "listOr": 2,
       "mergeFloorsWithDefaults": 5,
       "nonEmptyString": 3,
       "resolveAutoRefresh": 2,
@@ -4553,6 +4568,8 @@
       "baseIsComparable": 1,
       "baselineRelativePath": 3,
       "buildBaseReadError": 1,
+      "canonicalRenames": 1,
+      "compareOptionsFor": 3,
       "emptyCompareResult": 1,
       "evaluateCompare": 5.2,
       "readBaseBaselinePayload": 2,
@@ -4581,6 +4598,7 @@
       "formatRegressionLine": 2,
       "formatRegressionLines": 3,
       "formatRemedyLine": 2,
+      "regressionLabel": 3,
       "remedyCommand": 6
     },
     ".agents/scripts/lib/orchestration/check-baselines/phases/floors.js": {
