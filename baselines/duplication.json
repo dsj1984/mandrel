@@ -191,8 +191,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/merge-queue.js",
       "duplicatedLines": 6,
-      "totalLines": 203,
-      "percentage": 2.96
+      "totalLines": 351,
+      "percentage": 1.71
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
