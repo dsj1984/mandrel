@@ -38,6 +38,7 @@ import {
 import { isBiomeNoFilesProcessed } from '../close-validation/process.js';
 import { applyChangedFileScope } from '../close-validation/runner.js';
 import { skipBranchDeposit } from '../close-validation/skip-branch-test.js';
+import { substituteChangedSince } from '../close-validation/test-delta.js';
 import { getBaselines } from '../config/baselines.js';
 import { getPostSeatChecks } from '../config/handoff.js';
 import { getQuality } from '../config/quality.js';
@@ -738,6 +739,27 @@ function depositorArgv(ctx) {
   return { args, label: deposit.label };
 }
 
+/**
+ * The `ci` posture's changed-tests guard: `testChanged` keyed on the
+ * `origin/<base>` merge-base, outside the full-suite lock, bounded by
+ * `coverage.timeoutMs`.
+ */
+function runChangedTests(ctx, testChanged, signal) {
+  const base = `origin/${ctx.baseBranch}`;
+  const since = gitLine(ctx.git, ctx.cwd, ['merge-base', 'HEAD', base]) || base;
+  const { cmd, args, env } = substituteChangedSince(testChanged, since);
+  const timeoutMs = getQuality(ctx.config).coverage.timeoutMs;
+  const bounded = { ...ctx, stream: { ...ctx.stream, timeoutMs } };
+  return runLogged(
+    bounded,
+    'changed-tests',
+    cmd,
+    args,
+    { ...ctx.env, ...env },
+    signal,
+  );
+}
+
 /** @param {object} ctx @param {AbortSignal} signal @returns {Promise<StepResult>} */
 async function creditedRun(ctx, signal) {
   const name = 'credited-run';
@@ -748,7 +770,8 @@ async function creditedRun(ctx, signal) {
       { depositor: ctx.depositor },
     );
   }
-  const ciOwned = settleSuiteOfRecord(ctx, name);
+  const guard = { run: (cmd) => runChangedTests(ctx, cmd, signal), signal };
+  const ciOwned = await settleSuiteOfRecord(ctx, name, guard);
   if (ciOwned) return ciOwned;
   const capture = ctx.depositor === 'coverage-capture';
   const { args, label } = depositorArgv(ctx);
