@@ -5,9 +5,9 @@
  * manufactures a pass.
  */
 
-import { spawnSync } from 'node:child_process';
 import { globSync } from 'node:fs';
 
+import { spawnChild } from '../child-exec.js';
 import { resolveTestGateArgv } from '../close-validation/commands.js';
 import { COVERAGE_CAPTURE_DEFAULTS } from '../config/gates/coverage.schema.js';
 import { getQuality, resolveConfig } from '../config-resolver.js';
@@ -363,9 +363,8 @@ function countGlobFiles(pattern, cwd) {
 
 /** Listed lines count: `vitest list` exits 0 on an empty selection. */
 function countVitestFiles(testPath, cwd) {
-  const res = spawnSync('npx', ['vitest', 'list', testPath, '--filesOnly'], {
+  const res = spawnChild('npx', ['vitest', 'list', testPath, '--filesOnly'], {
     cwd,
-    encoding: 'utf8',
     shell: process.platform === 'win32',
     timeout: VERIFY_RUN_TIMEOUT_MS,
   });
@@ -376,7 +375,7 @@ function countVitestFiles(testPath, cwd) {
 
 /** Output goes to stderr so stdout stays one envelope; null on timeout. */
 function spawnVerifyCommand(command, cwd) {
-  const res = spawnSync(command, {
+  const res = spawnChild(command, [], {
     cwd,
     shell: true,
     stdio: ['ignore', 2, 2],
