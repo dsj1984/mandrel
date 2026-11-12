@@ -245,6 +245,7 @@ describe('one gate call per round — merged-verdict coverage (Story #4951)', ()
 
   const cliDeps = (verdict, appended) => ({
     readFileSyncImpl: () => JSON.stringify(verdict),
+    readVerifyImpl: async () => [],
     resolveConfigImpl: () => ({
       delivery: { acceptanceEval: { maxRounds: 2 } },
     }),

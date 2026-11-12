@@ -114,7 +114,7 @@ It writes the verdict skeleton — one empty record per `acceptance[]` item —
 and prints its path, the derived change set `files` and the `verdictOwner`.
 Under the default profile the owner is **you**: fill every record, scoring
 that `files` set — never one you re-derive — with `verify[]` output as
-evidence, and score it in one call (`--verdict <path>`). Under `strict` the
+evidence, and score it in one call (`--verdict <path> --cwd <workCwd>`). Under `strict` the
 owner is a fresh critic
 ([`acceptance-self-eval.md`](../workflows/helpers/acceptance-self-eval.md));
 hand it that same `files` list. **proceed** → the handoff; **redraft** → fix,

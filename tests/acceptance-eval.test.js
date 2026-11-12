@@ -71,6 +71,7 @@ function harness({ verdict = verdictFixture(), envelope, exitCode = 0 } = {}) {
       // body; the harness stands in a host with no readable ticket unless a
       // test overrides it.
       readAcceptanceCountImpl: async () => null,
+      readVerifyImpl: async () => [],
       validateVerdictImpl: (v) => v,
       runAcceptanceEvalImpl: async (args) => {
         seen.push(args);
@@ -923,6 +924,7 @@ describe('the gate warns on a misshapen verify[] (#5174)', () => {
         }),
         readAcceptanceCountImpl: async () =>
           verdictWith(['npm test']).criteria.length,
+        readVerifyImpl: async () => ['npm test'],
         runAcceptanceEvalImpl: async () => ({
           envelope: { storyId: 5174, decision: 'proceed', unmetCriteria: [] },
           exitCode: 0,

@@ -184,7 +184,7 @@ criteria, then transition the Story to `agent::blocked`:
 
 ```bash
 node .agents/scripts/diagnose-friction.js --story <storyId> \
-  --cmd node .agents/scripts/acceptance-eval.js --story <storyId> --verdict <verdict-path>
+  --cmd node .agents/scripts/acceptance-eval.js --story <storyId> --verdict <verdict-path> --cwd <workCwd>
 node .agents/scripts/update-ticket-state.js --ticket <storyId> --state agent::blocked
 ```
 

@@ -416,3 +416,44 @@ describe('reading a verdict is not a round (Story #4874)', () => {
     assert.equal('verdictFingerprint' in signal.details, false);
   });
 });
+
+describe('decideAcceptanceEval — the gate verify runs (Story #6067)', () => {
+  const citing = (waiver) => ({
+    ...crit(0, 'met'),
+    verifyEvidence: [
+      { command: '`node --test a.js` (unit)', outcome: 'pass', waiver },
+    ],
+  });
+  const failed = [
+    { command: 'node --test a.js', exitCode: 2, outcome: 'fail' },
+  ];
+
+  it('scores a met criterion citing a failed run unmet', () => {
+    const out = decideAcceptanceEval({
+      verdict: { criteria: [citing(), crit(1, 'met')] },
+      maxRounds: 2,
+      round: 1,
+      verifyRuns: failed,
+    });
+    assert.equal(out.decision, 'redraft');
+    assert.deepEqual(
+      out.notMet.map((c) => [c.index, c.verdict]),
+      [[0, 'unmet']],
+    );
+    assert.match(out.notMet[0].evidence, /exited 2/);
+  });
+
+  it('lets a waived citation stand and ignores passing runs', () => {
+    for (const [criterion, runs] of [
+      [citing('known flake'), failed],
+      [citing(), [{ ...failed[0], outcome: 'pass', exitCode: 0 }]],
+    ]) {
+      const out = decideAcceptanceEval({
+        verdict: { criteria: [criterion] },
+        maxRounds: 2,
+        verifyRuns: runs,
+      });
+      assert.equal(out.decision, 'proceed');
+    }
+  });
+});
