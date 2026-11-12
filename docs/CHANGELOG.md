@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.120.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.119.0...mandrel-v2.120.0) (2026-11-12)
+
+
+### Added
+
+* merge wait settles a merge-queue ejection: re-queue an inherited failure, hand back an own failure with the queue run's digest ([#6060](https://github.com/dsj1984/mandrel/issues/6060)) ([#6064](https://github.com/dsj1984/mandrel/issues/6064)) ([d6efd90](https://github.com/dsj1984/mandrel/commit/d6efd90a332636761bed253dfe726e9342562c43))
+* under suiteOfRecord ci the handoff runs the changed-tests command as a guard, and doctor reports a suite run in both places ([#6061](https://github.com/dsj1984/mandrel/issues/6061)) ([#6062](https://github.com/dsj1984/mandrel/issues/6062)) ([1ecbfb9](https://github.com/dsj1984/mandrel/commit/1ecbfb9d377523335a8ae4d6d4ebcea0f7da383e))
+
 ## [2.119.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.118.0...mandrel-v2.119.0) (2026-11-11)
 
 
