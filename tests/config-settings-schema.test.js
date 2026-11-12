@@ -473,6 +473,22 @@ describe('delivery.* shape', () => {
     expectErrors(withClose({ revalidateAlwaysPaths: [''] }), /fewer than 1/);
   });
 
+  // Story #6068 AC-5 — the CRAP untestable-wiring allowlist.
+  it('accepts a populated crap.untestableWiringGlobs and resolves it', () => {
+    const crap = { untestableWiringGlobs: ['.agents/scripts/*-cli.js'] };
+    const doc = { ...REQ, delivery: { quality: { gates: { crap } } } };
+    assert.equal(validate(doc), true);
+    assert.deepEqual(getQuality(doc).crap.untestableWiringGlobs, [
+      '.agents/scripts/*-cli.js',
+    ]);
+    assert.deepEqual(getQuality(REQ).crap.untestableWiringGlobs, []);
+    const bad = { untestableWiringGlobs: [''] };
+    expectErrors(
+      { ...REQ, delivery: { quality: { gates: { crap: bad } } } },
+      /fewer than 1/,
+    );
+  });
+
   it('accepts coverage.nonInputGlobs and captureHandlesConfigChanges', () => {
     const withCoverage = (coverage) => ({
       ...REQ,

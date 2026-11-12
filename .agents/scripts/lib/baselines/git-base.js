@@ -180,6 +180,49 @@ export function readRangeCommitsTouchingFile(baseRef, file, opts = {}) {
 }
 
 /**
+ * Renames in `<baseRef>...HEAD` as new path → old path. Uncached: depends on
+ * live HEAD. An empty map on any failure leaves the compare unchanged.
+ *
+ * @param {string} baseRef
+ * @param {{ cwd?: string }} [opts]
+ * @returns {Map<string, string>}
+ */
+export function readRenamesFromGit(baseRef, opts = {}) {
+  if (!isNonEmptyString(baseRef)) return new Map();
+  return parseRenames(tryRunGit(renameArgs(baseRef), opts));
+}
+
+function renameArgs(baseRef) {
+  return [
+    'diff',
+    '--name-status',
+    '-M',
+    '--diff-filter=R',
+    `${baseRef}...HEAD`,
+  ];
+}
+
+function tryRunGit(args, opts) {
+  try {
+    return runGit(args, opts);
+  } catch {
+    return null;
+  }
+}
+
+function parseRenames(result) {
+  const renames = new Map();
+  if (result?.status !== 0) return renames;
+  for (const line of stdoutOf(result).split('\n')) addRename(renames, line);
+  return renames;
+}
+
+function addRename(renames, line) {
+  const [status, from, to] = line.trim().split('\t');
+  if (status?.startsWith('R') && from && to) renames.set(to, from);
+}
+
+/**
  * Test-only.
  *
  * @returns {number}

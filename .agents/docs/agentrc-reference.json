@@ -152,6 +152,7 @@
           "newMethodCeiling": 30,
           "requireCoverage": true,
           "ignoreGlobs": [],
+          "untestableWiringGlobs": [],
           "incrementalCoverage": {
             "skipWhenUnchanged": true,
             "baselineJoin": false

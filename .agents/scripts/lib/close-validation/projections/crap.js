@@ -184,6 +184,7 @@ function behindDetail(raw) {
  *   baselinePath: string,
  *   newMethodCeiling?: number,
  *   tolerance?: number,
+ *   untestableWiringGlobs?: string[],
  *   git?: { gitSpawn: typeof defaultGitSpawn },
  *   loadBaseline?: (path: string) => Array<object>,
  *   peekBaseline?: (path: string) => unknown,
@@ -203,6 +204,7 @@ export async function projectCrapBreaches({
   baselinePath,
   newMethodCeiling = DEFAULT_NEW_METHOD_CEILING,
   tolerance = DEFAULT_CRAP_TOLERANCE,
+  untestableWiringGlobs = [],
   git = { gitSpawn: defaultGitSpawn },
   loadBaseline = loadCrapBaselineRows,
   peekBaseline = peekFile,
@@ -252,6 +254,7 @@ export async function projectCrapBreaches({
     baselineRows: filterRowsByFileScope(baselineRows, scopeSet),
     newMethodCeiling,
     tolerance,
+    untestableWiringGlobs,
   });
   const breaches = result.violations ?? [];
   return { ok: breaches.length === 0, breaches };

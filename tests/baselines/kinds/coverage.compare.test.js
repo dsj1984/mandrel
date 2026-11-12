@@ -80,3 +80,60 @@ describe('kinds/coverage.compare()', () => {
     });
   });
 });
+
+describe('kinds/coverage.compare() — new-file minimum and renames (#6068)', () => {
+  const MIN = { lines: 97, branches: 88, functions: 91 };
+  const zero = { path: 'new.ts', lines: 0, branches: 0, functions: 0 };
+
+  it('AC-1: a new file under the minimum is a regression, not an addition', () => {
+    const out = compare(
+      { rows: [zero] },
+      { rows: [] },
+      { newFileMinimum: MIN },
+    );
+    assert.equal(out.additions.length, 0);
+    assert.equal(out.regressions.length, 1);
+    assert.equal(out.regressions[0].key, 'new.ts');
+    assert.deepEqual(out.regressions[0].base, { path: 'new.ts', ...MIN });
+  });
+
+  it('AC-1: without the third argument the output is unchanged', () => {
+    assert.deepEqual(compare({ rows: [zero] }, { rows: [] }), {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      additions: [{ key: 'new.ts', head: zero, base: null }],
+    });
+  });
+
+  it('a new file at or above the minimum stays an addition', () => {
+    const ok = { path: 'new.ts', lines: 97, branches: 90, functions: 100 };
+    const out = compare({ rows: [ok] }, { rows: [] }, { newFileMinimum: MIN });
+    assert.equal(out.regressions.length, 0);
+    assert.equal(out.additions.length, 1);
+  });
+
+  it('compares a renamed file against its old base row', () => {
+    const renames = new Map([['src/new.js', 'src/old.js']]);
+    const out = compare(
+      { rows: [row('src/new.js', 0)] },
+      { rows: [row('src/old.js', 100)] },
+      { renames },
+    );
+    assert.equal(out.regressions.length, 1);
+    assert.equal(out.regressions[0].key, 'src/new.js');
+    assert.equal(out.regressions[0].renamedFrom, 'src/old.js');
+    assert.equal(out.improvements.length, 0, 'the old row is consumed');
+    assert.equal(out.additions.length, 0);
+  });
+
+  it('ignores a rename whose source has no base row', () => {
+    const renames = new Map([['src/new.js', 'src/gone.js']]);
+    const out = compare(
+      { rows: [row('src/new.js', 50)] },
+      { rows: [] },
+      { renames },
+    );
+    assert.equal(out.additions.length, 1);
+  });
+});

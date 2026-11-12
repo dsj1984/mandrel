@@ -19,6 +19,7 @@ import {
   __setSpawnRunner,
   readBaseFromGit,
   readRangeCommitsTouchingFile,
+  readRenamesFromGit,
 } from '../../.agents/scripts/lib/baselines/git-base.js';
 
 /** The explicit stdout ceiling both git reads must pass (Story #4914). */
@@ -301,5 +302,49 @@ describe('readRangeCommitsTouchingFile (Story #4914, #5179)', () => {
       readRangeCommitsTouchingFile('main', 'baselines/maintainability.json'),
       [],
     );
+  });
+});
+
+describe('readRenamesFromGit (Story #6068)', () => {
+  afterEach(() => {
+    __resetForTests();
+  });
+
+  it('maps each rename target to its source', () => {
+    let lastArgs = null;
+    __setSpawnRunner({
+      spawn: (_cmd, args) => {
+        lastArgs = args;
+        return {
+          status: 0,
+          stdout: 'R100\tsrc/old.js\tsrc/new.js\nR087\ta.js\tb.js\n',
+          stderr: '',
+        };
+      },
+    });
+    const renames = readRenamesFromGit('main');
+    assert.deepEqual(
+      [...renames],
+      [
+        ['src/new.js', 'src/old.js'],
+        ['b.js', 'a.js'],
+      ],
+    );
+    assert.ok(lastArgs.includes('--diff-filter=R'));
+    assert.ok(lastArgs.includes('main...HEAD'));
+  });
+
+  it('returns an empty map on a failed probe, a throw, or no ref', () => {
+    __setSpawnRunner({
+      spawn: () => ({ status: 128, stdout: '', stderr: 'bad ref' }),
+    });
+    assert.equal(readRenamesFromGit('main').size, 0);
+    __setSpawnRunner({
+      spawn: () => {
+        throw new Error('spawn failed');
+      },
+    });
+    assert.equal(readRenamesFromGit('main').size, 0);
+    assert.equal(readRenamesFromGit('').size, 0);
   });
 });

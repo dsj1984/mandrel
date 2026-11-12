@@ -1,5 +1,16 @@
 /** Pure scaffold factory for the row-metric baseline kinds. */
 
+/**
+ * `newFileMinimum`: a head row with no base row that falls below it on any
+ * axis is a regression against it. `renames`: head key → base key, so a
+ * renamed row is compared against its old base row.
+ *
+ * @typedef {{
+ *   newFileMinimum?: Record<string, number> | null,
+ *   renames?: Map<string, string> | null,
+ * }} CompareOptions
+ */
+
 import { componentMatches } from '../component-matcher.js';
 import { mergeRowsByScope } from '../scope.js';
 
@@ -29,7 +40,7 @@ import { mergeRowsByScope } from '../scope.js';
  *   rowIdentity: (row: object) => string,
  *   sortRows: (rows: object[]) => object[],
  *   rollup: (rows: object[], components?: object[]) => Record<string, object>,
- *   compare: (head: object, base: object) => object,
+ *   compare: (head: object, base: object, opts?: CompareOptions) => object,
  *   applyEpsilon: (prior: object[], regenerated: object[], epsilon: number) => object[],
  *   mergeRows: (prior: object[], regenerated: object[], scope: object) => object[],
  * }}
@@ -73,22 +84,47 @@ export function makeBaselineKind({
     return out;
   }
 
-  function classify(regressions, improvements, unchanged, key, head, base) {
-    let down = false;
+  function direction(head, base, axesToCompare = axes) {
     let up = false;
-    for (const axis of axes) {
+    for (const axis of axesToCompare) {
       const delta = (head[axis] ?? 0) - (base[axis] ?? 0);
-      const worse = betterWhen === 'higher' ? delta < 0 : delta > 0;
-      const better = betterWhen === 'higher' ? delta > 0 : delta < 0;
-      if (worse) down = true;
-      else if (better) up = true;
+      const signed = betterWhen === 'higher' ? delta : -delta;
+      if (signed < 0) return 'down';
+      if (signed > 0) up = true;
     }
-    if (down) regressions.push({ key, head, base });
-    else if (up) improvements.push({ key, head, base });
-    else unchanged.push({ key, head, base });
+    return up ? 'up' : 'same';
   }
 
-  function compare(head, base) {
+  function classify(
+    regressions,
+    improvements,
+    unchanged,
+    key,
+    head,
+    base,
+    extra,
+  ) {
+    const entry = { key, head, base, ...extra };
+    const dir = direction(head, base);
+    if (dir === 'down') regressions.push(entry);
+    else if (dir === 'up') improvements.push(entry);
+    else unchanged.push(entry);
+  }
+
+  /** A head row with no base row, under `missingBasePolicy: 'addition'`. */
+  function judgeAddition(out, key, h, newFileMinimum) {
+    const minAxes = newFileMinimum
+      ? axes.filter((a) => Number.isFinite(newFileMinimum[a]))
+      : [];
+    const minimum = { [keyField]: key, ...newFileMinimum };
+    if (minAxes.length > 0 && direction(h, minimum, minAxes) === 'down') {
+      out.regressions.push({ key, head: h, base: minimum, newFile: true });
+    } else {
+      out.additions.push({ key, head: h, base: null });
+    }
+  }
+
+  function compare(head, base, { newFileMinimum = null, renames = null } = {}) {
     const headRows = Array.isArray(head?.rows) ? head.rows : [];
     const baseRows = Array.isArray(base?.rows) ? base.rows : [];
     const baseByKey = new Map();
@@ -101,10 +137,19 @@ export function makeBaselineKind({
     for (const h of headRows) {
       const key = keyOf(h);
       seen.add(key);
+      const renamedFrom = baseByKey.has(key) ? undefined : renames?.get(key);
+      if (renamedFrom !== undefined && baseByKey.has(renamedFrom)) {
+        seen.add(renamedFrom);
+        const b = baseByKey.get(renamedFrom);
+        classify(regressions, improvements, unchanged, key, h, b, {
+          renamedFrom,
+        });
+        continue;
+      }
       const b = baseByKey.get(key);
       if (!b) {
         if (missingBasePolicy === 'addition') {
-          additions.push({ key, head: h, base: null });
+          judgeAddition({ regressions, additions }, key, h, newFileMinimum);
         } else {
           classify(
             regressions,

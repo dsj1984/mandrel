@@ -15,6 +15,7 @@
 // in `lib/baselines/exit-codes.js#aggregate` (numeric maximum).
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -209,5 +210,71 @@ describe('check-baselines — exit-code contract (Task #1975)', () => {
     assert.equal(res.exitCode, 4);
     assert.ok(res.report.totalBreaches > 0, 'floor breach also recorded');
     assert.ok(res.report.totalRegressions > 0, 'regression also recorded');
+  });
+
+  it('AC-2: a new 0/0/0 row among 200 covered rows exits 4', async () => {
+    root = setupTmpRepo();
+    const covered = Array.from({ length: 200 }, (_, i) =>
+      covRow(`src/f${i}.js`, 100),
+    );
+    writeJson(
+      path.join(root, 'baselines', 'coverage.json'),
+      coverageEnvelope({ rows: [...covered, covRow('src/new.js', 0)] }),
+    );
+    const baseCoverage = JSON.stringify(coverageEnvelope({ rows: covered }));
+    __setSpawnRunner({
+      spawn: (_cmd, args) =>
+        String(args?.[1] ?? '').endsWith(':baselines/coverage.json')
+          ? { status: 0, stdout: baseCoverage, stderr: '' }
+          : { status: 128, stdout: '', stderr: 'no base' },
+    });
+    const res = await runCheckBaselines({
+      argv: ['--no-friction', '--format', 'text'],
+      cwd: root,
+    });
+    assert.equal(res.report.totalBreaches, 0, 'the mean still clears floors');
+    assert.equal(res.exitCode, 4);
+    assert.match(res.output, /src\/new\.js \(new, under the minimum\)/);
+  });
+
+  it('AC-3: a git-mv rename whose row drops to 0/0/0 exits 4 under the new path', async () => {
+    root = setupTmpRepo();
+    const git = (...args) =>
+      execFileSync(
+        'git',
+        ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args],
+        { cwd: root, stdio: 'pipe' },
+      );
+    const healthy = Array.from({ length: 19 }, (_, i) =>
+      covRow(`src/f${i}.js`, 100),
+    );
+    mkdirSync(path.join(root, 'src'));
+    writeFileSync(path.join(root, 'src', 'old.js'), 'export const x = 1;\n');
+    writeJson(
+      path.join(root, 'baselines', 'coverage.json'),
+      coverageEnvelope({ rows: [covRow('src/old.js', 100), ...healthy] }),
+    );
+    git('init', '-q', '-b', 'main');
+    git('add', '.');
+    git('commit', '-q', '-m', 'base');
+    git('checkout', '-q', '-b', 'feature');
+    git('mv', 'src/old.js', 'src/new.js');
+    writeJson(
+      path.join(root, 'baselines', 'coverage.json'),
+      coverageEnvelope({ rows: [covRow('src/new.js', 0), ...healthy] }),
+    );
+    git('commit', '-q', '-am', 'rename');
+    const res = await runCheckBaselines({
+      argv: ['--no-friction', '--gate', 'coverage', '--format', 'text'],
+      cwd: root,
+      env: {},
+    });
+    assert.equal(res.exitCode, 4);
+    assert.equal(res.report.totalBreaches, 0, 'the mean still clears floors');
+    const gate = res.report.gates.find((g) => g.kind === 'coverage');
+    assert.equal(gate.regressions.length, 1);
+    assert.equal(gate.regressions[0].key, 'src/new.js');
+    assert.equal(gate.regressions[0].renamedFrom, 'src/old.js');
+    assert.match(res.output, /src\/new\.js \(renamed from src\/old\.js\)/);
   });
 });

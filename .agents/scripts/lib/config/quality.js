@@ -53,6 +53,7 @@ export const CRAP_GATE_DEFAULTS = Object.freeze({
   requireCoverage: true,
   refreshTag: BASELINE_REFRESH_TAG,
   ignoreGlobs: Object.freeze([]),
+  untestableWiringGlobs: Object.freeze([]),
   // Fail-closed floor on the coverage join (over files that have coverage):
   // a broken join is silent, so the updater refuses to persist below it.
   // Healthy runs resolve ~98%; a coordinate mismatch resolves 4–6%.
@@ -83,6 +84,7 @@ const CRAP_GATE_KEYS = new Set([
   'newMethodCeiling',
   'requireCoverage',
   'ignoreGlobs',
+  'untestableWiringGlobs',
   'minMethodResolutionRate',
   'incrementalCoverage',
   'coveragePath',
@@ -251,6 +253,7 @@ export function resolveMaintainabilityCrap(userCrap, coverageGate) {
       requireCoverage: defaults.requireCoverage,
       minMethodResolutionRate: defaults.minMethodResolutionRate,
       ignoreGlobs: [...defaults.ignoreGlobs],
+      untestableWiringGlobs: [...defaults.untestableWiringGlobs],
       incrementalCoverage: { ...defaults.incrementalCoverage },
       ...fixed,
     };
@@ -273,15 +276,21 @@ export function resolveMaintainabilityCrap(userCrap, coverageGate) {
       userCrap.minMethodResolutionRate,
       defaults.minMethodResolutionRate,
     ),
-    ignoreGlobs: Array.isArray(userCrap.ignoreGlobs)
-      ? userCrap.ignoreGlobs.slice()
-      : [...defaults.ignoreGlobs],
+    ignoreGlobs: listOr(userCrap.ignoreGlobs, defaults.ignoreGlobs),
+    untestableWiringGlobs: listOr(
+      userCrap.untestableWiringGlobs,
+      defaults.untestableWiringGlobs,
+    ),
     incrementalCoverage: resolveIncrementalCoverage(
       userCrap.incrementalCoverage,
       defaults.incrementalCoverage,
     ),
     ...fixed,
   };
+}
+
+function listOr(value, fallback) {
+  return Array.isArray(value) ? value.slice() : [...fallback];
 }
 
 function resolveMaintainabilityQuality(userBlock) {
@@ -301,9 +310,7 @@ function resolveMaintainabilityQuality(userBlock) {
   warnUnknownKeys(userBlock, MI_GATE_KEYS, 'quality.gates.maintainability');
   const out = {
     targetDirs: resolveListValue(defaults.targetDirs, userBlock.targetDirs),
-    ignoreGlobs: Array.isArray(userBlock.ignoreGlobs)
-      ? userBlock.ignoreGlobs.slice()
-      : [...defaults.ignoreGlobs],
+    ignoreGlobs: listOr(userBlock.ignoreGlobs, defaults.ignoreGlobs),
     ...fixed,
   };
   if (userBlock.tolerance !== undefined) {

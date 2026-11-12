@@ -43,7 +43,7 @@ function formatRemedyLine(g) {
 const fmt = (n) => String(Number(n.toFixed(2)));
 
 /** `<field> <base> → <head>` per numeric field that moved; `(new)` without a base. */
-function formatRegressionLine({ key, head, base }) {
+function formatRegressionLine({ key, head, base, renamedFrom, newFile }) {
   const numeric = Object.entries(head ?? {}).filter(
     ([, v]) => typeof v === 'number',
   );
@@ -54,7 +54,12 @@ function formatRegressionLine({ key, head, base }) {
   const moved = numeric
     .filter(([f, v]) => typeof base[f] === 'number' && base[f] !== v)
     .map(([f, v]) => `${f} ${fmt(base[f])} → ${fmt(v)}`);
-  return `    · ${key}: ${moved.join(', ')}`;
+  return `    · ${regressionLabel(key, renamedFrom, newFile)}: ${moved.join(', ')}`;
+}
+
+function regressionLabel(key, renamedFrom, newFile) {
+  if (renamedFrom) return `${key} (renamed from ${renamedFrom})`;
+  return newFile ? `${key} (new, under the minimum)` : key;
 }
 
 function formatRegressionLines(g) {
