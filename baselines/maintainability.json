@@ -4,7 +4,7 @@
   "rows": [
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "mi": 92.535
+      "mi": 95.458
     },
     {
       "path": ".agents/scripts/agents-bootstrap-github.js",
@@ -1312,7 +1312,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/acceptance-eval-decision.js",
-      "mi": 94.435
+      "mi": 100.945
     },
     {
       "path": ".agents/scripts/lib/orchestration/auto-merge-cwd.js",
@@ -2124,7 +2124,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
-      "mi": 94.313
+      "mi": 96.432
     },
     {
       "path": ".agents/scripts/lib/orchestration/worktree-dirty.js",
