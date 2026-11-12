@@ -13,7 +13,6 @@ import {
 } from '../.agents/scripts/lib/orchestration/acceptance-eval-decision.js';
 import {
   classifyVerifyEntries,
-  extractTestPaths,
   normalizeVerifyCommand,
   runScopedVerifyEntry,
 } from '../.agents/scripts/lib/orchestration/verify-credit.js';
@@ -166,13 +165,21 @@ describe('the gate runs scoped entries itself', () => {
   });
 
   it('probes only simple vitest / node --test shapes', () => {
-    assert.deepEqual(extractTestPaths("npm exec vitest run 'a.test.ts' b"), {
-      runner: 'vitest',
-      paths: ['a.test.ts', 'b'],
-    });
-    assert.equal(extractTestPaths('node --test a.js && echo hi'), null);
-    assert.equal(extractTestPaths('npm run sync:commands'), null);
-    assert.equal(extractTestPaths('npm vitest run x'), null);
+    const probed = [];
+    const deps = {
+      globImpl: (p) => probed.push(['glob', p]),
+      listVitestImpl: (p) => probed.push(['vitest', p]),
+      spawnImpl: () => 0,
+    };
+    for (const command of [
+      "npm exec vitest run 'a.test.ts'",
+      'node --test a.js && echo hi',
+      'npm run sync:commands',
+      'npm vitest run x',
+    ]) {
+      runScopedVerifyEntry(command, { cwd: '/wt' }, deps);
+    }
+    assert.deepEqual(probed, [['vitest', 'a.test.ts']]);
   });
 
   it('spawns for real in cwd and records the exit code; real globs count files', () => {

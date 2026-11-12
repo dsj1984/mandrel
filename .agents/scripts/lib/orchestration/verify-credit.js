@@ -264,7 +264,7 @@ export function planVerifyExecution(entries, context, deps = {}) {
 
 const MANUAL_ENTRY = /^manual:/i;
 
-export const VERIFY_RUN_TIMEOUT_MS = 10 * 60 * 1000;
+const VERIFY_RUN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** Any of these makes an entry compound, so its paths are not probed. */
 const COMPOUND_SHELL = /[;|&<>()`]|\$\(/;
@@ -330,7 +330,7 @@ export function classifyVerifyEntries(entries) {
 const unquote = (token) => token.replace(/^(['"])(.*)\1$/, '$2');
 
 /** Runner and test paths of a simple `vitest run` / `node --test`, else null. */
-export function extractTestPaths(command) {
+function extractTestPaths(command) {
   if (COMPOUND_SHELL.test(command)) return null;
   const tokens = command.split(' ').map(unquote);
   let runner = 'node';
