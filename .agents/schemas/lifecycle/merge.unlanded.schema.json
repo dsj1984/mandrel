@@ -32,7 +32,8 @@
         "predicate-refused",
         "advisory-gate-red",
         "advisory-gate-inconclusive",
-        "merge-queue-rest-unsupported"
+        "merge-queue-rest-unsupported",
+        "queue-ejected"
       ]
     },
     "reason": { "type": "string", "minLength": 1 },

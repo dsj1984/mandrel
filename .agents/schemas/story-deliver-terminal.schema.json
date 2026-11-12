@@ -159,6 +159,7 @@
             "advisory-gate-red",
             "advisory-gate-inconclusive",
             "merge-queue-rest-unsupported",
+            "queue-ejected",
             "merged-flip-failed"
           ]
         },

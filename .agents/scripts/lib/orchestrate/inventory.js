@@ -310,6 +310,21 @@ function orchestrateConfig(config) {
 const runVetoCommand = ({ cmd, args }, cwd) =>
   spawnCapture(cmd, args, { cwd }).status !== 0;
 
+/** Whether `delivery.orchestrate.releaseVeto` holds a PR carrying `labels`. */
+export function releaseVetoHolds({
+  config,
+  labels,
+  cwd,
+  runVeto = runVetoCommand,
+}) {
+  const { releaseVeto } = orchestrateConfig(config);
+  return Boolean(
+    releaseVeto &&
+      labels.includes(releaseVeto.prLabel) &&
+      runVeto(releaseVeto, cwd),
+  );
+}
+
 /**
  * One sweep: read, resolve conflicts and the veto, classify, and with a
  * run id append the sweep and fill `changes[]`.

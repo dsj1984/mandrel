@@ -38,6 +38,7 @@ import {
   isRerunPermitted,
 } from '../../check-state.js';
 import { recordRequiredRed as defaultRecordRequiredRed } from '../../ci-red-handling.js';
+import { writeCiDigest } from '../../ci-rerun-guard.js';
 import {
   emitMergeFlipFailed as defaultEmitMergeFlipFailed,
   MERGED_FLIP_FAILED_BLOCK_CLASS,
@@ -67,7 +68,9 @@ import {
 import {
   MERGE_QUEUE_REST_BLOCK_CLASS,
   MERGE_QUEUE_REST_REMEDY,
+  QUEUE_EJECTED_BLOCK_CLASS,
   readMergeQueueState,
+  readQueueEjection,
 } from '../../merge-queue.js';
 import { readProbeRunEvidence } from '../../required-checks.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
@@ -275,6 +278,7 @@ export async function readPrWaitProbe({
       redHeadRuns: deriveRedHeadRuns(view?.statusCheckRollup),
       checkStates: deriveCheckStates(view?.statusCheckRollup),
       headSha: readString(view?.headRefOid),
+      prNodeId: readString(view?.id),
       autoMergeArmed: readAutoMergeArmed(view),
     };
   } catch (err) {
@@ -406,22 +410,23 @@ function disarmedOn(redRecord) {
  * @param {{ storyId: number, prNumber: number|null, blockClass: string }} args
  * @returns {string}
  */
-function unlandedRemedy({ storyId, prNumber, blockClass, redRecord }) {
-  if (blockClass === CHECKS_FAILED_CLASS) {
-    return checksFailedRemedy({ storyId, prNumber, redRecord });
-  }
-  if (
-    blockClass === ADVISORY_GATE_INCONCLUSIVE_CLASS ||
-    blockClass === ADVISORY_GATE_RED_CLASS
-  ) {
-    return advisoryGateRemedy({ storyId, blockClass, redRecord });
-  }
+function unlandedRemedy(args) {
+  const remedy = REMEDY_OF_CLASS[args.blockClass];
+  if (remedy) return remedy(args);
+  const { storyId } = args;
   return (
     `Resolve the underlying condition (branch protection, required checks, ` +
     `or a manual merge), then resume the land:\n\n` +
     `\`\`\`bash\n${NEXT_COMMANDS.resumeLand(storyId)}\n\`\`\``
   );
 }
+
+const REMEDY_OF_CLASS = Object.freeze({
+  [CHECKS_FAILED_CLASS]: checksFailedRemedy,
+  [QUEUE_EJECTED_BLOCK_CLASS]: queueEjectedRemedy,
+  [ADVISORY_GATE_INCONCLUSIVE_CLASS]: advisoryGateRemedy,
+  [ADVISORY_GATE_RED_CLASS]: advisoryGateRemedy,
+});
 
 /**
  * States what the red handling actually did — never claims a disarm or a
@@ -438,17 +443,35 @@ function checksFailedRemedy({ storyId, prNumber, redRecord }) {
       : 'Auto-merge was **disarmed**; only a green on a new head SHA, or the one rerun a filed `capacity` / `unreproducible-tier` verdict admits, re-arms it.'
     : `⚠️ Auto-merge could **not** be disarmed (${disarm?.detail ?? 'the red handling did not run'}) — GitHub may still land the PR when the checks read green. Disarm it by hand.`;
   const watch = NEXT_COMMANDS.watchCi(storyId, prNumber);
-  const digestLine = redRecord?.digestPaths
-    ? `CI digest (run link + failure signature): \`${redRecord.digestPaths.jsonPath}\`.`
-    : `⚠️ No CI digest was written (${redRecord?.digestError ?? 'no Story scope'}); \`${watch}\` rewrites it.`;
   return (
-    `A required check is **red**. ${armLine}\n\n${digestLine}\n\n` +
+    `A required check is **red**. ${armLine}\n\n${digestLineOf(redRecord, watch)}\n\n` +
     `Per \`.agents/rules/ci-remediation.md\`, either fix the failure and push a new commit on ` +
     `\`story-${storyId}\` (re-running the failed job is forbidden), or — when the root cause is ` +
     `outside this delivery — file it:\n\n` +
     `\`\`\`bash\nnode .agents/scripts/file-ci-gap.js --story ${storyId} --pr ${prNumber} ` +
     `--verdict <verdict> --owner <consumer|framework|platform> --evidence "<proof reading>"\n\`\`\`\n\n` +
     `Then watch the checks with:\n\n\`\`\`bash\n${watch}\n\`\`\``
+  );
+}
+
+function digestLineOf(redRecord, rewrite) {
+  return redRecord?.digestPaths
+    ? `CI digest (run link + failure signature): \`${redRecord.digestPaths.jsonPath}\`.`
+    : `⚠️ No CI digest was written (${redRecord?.digestError ?? 'no Story scope'}); \`${rewrite}\` rewrites it.`;
+}
+
+/** The queue run's own failure: fix on the Story branch, hand off again. */
+function queueEjectedRemedy({ storyId, prNumber, redRecord }) {
+  const run = redRecord?.queueRun ?? {};
+  return (
+    `The merge queue **ejected** PR #${prNumber}: queue run ${run.url ?? `#${run.id}`} ` +
+    `concluded \`${run.conclusion}\` and the entry it was built on did not fail, so the ` +
+    `failure is this change's own. Auto-merge was not re-armed.\n\n` +
+    `${digestLineOf(redRecord, NEXT_COMMANDS.watchCi(storyId, prNumber))}\n\n` +
+    `Fix it on \`story-${storyId}\` in the Story worktree, commit, and re-run the hand-off, ` +
+    `which pushes the new head:\n\n` +
+    `\`\`\`bash\nnode .agents/scripts/story-handoff.js --story ${storyId} --cwd <worktree>\n\`\`\`\n\n` +
+    `Then resume the land:\n\n\`\`\`bash\n${NEXT_COMMANDS.resumeLand(storyId)}\n\`\`\``
   );
 }
 
@@ -852,7 +875,7 @@ function queuedExhaustionVerdict(probe, cumulativeMs) {
  *
  * @returns {Promise<object>} the `recordRequiredRed` outcome.
  */
-async function recordRed(ctx, probe, failures) {
+async function recordRed(ctx, probe, failures, run = null) {
   const {
     storyId,
     prNumber,
@@ -873,6 +896,7 @@ async function recordRed(ctx, probe, failures) {
       cwd,
       headSha: probe?.headSha ?? null,
       disarmFn: () => disarmAutoMergeFn({ prNumber, gh, progress }),
+      ...pinnedRun(run),
     });
     if (record.digestPaths) {
       progress?.(
@@ -894,6 +918,13 @@ async function recordRed(ctx, probe, failures) {
       digestError: detail,
     };
   }
+}
+
+/** A queue run is not on the PR head, so the digest is pinned to it. */
+function pinnedRun(run) {
+  if (!run) return {};
+  const checkRunFn = () => ({ runId: String(run.id), url: run.url });
+  return { writeDigestFn: (args) => writeCiDigest({ ...args, checkRunFn }) };
 }
 
 /** Classify, emit `merge.unlanded`, post friction, block — all best-effort. */
@@ -1290,6 +1321,31 @@ async function settleChecksFailed(ctx, decision, probe) {
   });
 }
 
+/** An own queue failure settles at once, its digest written from the queue run. */
+async function settleQueueEjected(ctx, decision, probe, ejection) {
+  const { run } = ejection;
+  const names = ejection.failedJobs?.length
+    ? ejection.failedJobs
+    : [run.name ?? 'merge queue'];
+  const failures = names.map((name) => ({
+    name,
+    outcome: run.conclusion,
+    runId: run.id,
+  }));
+  ctx.progress?.(
+    'CONFIRM',
+    `🛑 PR #${ctx.prNumber}: the merge queue ejected it on its own failure (${run.url ?? run.id}) — handing back.`,
+  );
+  const redRecord = await recordRed(ctx, probe, failures, run);
+  return blockWith(ctx, {
+    prProbe: probe,
+    budget: { exhausted: false, elapsedSeconds: decision.elapsedSeconds },
+    blockClassOverride: QUEUE_EJECTED_BLOCK_CLASS,
+    reasonOverride: `merge queue run ${run.url ?? run.id} concluded ${run.conclusion}: ${describeFailures(failures)}`,
+    redRecord: { ...redRecord, queueRun: run },
+  });
+}
+
 function settleUnrecognisedChecks(ctx, decision, probe) {
   return blockWith(ctx, {
     prProbe: probe,
@@ -1367,9 +1423,8 @@ async function recoverOpenPr(ctx, decision, probe) {
   if (advisory) {
     return { state: decision.state, outcome: await blockWith(ctx, advisory) };
   }
-  const landed = await maybeMergeOnGreen(ctx, decision, probe);
-  if (landed) return { state: decision.state, outcome: landed };
-  await maybeRearmPr(ctx, probe);
+  const settled = await settleOpenPr(ctx, decision, probe);
+  if (settled) return { state: decision.state, outcome: settled };
   const updated = await maybeUpdateBehindPr({
     probe,
     prNumber: ctx.prNumber,
@@ -1383,6 +1438,57 @@ async function recoverOpenPr(ctx, decision, probe) {
     ? { ...decision.state, updatesUsed: decision.state.updatesUsed + 1 }
     : decision.state;
   return { state, outcome: null };
+}
+
+/** Merge-on-green lands; an own ejection blocks; otherwise the re-arm rule runs. */
+async function settleOpenPr(ctx, decision, probe) {
+  const landed = await maybeMergeOnGreen(ctx, decision, probe);
+  if (landed) return landed;
+  const ejection = await readEjection(ctx, probe);
+  if (ejection?.verdict === 'own') {
+    return settleQueueEjected(ctx, decision, probe, ejection);
+  }
+  if (await admitsRearm(ctx, ejection)) await maybeRearmPr(ctx, probe);
+  return null;
+}
+
+/**
+ * A queue ejection, read only for a close-armed, un-armed PR that GraphQL
+ * reads out of the queue (`inMergeQueue` is only read on a green open PR).
+ */
+async function readEjection(ctx, probe) {
+  const unarmed = ctx.closeArmed === true && probe.autoMergeArmed === false;
+  if (probe.inMergeQueue !== false || !unarmed || !probe.headSha) return null;
+  return ctx.readQueueEjectionFn({
+    prNodeId: probe.prNodeId,
+    prNumber: ctx.prNumber,
+    headSha: probe.headSha,
+    gh: ctx.waitGh,
+    timeoutMs: ctx.ghTimeoutMs,
+  });
+}
+
+/**
+ * Each distinct inherited ejecting run frees one more re-arm on the head
+ * (the once-per-head record is reset); a held release veto admits none.
+ */
+async function admitsRearm(ctx, ejection) {
+  if (ejection?.verdict !== 'inherited') return true;
+  const labels = ejection.labels ?? [];
+  if (await ctx.releaseVetoFn({ config: ctx.config, labels, cwd: ctx.cwd })) {
+    return false;
+  }
+  if (!ctx.ejectionRuns.has(ejection.run?.id)) {
+    ctx.ejectionRuns.add(ejection.run?.id);
+    ctx.rearmedHeads.clear();
+  }
+  return true;
+}
+
+/** Loaded on use: the inventory's import graph is not close's to carry. */
+async function releaseVetoHolds(args) {
+  const inventory = await import('../../../orchestrate/inventory.js');
+  return inventory.releaseVetoHolds(args);
 }
 
 /**
@@ -1597,6 +1703,8 @@ function neverArmedOverride(autoMergeReason, advisoryGate) {
  * @param {Function} [args.recordRequiredRedFn] The shared first-red handling (disarm + CI digest).
  * @param {Function} [args.mergeOnGreenFn] The merge-on-green squash-merge (`auto-merge.js#mergeOnGreen`).
  * @param {Function} [args.readMergeQueueStateFn] Whether the base requires a merge queue.
+ * @param {Function} [args.readQueueEjectionFn] Why the merge queue ejected the PR.
+ * @param {Function} [args.releaseVetoFn] Whether `orchestrate.releaseVeto` holds the PR.
  * @param {object} [args.recoverySeams] DIRTY-sync / re-arm seams (`mergeWaitRecoverySeams`).
  * @param {(ms: number) => Promise<void>} [args.sleepFn]
  * @param {() => number} [args.nowMsFn]
@@ -1618,6 +1726,8 @@ export async function runConfirmMergePhase({
   recordRequiredRedFn = defaultRecordRequiredRed,
   mergeOnGreenFn = mergeOnGreen,
   readMergeQueueStateFn = readMergeQueueState,
+  readQueueEjectionFn = readQueueEjection,
+  releaseVetoFn = releaseVetoHolds,
   sleepFn = defaultSleep,
   nowMsFn = Date.now,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
@@ -1667,6 +1777,9 @@ export async function runConfirmMergePhase({
     recordRequiredRedFn,
     mergeOnGreenFn,
     readMergeQueueStateFn,
+    readQueueEjectionFn,
+    releaseVetoFn,
+    ejectionRuns: new Set(),
     nowMsFn,
     ghTimeoutMs,
     waitGh: args.injectedGh ?? defaultGh,

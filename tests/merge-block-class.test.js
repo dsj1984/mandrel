@@ -38,6 +38,7 @@ const DIRECT_ONLY_CLASSES = Object.freeze([
   'advisory-gate-red',
   'advisory-gate-inconclusive',
   'merge-queue-rest-unsupported',
+  'queue-ejected',
 ]);
 
 describe('merge-block-class (Story #4426)', () => {

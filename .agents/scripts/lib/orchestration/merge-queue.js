@@ -10,7 +10,7 @@ import {
   describeGhFailure,
   prTransportOf,
 } from '../gh-exec.js';
-import { readBranchRules } from '../gh-pr-rest.js';
+import { parseApiJson, readBranchRules } from '../gh-pr-rest.js';
 
 /** Bound on each merge-queue GraphQL call, so a wedged `gh` cannot stall close. */
 const MERGE_QUEUE_GH_TIMEOUT_MS = 30_000;
@@ -20,6 +20,20 @@ const MERGE_QUEUE_STATE_QUERY =
 
 const DEQUEUE_MUTATION =
   'mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { mergeQueueEntry { id } } }';
+
+const EJECTION_QUERY =
+  'query($id: ID!) { node(id: $id) { ... on PullRequest { baseRefName labels(first: 20) { nodes { name } } ' +
+  'timelineItems(last: 1, itemTypes: [ADDED_TO_MERGE_QUEUE_EVENT, REMOVED_FROM_MERGE_QUEUE_EVENT]) { nodes { __typename ' +
+  '... on RemovedFromMergeQueueEvent { createdAt reason beforeCommit { oid } } } } ' +
+  'commits(last: 1) { nodes { commit { committedDate } } } } } }';
+
+const QUEUE_RUNS = 'repos/{owner}/{repo}/actions/runs?event=merge_group';
+
+/** Inherited ejections re-armed per head; the next one counts as own. */
+const MAX_INHERITED_REARMS = 3;
+
+/** Block class: the merge queue ejected the PR on its own failure. */
+export const QUEUE_EJECTED_BLOCK_CLASS = 'queue-ejected';
 
 /** `gh` stderr when the base requires a merge queue and the arm spelling is wrong. */
 export const MERGE_QUEUE_REFUSAL = /when merge queue enabled/i;
@@ -70,6 +84,25 @@ export function parseGraphqlData(result) {
   return parsed?.data ?? null;
 }
 
+async function resolvePrNodeId(facade, prNodeId, prRef) {
+  if (prNodeId) return prNodeId;
+  const view = await facade.pr.view(String(prRef), ['id']);
+  if (typeof view?.id === 'string' && view.id) return view.id;
+  throw new Error('PR node id unavailable');
+}
+
+async function queryPrNode(facade, query, id, timeoutMs) {
+  const data = parseGraphqlData(
+    await facade.api({
+      method: 'POST',
+      endpoint: 'graphql',
+      body: { query, variables: { id } },
+      execOpts: { timeoutMs },
+    }),
+  );
+  return data?.node;
+}
+
 /**
  * Whether the PR's base requires a merge queue, and whether the PR sits in
  * it now. Keyed on the PR node, so it needs no owner/repo. Never throws: any
@@ -99,20 +132,13 @@ export async function readMergeQueueState({
         timeoutMs,
       });
     }
-    if (!id) {
-      const view = await facade.pr.view(String(prRef ?? prNumber), ['id']);
-      id = typeof view?.id === 'string' && view.id ? view.id : null;
-    }
-    if (!id) throw new Error('PR node id unavailable');
-    const data = parseGraphqlData(
-      await facade.api({
-        method: 'POST',
-        endpoint: 'graphql',
-        body: { query: MERGE_QUEUE_STATE_QUERY, variables: { id } },
-        execOpts: { timeoutMs },
-      }),
+    id = await resolvePrNodeId(facade, id, prRef ?? prNumber);
+    const node = await queryPrNode(
+      facade,
+      MERGE_QUEUE_STATE_QUERY,
+      id,
+      timeoutMs,
     );
-    const node = data?.node;
     if (typeof node?.isMergeQueueEnabled !== 'boolean') {
       throw new Error('merge-queue fields absent from the GraphQL response');
     }
@@ -128,6 +154,121 @@ export async function readMergeQueueState({
       prNodeId: id,
       error: describeGhFailure(err),
     };
+  }
+}
+
+const RED_RUN = new Set(['failure', 'cancelled']);
+const byNewest = (a, b) =>
+  String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
+
+/** The last queue event removed this head without merging it. */
+function ejectedHead(pr, headSha) {
+  const event = pr?.timelineItems?.nodes?.at(-1);
+  if (event?.__typename !== 'RemovedFromMergeQueueEvent') return false;
+  if (/merged/i.test(event.reason ?? '')) return false;
+  const removed = event.beforeCommit?.oid;
+  if (removed) return removed === headSha;
+  const pushedAt = pr.commits?.nodes?.[0]?.commit?.committedDate;
+  return !(Date.parse(event.createdAt) < Date.parse(pushedAt));
+}
+
+/** The newest entry's completed run, a red one first. */
+function ejectingRunOf(runs) {
+  const latest = runs[0]?.head_sha;
+  const done = runs.filter(
+    (r) => r.head_sha === latest && r.status === 'completed',
+  );
+  return (
+    done.find((r) => r.conclusion === 'failure') ??
+    done.find((r) => r.conclusion === 'cancelled') ??
+    done[0] ??
+    null
+  );
+}
+
+/** First rule wins: inherited (capped), own, unknown. */
+function classifyEjection({ ejecting, parentRuns, entries }) {
+  const inherited =
+    ejecting.conclusion === 'cancelled' ||
+    parentRuns.some((r) => RED_RUN.has(r.conclusion));
+  if (inherited) return entries > MAX_INHERITED_REARMS ? 'own' : 'inherited';
+  return ejecting.conclusion === 'failure' ? 'own' : 'unknown';
+}
+
+/**
+ * Why the merge queue ejected `headSha`, read from the `merge_group` run on
+ * its `gh-readonly-queue/<base>/pr-<n>-<parentSha>` ref and the run of the
+ * entry it was built on. GraphQL only; never throws (a failed read is
+ * `unknown`). `verdict: null` means the last queue event is no ejection.
+ *
+ * @returns {Promise<{ verdict: 'inherited'|'own'|'unknown'|null,
+ *   labels: string[], run?: object, failedJobs?: string[], detail?: string }>}
+ */
+export async function readQueueEjection({
+  prNodeId,
+  prNumber,
+  headSha,
+  gh,
+  timeoutMs = MERGE_QUEUE_GH_TIMEOUT_MS,
+}) {
+  const facade = gh ?? defaultGh;
+  const get = async (endpoint) =>
+    parseApiJson(
+      await facade.api({ method: 'GET', endpoint, execOpts: { timeoutMs } }),
+    );
+  let labels = [];
+  try {
+    const id = await resolvePrNodeId(facade, prNodeId, prNumber);
+    const pr = await queryPrNode(facade, EJECTION_QUERY, id, timeoutMs);
+    labels = (pr?.labels?.nodes ?? []).map((l) => l.name);
+    if (!ejectedHead(pr, headSha)) return { verdict: null, labels };
+    const prefix = `gh-readonly-queue/${pr.baseRefName}/pr-${prNumber}-`;
+    const pushedAt = Date.parse(pr.commits?.nodes?.[0]?.commit?.committedDate);
+    // shortcut: the newest 100 queue runs; page further if a queue outgrows it.
+    const runs = (
+      (await get(`${QUEUE_RUNS}&per_page=100`))?.workflow_runs ?? []
+    )
+      .filter((r) => String(r.head_branch ?? '').startsWith(prefix))
+      .filter((r) => !(Date.parse(r.created_at) < pushedAt))
+      .sort(byNewest);
+    const ejecting = ejectingRunOf(runs);
+    if (!ejecting) {
+      return { verdict: 'unknown', labels, detail: 'no completed queue run' };
+    }
+    const parentSha = ejecting.head_branch.slice(prefix.length);
+    const parentRuns = (
+      (await get(`${QUEUE_RUNS}&head_sha=${parentSha}`))?.workflow_runs ?? []
+    ).filter((r) => r.head_sha === parentSha);
+    const verdict = classifyEjection({
+      ejecting,
+      parentRuns,
+      entries: new Set(runs.map((r) => r.head_sha)).size,
+    });
+    const run = {
+      id: ejecting.id,
+      name: ejecting.name ?? null,
+      url: ejecting.html_url ?? null,
+      conclusion: ejecting.conclusion,
+    };
+    const failedJobs =
+      verdict === 'own' ? await readFailedJobs(get, ejecting.id) : [];
+    return { verdict, labels, run, failedJobs };
+  } catch (err) {
+    return { verdict: 'unknown', labels, detail: describeGhFailure(err) };
+  }
+}
+
+/** Failed job names of a run; `[]` when unreadable. */
+async function readFailedJobs(get, runId) {
+  try {
+    const body = await get(
+      `repos/{owner}/{repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`,
+    );
+    return (body?.jobs ?? [])
+      .filter((j) => j.conclusion === 'failure')
+      .map((j) => j.name);
+  } catch {
+    return [];
   }
 }
 

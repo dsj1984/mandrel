@@ -16,6 +16,7 @@ import {
   resolveConflict,
 } from '../.agents/scripts/lib/orchestrate/conflicts.js';
 import {
+  releaseVetoHolds,
   renderInventory,
   runInventory,
 } from '../.agents/scripts/lib/orchestrate/inventory.js';
@@ -807,5 +808,25 @@ describe('CLI and config (AC-10)', () => {
       false,
     );
     assert.equal(validate(docWith({ releaseVeto: { cmd: 'x' } })), false);
+  });
+});
+
+describe('releaseVetoHolds', () => {
+  const config = {
+    delivery: { orchestrate: { releaseVeto: { prLabel: 'hold', cmd: 'x' } } },
+  };
+  const holds = (labels, vetoExit, cfg = config) =>
+    releaseVetoHolds({
+      config: cfg,
+      labels,
+      cwd: '.',
+      runVeto: () => vetoExit !== 0,
+    });
+
+  it('holds only a labelled PR whose veto command exits non-zero', () => {
+    assert.equal(holds(['hold'], 1), true);
+    assert.equal(holds(['hold'], 0), false);
+    assert.equal(holds(['other'], 1), false);
+    assert.equal(holds(['hold'], 1, {}), false);
   });
 });

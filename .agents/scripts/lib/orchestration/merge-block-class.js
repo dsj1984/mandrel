@@ -29,6 +29,7 @@ export const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
   ADVISORY_GATE_RED_CLASS,
   ADVISORY_GATE_INCONCLUSIVE_CLASS,
   'merge-queue-rest-unsupported',
+  'queue-ejected',
 ]);
 
 const BLOCK_CLASS_SET = new Set(MERGE_UNLANDED_BLOCK_CLASSES);

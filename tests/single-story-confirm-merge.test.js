@@ -19,13 +19,18 @@
  */
 
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
+import { recordRequiredRed } from '../.agents/scripts/lib/orchestration/ci-red-handling.js';
+import { readCiDigest } from '../.agents/scripts/lib/orchestration/ci-rerun-guard.js';
 import {
   resolveAdvisoryRerunAllowance,
   resolveMergeWaitConfig,
+  runConfirmMergePhase,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
 import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   resolvePrNumber,
   runConfirmMerge,
@@ -496,5 +501,183 @@ describe('resolveAdvisoryRerunAllowance (Story #5266)', () => {
       ),
       0,
     );
+  });
+});
+
+describe('merge wait — a merge-queue ejection', () => {
+  const RUN = {
+    id: 9001,
+    name: 'CI',
+    url: 'https://github.com/o/r/actions/runs/9001',
+    conclusion: 'failure',
+  };
+  const ejectedProbe = (overrides = {}) => ({
+    state: 'OPEN',
+    mergedAt: null,
+    createdAt: null,
+    checksStatus: 'success',
+    inMergeQueue: false,
+    autoMergeArmed: false,
+    headSha: 'head-6060',
+    redHeadRuns: [],
+    ...overrides,
+  });
+  const ejection = (verdict, id = RUN.id) => ({
+    verdict,
+    labels: ['hold'],
+    run: { ...RUN, id },
+    failedJobs: verdict === 'own' ? ['test (ubuntu)', 'lint'] : [],
+  });
+
+  /** Next scripted read; the last one repeats. */
+  const next = (list, fallback) =>
+    list.length > 1 ? list.shift() : (list[0] ?? fallback);
+
+  /** Phase args over scripted probes and ejection reads. */
+  function ejectionArgs({ probes, ejections = [], vetoHeld = false, ...rest }) {
+    const h = { rearms: [], reads: [], comments: [], emitted: [] };
+    let clock = 0;
+    h.args = {
+      cwd: '.',
+      storyId: 6060,
+      storyBranch: 'story-6060',
+      baseBranch: 'main',
+      prNumber: 77,
+      prUrl: 'https://github.com/o/r/pull/77',
+      autoMergeEnabled: true,
+      closeArmed: true,
+      config: {},
+      provider: {
+        ...makeFakeProvider({ initialStory: { id: 6060, labels: [] } }),
+        postComment: async (_id, payload) => {
+          h.comments.push(payload.body);
+          return { id: 'c1' };
+        },
+      },
+      sleepFn: async () => {},
+      nowMsFn: () => {
+        clock += 40_000;
+        return clock;
+      },
+      emitMergeUnlandedFn: (event) => h.emitted.push(event),
+      disarmAutoMergeFn: async () => ({
+        disarmed: true,
+        alreadyUnarmed: true,
+        detail: 'already un-armed',
+      }),
+      confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      runPostLandTailFn: async () => ({ details: {} }),
+      readPrWaitProbeFn: async () => next(probes),
+      readQueueEjectionFn: async (args) => {
+        h.reads.push(args);
+        return next(ejections, { verdict: null, labels: [] });
+      },
+      releaseVetoFn: () => vetoHeld,
+      recoverySeams: {
+        readCiDigestFn: () => null,
+        rearmAutoMergeFn: async () => {
+          h.rearms.push(1);
+          return { enabled: true };
+        },
+      },
+      ...rest,
+    };
+    return h;
+  }
+
+  it('AC-1: re-arms a second inherited ejection on one head with a different run', async () => {
+    const h = ejectionArgs({
+      probes: [
+        ejectedProbe(),
+        ejectedProbe(),
+        { state: 'MERGED', mergedAt: 'x' },
+      ],
+      ejections: [ejection('inherited', 1), ejection('inherited', 2)],
+      // The real veto check: no releaseVeto configured, so nothing is held.
+      releaseVetoFn: undefined,
+    });
+    const outcome = await runConfirmMergePhase(h.args);
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(h.rearms.length, 2);
+  });
+
+  it('AC-2: settles queue-ejected on that probe, its digest naming the queue run and failed jobs', async () => {
+    const tempRoot = makeTempDir('mandrel-6060-');
+    try {
+      const h = ejectionArgs({
+        probes: [ejectedProbe()],
+        ejections: [ejection('own')],
+        cwd: tempRoot,
+        config: { project: { paths: { tempRoot } } },
+        recordRequiredRedFn: (args) =>
+          recordRequiredRed({
+            ...args,
+            writeDigestFn: (w) =>
+              args.writeDigestFn({ ...w, logTailFn: () => 'Error: boom\n' }),
+          }),
+      });
+      const outcome = await runConfirmMergePhase(h.args);
+      assert.equal(outcome.terminal, 'blocked');
+      assert.equal(outcome.blockClass, 'queue-ejected');
+      assert.equal(h.emitted[0].blockClass, 'queue-ejected');
+      assert.equal(h.rearms.length, 0);
+      const digest = readCiDigest({ storyId: 6060, tempRoot, cwd: tempRoot });
+      assert.equal(digest.runUrl, RUN.url);
+      assert.deepEqual(
+        digest.allFailures.map((f) => f.name),
+        ['test (ubuntu)', 'lint'],
+      );
+      assert.match(
+        h.comments[0],
+        /queue run https:\/\/github\.com\/o\/r\/actions\/runs\/9001/,
+      );
+      assert.match(h.comments[0], /story-handoff\.js --story 6060/);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('AC-4: an unknown ejection keeps one re-arm per head, then pending', async () => {
+    const h = ejectionArgs({
+      probes: [ejectedProbe(), ejectedProbe()],
+      ejections: [
+        { verdict: 'unknown', labels: [] },
+        { verdict: 'unknown', labels: [] },
+      ],
+      mergeWatchMode: 'async',
+    });
+    const outcome = await runConfirmMergePhase(h.args);
+    assert.equal(outcome.terminal, 'pending');
+    assert.equal(h.rearms.length, 1);
+  });
+
+  it('AC-4: over REST (queue membership unread) no ejection is read', async () => {
+    const h = ejectionArgs({
+      probes: [ejectedProbe({ inMergeQueue: undefined })],
+      mergeWatchMode: 'async',
+    });
+    const outcome = await runConfirmMergePhase(h.args);
+    assert.equal(outcome.terminal, 'pending');
+    assert.equal(h.reads.length, 0);
+    assert.equal(h.rearms.length, 1);
+  });
+
+  it('AC-5: never re-arms under a held veto, under strict, or for a PR close did not arm', async () => {
+    const cases = [
+      { vetoHeld: true },
+      { config: { delivery: { ci: { autoMerge: 'strict' } } } },
+      { closeArmed: false },
+    ];
+    for (const opts of cases) {
+      const h = ejectionArgs({
+        probes: [ejectedProbe()],
+        ejections: [ejection('inherited')],
+        mergeWatchMode: 'async',
+        ...opts,
+      });
+      const outcome = await runConfirmMergePhase(h.args);
+      assert.equal(outcome.terminal, 'pending', JSON.stringify(opts));
+      assert.equal(h.rearms.length, 0, JSON.stringify(opts));
+    }
   });
 });
