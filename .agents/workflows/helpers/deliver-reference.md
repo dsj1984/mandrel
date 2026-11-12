@@ -374,6 +374,23 @@ in the foreground, now bounded to the gates plus the ~60s probe, and the long
 merge wait moves into the background confirm that carries the explicit
 timeout. A local session need not pass the flag.
 
+**A merge-queue ejection is settled from one probe.** When a close-armed PR
+reads out of the queue with no auto-merge request (GraphQL only — over REST
+queue membership is unreadable and the wait is unchanged), the wait reads
+the `merge_group` run that ejected it, on the
+`gh-readonly-queue/<base>/pr-<n>-<parentSha>` ref, and the run of the entry
+it was built on. An **inherited** ejection (the run was cancelled, or the
+entry ahead failed or was cancelled) re-arms once per ejecting run, at most
+three times per head; the fourth counts as the PR's own. An **own** ejection
+blocks at once with block class `queue-ejected`: the CI digest is written
+from the queue run (run link, failed jobs, failure signature) and nothing is
+re-armed. To resume, fix the failure on `story-<id>` in the Story worktree,
+commit, re-run `story-handoff.js` to push the new head, then run the
+friction comment's resume command. An unreadable ejecting run keeps today's
+one blind re-arm per head. The ejection path never re-arms a PR close did
+not arm, under `ci.autoMerge: strict`, or one `orchestrate.releaseVeto`
+holds.
+
 ## Close-out audit {#closeout-audit}
 
 `deliver-recover.js` names the next command for one stranded Story;
