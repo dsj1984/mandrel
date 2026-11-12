@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 import { runArtifactPath, signalsFile } from '../config/temp-paths.js';
+import { normalizeVerifyCommand } from './verify-credit.js';
 
 const EPIC_SIGNALS_BASENAME = 'signals.ndjson';
 
@@ -56,10 +57,51 @@ function partitionCriteria(criteria) {
 }
 
 /**
+ * Fold the gate's own verify runs into the verdict: a criterion citing a
+ * failed run without a `waiver` is scored `unmet`, whatever it self-reported.
+ *
+ * @param {{ criteria?: Array<object> }} verdict
+ * @param {Array<{ command: string, exitCode: number|null, outcome: string, deadPaths?: string[] }>} [verifyRuns]
+ * @returns {{ criteria: Array<object>, verifyRuns: Array<object> }}
+ */
+export function scoreVerifyRuns(verdict, verifyRuns = []) {
+  const criteria = Array.isArray(verdict?.criteria) ? verdict.criteria : [];
+  const cites = (c) =>
+    (c?.verifyEvidence ?? []).map((item) => ({
+      command: normalizeVerifyCommand(item?.command),
+      waived: typeof item?.waiver === 'string' && item.waiver.length > 0,
+    }));
+  const runs = verifyRuns.map((run) => ({
+    ...run,
+    waived: criteria.some((c) =>
+      cites(c).some((i) => i.waived && i.command === run.command),
+    ),
+  }));
+  const failed = new Map(
+    runs.filter((r) => r.outcome !== 'pass').map((r) => [r.command, r]),
+  );
+  const scored = criteria.map((c) => {
+    const hit = cites(c).find((i) => !i.waived && failed.has(i.command));
+    if (!hit) return c;
+    const run = failed.get(hit.command);
+    const why = run.deadPaths?.length
+      ? `selects no test file at ${run.deadPaths.join(', ')}`
+      : `exited ${run.exitCode ?? 'without a code (timeout or spawn failure)'}`;
+    return {
+      ...c,
+      verdict: 'unmet',
+      evidence: `gate run of \`${run.command}\` ${why}; ${c.evidence ?? ''}`,
+    };
+  });
+  return { criteria: scored, verifyRuns: runs };
+}
+
+/**
  * @param {object} args
  * @param {{ criteria?: Array<object> }} args.verdict Its own `round` is ignored.
  * @param {number} args.maxRounds
  * @param {number} [args.round] From `resolveAcceptanceEvalRound`.
+ * @param {Array<object>} [args.verifyRuns] The gate's own scoped runs.
  * @returns {{
  *   decision: 'proceed' | 'redraft' | 'block',
  *   round: number,
@@ -70,10 +112,17 @@ function partitionCriteria(criteria) {
  *   capReached: boolean,
  * }}
  */
-export function decideAcceptanceEval({ verdict, maxRounds, round: roundIn }) {
+export function decideAcceptanceEval({
+  verdict,
+  maxRounds,
+  round: roundIn,
+  verifyRuns = [],
+}) {
   const cap = effectiveCap(maxRounds);
   const round = Number.isInteger(roundIn) && roundIn >= 1 ? roundIn : 1;
-  const { metCount, notMet } = partitionCriteria(verdict?.criteria);
+  const { metCount, notMet } = partitionCriteria(
+    scoreVerifyRuns(verdict, verifyRuns).criteria,
+  );
   const totalCriteria = metCount + notMet.length;
   const allMet = notMet.length === 0;
   const capReached = round >= cap;
@@ -205,14 +254,24 @@ function readPriorAcceptanceEvalRecords({
   return records;
 }
 
+/** No gate inputs hashes the verdict alone, keeping recorded fingerprints. */
+function withGateInputs(canonical, { verifyRuns = [], headSha = null } = {}) {
+  const runs = verifyRuns.map((r) => [r.command, r.outcome]);
+  return runs.length > 0 || headSha
+    ? { canonical, runs, head: headSha }
+    : canonical;
+}
+
 /**
- * Hashes only what the decision depends on, so an unchanged evaluation
- * fingerprints the same and real rework does not.
+ * Hashes only what the decision depends on — the verdict, the gate's real
+ * verify outcomes and HEAD — so an unchanged evaluation fingerprints the same
+ * and real rework does not.
  *
  * @param {{ criteria?: Array<object> }} verdict
+ * @param {{ verifyRuns?: Array<{ command: string, outcome: string }>, headSha?: string|null }} [gate]
  * @returns {string}
  */
-export function computeVerdictFingerprint(verdict) {
+export function computeVerdictFingerprint(verdict, gate) {
   const criteria = Array.isArray(verdict?.criteria) ? verdict.criteria : [];
   const canonical = criteria.map((c) => [
     Number.isInteger(c?.index) ? c.index : null,
@@ -221,7 +280,7 @@ export function computeVerdictFingerprint(verdict) {
     typeof c?.evidence === 'string' ? c.evidence : '',
   ]);
   return createHash('sha256')
-    .update(JSON.stringify(canonical))
+    .update(JSON.stringify(withGateInputs(canonical, gate)))
     .digest('hex')
     .slice(0, 16);
 }

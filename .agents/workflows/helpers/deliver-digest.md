@@ -76,18 +76,17 @@ skeleton — it derives § 3's `files` and `verdictOwner` with the same function
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId> --init
 --cwd <workCwd>`
 
-It writes one empty record per `acceptance[]` item and prints its
-path. The owner fills **every** record,
-scored against that change set with `verify[]` output as evidence, and scores
-it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
+It writes one empty record per `acceptance[]` item and prints its path. The
+owner fills **every** record against that change set, `verify[]` output as
+evidence, and scores it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 (default 2; `0` scores once with no redraft).
 
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId>
---verdict <verdict-path>`
+--verdict <verdict-path> --cwd <workCwd>`
 
-The gate reads the Story's `acceptance[]` count itself and rejects, **before**
-scoring and consuming no round, a verdict whose `criteria[]` length differs
-or with an unfilled record (naming its indices).
+Refused before scoring (no round): a `criteria[]` length off the
+`acceptance[]` count, an unfilled record, an uncited `verify[]` entry. The
+gate runs scoped entries in `--cwd`.
 
 `proceed` → § 5. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.

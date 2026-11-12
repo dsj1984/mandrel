@@ -112,8 +112,16 @@ per-criterion, mid-delivery, and evaluates the actual work product.
 
    ```bash
    node <main-repo>/.agents/scripts/acceptance-eval.js \
-     --story <storyId> --verdict <verdict-path>
+     --story <storyId> --verdict <verdict-path> --cwd <workCwd>
    ```
+
+   The gate runs each scoped Story `verify[]` entry itself in `--cwd`
+   (full-suite and `manual:` entries are not spawned). Every required entry
+   must be cited in some criterion's `verifyEvidence[]`, and a `met`
+   criterion over a non-`pass` item needs a `waiver` — both are refused
+   before scoring, consuming no round. A criterion citing an entry whose
+   gate run fails (non-zero exit, or a test path selecting no file) is
+   scored `unmet`.
 
    The gate reads the Story's `acceptance[]` count itself (Story #5313): a
    verdict whose `criteria[]` length differs — one covering only part of the

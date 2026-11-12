@@ -140,6 +140,10 @@ one `criteria[]` record per acceptance item, in acceptance-array order, with
 - `partial` — partially addressed, or addressed without the required evidence.
 - `unmet` — not addressed, or the evidence contradicts the claim.
 
+Cite every scoped `verify[]` entry in some `verifyEvidence[]`; a `met`
+over a non-`pass` item needs a `waiver`. The caller's gate call
+(`--verdict <path> --cwd <workCwd>`) re-runs those entries itself.
+
 **Return the verdict file's absolute path to your caller — never invoke
 `acceptance-eval.js` yourself.** The caller calls the gate **once** per round;
 the round counter is Story-scoped, so a second call spends a round for nothing.
