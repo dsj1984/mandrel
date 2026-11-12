@@ -12,6 +12,7 @@ import {
   SUITE_RESERVATION_ENV,
 } from '../full-suite-lock.js';
 import {
+  assertCleanTree,
   hashCommandConfig,
   recordPass,
   shouldSkip,
@@ -190,6 +191,7 @@ function reconcileDeposit(ctx, check) {
   const opts = { cwd: ctx.evidenceCwd, standalone: true };
   const key = { storyId: ctx.storyId, gateName: check.key, configHash };
   try {
+    assertCleanTree(ctx.cwd, ctx.git);
     if (shouldSkip({ ...key, currentSha: ctx.head }, opts).skip) return;
     recordPass(
       {

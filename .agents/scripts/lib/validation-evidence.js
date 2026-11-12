@@ -255,6 +255,33 @@ export function treeFingerprint(cwd, gitSpawnFn) {
 }
 
 /**
+ * Why evidence must be bypassed — the tree differs from HEAD, or the probe
+ * failed — or `null` on a clean tree. Gitignored files are not counted.
+ */
+export function dirtyTreeReason(cwd, gitSpawnFn) {
+  let res;
+  try {
+    res = gitSpawnFn(cwd, 'status', '--porcelain', '--untracked-files=normal');
+  } catch {
+    res = null;
+  }
+  if (res?.status !== 0) return 'git status probe failed';
+  // The runner trims stdout: strip the status code by shape, not width.
+  const paths = (res.stdout || '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[ MADRCUT?!]{1,2}\s/, '').trim())
+    .filter(Boolean);
+  if (paths.length === 0) return null;
+  return `tree differs from HEAD: ${paths[0]}, ${paths.length} changed path(s)`;
+}
+
+/** Throws the {@link dirtyTreeReason} when evidence must not be recorded. */
+export function assertCleanTree(cwd, gitSpawnFn) {
+  const reason = dirtyTreeReason(cwd, gitSpawnFn);
+  if (reason) throw new Error(reason);
+}
+
+/**
  * Skip only when gate and config hash match and either the SHA or a non-empty
  * input fingerprint matches; otherwise `reason` says why not.
  *
