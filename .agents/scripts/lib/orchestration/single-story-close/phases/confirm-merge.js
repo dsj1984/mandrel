@@ -410,25 +410,23 @@ function disarmedOn(redRecord) {
  * @param {{ storyId: number, prNumber: number|null, blockClass: string }} args
  * @returns {string}
  */
-function unlandedRemedy({ storyId, prNumber, blockClass, redRecord }) {
-  if (blockClass === CHECKS_FAILED_CLASS) {
-    return checksFailedRemedy({ storyId, prNumber, redRecord });
-  }
-  if (blockClass === QUEUE_EJECTED_BLOCK_CLASS) {
-    return queueEjectedRemedy({ storyId, prNumber, redRecord });
-  }
-  if (
-    blockClass === ADVISORY_GATE_INCONCLUSIVE_CLASS ||
-    blockClass === ADVISORY_GATE_RED_CLASS
-  ) {
-    return advisoryGateRemedy({ storyId, blockClass, redRecord });
-  }
+function unlandedRemedy(args) {
+  const remedy = REMEDY_OF_CLASS[args.blockClass];
+  if (remedy) return remedy(args);
+  const { storyId } = args;
   return (
     `Resolve the underlying condition (branch protection, required checks, ` +
     `or a manual merge), then resume the land:\n\n` +
     `\`\`\`bash\n${NEXT_COMMANDS.resumeLand(storyId)}\n\`\`\``
   );
 }
+
+const REMEDY_OF_CLASS = Object.freeze({
+  [CHECKS_FAILED_CLASS]: checksFailedRemedy,
+  [QUEUE_EJECTED_BLOCK_CLASS]: queueEjectedRemedy,
+  [ADVISORY_GATE_INCONCLUSIVE_CLASS]: advisoryGateRemedy,
+  [ADVISORY_GATE_RED_CLASS]: advisoryGateRemedy,
+});
 
 /**
  * States what the red handling actually did — never claims a disarm or a
@@ -1427,14 +1425,8 @@ async function recoverOpenPr(ctx, decision, probe) {
   }
   const landed = await maybeMergeOnGreen(ctx, decision, probe);
   if (landed) return { state: decision.state, outcome: landed };
-  const ejection = await readEjection(ctx, probe);
-  if (ejection?.verdict === 'own') {
-    return {
-      state: decision.state,
-      outcome: await settleQueueEjected(ctx, decision, probe, ejection),
-    };
-  }
-  if (await admitsRearm(ctx, ejection)) await maybeRearmPr(ctx, probe);
+  const ejected = await settleEjection(ctx, decision, probe);
+  if (ejected) return { state: decision.state, outcome: ejected };
   const updated = await maybeUpdateBehindPr({
     probe,
     prNumber: ctx.prNumber,
@@ -1448,6 +1440,16 @@ async function recoverOpenPr(ctx, decision, probe) {
     ? { ...decision.state, updatesUsed: decision.state.updatesUsed + 1 }
     : decision.state;
   return { state, outcome: null };
+}
+
+/** An own ejection blocks; otherwise the re-arm rule runs. */
+async function settleEjection(ctx, decision, probe) {
+  const ejection = await readEjection(ctx, probe);
+  if (ejection?.verdict === 'own') {
+    return settleQueueEjected(ctx, decision, probe, ejection);
+  }
+  if (await admitsRearm(ctx, ejection)) await maybeRearmPr(ctx, probe);
+  return null;
 }
 
 /**
