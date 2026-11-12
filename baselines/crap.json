@@ -587,14 +587,18 @@
       "runDrainPendingCleanup": 10
     },
     ".agents/scripts/evidence-gate.js": {
+      "<anon dirtyTreeReason/map(line)#0>": 1,
       "<anon runGateCommand/log(m)#0>": 1,
       "<anon runLockedSuite/withFullSuiteLockAsync(lock)#0/onTimeout()#0>": 1,
       "<anon runLockedSuite/withFullSuiteLockAsync(lock)#0/onTimings(t)#0>": 1,
       "<anon runLockedSuite/withFullSuiteLockAsync(lock)#0>": 1,
       "deferredLine": 1,
+      "dirtyTreeReason": 4,
+      "evidenceUsable": 3,
       "hostResourcesLine": 1,
       "loadConfig": 2,
       "main": 2,
+      "nonFailureExit": 2,
       "parseWrapperArgs": 3,
       "plainRun": 1,
       "reportGateExit": 2,
