@@ -150,25 +150,13 @@ async function readStoryBodyList(
   }
 }
 
-/**
- * The Story body's `acceptance[]` items, in order; any failure yields `null`.
- *
- * @param {{ storyId: number, config: object }} args
- * @param {Parameters<typeof readStoryBodyList>[2]} [deps]
- * @returns {Promise<string[]|null>}
- */
+/** The Story body's `acceptance[]` items, in order; any failure yields `null`. */
 export async function readStoryAcceptance(args, deps) {
   const acceptance = await readStoryBodyList('acceptance', args, deps);
   return acceptance?.length > 0 ? acceptance : null;
 }
 
-/**
- * The Story body's `verify[]` entries; `null` when the body is unreadable.
- *
- * @param {{ storyId: number, config: object }} args
- * @param {Parameters<typeof readStoryBodyList>[2]} [deps]
- * @returns {Promise<string[]|null>}
- */
+/** The Story body's `verify[]` entries; `null` when the body is unreadable. */
 export function readStoryVerify(args, deps) {
   return readStoryBodyList('verify', args, deps);
 }
@@ -392,13 +380,8 @@ export function assertCriteriaCoverage(verdict, expectedCriteria) {
 }
 
 /**
- * Reject, before scoring and consuming no round, a verdict that leaves a
- * required Story `verify[]` entry uncited, or a `met` criterion standing on
- * non-pass evidence without a `waiver`.
- *
- * @param {object} verdict — schema-validated verdict.
- * @param {string[]} required — normalised entries from `classifyVerifyEntries`.
- * @returns {void}
+ * Reject, consuming no round, an uncited required `verify[]` entry or a `met`
+ * criterion on non-pass evidence without a `waiver`.
  */
 export function assertVerifyEvidence(verdict, required) {
   const criteria = verdict?.criteria ?? [];
@@ -433,13 +416,7 @@ export function assertVerifyEvidence(verdict, required) {
   );
 }
 
-/**
- * A Story with scoped entries is scored only with the worktree to run them in.
- *
- * @param {string[]} scoped
- * @param {string|null} cwd
- * @returns {void}
- */
+/** A Story with scoped entries is scored only with a worktree to run them in. */
 export function assertScoringCwd(scoped, cwd) {
   if (scoped.length === 0 || cwd) return;
   throw new Error(
@@ -586,13 +563,7 @@ export async function runAcceptanceEval(
   return { envelope, exitCode };
 }
 
-/**
- * Read the Story's `verify[]`, refuse a mis-evidenced verdict, then run the
- * scoped entries. An unreadable body skips the gate with a warning, as the
- * criteria count does.
- *
- * @returns {Promise<{ verifyRuns: object[], headSha: string|null }>}
- */
+/** Check the verdict's verify evidence, then run the scoped entries. */
 async function resolveVerifyGate({
   storyId,
   config,
