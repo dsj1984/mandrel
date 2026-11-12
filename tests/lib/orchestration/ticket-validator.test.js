@@ -351,3 +351,65 @@ describe('ticket-validator: bare-path References entries (Story #5516 AC-4)', ()
     );
   });
 });
+
+describe('ticket-validator: verify[] entries keep their exit status (Story #6071)', () => {
+  const { discardsExitStatus } = _internal;
+  const withVerify = (...verify) => [{ ...story('s1'), verify }];
+
+  it('REFUSES a loop that breaks on failure, naming the Story, entry and fix (AC-1)', () => {
+    const entry =
+      'for i in $(seq 10); do pnpm vitest run a.test.ts || break; done';
+    assert.throws(
+      () => validateTickets(withVerify(entry), {}),
+      (err) =>
+        /Cross-Validation Failed/.test(err.message) &&
+        err.message.includes(`s1: ${entry}`) &&
+        err.message.includes('|| exit 1'),
+    );
+  });
+
+  for (const entry of [
+    'npm test || true',
+    'npm test || :',
+    'npm test || true; echo ok',
+  ]) {
+    it(`REFUSES \`${entry}\` (AC-2)`, () => {
+      assert.throws(
+        () => validateAndNormalizeTickets(withVerify(entry)),
+        /s1: .*\|\| (true|:)/,
+      );
+    });
+  }
+
+  it('lists every offending entry across Stories', () => {
+    const backlog = [
+      { ...story('a'), verify: ['x || continue'] },
+      { ...story('b'), verify: ['while true; do y; done', 'z'] },
+    ];
+    assert.throws(
+      () => validateAndNormalizeTickets(backlog),
+      (err) =>
+        err.message.includes('a: x || continue') &&
+        err.message.includes('b: while true; do y; done') &&
+        !err.message.includes('b: z'),
+    );
+  });
+
+  it('PASSES failing exits and the counting idiom (AC-3)', () => {
+    const entries = [
+      'for i in $(seq 10); do pnpm vitest run a.test.ts || exit 1; done',
+      'npm test || exit $?',
+      'grep -c x f || echo 0',
+    ];
+    assert.doesNotThrow(() =>
+      validateAndNormalizeTickets(withVerify(...entries)),
+    );
+  });
+
+  it('ignores matches inside quoted strings', () => {
+    assert.equal(discardsExitStatus(`node -e "a || true"`), false);
+    assert.equal(discardsExitStatus("echo 'for x in y; do z; done'"), false);
+    assert.equal(discardsExitStatus('npm test || trueish'), false);
+    assert.equal(discardsExitStatus('(npm test || true)'), true);
+  });
+});
