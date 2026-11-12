@@ -74,11 +74,16 @@
                 "outcome": {
                   "type": "string",
                   "enum": ["pass", "fail", "skipped"],
-                  "description": "Result of the verify[] command. `skipped` is permitted only with a stated reason and never for a criterion marked `met`."
+                  "description": "Result of the verify[] command. A `met` criterion carrying a non-`pass` item without a `waiver` is refused before scoring."
                 },
                 "detail": {
                   "type": ["string", "null"],
                   "description": "Optional excerpt of command output or the reason a command was skipped."
+                },
+                "waiver": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Why a `met` criterion stands over this item's non-pass outcome or a failing gate run of the command. Never suppresses the gate's check that every scoped verify[] entry is cited."
                 }
               },
               "additionalProperties": false

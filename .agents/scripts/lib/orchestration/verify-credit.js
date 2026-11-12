@@ -5,6 +5,9 @@
  * manufactures a pass.
  */
 
+import { spawnSync } from 'node:child_process';
+import { globSync } from 'node:fs';
+
 import { resolveTestGateArgv } from '../close-validation/commands.js';
 import { COVERAGE_CAPTURE_DEFAULTS } from '../config/gates/coverage.schema.js';
 import { getQuality, resolveConfig } from '../config-resolver.js';
@@ -257,4 +260,187 @@ export function planVerifyExecution(entries, context, deps = {}) {
     const { command, tier } = parseVerifyEntry(entry);
     return { ...resolveVerifyCredit({ ...context, command }, deps), tier };
   });
+}
+
+/** A `manual:` entry is a human step: never spawned, never required. */
+const MANUAL_ENTRY = /^manual:/i;
+
+/** Gate-side timeout for one scoped entry; a timeout is a failure. */
+export const VERIFY_RUN_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** Any of these makes an entry compound, so its paths are not probed. */
+const COMPOUND_SHELL = /[;|&<>()`]|\$\(/;
+
+/** Flags whose next token is a value, not a test path. */
+const VALUE_FLAGS = new Set([
+  '--test-name-pattern',
+  '--test-skip-pattern',
+  '--test-reporter',
+  '--test-reporter-destination',
+  '--test-concurrency',
+  '--test-timeout',
+  '--test-shard',
+  '--test-isolation',
+  '--test-global-setup',
+  '--test-coverage-include',
+  '--test-coverage-exclude',
+  '--import',
+  '--require',
+  '-r',
+  '--loader',
+  '--experimental-loader',
+  '--env-file',
+  '--conditions',
+  '-C',
+  '--config',
+  '-c',
+  '--project',
+  '--reporter',
+  '--root',
+  '--dir',
+  '-t',
+  '--testNamePattern',
+  '--environment',
+  '--pool',
+  '--shard',
+  '--outputFile',
+  '--exclude',
+  '--maxWorkers',
+  '--minWorkers',
+  '--testTimeout',
+  '--mode',
+  '--workspace',
+  '--retry',
+]);
+
+/**
+ * `parseVerifyEntry` plus collapsed whitespace — the key a verdict's
+ * `verifyEvidence[].command` is matched on.
+ *
+ * @param {string} entry
+ * @returns {string}
+ */
+export function normalizeVerifyCommand(entry) {
+  return parseVerifyEntry(entry).command.replace(/\s+/g, ' ');
+}
+
+/**
+ * Split a Story `verify[]` into what must be evidenced (`required`) and what
+ * the gate itself runs (`scoped`); full-suite entries are evidenced only.
+ *
+ * @param {string[]|null|undefined} entries
+ * @returns {{ required: string[], scoped: string[] }}
+ */
+export function classifyVerifyEntries(entries) {
+  const required = [
+    ...new Set((entries ?? []).map(normalizeVerifyCommand).filter(Boolean)),
+  ].filter((command) => !MANUAL_ENTRY.test(command));
+  return {
+    required,
+    scoped: required.filter((command) => !isFullSuiteCommand(command)),
+  };
+}
+
+const unquote = (token) => token.replace(/^(['"])(.*)\1$/, '$2');
+
+/**
+ * The runner and positional test paths of a simple `vitest run` or
+ * `node --test` entry; `null` for any other shape.
+ *
+ * @param {string} command — normalised.
+ * @returns {{ runner: 'vitest'|'node', paths: string[] }|null}
+ */
+export function extractTestPaths(command) {
+  if (COMPOUND_SHELL.test(command)) return null;
+  const tokens = command.split(' ').map(unquote);
+  let runner = 'node';
+  let start = 2;
+  if (tokens[0] !== 'node' || tokens[1] !== '--test') {
+    const lead = { npx: 1, pnpm: 1, npm: tokens[1] === 'exec' ? 2 : -1 };
+    const at = lead[tokens[0]] ?? 0;
+    if (at < 0 || tokens[at] !== 'vitest' || tokens[at + 1] !== 'run') {
+      return null;
+    }
+    runner = 'vitest';
+    start = at + 2;
+  }
+  const paths = [];
+  for (let i = start; i < tokens.length; i += 1) {
+    if (!tokens[i].startsWith('-')) paths.push(tokens[i]);
+    else if (VALUE_FLAGS.has(tokens[i])) i += 1;
+  }
+  return { runner, paths };
+}
+
+/** @param {string} pattern @param {string} cwd @returns {number} */
+function countGlobFiles(pattern, cwd) {
+  try {
+    return globSync(pattern, { cwd }).length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Files `vitest list` selects; its exit code is 0 on an empty selection, so
+ * only the listed lines count.
+ *
+ * @param {string} testPath
+ * @param {string} cwd
+ * @returns {number}
+ */
+function countVitestFiles(testPath, cwd) {
+  const res = spawnSync('npx', ['vitest', 'list', testPath, '--filesOnly'], {
+    cwd,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+    timeout: VERIFY_RUN_TIMEOUT_MS,
+  });
+  return String(res.stdout ?? '')
+    .split('\n')
+    .filter((line) => line.trim().length > 0).length;
+}
+
+/**
+ * Child output goes to stderr so the gate's stdout stays one envelope.
+ *
+ * @param {string} command
+ * @param {string} cwd
+ * @returns {number|null} exit code; `null` on a timeout or spawn failure.
+ */
+function spawnVerifyCommand(command, cwd) {
+  const res = spawnSync(command, {
+    cwd,
+    shell: true,
+    stdio: ['ignore', 2, 2],
+    timeout: VERIFY_RUN_TIMEOUT_MS,
+  });
+  return Number.isInteger(res.status) ? res.status : null;
+}
+
+/**
+ * Run one scoped entry in `cwd`. A probed path selecting no test file fails
+ * the entry without spawning it.
+ *
+ * @param {string} command — normalised.
+ * @param {{ cwd: string }} context
+ * @param {{ spawnImpl?: typeof spawnVerifyCommand, listVitestImpl?: typeof countVitestFiles, globImpl?: typeof countGlobFiles }} [deps]
+ * @returns {{ command: string, exitCode: number|null, outcome: 'pass'|'fail', deadPaths: string[] }}
+ */
+export function runScopedVerifyEntry(command, { cwd }, deps = {}) {
+  const {
+    spawnImpl = spawnVerifyCommand,
+    listVitestImpl = countVitestFiles,
+    globImpl = countGlobFiles,
+  } = deps;
+  const selection = extractTestPaths(command);
+  const count = selection?.runner === 'vitest' ? listVitestImpl : globImpl;
+  const deadPaths = (selection?.paths ?? []).filter((p) => count(p, cwd) < 1);
+  const exitCode = deadPaths.length > 0 ? null : spawnImpl(command, cwd);
+  return {
+    command,
+    exitCode,
+    outcome: exitCode === 0 ? 'pass' : 'fail',
+    deadPaths,
+  };
 }

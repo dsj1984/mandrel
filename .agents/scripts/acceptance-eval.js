@@ -35,10 +35,14 @@ import {
   computeVerdictFingerprint,
   decideAcceptanceEval,
   resolveAcceptanceEvalRound,
+  scoreVerifyRuns,
 } from './lib/orchestration/acceptance-eval-decision.js';
 import {
+  classifyVerifyEntries,
   FULL_SUITE_SHAPE_WARNING,
   isFullSuiteCommand,
+  normalizeVerifyCommand,
+  runScopedVerifyEntry,
 } from './lib/orchestration/verify-credit.js';
 import { createProvider } from './lib/provider-factory.js';
 import { parse as parseStoryBody } from './lib/story-body/story-body.js';
@@ -123,27 +127,50 @@ const MERGE_CONTRACT =
   'before scoring.';
 
 /**
- * The Story body's `acceptance[]` items, in order; any failure yields `null`.
+ * One parsed Story body list (`acceptance`, `verify`); `null` when the body
+ * cannot be read, `[]` when the list is absent.
  *
+ * @param {'acceptance'|'verify'} field
  * @param {{ storyId: number, config: object }} args
  * @param {{ createProviderFn?: typeof createProvider, parseBodyFn?: typeof parseStoryBody }} [deps]
  * @returns {Promise<string[]|null>}
  */
-export async function readStoryAcceptance(
+async function readStoryBodyList(
+  field,
   { storyId, config },
   { createProviderFn = createProvider, parseBodyFn = parseStoryBody } = {},
 ) {
   try {
     const ticket = await createProviderFn(config).getTicket(storyId);
-    const body = typeof ticket?.body === 'string' ? ticket.body : null;
-    if (body === null) return null;
-    const acceptance = parseBodyFn(body)?.body?.acceptance;
-    return Array.isArray(acceptance) && acceptance.length > 0
-      ? acceptance
-      : null;
+    if (typeof ticket?.body !== 'string') return null;
+    const list = parseBodyFn(ticket.body)?.body?.[field];
+    return Array.isArray(list) ? list : [];
   } catch {
     return null;
   }
+}
+
+/**
+ * The Story body's `acceptance[]` items, in order; any failure yields `null`.
+ *
+ * @param {{ storyId: number, config: object }} args
+ * @param {Parameters<typeof readStoryBodyList>[2]} [deps]
+ * @returns {Promise<string[]|null>}
+ */
+export async function readStoryAcceptance(args, deps) {
+  const acceptance = await readStoryBodyList('acceptance', args, deps);
+  return acceptance?.length > 0 ? acceptance : null;
+}
+
+/**
+ * The Story body's `verify[]` entries; `null` when the body is unreadable.
+ *
+ * @param {{ storyId: number, config: object }} args
+ * @param {Parameters<typeof readStoryBodyList>[2]} [deps]
+ * @returns {Promise<string[]|null>}
+ */
+export function readStoryVerify(args, deps) {
+  return readStoryBodyList('verify', args, deps);
 }
 
 /**
@@ -365,6 +392,62 @@ export function assertCriteriaCoverage(verdict, expectedCriteria) {
 }
 
 /**
+ * Reject, before scoring and consuming no round, a verdict that leaves a
+ * required Story `verify[]` entry uncited, or a `met` criterion standing on
+ * non-pass evidence without a `waiver`.
+ *
+ * @param {object} verdict — schema-validated verdict.
+ * @param {string[]} required — normalised entries from `classifyVerifyEntries`.
+ * @returns {void}
+ */
+export function assertVerifyEvidence(verdict, required) {
+  const criteria = verdict?.criteria ?? [];
+  const cited = new Set(
+    criteria.flatMap((c) =>
+      (c?.verifyEvidence ?? []).map((e) => normalizeVerifyCommand(e?.command)),
+    ),
+  );
+  const uncited = required.filter((command) => !cited.has(command));
+  const unwaived = criteria
+    .filter(
+      (c) =>
+        c?.verdict === 'met' &&
+        (c.verifyEvidence ?? []).some((e) => e.outcome !== 'pass' && !e.waiver),
+    )
+    .map((c) => c.index);
+  const problems = [
+    ...(uncited.length > 0
+      ? [
+          `verify[] entr(ies) no criterion's verifyEvidence cites: ${uncited.map((c) => `\`${c}\``).join(', ')}`,
+        ]
+      : []),
+    ...(unwaived.length > 0
+      ? [
+          `met criteria at index ${unwaived.join(', ')} carry non-pass verifyEvidence with no waiver`,
+        ]
+      : []),
+  ];
+  if (problems.length === 0) return;
+  throw new Error(
+    `acceptance-eval: ${problems.join('; ')}. No round was consumed.`,
+  );
+}
+
+/**
+ * A Story with scoped entries is scored only with the worktree to run them in.
+ *
+ * @param {string[]} scoped
+ * @param {string|null} cwd
+ * @returns {void}
+ */
+export function assertScoringCwd(scoped, cwd) {
+  if (scoped.length === 0 || cwd) return;
+  throw new Error(
+    `Usage: acceptance-eval: the Story has ${scoped.length} scoped verify[] entr(ies) the gate must run — pass --cwd <workCwd>. No round was consumed.`,
+  );
+}
+
+/**
  * Distinct full-suite commands in the verdict's `verify[]` evidence — a
  * misshapen `verify[]` that re-pays (or silently skips) the one credited
  * full-suite run.
@@ -411,6 +494,8 @@ function warnOnFullSuiteVerify(verdict, logger) {
  * @param {boolean} args.emitSignal
  * @param {number} [args.round] — override (tests); otherwise derived from the
  *   signals ledger, never from the verdict's self-reported round.
+ * @param {Array<object>} [args.verifyRuns] — the gate's own scoped runs.
+ * @param {string|null} [args.headSha] — HEAD of `--cwd`.
  * @param {object} [deps]
  * @param {Function} [deps.appendSignalFn]
  * @param {Function} [deps.resolveRoundFn]
@@ -418,7 +503,7 @@ function warnOnFullSuiteVerify(verdict, logger) {
  * @returns {Promise<{ envelope: object, exitCode: number }>}
  */
 export async function runAcceptanceEval(
-  { storyId, verdict, config, emitSignal, round },
+  { storyId, verdict, config, emitSignal, round, verifyRuns = [], headSha },
   deps = {},
 ) {
   const {
@@ -427,7 +512,7 @@ export async function runAcceptanceEval(
     fingerprintFn = computeVerdictFingerprint,
   } = deps;
   const { maxRounds } = getAcceptanceEval(config);
-  const verdictFingerprint = fingerprintFn(verdict);
+  const verdictFingerprint = fingerprintFn(verdict, { verifyRuns, headSha });
   // An already-scored verdict replays its round and appends nothing.
   const resolved = resolveRoundFn({
     epicId: null,
@@ -442,6 +527,7 @@ export async function runAcceptanceEval(
     verdict,
     maxRounds,
     round: resolvedRound,
+    verifyRuns,
   });
 
   let signalEmitted = false;
@@ -490,6 +576,7 @@ export async function runAcceptanceEval(
       verdict: c.verdict,
       evidence: c.evidence,
     })),
+    verifyRuns: scoreVerifyRuns(verdict, verifyRuns).verifyRuns,
     signalEmitted,
     replay,
     verdictFingerprint,
@@ -499,11 +586,46 @@ export async function runAcceptanceEval(
   return { envelope, exitCode };
 }
 
+/**
+ * Read the Story's `verify[]`, refuse a mis-evidenced verdict, then run the
+ * scoped entries. An unreadable body skips the gate with a warning, as the
+ * criteria count does.
+ *
+ * @returns {Promise<{ verifyRuns: object[], headSha: string|null }>}
+ */
+async function resolveVerifyGate({
+  storyId,
+  config,
+  cwd,
+  verdict,
+  readVerifyImpl,
+  readHeadImpl,
+  logger,
+  deps,
+}) {
+  const entries = await readVerifyImpl({ storyId, config });
+  if (entries === null) {
+    logger.warn?.(
+      '[acceptance-eval] ⚠ the Story verify[] could not be read — the verify evidence check and gate runs are skipped for this round.',
+    );
+    return { verifyRuns: [], headSha: null };
+  }
+  const { required, scoped } = classifyVerifyEntries(entries);
+  const workCwd = cwd ? path.resolve(cwd) : null;
+  assertScoringCwd(scoped, workCwd);
+  assertVerifyEvidence(verdict, required);
+  const runEntry = deps.runEntryImpl ?? runScopedVerifyEntry;
+  return {
+    verifyRuns: scoped.map((command) => runEntry(command, { cwd: workCwd })),
+    headSha: workCwd ? readHeadImpl(workCwd) : null,
+  };
+}
+
 /** @param {number|null} storyId */
 function requireStoryId(storyId) {
   if (storyId) return;
   throw new Error(
-    'Usage: node acceptance-eval.js --story <id> --verdict <path> [--expected-criteria <n>] [--no-signal]',
+    'Usage: node acceptance-eval.js --story <id> --verdict <path> --cwd <workCwd> [--expected-criteria <n>] [--no-signal]',
   );
 }
 
@@ -534,6 +656,9 @@ async function runInitCli({ storyId, cwd, resolveConfigImpl, logger, deps }) {
  *   validateVerdictImpl?: typeof validateVerdict,
  *   runAcceptanceEvalImpl?: typeof runAcceptanceEval,
  *   readAcceptanceCountImpl?: typeof readStoryAcceptanceCount,
+ *   readVerifyImpl?: typeof readStoryVerify,
+ *   runEntryImpl?: typeof runScopedVerifyEntry,
+ *   readHeadImpl?: typeof readHeadSha,
  *   initSkeletonImpl?: typeof initVerdictSkeleton,
  *   logger?: { info: Function, warn?: Function },
  * }} [deps]
@@ -549,6 +674,8 @@ export async function runAcceptanceEvalCli(
     validateVerdictImpl = validateVerdict,
     runAcceptanceEvalImpl = runAcceptanceEval,
     readAcceptanceCountImpl = readStoryAcceptanceCount,
+    readVerifyImpl = readStoryVerify,
+    readHeadImpl = readHeadSha,
     logger = Logger,
   } = deps;
   const { storyId, init, cwd, verdictPath, expectedCriteria, emitSignal } =
@@ -606,11 +733,22 @@ export async function runAcceptanceEvalCli(
   // From the validated verdict, so it fires even with an injected scorer.
   warnOnFullSuiteVerify(verdict, logger);
 
+  const gate = await resolveVerifyGate({
+    storyId,
+    config,
+    cwd,
+    verdict,
+    readVerifyImpl,
+    readHeadImpl,
+    logger,
+    deps,
+  });
   const { envelope, exitCode } = await runAcceptanceEvalImpl({
     storyId,
     verdict,
     config,
     emitSignal,
+    ...gate,
   });
 
   logger.info(JSON.stringify(envelope));
@@ -640,7 +778,7 @@ runAsCli(import.meta.url, main, {
   source: 'acceptance-eval',
   usage: {
     invocation:
-      'node .agents/scripts/acceptance-eval.js --story <id> (--init [--cwd <workCwd>] | --verdict <path> [--expected-criteria <n>] [--no-signal])',
+      'node .agents/scripts/acceptance-eval.js --story <id> (--init [--cwd <workCwd>] | --verdict <path> --cwd <workCwd> [--expected-criteria <n>] [--no-signal])',
     summary:
       "Score an authored acceptance verdict against the Story's acceptance[] criteria and emit the bounded loop's proceed / redraft / block decision; --init writes the verdict skeleton to fill first.",
     flags: [
@@ -649,7 +787,10 @@ runAsCli(import.meta.url, main, {
         '--init',
         'Write the verdict skeleton (one empty record per acceptance[] item, the next round, HEAD) under <tempRoot>/scratch/story-<id>/ and print its path, the derived change set `files` and the `verdictOwner`. Scoring a skeleton with an unfilled record is refused without consuming a round.',
       ],
-      ['--cwd <workCwd>', 'Worktree the --init change set is derived in.'],
+      [
+        '--cwd <workCwd>',
+        'Worktree the --init change set is derived in, and the one the scoring call runs each scoped Story verify[] entry in (required when the Story has any). A criterion citing a failing run is scored unmet unless its verifyEvidence item carries a `waiver`.',
+      ],
       ['--verdict <path>', 'Path to the authored verdict JSON (required).'],
       [
         '--expected-criteria <n>',
