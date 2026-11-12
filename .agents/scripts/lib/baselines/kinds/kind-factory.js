@@ -95,20 +95,12 @@ export function makeBaselineKind({
     return up ? 'up' : 'same';
   }
 
-  function classify(
-    regressions,
-    improvements,
-    unchanged,
-    key,
-    head,
-    base,
-    extra,
-  ) {
+  function classify(out, key, head, base, extra) {
     const entry = { key, head, base, ...extra };
     const dir = direction(head, base);
-    if (dir === 'down') regressions.push(entry);
-    else if (dir === 'up') improvements.push(entry);
-    else unchanged.push(entry);
+    if (dir === 'down') out.regressions.push(entry);
+    else if (dir === 'up') out.improvements.push(entry);
+    else out.unchanged.push(entry);
   }
 
   /** A head row with no base row, under `missingBasePolicy: 'addition'`. */
@@ -124,61 +116,53 @@ export function makeBaselineKind({
     }
   }
 
-  function compare(head, base, { newFileMinimum = null, renames = null } = {}) {
+  function judgeHeadRow(out, h, baseByKey, seen, opts) {
+    const key = keyOf(h);
+    seen.add(key);
+    if (baseByKey.has(key)) {
+      classify(out, key, h, baseByKey.get(key));
+      return;
+    }
+    const renamedFrom = opts.renames?.get(key);
+    if (baseByKey.has(renamedFrom)) {
+      seen.add(renamedFrom);
+      classify(out, key, h, baseByKey.get(renamedFrom), { renamedFrom });
+    } else if (missingBasePolicy === 'addition') {
+      judgeAddition(out, key, h, opts.newFileMinimum);
+    } else {
+      classify(out, key, h, perfectRow(key));
+    }
+  }
+
+  function judgeRemovedRow(out, b) {
+    const key = keyOf(b);
+    if (removedRowPolicy.kind === 'perfect-head') {
+      classify(out, key, perfectRow(key), b);
+    } else if (removedRowPolicy.when(b)) {
+      out.improvements.push({ key, head: null, base: b });
+    } else {
+      out.unchanged.push({ key, head: null, base: b });
+    }
+  }
+
+  function compare(head, base, opts = {}) {
     const headRows = Array.isArray(head?.rows) ? head.rows : [];
     const baseRows = Array.isArray(base?.rows) ? base.rows : [];
-    const baseByKey = new Map();
-    for (const r of baseRows) baseByKey.set(keyOf(r), r);
+    const baseByKey = new Map(baseRows.map((r) => [keyOf(r), r]));
     const seen = new Set();
-    const regressions = [];
-    const improvements = [];
-    const unchanged = [];
-    const additions = [];
-    for (const h of headRows) {
-      const key = keyOf(h);
-      seen.add(key);
-      const renamedFrom = baseByKey.has(key) ? undefined : renames?.get(key);
-      if (renamedFrom !== undefined && baseByKey.has(renamedFrom)) {
-        seen.add(renamedFrom);
-        const b = baseByKey.get(renamedFrom);
-        classify(regressions, improvements, unchanged, key, h, b, {
-          renamedFrom,
-        });
-        continue;
-      }
-      const b = baseByKey.get(key);
-      if (!b) {
-        if (missingBasePolicy === 'addition') {
-          judgeAddition({ regressions, additions }, key, h, newFileMinimum);
-        } else {
-          classify(
-            regressions,
-            improvements,
-            unchanged,
-            key,
-            h,
-            perfectRow(key),
-          );
-        }
-        continue;
-      }
-      classify(regressions, improvements, unchanged, key, h, b);
-    }
+    const out = {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      additions: [],
+    };
+    for (const h of headRows) judgeHeadRow(out, h, baseByKey, seen, opts ?? {});
     for (const b of baseRows) {
-      const key = keyOf(b);
-      if (seen.has(key)) continue;
-      if (removedRowPolicy.kind === 'perfect-head') {
-        classify(regressions, improvements, unchanged, key, perfectRow(key), b);
-      } else if (removedRowPolicy.when(b)) {
-        improvements.push({ key, head: null, base: b });
-      } else {
-        unchanged.push({ key, head: null, base: b });
-      }
+      if (!seen.has(keyOf(b))) judgeRemovedRow(out, b);
     }
-    if (missingBasePolicy === 'addition') {
-      return { regressions, improvements, unchanged, additions };
-    }
-    return { regressions, improvements, unchanged };
+    if (missingBasePolicy === 'addition') return out;
+    const { additions: _unused, ...rest } = out;
+    return rest;
   }
 
   function applyEpsilon(prior, regenerated, epsilon) {
