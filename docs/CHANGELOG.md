@@ -15,6 +15,21 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.121.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.120.0...mandrel-v2.121.0) (2026-11-12)
+
+
+### Added
+
+* new and renamed files are judged by the coverage gate, and untested new files get the full CRAP check ([#6068](https://github.com/dsj1984/mandrel/issues/6068)) ([#6076](https://github.com/dsj1984/mandrel/issues/6076)) ([b28ce16](https://github.com/dsj1984/mandrel/commit/b28ce16a6d739f94782df6748632cf3952aae989))
+* plan-persist refuses verify entries that discard their exit status ([#6071](https://github.com/dsj1984/mandrel/issues/6071)) ([#6073](https://github.com/dsj1984/mandrel/issues/6073)) ([9fb3ace](https://github.com/dsj1984/mandrel/commit/9fb3ace0e1ca567034050e6485a57d837742e4a9))
+* the acceptance gate runs the Story's scoped verify[] entries itself and refuses a met verdict without passing evidence ([#6067](https://github.com/dsj1984/mandrel/issues/6067)) ([#6077](https://github.com/dsj1984/mandrel/issues/6077)) ([fbe68cd](https://github.com/dsj1984/mandrel/commit/fbe68cd21a7646db46e3efc72200a8c8a3fc4d95))
+
+
+### Fixed
+
+* evidence-gate neither spends nor records credit when the working tree differs from HEAD ([#6070](https://github.com/dsj1984/mandrel/issues/6070)) ([#6074](https://github.com/dsj1984/mandrel/issues/6074)) ([c0bf74e](https://github.com/dsj1984/mandrel/commit/c0bf74e78e517e859570c37ad9b88e6dfd7ab1e6))
+* handoff's credit re-recorders skip a dirty tree, sharing evidence-gate's probe ([#6078](https://github.com/dsj1984/mandrel/issues/6078)) ([#6079](https://github.com/dsj1984/mandrel/issues/6079)) ([012f305](https://github.com/dsj1984/mandrel/commit/012f305a0a62c1e569f475f7ef17ead9bf8ab08c))
+
 ## [2.120.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.119.0...mandrel-v2.120.0) (2026-11-12)
 
 
