@@ -4502,7 +4502,6 @@
     ".agents/scripts/lib/orchestration/acceptance-eval-decision.js": {
       "<anon buildAcceptanceEvalSignal/outcome.notMet.map(c)#0>": 1,
       "<anon computeVerdictFingerprint/criteria.map(c)#0>": 5,
-      "<anon computeVerdictFingerprint/map(r)#0>": 1,
       "<anon partitionCriteria/list.forEach(c,i)#0>": 6,
       "<anon resolveAcceptanceEvalRound/records.findIndex(r)#0>": 1,
       "<anon scoreVerifyRuns/cites(c)#0/map(item)#0>": 2,
