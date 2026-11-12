@@ -918,6 +918,15 @@
                       "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from CRAP discovery before scoring. Orthogonal to `components` (grouping) — a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217).",
                       "default": []
                     },
+                    "untestableWiringGlobs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of a wholly uncovered file. A new method in a matching file meets `newMethodCeiling` on its complexity alone, for CLI wiring (argv, spawn, `main()`) that no test can load. Every other uncovered file is judged on its measured CRAP. Default `[]`.",
+                      "default": []
+                    },
                     "incrementalCoverage": {
                       "type": "object",
                       "description": "The two independent full-suite economies (Story #4981, split by Story #5173). `skipWhenUnchanged` (default true) decides WHETHER to capture — no changed file under `crap.targetDirs` versus `baseRef` means no capture at all — and is a pure saving. `baselineJoin` (default false) loosens gate semantics: the CRAP join resolves a method in an untouched file from its committed baseline row instead of requiring fresh coverage for it. Neither narrows the capture run itself: a capture that does happen is the ordinary full run of the coverage gate's `captureScript` (Story #5065).",

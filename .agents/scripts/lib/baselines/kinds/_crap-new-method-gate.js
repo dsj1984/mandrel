@@ -1,5 +1,8 @@
 /** The gate `compareCrap` applies to a method with no baseline row. A leaf. */
 
+import picomatch from 'picomatch';
+import { canonicalizeBaselinePath } from '../path-canon.js';
+
 /**
  * Files whose every measured method is at 0% coverage (no test loads them).
  * `coverage: null` rows do not vote: unmeasured is not zero.
@@ -23,17 +26,38 @@ export function deriveUncoveredFiles(currentRows) {
 
 /**
  * The score a new method meets the ceiling with: measured CRAP, or complexity
- * `c` alone in a wholly uncovered file. At zero coverage CRAP is `c² + c`,
- * which caps untestable wiring (argv, spawn, `main()`) at `c ≈ 5` and forces
- * fragmentation. Gate-only: the persisted row keeps the measured CRAP.
+ * `c` alone in a wholly uncovered file listed in `untestableWiringGlobs`. At
+ * zero coverage CRAP is `c² + c`, which caps untestable wiring (argv, spawn,
+ * `main()`) at `c ≈ 5`. Gate-only: the persisted row keeps the measured CRAP.
  *
  * @param {{file: string, crap: number, cyclomatic?: number}} row
  * @param {Set<string>} uncoveredFiles
+ * @param {string[]} [untestableWiringGlobs]
  * @returns {number}
  */
-export function newMethodGateScore(row, uncoveredFiles) {
-  if (!uncoveredFiles.has(row.file)) return row.crap;
+export function newMethodGateScore(
+  row,
+  uncoveredFiles,
+  untestableWiringGlobs = [],
+) {
+  const relieved =
+    uncoveredFiles.has(row.file) &&
+    isUntestableWiring(row.file, untestableWiringGlobs);
+  return relieved ? complexityScore(row) : row.crap;
+}
+
+function complexityScore(row) {
   return Number.isFinite(row.cyclomatic) ? row.cyclomatic : row.crap;
+}
+
+function isUntestableWiring(file, globs) {
+  return globs.length > 0 && matchesAny(file, globs);
+}
+
+function matchesAny(file, globs) {
+  return picomatch.isMatch(canonicalizeBaselinePath(file), globs, {
+    dot: true,
+  });
 }
 
 /**

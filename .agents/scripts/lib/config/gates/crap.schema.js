@@ -48,6 +48,13 @@ export const CRAP_GATE = {
         'Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from CRAP discovery before scoring. Orthogonal to `components` (grouping) — a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217).',
       default: [...CRAP_GATE_DEFAULTS.ignoreGlobs],
     },
+    untestableWiringGlobs: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      description:
+        'Minimatch glob patterns matched against the canonicalised repo-relative path of a wholly uncovered file. A new method in a matching file meets `newMethodCeiling` on its complexity alone, for CLI wiring (argv, spawn, `main()`) that no test can load. Every other uncovered file is judged on its measured CRAP. Default `[]`.',
+      default: [...CRAP_GATE_DEFAULTS.untestableWiringGlobs],
+    },
     incrementalCoverage: INCREMENTAL_COVERAGE_SCHEMA,
     previewScope: {
       type: 'string',

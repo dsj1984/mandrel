@@ -141,6 +141,7 @@ export async function runProjectionAdvisories({
           storyBranch,
           baselinePath: resolveBaselinePath('crap', crapGate, cwd),
           newMethodCeiling: crapGate?.newMethodCeiling,
+          untestableWiringGlobs: crapGate?.untestableWiringGlobs,
           scoreFiles: createCrapScorer({
             cwd,
             targetDirs: crapGate?.targetDirs,

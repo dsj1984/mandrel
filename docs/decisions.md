@@ -29,13 +29,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (63).** Each governs the surface named beside it; a
+**In force (64).** Each governs the surface named beside it; a
 `Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261112-6068`](#adr-20261112-6068-untested-cli-wiring-raises-the-agentrc-leaf-key-ceiling-to-169) | Untested CLI wiring raises the agentrc leaf-key ceiling to 169 | `.agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js` | Accepted |
 | [`20261111-6054`](#adr-20261111-6054-over-rest-a-merge-queue-base-is-armed-through-the-ccr-route) | Over REST, a merge-queue base is armed through the CCR route | `.agents/scripts/lib/orchestration/merge-queue.js` | Accepted |
 | [`20261111-6050`](#adr-20261111-6050-closes-ci-revalidation-after-a-base-merge-raises-the-agentrc-leaf-key-ceiling-to-168) | Close's CI revalidation after a base merge raises the agentrc leaf-key ceiling to 168 | `.agents/scripts/lib/close-validation/base-sync-revalidation.js` | Accepted |
 | [`20261110-6040`](#adr-20261110-6040-mandrel-orchestrate-is-reactive-acts-only-on-recorded-authority-and-splits-scripts-from-the-host) | `/mandrel-orchestrate` is reactive, acts only on recorded authority, and splits scripts from the host | `.agents/scripts/lib/orchestrate/ledger.js` | Accepted |
@@ -5290,3 +5291,29 @@ auto-merge request on enqueue and queue membership is unreadable over REST.
 
 A cloud session can land a Story on a merge-queue base when the CCR route
 accepts. A refusal still needs a GraphQL session or the GitHub UI.
+
+## ADR 20261112-6068: Untested CLI wiring raises the agentrc leaf-key ceiling to 169
+
+**Status:** Accepted
+**Date:** 2026-11-12
+**Surface:** `.agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js`
+**Story:** #6068
+
+### Context
+
+Since #5002 a new method in a wholly uncovered file met `newMethodCeiling` on
+its complexity alone, so a file could lose every test and still pass the CRAP
+gate.
+
+### Decision
+
+Add `delivery.quality.gates.crap.untestableWiringGlobs` (default `[]`) and
+raise the ceiling by one. Only a file it matches keeps the complexity-only
+score; every other uncovered file is judged on its measured CRAP. No existing
+source holds it: `ignoreGlobs` drops a file from scoring altogether, and which
+files no test can load is a consumer judgement, not a property of the code.
+
+### Consequences
+
+Every consumer's new uncovered files now face the full CRAP check. A consumer
+with untestable CLI entry points lists their globs.

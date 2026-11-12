@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { newMethodGateScore } from '../../.agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js';
 import { compareCrap } from '../../.agents/scripts/lib/baselines/kinds/crap.js';
 import {
   finalizeMethodRowsWithBaseline,
@@ -17,6 +18,7 @@ import {
 // is untestable by construction — that is a fragmentation tax, not a quality
 // signal. A new method in a file whose every method scored 0% is therefore
 // judged on its complexity term alone; every other file is unchanged.
+// Story #6068 narrows that relief to files matching `untestableWiringGlobs`.
 // ---------------------------------------------------------------------------
 
 /** A scanned row, defaulted to the shape `compareCrap` expects. */
@@ -33,13 +35,15 @@ function row({ file, method, startLine = 1, cyclomatic, coverage }) {
 }
 
 const CEILING = 30;
+const WIRING = ['.agents/scripts/*.js'];
 
-function compareNew(currentRows) {
+function compareNew(currentRows, untestableWiringGlobs = WIRING) {
   return compareCrap({
     currentRows,
     baselineRows: [],
     newMethodCeiling: CEILING,
     tolerance: 0.001,
+    untestableWiringGlobs,
   });
 }
 
@@ -135,6 +139,32 @@ describe('compareCrap — new-method ceiling in an uncovered file (#5002)', () =
     // `b` scores 8²·0.125 + 8 = 12, under the ceiling — the point is only that
     // it was judged on its crap, which the uncovered arm would not have done.
     assert.equal(result.violations.length, 0);
+  });
+});
+
+describe('newMethodGateScore — the untestable-wiring allowlist (#6068)', () => {
+  const uncovered = new Set(['x.ts']);
+  const r = { file: 'x.ts', crap: 110, cyclomatic: 10 };
+
+  it('AC-4: scores a wholly uncovered file by its measured CRAP by default', () => {
+    assert.equal(newMethodGateScore(r, uncovered), 110);
+    assert.equal(newMethodGateScore(r, uncovered, ['other/*.ts']), 110);
+  });
+
+  it('AC-4: scores complexity alone when the file matches a configured glob', () => {
+    assert.equal(newMethodGateScore(r, uncovered, ['*.ts']), 10);
+  });
+
+  it('judges an uncovered file outside the allowlist on its full CRAP', () => {
+    const wiring = row({
+      file: 'lib/untested.js',
+      method: 'main',
+      cyclomatic: 8,
+      coverage: 0,
+    });
+    const result = compareNew([wiring], []);
+    assert.equal(result.newViolations, 1);
+    assert.equal(result.violations[0].gateScore, undefined);
   });
 });
 

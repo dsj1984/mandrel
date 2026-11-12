@@ -273,10 +273,12 @@ export function compareCrap({
   newMethodCeiling,
   tolerance,
   isJudged = () => true,
+  untestableWiringGlobs = [],
 }) {
   const rows = currentRows ?? [];
   const state = {
     uncoveredFiles: deriveUncoveredFiles(currentRows),
+    untestableWiringGlobs,
     newMethodCeiling,
     tolerance: Number.isFinite(tolerance) ? tolerance : 0,
     isJudged,
@@ -338,7 +340,11 @@ function scorePair(state, idx, row, baseline, kind) {
 
 /** A current row with no baseline row: the new-method ceiling. */
 function scoreNewMethod(state, idx, row) {
-  const gateScore = newMethodGateScore(row, state.uncoveredFiles);
+  const gateScore = newMethodGateScore(
+    row,
+    state.uncoveredFiles,
+    state.untestableWiringGlobs,
+  );
   if (gateScore > state.newMethodCeiling + state.tolerance) {
     state.newViolations += 1;
     state.verdicts[idx] = buildNewViolation(

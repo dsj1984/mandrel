@@ -127,6 +127,7 @@ export async function computeCrapPreviewScan({
     newMethodCeiling,
     tolerance,
     isJudged: resolveIsJudged({ crap, diffRef, baseBranch, cwd, git }),
+    untestableWiringGlobs: crap.untestableWiringGlobs,
   });
   const envelope = buildCrapReport({
     compareResult: result,

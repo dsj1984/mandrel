@@ -77,8 +77,8 @@
     {
       "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
       "duplicatedLines": 6,
-      "totalLines": 178,
-      "percentage": 3.37
+      "totalLines": 223,
+      "percentage": 2.69
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",

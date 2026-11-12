@@ -488,7 +488,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/git-base.js",
-      "mi": 107.459
+      "mi": 108.013
     },
     {
       "path": ".agents/scripts/lib/baselines/kernel.js",
@@ -500,7 +500,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js",
-      "mi": 111.405
+      "mi": 114.576
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
@@ -528,7 +528,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
-      "mi": 100.51
+      "mi": 103.364
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
@@ -1344,7 +1344,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
-      "mi": 100.113
+      "mi": 100.835
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",

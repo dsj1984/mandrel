@@ -7,8 +7,12 @@
 
 import { decodeEnvelope } from '../../../baselines/codec.js';
 import { EXIT_CONFIG } from '../../../baselines/exit-codes.js';
-import { readBaseFromGit } from '../../../baselines/git-base.js';
+import {
+  readBaseFromGit,
+  readRenamesFromGit,
+} from '../../../baselines/git-base.js';
 import { getKindModule } from '../../../baselines/kernel.js';
+import { canonicalizeBaselinePath } from '../../../baselines/path-canon.js';
 import { resolveScope } from '../../../baselines/scope.js';
 import { Logger } from '../../../Logger.js';
 import { DEFAULT_BASELINE_PATHS } from './parse-args.js';
@@ -71,6 +75,27 @@ function readBaseBaselinePayload(scope, kind, gateBlock, cwd) {
   }
 }
 
+/** Git renames since the base ref, keyed by canonical baseline path. */
+function canonicalRenames(ref, cwd) {
+  const out = new Map();
+  for (const [to, from] of readRenamesFromGit(ref, { cwd })) {
+    out.set(canonicalizeBaselinePath(to), canonicalizeBaselinePath(from));
+  }
+  return out;
+}
+
+/**
+ * The compare's third argument: renames for every kind, and the coverage
+ * `*` floor as the minimum a new file must meet.
+ */
+function compareOptionsFor(kind, gateBlock, scope, cwd) {
+  const floor = gateBlock?.floors?.['*'];
+  return {
+    renames: canonicalRenames(scope.ref, cwd),
+    newFileMinimum: kind === 'coverage' && floor ? floor : null,
+  };
+}
+
 export async function evaluateCompare({ kind, gateBlock, scope, cwd }) {
   if (scope.mode !== 'diff' || !scope.ref) return emptyCompareResult(null);
   const basePayload = readBaseBaselinePayload(scope, kind, gateBlock, cwd);
@@ -79,7 +104,13 @@ export async function evaluateCompare({ kind, gateBlock, scope, cwd }) {
   if (typeof kindModule.compare !== 'function') {
     return emptyCompareResult(scope.ref);
   }
-  return { baseRef: scope.ref, baseRead: true, basePayload, kindModule };
+  return {
+    baseRef: scope.ref,
+    baseRead: true,
+    basePayload,
+    kindModule,
+    compareOptions: compareOptionsFor(kind, gateBlock, scope, cwd),
+  };
 }
 
 /**
@@ -119,6 +150,7 @@ export function runCompareStage(headBaseline, cmp) {
     const result = cmp.kindModule.compare(
       { rows: headBaseline.rows },
       { rows: baseRows },
+      cmp.compareOptions,
     );
     return {
       regressions: result?.regressions ?? [],
