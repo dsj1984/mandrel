@@ -253,6 +253,38 @@ function assertEveryStoryHasInlineContract({ stories }) {
   );
 }
 
+const QUOTED_RE = /'[^']*'|"(?:\\.|[^"\\])*"/g;
+const DISCARD_RE = /\|\|\s*(?:true|:|break|continue)(?=\s*(?:$|;|done\b|\)))/m;
+const LOOP_RE = /(?:^|[;&|(]|\bdo|\bthen)\s*(?:for|while|until)\s/m;
+const FAILING_EXIT_RE = /\bexit\s+(?:[1-9]\d*|\$\?)/;
+
+/**
+ * True when a verify command can exit 0 after its check failed: a failure
+ * branch that discards status, or a loop (status = last iteration's) with no
+ * failing `exit`. Quoted strings are ignored. `|| echo …` passes on purpose.
+ *
+ * @param {string} entry
+ * @returns {boolean}
+ */
+function discardsExitStatus(entry) {
+  const code = String(entry ?? '').replace(QUOTED_RE, "''");
+  if (DISCARD_RE.test(code)) return true;
+  return LOOP_RE.test(code) && !FAILING_EXIT_RE.test(code);
+}
+
+function assertVerifyKeepsExitStatus({ stories }) {
+  const offenders = stories.flatMap((s) =>
+    (Array.isArray(s.verify) ? s.verify : [])
+      .filter((entry) => typeof entry === 'string' && discardsExitStatus(entry))
+      .map((entry) => `  - ${s.slug}: ${entry}`),
+  );
+  if (offenders.length === 0) return;
+  throw new Error(
+    `Cross-Validation Failed: ${offenders.length} verify[] entry/entries can exit 0 after a failure:\n${offenders.join('\n')}\n\n` +
+      'Fail the entry with `|| exit 1` instead of discarding the status.',
+  );
+}
+
 /**
  * @param {object[]} stories
  * @returns {string[]}
@@ -347,6 +379,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
 
   assertAllTicketsAreStories({ tickets, stories });
   assertEveryStoryHasInlineContract({ stories });
+  assertVerifyKeepsExitStatus({ stories });
   assertStoryProvenanceShape({ stories });
   assertNoUnknownDeps({ tickets, ticketBySlug });
 
@@ -407,6 +440,8 @@ export const _internal = {
   indexTicketsBySlug,
   assertAllTicketsAreStories,
   assertEveryStoryHasInlineContract,
+  assertVerifyKeepsExitStatus,
+  discardsExitStatus,
   assertStoryProvenanceShape,
   assertNoUnknownDeps,
   assertAcyclic,
