@@ -1423,10 +1423,8 @@ async function recoverOpenPr(ctx, decision, probe) {
   if (advisory) {
     return { state: decision.state, outcome: await blockWith(ctx, advisory) };
   }
-  const landed = await maybeMergeOnGreen(ctx, decision, probe);
-  if (landed) return { state: decision.state, outcome: landed };
-  const ejected = await settleEjection(ctx, decision, probe);
-  if (ejected) return { state: decision.state, outcome: ejected };
+  const settled = await settleOpenPr(ctx, decision, probe);
+  if (settled) return { state: decision.state, outcome: settled };
   const updated = await maybeUpdateBehindPr({
     probe,
     prNumber: ctx.prNumber,
@@ -1442,8 +1440,10 @@ async function recoverOpenPr(ctx, decision, probe) {
   return { state, outcome: null };
 }
 
-/** An own ejection blocks; otherwise the re-arm rule runs. */
-async function settleEjection(ctx, decision, probe) {
+/** Merge-on-green lands; an own ejection blocks; otherwise the re-arm rule runs. */
+async function settleOpenPr(ctx, decision, probe) {
+  const landed = await maybeMergeOnGreen(ctx, decision, probe);
+  if (landed) return landed;
   const ejection = await readEjection(ctx, probe);
   if (ejection?.verdict === 'own') {
     return settleQueueEjected(ctx, decision, probe, ejection);
