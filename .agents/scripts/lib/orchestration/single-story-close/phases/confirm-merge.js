@@ -24,7 +24,6 @@
 import { getCiDelivery } from '../../../config/ci.js';
 import { createGh, prTransportOf } from '../../../gh-exec.js';
 import { REST_MERGE_ON_GREEN } from '../../../gh-pr-rest.js';
-import { releaseVetoHolds } from '../../../orchestrate/inventory.js';
 import { ratchetWaitOutcome } from '../../../single-story/ci-ratchet-gate.js';
 import {
   confirmStoryMerged as defaultConfirmStoryMerged,
@@ -1435,7 +1434,7 @@ async function recoverOpenPr(ctx, decision, probe) {
       outcome: await settleQueueEjected(ctx, decision, probe, ejection),
     };
   }
-  if (admitsRearm(ctx, ejection)) await maybeRearmPr(ctx, probe);
+  if (await admitsRearm(ctx, ejection)) await maybeRearmPr(ctx, probe);
   const updated = await maybeUpdateBehindPr({
     probe,
     prNumber: ctx.prNumber,
@@ -1471,10 +1470,10 @@ async function readEjection(ctx, probe) {
  * Each distinct inherited ejecting run frees one more re-arm on the head
  * (the once-per-head record is reset); a held release veto admits none.
  */
-function admitsRearm(ctx, ejection) {
+async function admitsRearm(ctx, ejection) {
   if (ejection?.verdict !== 'inherited') return true;
   const labels = ejection.labels ?? [];
-  if (ctx.releaseVetoFn({ config: ctx.config, labels, cwd: ctx.cwd })) {
+  if (await ctx.releaseVetoFn({ config: ctx.config, labels, cwd: ctx.cwd })) {
     return false;
   }
   if (!ctx.ejectionRuns.has(ejection.run?.id)) {
@@ -1482,6 +1481,12 @@ function admitsRearm(ctx, ejection) {
     ctx.rearmedHeads.clear();
   }
   return true;
+}
+
+/** Loaded on use: the inventory's import graph is not close's to carry. */
+async function releaseVetoHolds(args) {
+  const inventory = await import('../../../orchestrate/inventory.js');
+  return inventory.releaseVetoHolds(args);
 }
 
 /**

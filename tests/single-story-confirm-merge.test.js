@@ -593,6 +593,8 @@ describe('merge wait — a merge-queue ejection', () => {
         { state: 'MERGED', mergedAt: 'x' },
       ],
       ejections: [ejection('inherited', 1), ejection('inherited', 2)],
+      // The real veto check: no releaseVeto configured, so nothing is held.
+      releaseVetoFn: undefined,
     });
     const outcome = await runConfirmMergePhase(h.args);
     assert.equal(outcome.terminal, 'landed');
