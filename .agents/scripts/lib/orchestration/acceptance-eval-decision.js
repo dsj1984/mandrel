@@ -254,6 +254,14 @@ function readPriorAcceptanceEvalRecords({
   return records;
 }
 
+/** No gate inputs hashes the verdict alone, keeping recorded fingerprints. */
+function withGateInputs(canonical, { verifyRuns = [], headSha = null } = {}) {
+  const runs = verifyRuns.map((r) => [r.command, r.outcome]);
+  return runs.length > 0 || headSha
+    ? { canonical, runs, head: headSha }
+    : canonical;
+}
+
 /**
  * Hashes only what the decision depends on — the verdict, the gate's real
  * verify outcomes and HEAD — so an unchanged evaluation fingerprints the same
@@ -263,7 +271,7 @@ function readPriorAcceptanceEvalRecords({
  * @param {{ verifyRuns?: Array<{ command: string, outcome: string }>, headSha?: string|null }} [gate]
  * @returns {string}
  */
-export function computeVerdictFingerprint(verdict, gate = {}) {
+export function computeVerdictFingerprint(verdict, gate) {
   const criteria = Array.isArray(verdict?.criteria) ? verdict.criteria : [];
   const canonical = criteria.map((c) => [
     Number.isInteger(c?.index) ? c.index : null,
@@ -271,13 +279,8 @@ export function computeVerdictFingerprint(verdict, gate = {}) {
     typeof c?.verdict === 'string' ? c.verdict : '',
     typeof c?.evidence === 'string' ? c.evidence : '',
   ]);
-  const runs = (gate.verifyRuns ?? []).map((r) => [r.command, r.outcome]);
-  const head = gate.headSha ?? null;
-  // No gate inputs hashes the verdict alone, keeping recorded fingerprints.
-  const hashed =
-    runs.length > 0 || head ? { canonical, runs, head } : canonical;
   return createHash('sha256')
-    .update(JSON.stringify(hashed))
+    .update(JSON.stringify(withGateInputs(canonical, gate)))
     .digest('hex')
     .slice(0, 16);
 }
