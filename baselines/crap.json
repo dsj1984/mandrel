@@ -1829,6 +1829,7 @@
     ".agents/scripts/lib/baselines/kinds/kind-factory.js": {
       "<anon makeBaselineKind/()#0>": 1,
       "<anon makeBaselineKind/applyEpsilon/regenRows.map(row)#0>": 3,
+      "<anon makeBaselineKind/compare/baseRows.map(r)#0>": 1.001166350779997,
       "<anon makeBaselineKind/judgeAddition/axes.filter(a)#0>": 1,
       "<anon makeBaselineKind/keyOf(row)#0>": 1,
       "<anon makeBaselineKind/rollup/filter(r)#0>": 1,
@@ -1842,6 +1843,8 @@
       "makeBaselineKind/compare": 9.780173949895495,
       "makeBaselineKind/direction": 5,
       "makeBaselineKind/judgeAddition": 4,
+      "makeBaselineKind/judgeHeadRow": 4.026053327905557,
+      "makeBaselineKind/judgeRemovedRow": 3,
       "makeBaselineKind/mergeRows": 1,
       "makeBaselineKind/rollup": 1,
       "makeBaselineKind/rowIdentity": 1,
