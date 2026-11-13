@@ -12,7 +12,11 @@ import {
   TYPE_LABELS,
 } from '../label-constants.js';
 import { labelDescription } from '../label-taxonomy.js';
-import { AUDIT_LENSES, auditLabelsForFindings } from './audit-lenses.js';
+import {
+  AUDIT_CUSTOM_LENS,
+  AUDIT_LENSES,
+  auditLabelsForFindings,
+} from './audit-lenses.js';
 
 /** A lens absent here falls back to {@link DEFAULT_LENS_META}. */
 const LENS_META = Object.freeze({
@@ -84,9 +88,9 @@ function hex(color) {
   return String(color).replace('#', '');
 }
 
-/** Derived from the same `AUDIT_LENSES` SSOT the generator uses. */
+/** Derived from the same lens SSOT the generator uses. */
 const AUDIT_LENS_LABELS = Object.freeze(
-  AUDIT_LENSES.map((name) => ({
+  [...AUDIT_LENSES, AUDIT_CUSTOM_LENS].map((name) => ({
     name: `audit::${name}`,
     ...(LENS_META[name] ?? DEFAULT_LENS_META),
   })),

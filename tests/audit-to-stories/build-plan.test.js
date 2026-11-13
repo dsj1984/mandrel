@@ -281,6 +281,85 @@ describe('buildAndGateStories', () => {
   });
 });
 
+describe('a non-canonical report (Story #6081)', () => {
+  let customGlob;
+  let customDir;
+
+  before(() => {
+    customDir = path.join(workspace, 'custom');
+    fs.mkdirSync(customDir, { recursive: true });
+    fs.copyFileSync(
+      path.join(FIXTURES, 'audit-security-results.md'),
+      path.join(customDir, 'audit-guard-census-results.md'),
+    );
+    customGlob = path.join(customDir, 'audit-*-results.md');
+  });
+
+  it('warns once per non-canonical report, naming the fallback label', async () => {
+    const warns = [];
+    await buildPlan(
+      { glob: customGlob, useProvider: false },
+      { logger: { warn: (m) => warns.push(m) } },
+    );
+    const lensWarnings = warns.filter((m) => m.startsWith('audit lens:'));
+    assert.equal(lensWarnings.length, 1);
+    assert.match(lensWarnings[0], /audit-guard-census-results\.md/);
+    assert.match(lensWarnings[0], /audit::custom/);
+  });
+
+  it('warns only for the non-canonical report in a mixed set', async () => {
+    const warns = [];
+    await buildPlan(
+      { glob: reportGlob, useProvider: false },
+      { logger: { warn: (m) => warns.push(m) } },
+    );
+    const lensWarnings = warns.filter((m) => m.startsWith('audit lens:'));
+    assert.equal(lensWarnings.length, 1);
+    assert.match(lensWarnings[0], /audit-accessibility-nested-results\.md/);
+  });
+
+  it('files Stories labelled audit::custom that an audit::*-listed corpus dedups as skip-open', async () => {
+    const first = await buildPlan(
+      { glob: customGlob, useProvider: false },
+      silent,
+    );
+    const stories = buildAndGateStories(
+      first.classifications.map((c) => c.group),
+      first.edges ?? [],
+    );
+    assert.ok(stories.length > 0);
+    for (const story of stories) {
+      assert.ok(story.labels.includes('audit::custom'));
+    }
+
+    // The corpus an operator lists by `audit::*` label: every filed Story
+    // survives the label filter only because it now carries one.
+    const corpus = stories
+      .map((story, i) => ({
+        number: 100 + i,
+        state: 'open',
+        body: story.body,
+        labels: story.labels.map((name) => ({ name })),
+      }))
+      .filter((issue) =>
+        issue.labels.some(({ name }) => name.startsWith('audit::')),
+      );
+    assert.equal(corpus.length, stories.length);
+    const issuesFile = path.join(customDir, 'issues.json');
+    fs.writeFileSync(issuesFile, JSON.stringify(corpus));
+
+    const second = await buildPlan(
+      { glob: customGlob, useProvider: false, issuesFile },
+      silent,
+    );
+    assert.ok(second.classifications.length > 0);
+    assert.ok(
+      second.classifications.every((c) => c.action === 'skip-open'),
+      JSON.stringify(second.classifications.map((c) => c.action)),
+    );
+  });
+});
+
 describe('runAuto', () => {
   it('resolves the floor, reports totals, and files nothing under --dry-run', async () => {
     const { summary, stories } = await runAuto({

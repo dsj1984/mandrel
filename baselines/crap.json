@@ -84,6 +84,8 @@
       "<anon crossCheckReports/own.filter(f)#0>": 1,
       "<anon crossCheckReports/reports.map(r)#0>": 1,
       "<anon crossCheckReports/unresolved.map(f)#0>": 1,
+      "<anon customLensWarnings/map(r)#0>": 1,
+      "<anon customLensWarnings/reports.filter(r)#0>": 1,
       "<anon dedupDegradedWarning/map(e)#0>": 1,
       "<anon readReports/paths.map(p)#0>": 1,
       "<anon renderStoryDrafts/built.map(s,i)#0>": 2,
@@ -124,6 +126,7 @@
       "comparableTally": 1,
       "constructProvider": 3,
       "crossCheckReports": 6,
+      "customLensWarnings": 1,
       "dedupDegradedWarning": 1,
       "dedupIndexDegradedWarning": 1,
       "dedupIndexWarning": 2,
@@ -1309,7 +1312,7 @@
     },
     ".agents/scripts/lib/audit-to-stories/audit-label-taxonomy.js": {
       "<anon AUDIT_LABEL_TAXONOMY.map(l)#0>": 1,
-      "<anon AUDIT_LENSES.map(name)#0>": 1,
+      "<anon map(name)#0>": 1,
       "auditLabelFooterForFindings": 1,
       "definesAuditLabel": 2,
       "hex": 1
@@ -1318,6 +1321,7 @@
       "<anon auditLabelsForFindings/map(lens)#0>": 1,
       "auditLabelsForFindings": 2,
       "isCanonicalLens": 1,
+      "labelLens": 3,
       "lensFromSourceReport": 5
     },
     ".agents/scripts/lib/audit-to-stories/build-story-body.js": {

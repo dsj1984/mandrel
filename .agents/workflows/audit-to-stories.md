@@ -234,7 +234,10 @@ Labels applied:
 
 - `type::story`
 - `audit::<dimension>` — one per dimension represented in the merge
-  (cross-audit groups carry multiple).
+  (cross-audit groups carry multiple). A bespoke report whose name is not a
+  canonical lens (`audit-guard-census-results.md`) gets `audit::custom`
+  instead, so the Story stays in the label-listed dedup corpus; `--scan` warns
+  once per such report.
 - `risk::high` — added when any finding in the group is Critical.
 
 **No `agent::` state label, deliberately.** `agent::ready` is what
@@ -326,8 +329,8 @@ group is classified `create` and the operator is told dedupe was skipped — a
 re-run opens duplicates.
 
 **Reachable, but not through `gh`** (a cloud sandbox: no `gh`, no direct API,
-MCP fine): fetch the corpus yourself. List every issue labelled `audit::*` at
-state `all` — `mcp__github__list_issues` or any other path — write the raw
+MCP fine): fetch the corpus yourself. List every issue labelled `audit::*`
+(`audit::custom` included) at state `all` — `mcp__github__list_issues` or any other path — write the raw
 result as a JSON array, and pass it:
 
 ```bash

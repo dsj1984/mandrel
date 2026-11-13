@@ -10,6 +10,10 @@ import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import {
+  AUDIT_CUSTOM_LENS,
+  lensFromSourceReport,
+} from './lib/audit-to-stories/audit-lenses.js';
 import { buildStoryBody } from './lib/audit-to-stories/build-story-body.js';
 import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-against-github.js';
 import { formatEpicGrouping } from './lib/audit-to-stories/epic-grouping-directive.js';
@@ -107,6 +111,22 @@ function sameTally(a, b) {
 function formatTally(tally) {
   if (!tally) return '(no Severity tally line)';
   return `Critical ${tally.critical} / High ${tally.high} / Medium ${tally.medium} / Low ${tally.low}`;
+}
+
+/**
+ * One warning per report that maps to no canonical lens, so the fallback
+ * label is visible before anything is filed.
+ *
+ * @param {Array<{ sourceReport: string }>} reports
+ * @returns {string[]}
+ */
+function customLensWarnings(reports) {
+  return reports
+    .filter((r) => lensFromSourceReport(r.sourceReport) === null)
+    .map(
+      (r) =>
+        `audit lens: ${r.sourceReport} names no canonical lens; its Stories carry audit::${AUDIT_CUSTOM_LENS}.`,
+    );
 }
 
 /**
@@ -663,6 +683,7 @@ async function buildPlan(
     { groups, useProvider, issues },
     { loadProviderImpl, classifyGroupsImpl, logger },
   );
+  for (const warning of customLensWarnings(reports)) logger.warn(warning);
 
   return {
     generatedAt: new Date().toISOString(),

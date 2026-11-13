@@ -104,10 +104,6 @@
       "symbol": "isCanonicalLens"
     },
     {
-      "file": ".agents/scripts/lib/audit-to-stories/audit-lenses.js",
-      "symbol": "lensFromSourceReport"
-    },
-    {
       "file": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
       "symbol": "__testing"
     },
