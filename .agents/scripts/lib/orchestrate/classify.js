@@ -14,6 +14,9 @@ const CONFLICTS_SHOWN = 10;
 const BUDGET_BYTES = 16384;
 const OVERLAPS_KEPT = 10;
 
+/** A check that concluded and passed: done, not red, not halted. */
+const passed = (c) => c.phase === 'done' && !c.red && !c.halted;
+
 /**
  * Rollup over the required checks (every check when the required set is
  * unknown). Green needs every required name present, done, not red and not
@@ -38,7 +41,7 @@ function rollup(checks, required) {
     halted,
     running,
     queued,
-    green: complete && !red && !halted && !running && !queued,
+    green: complete && relevant.every(passed),
   };
 }
 
@@ -76,13 +79,17 @@ function classifyPr(pr, ctx) {
     const conflict = conflictState(pr.conflict);
     return done(conflict.state, { conflict });
   }
+  return done(checksState(pr, checks, ctx) ?? quietState(pr, checks, ctx));
+}
+
+/** Red outranks halted: a real failure stays the owner's to fix. */
+function checksState(pr, checks, ctx) {
   if (checks.red) {
-    return done(
-      ctx.inheritedPrs.has(pr.number) ? 'red-inherited' : 'red-own-failure',
-    );
+    return ctx.inheritedPrs.has(pr.number)
+      ? 'red-inherited'
+      : 'red-own-failure';
   }
-  if (checks.halted) return done('checks-cancelled');
-  return done(quietState(pr, checks, ctx));
+  return checks.halted ? 'checks-cancelled' : null;
 }
 
 /** The states below red: waiting-on-runner, green-not-queued, stale, moving. */
@@ -109,11 +116,14 @@ function substitute(requeueCommand, number) {
 }
 
 function requeueOf(pr, { green, halted, vetoHeld, requeueCommand }) {
-  const blockedBy = [];
-  if (!headMoved(pr)) blockedBy.push('head-not-moved');
-  if (!green) blockedBy.push('checks-not-green');
-  if (halted) blockedBy.push('checks-cancelled');
-  if (vetoHeld) blockedBy.push('release-veto');
+  const blockedBy = [
+    [!headMoved(pr), 'head-not-moved'],
+    [!green, 'checks-not-green'],
+    [halted, 'checks-cancelled'],
+    [vetoHeld, 'release-veto'],
+  ]
+    .filter(([hit]) => hit)
+    .map(([, reason]) => reason);
   return {
     eligible: blockedBy.length === 0,
     blockedBy,
