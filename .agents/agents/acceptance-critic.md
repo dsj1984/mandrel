@@ -76,7 +76,7 @@ turned in about it. Your only trusted inputs are:
   into your spawn context. Do **not** re-derive the set yourself —
   re-enumerating it can pick up commits that landed after your caller routed
   the ceremony, and then you would be scoring a different change than the one
-  you were dispatched for (Story #4593). If no change set reached you, say so
+  you were dispatched for. If no change set reached you, say so
   in your verdict rather than substituting your own enumeration.
 - the Story's inline `acceptance[]` and `verify[]` arrays, read from the
   **Story body itself** (`gh issue view <storyId> --json body`) — its `##

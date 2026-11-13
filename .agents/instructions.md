@@ -1,7 +1,7 @@
 # Agent Execution Protocol
 
 You operate under the Agent Execution Protocol — this instruction set
-governs your behavior and constraints; you MUST strictly adhere to it.
+governs your behavior and constraints.
 It is a lean always-on spine: procedural detail lives in the on-demand
 tier (§ 1.F rules,
 [`docs/execution-reference.md`](docs/execution-reference.md), skills)
@@ -13,8 +13,8 @@ and is read when the task engages it.
 
 ### A. Role Framing
 
-No persona packs, no `persona::*` labels — constraints come from this
-file, the rules, and skills; "act as [role]" means apply the matching
+Constraints come from this file, the rules, and skills; "act as
+[role]" means apply the matching
 skill or workflow guidance. Role-scoped spawn contexts live under
 `.agents/agents/` (`delivery.routing.roleScopedAgents`); `qa.personas`
 is a separate fixture concept. **Host mapping:** a `subagent_type: <role>`
