@@ -66,13 +66,30 @@ export function lensFromSourceReport(sourceReport) {
 }
 
 /**
+ * The fixed lens a non-canonical report falls back to. Not in
+ * {@link AUDIT_LENSES}: no `/audit-custom` workflow exists to iterate.
+ */
+export const AUDIT_CUSTOM_LENS = 'custom';
+
+/** Canonical lens, else the fallback for any named report, else `null`. */
+function labelLens(sourceReport) {
+  if (typeof sourceReport !== 'string' || sourceReport.length === 0) {
+    return null;
+  }
+  return lensFromSourceReport(sourceReport) ?? AUDIT_CUSTOM_LENS;
+}
+
+/**
+ * The dedup corpus is listed by these labels, so a named report always yields
+ * one: a bespoke report gets `audit::custom` rather than none.
+ *
  * @param {Array<{ sourceReport?: unknown }>} findings
  * @returns {string[]} sorted, deduped `audit::<lens>` labels.
  */
 export function auditLabelsForFindings(findings) {
   const lenses = new Set();
   for (const finding of findings ?? []) {
-    const lens = lensFromSourceReport(finding?.sourceReport);
+    const lens = labelLens(finding?.sourceReport);
     if (lens) lenses.add(lens);
   }
   return [...lenses].sort().map((lens) => `audit::${lens}`);

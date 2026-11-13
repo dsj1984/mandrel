@@ -12,6 +12,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { AUDIT_LABEL_TAXONOMY } from '../audit-label-taxonomy.js';
 import {
   AUDIT_LENSES,
   auditLabelsForFindings,
@@ -87,18 +88,36 @@ describe('auditLabelsForFindings', () => {
     ]);
   });
 
-  it('drops findings whose sourceReport does not resolve to a canonical lens', () => {
+  it('maps a non-canonical report to audit::custom, never to a minted lens label', () => {
     const findings = [
       { sourceReport: 'temp/audits/audit-stale-description-results.md' },
       { sourceReport: 'temp/audits/audit-quality-results.md' },
       { sourceReport: undefined },
     ];
-    assert.deepEqual(auditLabelsForFindings(findings), ['audit::quality']);
+    assert.deepEqual(auditLabelsForFindings(findings), [
+      'audit::custom',
+      'audit::quality',
+    ]);
   });
 
   it('returns an empty array for empty / nullish input', () => {
     assert.deepEqual(auditLabelsForFindings([]), []);
     assert.deepEqual(auditLabelsForFindings(undefined), []);
+  });
+
+  it('falls back to audit::custom for a non-canonical report (Story #6081)', () => {
+    assert.deepEqual(
+      auditLabelsForFindings([
+        { sourceReport: 'temp/audits/audit-guard-census-results.md' },
+        { sourceReport: 'notes.md' },
+        { sourceReport: 'temp/audits/audit-security-results.md' },
+      ]),
+      ['audit::custom', 'audit::security'],
+    );
+  });
+
+  it('yields no label when a finding names no report', () => {
+    assert.deepEqual(auditLabelsForFindings([{}, { sourceReport: '' }]), []);
   });
 });
 
@@ -186,5 +205,34 @@ describe('buildStoryBody label derivation (acceptance: multi-dimension group)', 
       [],
       'a generated audit Story must carry no agent:: state label',
     );
+  });
+});
+
+describe('audit::custom in the label taxonomy (Story #6081)', () => {
+  it('is created by the bootstrap taxonomy', () => {
+    assert.ok(AUDIT_LABEL_TAXONOMY.some((l) => l.name === 'audit::custom'));
+  });
+
+  it('is emitted on a Story built from a bespoke report without throwing', () => {
+    const { labels } = buildStoryBody({
+      group: {
+        title: 'Guard census gap',
+        dimensions: ['guards'],
+        files: ['src/a.js'],
+        severity: 'medium',
+        findings: [
+          {
+            title: 'Unguarded write',
+            severity: 'medium',
+            dimension: 'guards',
+            currentState: 'no guard',
+            recommendation: 'add a guard',
+            sourceReport: 'temp/audits/audit-guard-census-results.md',
+            fingerprint: { full: 'd'.repeat(40), short: 'd'.repeat(12) },
+          },
+        ],
+      },
+    });
+    assert.ok(labels.includes('audit::custom'));
   });
 });
