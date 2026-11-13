@@ -14,17 +14,22 @@ const CONFLICTS_SHOWN = 10;
 const BUDGET_BYTES = 16384;
 const OVERLAPS_KEPT = 10;
 
+/** A check that concluded and passed: done, not red, not halted. */
+const passed = (c) => c.phase === 'done' && !c.red && !c.halted;
+
 /**
  * Rollup over the required checks (every check when the required set is
- * unknown). Green needs every required name present, done and not red.
+ * unknown). Green needs every required name present, done, not red and not
+ * halted (cancelled, stale or awaiting action).
  *
- * @param {Array<{ name: string, phase: string, red: boolean }>} checks
+ * @param {Array<{ name: string, phase: string, red: boolean, halted?: boolean }>} checks
  * @param {string[]|null} required
  */
 function rollup(checks, required) {
   const want = required ? new Set(required) : null;
   const relevant = want ? checks.filter((c) => want.has(c.name)) : checks;
   const red = relevant.some((c) => c.red);
+  const halted = relevant.some((c) => c.halted === true);
   const running = relevant.some((c) => c.phase === 'running');
   const queued = relevant.some((c) => c.phase === 'queued');
   const present = new Set(relevant.map((c) => c.name));
@@ -33,9 +38,10 @@ function rollup(checks, required) {
     : relevant.length > 0;
   return {
     red,
+    halted,
     running,
     queued,
-    green: complete && !red && !running && !queued,
+    green: complete && relevant.every(passed),
   };
 }
 
@@ -57,8 +63,8 @@ function isEjected(pr, queueReadable) {
 
 /**
  * The first rule that holds wins: ejected, conflicted-real / -driver-only,
- * red-inherited, red-own-failure, waiting-on-runner, green-not-queued,
- * stale, moving.
+ * red-inherited, red-own-failure, checks-cancelled, waiting-on-runner,
+ * green-not-queued, stale, moving.
  *
  * @param {object} pr normalised snapshot row
  * @param {{ queueReadable: boolean, inheritedPrs: Set<number>,
@@ -73,12 +79,17 @@ function classifyPr(pr, ctx) {
     const conflict = conflictState(pr.conflict);
     return done(conflict.state, { conflict });
   }
+  return done(checksState(pr, checks, ctx) ?? quietState(pr, checks, ctx));
+}
+
+/** Red outranks halted: a real failure stays the owner's to fix. */
+function checksState(pr, checks, ctx) {
   if (checks.red) {
-    return done(
-      ctx.inheritedPrs.has(pr.number) ? 'red-inherited' : 'red-own-failure',
-    );
+    return ctx.inheritedPrs.has(pr.number)
+      ? 'red-inherited'
+      : 'red-own-failure';
   }
-  return done(quietState(pr, checks, ctx));
+  return checks.halted ? 'checks-cancelled' : null;
 }
 
 /** The states below red: waiting-on-runner, green-not-queued, stale, moving. */
@@ -104,11 +115,15 @@ function substitute(requeueCommand, number) {
   };
 }
 
-function requeueOf(pr, { green, vetoHeld, requeueCommand }) {
-  const blockedBy = [];
-  if (!headMoved(pr)) blockedBy.push('head-not-moved');
-  if (!green) blockedBy.push('checks-not-green');
-  if (vetoHeld) blockedBy.push('release-veto');
+function requeueOf(pr, { green, halted, vetoHeld, requeueCommand }) {
+  const blockedBy = [
+    [!headMoved(pr), 'head-not-moved'],
+    [!green, 'checks-not-green'],
+    [halted, 'checks-cancelled'],
+    [vetoHeld, 'release-veto'],
+  ]
+    .filter(([hit]) => hit)
+    .map(([, reason]) => reason);
   return {
     eligible: blockedBy.length === 0,
     blockedBy,
@@ -170,6 +185,7 @@ function prEntry(pr, verdict, opts) {
   if (verdict.state === 'ejected') {
     entry.requeue = requeueOf(pr, {
       green: verdict.checks.green,
+      halted: verdict.checks.halted,
       vetoHeld: vetoed && opts.vetoHeld,
       requeueCommand: opts.requeueCommand,
     });

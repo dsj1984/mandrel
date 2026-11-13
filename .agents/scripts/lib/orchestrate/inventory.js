@@ -10,11 +10,8 @@ import { spawnCapture } from '../child-exec.js';
 import { gh as defaultGh, prTransportOf } from '../gh-exec.js';
 import { parseApiJson } from '../gh-pr-rest.js';
 import { gitSpawn, parseStoryBranch } from '../git-utils.js';
-import {
-  isRunInFlight,
-  readRunName,
-  redConclusionOf,
-} from '../orchestration/merge-poll.js';
+import { classifyRollupEntry } from '../orchestration/check-state.js';
+import { isRunInFlight, readRunName } from '../orchestration/merge-poll.js';
 import { parseGraphqlData } from '../orchestration/merge-queue.js';
 import { readBaseRequiredNames } from '../orchestration/required-checks.js';
 import { buildEnvelope } from './classify.js';
@@ -54,16 +51,23 @@ const latest = (...times) => {
   return ms.length ? new Date(Math.max(...ms)).toISOString() : null;
 };
 
+/** Outcomes that are a real failure; the close-path merge wait reads these differently. */
+const RED_OUTCOMES = new Set(['failure', 'timed_out']);
+/** A run that never passed and never failed: not green, not the owner's red. */
+const HALTED_OUTCOMES = new Set(['cancelled', 'stale', 'action_required']);
+
 /** A rollup node (GraphQL, or REST mapped to the same shape) as a terse check. */
 function normalizeCheck(node) {
   const status = String(node?.status ?? '').toUpperCase();
   let phase = 'done';
   if (isRunInFlight(node))
     phase = status === 'IN_PROGRESS' ? 'running' : 'queued';
+  const outcome = classifyRollupEntry(node);
   return {
     name: readRunName(node) ?? '',
     phase,
-    red: Boolean(redConclusionOf(node)),
+    red: RED_OUTCOMES.has(outcome),
+    halted: HALTED_OUTCOMES.has(outcome),
     note: node?.annotations?.nodes?.[0]?.message ?? node?.output?.title ?? null,
     at: latest(node?.startedAt, node?.completedAt, node?.createdAt),
   };
