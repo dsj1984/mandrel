@@ -103,7 +103,7 @@ the pass; nothing in the framework reads it back.
 The `/mandrel-plan` Phase 0 advisory re-arms on exactly one condition:
 `MEMORY.md` exceeding the fixed 24576-byte index ceiling —
 the harness cap past which the index it loads is truncated. Pool size and
-stamp age never trigger it (Story #5312 retired those arms): a pass that
+stamp age never trigger it: a pass that
 rewrites long index lines short quiets it without pruning an entry.
 
 Write it **only** after Gate #2 — the stamp asserts an operator reviewed the
