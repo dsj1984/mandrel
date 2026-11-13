@@ -97,6 +97,10 @@ annotation, which the inventory already carries.
 - **`green-not-queued`**: arm auto-merge only when `arm-auto-merge` is
   granted and no release veto holds (`veto` is not `held`); otherwise raise
   once.
+- **`checks-cancelled`**: a required check was cancelled, went stale or
+  awaits action, so it never passed. Never arm auto-merge or requeue it, and
+  never message the owner about a failure; raise it once naming the halted
+  checks, so the operator decides whether to re-run them.
 - **`waiting-on-runner`**: no action. Report the `runners` backlog, and hold
   back optional load while it is saturated.
 - **`stale`**: raise once.

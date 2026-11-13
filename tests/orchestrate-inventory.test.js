@@ -35,6 +35,7 @@ const STATES = [
   'conflicted-driver-only',
   'red-inherited',
   'red-own-failure',
+  'checks-cancelled',
   'waiting-on-runner',
   'green-not-queued',
   'stale',
@@ -45,6 +46,13 @@ const pass = (name) => ({ name, phase: 'done', red: false, note: null });
 const fail = (name, note = null) => ({ name, phase: 'done', red: true, note });
 const queued = (name) => ({ name, phase: 'queued', red: false, note: null });
 const running = (name) => ({ name, phase: 'running', red: false, note: null });
+const halted = (name) => ({
+  name,
+  phase: 'done',
+  red: false,
+  halted: true,
+  note: null,
+});
 
 function row(number, over = {}) {
   return {
@@ -114,6 +122,10 @@ describe('classifier precedence (AC-1)', () => {
       }),
     ],
     ['red-own-failure', row(5, { checks: [fail('test'), queued('lint')] })],
+    [
+      'checks-cancelled',
+      row(14, { autoMerge: false, checks: [halted('test'), queued('lint')] }),
+    ],
     ['waiting-on-runner', row(6, { checks: [pass('lint'), queued('test')] })],
     ['green-not-queued', row(7, { autoMerge: false })],
     [
@@ -828,5 +840,90 @@ describe('releaseVetoHolds', () => {
     assert.equal(holds(['hold'], 0), false);
     assert.equal(holds(['other'], 1), false);
     assert.equal(holds(['hold'], 1, {}), false);
+  });
+});
+
+describe('cancelled and timed-out required checks', () => {
+  const inventoryOf = (conclusions) =>
+    runInventory({
+      config: { github: { owner: 'o', repo: 'r' } },
+      cwd: REPO_ROOT,
+      gh: fakeGh({
+        prs: [
+          graphqlPr(1, {
+            autoMergeRequest: null,
+            commits: {
+              nodes: [
+                {
+                  commit: {
+                    committedDate: minutesAgo(10),
+                    statusCheckRollup: {
+                      contexts: {
+                        nodes: [
+                          check('lint', conclusions.lint ?? 'SUCCESS'),
+                          check('test', conclusions.test ?? 'SUCCESS'),
+                        ],
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          }),
+        ],
+      }).gh,
+      now: NOW,
+    });
+
+  for (const conclusion of ['CANCELLED', 'STALE', 'ACTION_REQUIRED']) {
+    it(`a required ${conclusion} check is checks-cancelled, never green-not-queued`, async () => {
+      const env = await inventoryOf({ test: conclusion });
+      assert.equal(env.prs[0].state, 'checks-cancelled');
+      assert.equal(env.prs[0].red, undefined);
+    });
+  }
+
+  for (const conclusion of ['TIMED_OUT', 'STARTUP_FAILURE']) {
+    it(`a required ${conclusion} check is red`, async () => {
+      const env = await inventoryOf({ test: conclusion });
+      assert.equal(env.prs[0].state, 'red-own-failure');
+      assert.equal(env.prs[0].red.length, 1);
+    });
+  }
+
+  it('SUCCESS, NEUTRAL and SKIPPED stay green', async () => {
+    const env = await inventoryOf({ lint: 'NEUTRAL', test: 'SKIPPED' });
+    assert.equal(env.prs[0].state, 'green-not-queued');
+  });
+
+  it('a failed check outranks a cancelled one', async () => {
+    const env = await inventoryOf({ lint: 'FAILURE', test: 'CANCELLED' });
+    assert.equal(env.prs[0].state, 'red-own-failure');
+  });
+
+  it('a cancelled check outside the required set does not block green', () => {
+    const env = classify([
+      row(1, {
+        autoMerge: false,
+        checks: [pass('lint'), pass('test'), halted('docs')],
+      }),
+    ]);
+    assert.equal(stateOf(env, 1), 'green-not-queued');
+  });
+
+  it('an ejected PR with a cancelled required check is not requeue-eligible', () => {
+    const env = classify([
+      row(1, {
+        autoMerge: false,
+        queueEvent: ejection('old'),
+        checks: [pass('lint'), halted('test')],
+      }),
+    ]);
+    assert.equal(env.prs[0].state, 'ejected');
+    assert.deepEqual(env.prs[0].requeue, {
+      eligible: false,
+      blockedBy: ['checks-not-green', 'checks-cancelled'],
+      command: null,
+    });
   });
 });
