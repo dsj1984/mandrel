@@ -1309,7 +1309,6 @@
     },
     ".agents/scripts/lib/audit-to-stories/audit-label-taxonomy.js": {
       "<anon AUDIT_LABEL_TAXONOMY.map(l)#0>": 1,
-      "<anon AUDIT_LENSES.map(name)#0>": 1,
       "auditLabelFooterForFindings": 1,
       "definesAuditLabel": 2,
       "hex": 1
