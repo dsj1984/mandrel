@@ -15,6 +15,18 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.122.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.121.0...mandrel-v2.122.0) (2026-11-13)
+
+
+### Added
+
+* audit-to-stories: a non-canonical report's findings carry audit::custom so indexed dedup sees their Stories ([#6081](https://github.com/dsj1984/mandrel/issues/6081)) ([#6082](https://github.com/dsj1984/mandrel/issues/6082)) ([896a468](https://github.com/dsj1984/mandrel/commit/896a4687157ddd5fe4eff000b7b440c2421ed6fe))
+
+
+### Fixed
+
+* orchestrate-inventory stops reporting cancelled or timed-out required checks as green ([#6084](https://github.com/dsj1984/mandrel/issues/6084)) ([#6085](https://github.com/dsj1984/mandrel/issues/6085)) ([2f1e16b](https://github.com/dsj1984/mandrel/commit/2f1e16b73cd9433ecb18a53bee43fbf4e53ebb2c))
+
 ## [2.121.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.120.0...mandrel-v2.121.0) (2026-11-12)
 
 
