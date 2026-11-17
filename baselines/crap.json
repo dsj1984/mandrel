@@ -2796,7 +2796,6 @@
       "<anon applyTestDelta/gates.findIndex(g)#0>": 1,
       "<anon applyTestDelta/gates.map(g,i)#0>": 2,
       "<anon applyTestDelta/storyFiles()#0>": 1,
-      "<anon buildTestDeltaGate/testChanged.args.map(a)#0>": 2,
       "<anon substituteChangedSince/args.map(a)#0>": 2,
       "applyTestDelta": 3,
       "buildTestDeltaGate": 1,
