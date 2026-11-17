@@ -3,7 +3,8 @@
  *
  * `readQueueEjection` reads the PR's last queue event and the `merge_group`
  * runs of its queue entries, then classifies the ejection as inherited (the
- * entry it was built on failed, or the run was cancelled), own, or unknown.
+ * entry it was built on failed, or the run was cancelled with no job failing
+ * on its own), own, or unknown.
  */
 
 import { strict as assert } from 'node:assert';
@@ -47,6 +48,7 @@ function fakeGh({
   jobs = [{ name: 'test', conclusion: 'failure' }],
   labels = [],
   failGraphql = false,
+  failJobs = false,
 } = {}) {
   const calls = [];
   return {
@@ -67,7 +69,10 @@ function fakeGh({
           },
         });
       }
-      if (endpoint.includes('/jobs')) return JSON.stringify({ jobs });
+      if (endpoint.includes('/jobs')) {
+        if (failJobs) throw new Error('HTTP 502');
+        return JSON.stringify({ jobs });
+      }
       if (endpoint.includes('head_sha=')) {
         return JSON.stringify({ workflow_runs: parentRuns });
       }
@@ -75,6 +80,42 @@ function fakeGh({
     },
   };
 }
+
+/** Jobs a stale-ref or hand cancel stopped: no job failed on its own. */
+const STOPPED_JOBS = [
+  { name: 'lint', conclusion: 'success' },
+  {
+    name: 'test',
+    conclusion: 'cancelled',
+    steps: [
+      { name: 'setup', conclusion: 'success' },
+      { name: 'run', conclusion: 'cancelled' },
+      { name: 'report', conclusion: 'skipped' },
+    ],
+  },
+];
+
+/** A fail-fast cancel: `test` failed, then the cancel rewrote it and `e2e`. */
+const FAIL_FAST_JOBS = [
+  {
+    name: 'test',
+    conclusion: 'cancelled',
+    steps: [
+      { name: 'run', conclusion: 'failure' },
+      { name: 'cancel run', conclusion: 'success' },
+    ],
+  },
+  {
+    name: 'e2e',
+    conclusion: 'cancelled',
+    steps: [{ name: 'run', conclusion: 'cancelled' }],
+  },
+  {
+    name: 'lint',
+    conclusion: 'success',
+    steps: [{ name: 'tolerated', conclusion: 'success' }],
+  },
+];
 
 const read = (gh) =>
   readQueueEjection({ prNodeId: 'PR_node', prNumber: 42, headSha: HEAD, gh });
@@ -92,11 +133,62 @@ describe('readQueueEjection', () => {
     assert.ok(gh.calls.some((c) => c.includes(`head_sha=${PARENT}`)));
   });
 
-  it('is inherited when the ejecting run was cancelled', async () => {
+  it('is inherited when the ejecting run was cancelled with no job failing on its own', async () => {
     const out = await read(
-      fakeGh({ runs: [queueRun({ conclusion: 'cancelled' })] }),
+      fakeGh({
+        runs: [queueRun({ conclusion: 'cancelled' })],
+        jobs: STOPPED_JOBS,
+      }),
     );
     assert.equal(out.verdict, 'inherited');
+    assert.deepEqual(out.failedJobs, []);
+  });
+
+  it('is own when a cancelled run carries a job that failed on its own', async () => {
+    for (const [jobs, names] of [
+      [FAIL_FAST_JOBS, ['test']],
+      [[...STOPPED_JOBS, { name: 'build', conclusion: 'failure' }], ['build']],
+      [[{ name: 'slow', conclusion: 'timed_out' }], ['slow']],
+    ]) {
+      const gh = fakeGh({
+        runs: [queueRun({ conclusion: 'cancelled' })],
+        jobs,
+      });
+      const out = await read(gh);
+      assert.equal(out.verdict, 'own', JSON.stringify(jobs));
+      assert.deepEqual(out.failedJobs, names);
+      assert.equal(gh.calls.filter((c) => c.includes('/jobs')).length, 1);
+    }
+  });
+
+  it("is inherited, never a throw, when a cancelled run's jobs read fails", async () => {
+    const out = await read(
+      fakeGh({ runs: [queueRun({ conclusion: 'cancelled' })], failJobs: true }),
+    );
+    assert.equal(out.verdict, 'inherited');
+    assert.deepEqual(out.failedJobs, []);
+  });
+
+  it('is inherited when the parent failed, even with an own-failed job', async () => {
+    const out = await read(
+      fakeGh({
+        runs: [queueRun({ conclusion: 'cancelled' })],
+        parentRuns: [queueRun({ head_sha: PARENT, conclusion: 'failure' })],
+        jobs: FAIL_FAST_JOBS,
+      }),
+    );
+    assert.equal(out.verdict, 'inherited');
+  });
+
+  it('names a cancelled job with a failed step, never its stopped siblings', async () => {
+    const out = await read(
+      fakeGh({
+        parentRuns: [queueRun({ head_sha: PARENT, conclusion: 'success' })],
+        jobs: [...FAIL_FAST_JOBS, ...STOPPED_JOBS],
+      }),
+    );
+    assert.equal(out.verdict, 'own');
+    assert.deepEqual(out.failedJobs, ['test']);
   });
 
   it('is own when the entry ahead passed, naming the failed jobs', async () => {
@@ -128,7 +220,7 @@ describe('readQueueEjection', () => {
         created_at: `2026-11-11T10:0${n}:00Z`,
       }),
     );
-    const out = await read(fakeGh({ runs }));
+    const out = await read(fakeGh({ runs, jobs: STOPPED_JOBS }));
     assert.equal(out.verdict, 'own');
     assert.equal(out.run.id, 504, 'the newest entry ejected it');
   });

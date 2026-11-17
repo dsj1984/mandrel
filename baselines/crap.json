@@ -5450,8 +5450,8 @@
       "<anon ejectingRunOf/done.find(r)#0>": 1,
       "<anon ejectingRunOf/done.find(r)#1>": 1,
       "<anon ejectingRunOf/runs.filter(r)#0>": 2,
+      "<anon failedOnItsOwn/some(s)#0>": 1,
       "<anon parseGraphqlData/parsed.errors.map(e)#0>": 1,
-      "<anon readFailedJobs/filter(j)#0>": 1.0046296296296295,
       "<anon readFailedJobs/map(j)#0>": 1.0046296296296295,
       "<anon readMergeQueueStateRest/rules.some(rule)#0>": 1,
       "<anon readQueueEjection/filter(r)#0>": 1,
@@ -5466,6 +5466,8 @@
       "disarmByDequeue": 2,
       "ejectedHead": 4,
       "ejectingRunOf": 1,
+      "failedJobsOf": 1,
+      "failedOnItsOwn": 3,
       "parseGraphqlData": 4,
       "queryPrNode": 1,
       "queueArmOutcome": 2,
@@ -5473,7 +5475,8 @@
       "readMergeQueueState": 7,
       "readMergeQueueStateRest": 2,
       "readQueueEjection": 4,
-      "resolvePrNodeId": 4
+      "resolvePrNodeId": 4,
+      "settledConclusion": 3
     },
     ".agents/scripts/lib/orchestration/pinned-identifier-lint.js": {
       "<anon codeSpans/map(m)#0>": 1,
