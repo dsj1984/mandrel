@@ -98,6 +98,7 @@ function compact(obj) {
 
 /** An unknown class gets no `recovery`, so the schema rejects the envelope. */
 function withRecovery(blocked) {
+  if (!blocked) return null;
   const recovery = BLOCK_CLASS_RECOVERY[blocked.blockClass];
   return recovery ? { ...blocked, recovery } : blocked;
 }
@@ -170,7 +171,7 @@ export function buildTerminalEnvelope({
     pr: pr ?? null,
     gates,
     tail: tail ?? null,
-    blocked: blocked ? withRecovery(blocked) : null,
+    blocked: withRecovery(blocked),
     failure: failure ?? null,
     escalation: escalation ?? null,
     nextCommand: nextCommand ?? null,
