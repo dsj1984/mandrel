@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.123.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.122.0...mandrel-v2.123.0) (2026-11-17)
+
+
+### Fixed
+
+* merge wait reads a fail-fast-cancelled queue run as an own ejection ([#6086](https://github.com/dsj1984/mandrel/issues/6086)) ([#6088](https://github.com/dsj1984/mandrel/issues/6088)) ([4f94261](https://github.com/dsj1984/mandrel/commit/4f94261818494b76208e6828fca0fd74d319e5eb))
+* under suiteOfRecord ci, the test depositor defers to CI too, so a Story with no change under the CRAP target dirs runs no full local suite ([#6087](https://github.com/dsj1984/mandrel/issues/6087)) ([#6090](https://github.com/dsj1984/mandrel/issues/6090)) ([7a184a9](https://github.com/dsj1984/mandrel/commit/7a184a92bd535ae54a3d7760ae6076a5a9f200b4))
+
 ## [2.122.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.121.0...mandrel-v2.122.0) (2026-11-13)
 
 
