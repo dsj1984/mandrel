@@ -1323,6 +1323,10 @@
       "mi": 95.247
     },
     {
+      "path": ".agents/scripts/lib/orchestration/block-class-recovery.js",
+      "mi": 108.981
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
       "mi": 111.114
     },
