@@ -421,8 +421,18 @@ then the shipped standalone ratchets CI's `baselines` job runs —
 and `check-cyclomatic.js` — in the worktree. It runs **before** the credited
 run because a fix commit afterwards would void that run's credit.
 
-- **One pass, every finding.** Every check runs, even after a finding. Any
-  finding settles one `fix-required` whose `detail` lists each finding on its
+- **The fast lane runs first.** Each `delivery.handoff.firstChecks` entry,
+  in config order, then close's independent baseline compare
+  (`check-baselines`, scoring committed rows, so under admitted lanes it waits
+  for the overlapped duplication re-score to join; the first checks run beside
+  that scan). A finding there settles `fix-required` naming the check and
+  quoting its failure rows, and none of typecheck, lint, format,
+  quality-preview, the ratchets or the held review starts; `--report-all`
+  lists it and runs the rest. A clean lane starts the held review, then the
+  checks below.
+- **One pass, every finding.** After the fast lane, every check runs, even
+  after a finding. Any finding settles one `fix-required` whose `detail` lists
+  each finding on its
   own line, in check order, and whose `findings[]` carries `{ check, detail,
   evidencePath }` per failing check; the envelope's `evidencePath` is the
   first one's in check order. No suite runs before the credited run. Only a
@@ -637,13 +647,16 @@ review; post-seat checks wait for a real run, because it seats nothing.
 ## Held review at hand-off {#held-review}
 
 The one home of this rule; the digest and the worker contract point here.
-`story-handoff.js` starts the Story-scope code review once base-merge settles
-HEAD — pinned to the post-merge HEAD, before preflight's first check (and
-before a `test`-depositor seat, whose generated-only commit keeps the digest)
-— so it runs alongside preflight, and awaits it after the push, skipping the
-computation when a deposit already matches the diff digest. A precheck
-refusal or a base merge that does not settle (conflict, failed fetch, missing
-merge driver) starts no review. The envelope's `reviewMs` sits beside the run's
+`story-handoff.js` starts the Story-scope code review once preflight's fast
+lane passes — the `delivery.handoff.firstChecks` entries and close's
+independent baseline compare — before its first credited check (and before a
+`test`-depositor seat, whose generated-only commit keeps the digest), so it
+runs alongside the rest of preflight, and awaits it after the push, skipping
+the computation when a deposit already matches the diff digest. A fast-lane
+finding starts no review: its fix changes the diff, so that review would be
+thrown away. A precheck refusal, a base merge that does not settle (conflict,
+failed fetch, missing merge driver) or any stop before preflight starts no
+review either. The envelope's `reviewMs` sits beside the run's
 `suiteTimings`. The same computation stands alone for a manual re-run:
 
 ```bash
@@ -663,20 +676,36 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   raw diff. It never stops the handoff on a provider throw — the step reports
   `error` and close computes the review itself.
 - **A CRITICAL is the worker's to fix.** The handoff settles `fix-required`
-  naming the deposit. It never cuts preflight short: every check runs to its
-  own result. One that has landed before the credited run would begin stops
-  the handoff there — no `test`-depositor seat, no run, no full-suite lock,
-  no credit, no push. One that lands while the run is in flight aborts it
-  (the SIGTERM a Ctrl-C sends; the child frees the full-suite lock), records
-  no credit and pushes nothing; a CRITICAL after the run still settles after
-  the push. Any earlier stop still awaits the review and appends its result
-  to `steps[]` once, so no provider is orphaned and one envelope carries both
-  findings, each with its own evidence path; `status` and `failedStep` stay
-  the first stop's, and a review `error` never blocks. Fix, commit, and re-run the handoff
-  (the fix commit voided the credit, so it re-runs the suite, pushes and
-  re-computes) — the acceptance loop's redraft discipline, bounded by
-  `delivery.acceptanceEval.maxRounds`. Still CRITICAL at the cap → take the
-  blocked path. Anything else goes in the hand-off as the severity tally.
+  naming the deposit. On a first run it never cuts preflight short: every
+  check runs to its own result. One that has landed before the credited run
+  would begin stops the handoff there — no `test`-depositor seat, no run, no
+  full-suite lock, no credit, no push. One that lands while the run is in
+  flight aborts it (the SIGTERM a Ctrl-C sends; the child frees the
+  full-suite lock), records no credit and pushes nothing; a CRITICAL after the
+  run still settles after the push. Any earlier stop still awaits the review
+  and appends its result to `steps[]` once, so no provider is orphaned and one
+  envelope carries both findings, each with its own evidence path; `status`
+  and `failedStep` stay the first stop's unless the review blocks, and a
+  review `error` never blocks. Fix, commit, and re-run the handoff.
+- **The fix is retried review-first.** When the previous run (its state file
+  holds `{ state, envelope }`) stopped on `review-critical` and its preflight
+  had passed at that run's head, the next run merges the base, then awaits
+  the held review before the duplication re-score, the static seat and
+  preflight. Still CRITICAL → it settles at once and lists every step it did
+  not run as `skipped` (`review-first retry: held review still CRITICAL`).
+  Clean → it continues as a normal handoff, and close adopts the deposit. Any
+  other prior stop, no state file, and `--report-all` run as before.
+- **The round cap is script-enforced.** A *CRITICAL round* is a run in
+  `story-review-history-<id>.json` holding a CRITICAL that is not
+  `unverified`, not `ungrounded` and not overridden; an adopted deposit adds
+  no run. When the review settles CRITICAL, the envelope carries
+  `reviewRound: { round, cap }`, where `cap` is
+  `delivery.acceptanceEval.maxRounds` read by the acceptance gate's own rule
+  (below 1 counts as 1). At `round >= cap` the handoff settles `blocked`
+  (cause `review-cap`), flips `agent::blocked` and posts a `friction` comment
+  listing each open CRITICAL's title. The cap is checked only on a CRITICAL,
+  so once an operator clears the block a fix that reviews clean hands off.
+  Anything else goes in the hand-off as the severity tally.
 - **Close adopts, else computes — and deposits.** When the deposit's digest
   equals the digest of the diff at close's held-review start, close starts no
   review and posts the deposit after PR-open. A base-sync merge that moves

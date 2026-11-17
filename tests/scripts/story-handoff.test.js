@@ -206,6 +206,8 @@ function harness({
   // The overlapped scan/apply doubles, used once preflight lanes are admitted.
   scan = { ran: false, committed: false, reason: 'no-changed-files' },
   apply = { ran: false, committed: false, reason: 'unchanged' },
+  // The review history the round cap counts; never the shared temp tree.
+  history = { runs: [], overridden: [] },
 } = {}) {
   const runCommand = commandDouble(world, outputs);
   const blocks = [];
@@ -240,6 +242,7 @@ function harness({
       return { written: true, path: '/tmp/story-review.json', deposit };
     },
     readPackageScriptsFn: () => scripts,
+    readReviewHistoryFn: () => history,
     getChangedFilesFn: () => changed,
     block: async (args) => {
       blocks.push(args);
@@ -2445,7 +2448,7 @@ describe('story-handoff — the review runs beside the credited run (Story #5905
   });
 });
 
-describe('story-handoff — the review starts at base-merge (Story #5966)', () => {
+describe('story-handoff — the review starts after the fast lane (Story #5966)', () => {
   const HALTED = { halted: true, severity: { critical: 1 } };
   const MERGED = 'c'.repeat(40);
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -2484,7 +2487,7 @@ describe('story-handoff — the review starts at base-merge (Story #5966)', () =
     return seen;
   }
 
-  test('AC-1: the provider is called while preflight is in flight, pinned to the post-merge HEAD', async () => {
+  test('AC-1: the provider is called before the first credited check, pinned to the post-merge HEAD', async () => {
     const h = mergingHarness();
     const review = { started: false, settled: false };
     const { computeReview } = h.deps;
@@ -2497,13 +2500,15 @@ describe('story-handoff — the review starts at base-merge (Story #5966)', () =
     let startedBeforePreflight = null;
     const { runCommand } = h.deps;
     h.deps.runCommand = async (cmd, args, opts) => {
-      startedBeforePreflight ??= review.started;
+      if (commandKey(cmd, args) === 'typecheck') {
+        startedBeforePreflight ??= review.started;
+      }
       return runCommand(cmd, args, opts);
     };
     const seen = slowLint(h, () => review.settled);
     const { envelope } = await h.run();
     assert.equal(envelope.status, 'ready');
-    assert.equal(startedBeforePreflight, true, 'in flight before any check');
+    assert.equal(startedBeforePreflight, true, 'in flight before typecheck');
     assert.equal(seen.during, true, 'settled while lint was still running');
     assert.deepEqual(h.shas, [MERGED]);
     assert.equal(h.reviews.length, 1);
@@ -4694,22 +4699,32 @@ describe('story-handoff — every finding in one run (Story #6031)', () => {
     });
   const failing = { status: 1, stdout: '' };
 
-  test('AC-2: a duplication regression joins the lint finding at preflight, before any suite', async () => {
+  test('AC-2: a duplication regression settles from the fast lane, before lint or any suite (#6099 AC-11)', async () => {
     const h = harness({
       config: twoGateConfig(),
       outputs: {
         lint: failing,
-        'check-baselines.js maintainability,duplication': failing,
+        'check-baselines.js maintainability,duplication': {
+          status: 1,
+          stdout: '- duplication: FAIL (lib/a.js 1% → 9%)',
+        },
       },
     });
     h.deps.presentBaselines = ['maintainability', 'duplication'];
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.equal(envelope.failedStep, 'preflight');
+    assert.equal(envelope.cause, 'ratchet');
     const { detail } = stopStep(envelope);
-    assert.match(detail, /lint finding/);
     assert.match(detail, /check-baselines-independent \(kinds: /);
-    assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
+    assert.match(detail, /duplication: FAIL \(lib\/a\.js 1% → 9%\)/);
+    assert.doesNotMatch(detail, /lint finding/);
+    const keys = spawned(h.runCommand);
+    for (const key of ['typecheck', 'lint', 'quality-preview.js']) {
+      assert.ok(!keys.includes(key), `${key} never spawns`);
+    }
+    assert.ok(!keys.includes('coverage-capture.js'));
+    assert.equal(h.reviews.length, 0, 'no held review starts');
   });
 
   test('AC-3: several failing post-capture gates and post-seat checks settle one fix-required', async () => {
@@ -4963,6 +4978,9 @@ describe('story-handoff — the re-score overlaps preflight under admitted lanes
       release = resolve;
     });
     const h = overlapHarness({
+      config: overlapConfig({
+        handoff: { firstChecks: [{ cmd: 'pre-screen' }] },
+      }),
       scan: async () => {
         await settled;
         return scanned([]);
@@ -4972,7 +4990,7 @@ describe('story-handoff — the re-score overlaps preflight under admitted lanes
     h.deps.now = () => clock;
     let spawnedBeforeSettle = null;
     afterEachSpawn(h, (key) => {
-      if (key === 'quality-preview.js' && spawnedBeforeSettle === null) {
+      if (key === 'pre-screen' && spawnedBeforeSettle === null) {
         spawnedBeforeSettle = spawned(h.runCommand);
         clock = 40;
         release();
@@ -4987,9 +5005,10 @@ describe('story-handoff — the re-score overlaps preflight under admitted lanes
       'duplication-rescore',
       'preflight',
     ]);
-    assert.ok(spawnedBeforeSettle.includes('typecheck'));
-    assert.ok(spawnedBeforeSettle.includes('quality-preview.js'));
-    assert.ok(!spawnedBeforeSettle.includes(COMPARE), 'compare waits');
+    assert.ok(spawnedBeforeSettle.includes('pre-screen'));
+    for (const key of ['typecheck', 'lint', 'quality-preview.js', COMPARE]) {
+      assert.ok(!spawnedBeforeSettle.includes(key), `${key} waits`);
+    }
     const rescore = stepOf(envelope, 'duplication-rescore');
     assert.deepEqual(
       {
@@ -5015,7 +5034,7 @@ describe('story-handoff — the re-score overlaps preflight under admitted lanes
     assert.equal(envelope.headSha, HEAD);
   });
 
-  test('AC-4: a moved row commits at the join before the compare, which runs at the new HEAD, and every credit re-keys onto it', async () => {
+  test('AC-4: a moved row commits at the join before the compare and the checks after it, which run at the new HEAD', async () => {
     const h = overlapHarness({
       config: overlapConfig({
         handoff: { postSeatChecks: [{ cmd: 'consumer-check', args: [] }] },
@@ -5034,7 +5053,7 @@ describe('story-handoff — the re-score overlaps preflight under admitted lanes
     });
     const { envelope } = await h.run();
     assert.equal(envelope.status, 'ready');
-    assert.equal(typecheckHead, HEAD);
+    assert.equal(typecheckHead, RESCORED_HEAD, 'lint waits for the lane');
     assert.equal(compareHead, RESCORED_HEAD);
     assert.match(
       stepOf(envelope, 'duplication-rescore').detail,
@@ -5105,5 +5124,395 @@ describe('story-handoff — the re-score overlaps preflight under admitted lanes
     assert.ok(!stepNames(report.envelope).includes('duplication-rescore'));
     assert.equal(all.scans.length, 0);
     assert.equal(all.rescores.length, 0);
+  });
+});
+
+describe('story-handoff — the held-review round cap (Story #6099)', () => {
+  const HALTED = {
+    halted: true,
+    haltCause: 'critical',
+    severity: { critical: 1 },
+  };
+  const critical = (id, flags = {}) => ({
+    id,
+    severity: 'critical',
+    title: `title of ${id}`,
+    ...flags,
+  });
+  const runOf = (...findings) => ({ headSha: HEAD, findings });
+
+  test('AC-1/AC-4: a CRITICAL at the cap settles blocked review-cap, flips the label and lists the open titles', async () => {
+    const h = harness({
+      deposit: HALTED,
+      history: {
+        runs: [runOf(critical('c1')), runOf(critical('c1'), critical('c2'))],
+        overridden: [],
+      },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.status, 'blocked');
+    assert.equal(envelope.failedStep, 'review');
+    assert.equal(envelope.cause, 'review-cap');
+    assert.deepEqual(envelope.reviewRound, { round: 2, cap: 2 });
+    assert.equal(h.blocks.length, 1, 'one friction comment');
+    assert.equal(h.blocks[0].reason, 'review-cap');
+    assert.match(h.blocks[0].detail, /round 2 of 2/);
+    assert.match(h.blocks[0].detail, /- title of c1\n- title of c2/);
+  });
+
+  test('AC-2/AC-4: below the cap a CRITICAL stays fix-required review-critical and reports its round', async () => {
+    const h = harness({
+      deposit: HALTED,
+      history: { runs: [runOf(critical('c1'))], overridden: [] },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.cause, 'review-critical');
+    assert.deepEqual(envelope.reviewRound, { round: 1, cap: 2 });
+    assert.equal(h.blocks.length, 0);
+  });
+
+  test('AC-2: maxRounds 0 counts as 1, so the first CRITICAL round blocks', async () => {
+    for (const history of [
+      { runs: [runOf(critical('c1'))], overridden: [] },
+      { runs: [], overridden: [] },
+    ]) {
+      const h = harness({
+        deposit: HALTED,
+        history,
+        config: configFor({ delivery: { acceptanceEval: { maxRounds: 0 } } }),
+      });
+      const { envelope } = await h.run();
+      assert.equal(envelope.status, 'blocked');
+      assert.equal(envelope.cause, 'review-cap');
+      assert.deepEqual(envelope.reviewRound, { round: 1, cap: 1 });
+    }
+  });
+
+  test('AC-3: overridden, unverified and ungrounded CRITICALs are not a round', async () => {
+    const h = harness({
+      deposit: HALTED,
+      history: {
+        runs: [
+          runOf(critical('gone')),
+          runOf(critical('u1', { unverified: 'no claim' })),
+          runOf(critical('g1', { ungrounded: 'no such line' })),
+          runOf({ id: 'h1', severity: 'high' }),
+          runOf(critical('c1')),
+        ],
+        overridden: ['gone'],
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'fix-required');
+    assert.deepEqual(envelope.reviewRound, { round: 1, cap: 2 });
+  });
+
+  test('a cap stop appended after a preflight finding still blocks', async () => {
+    const h = harness({
+      deposit: HALTED,
+      history: {
+        runs: [runOf(critical('c1')), runOf(critical('c1'))],
+        overridden: [],
+      },
+      outputs: { 'quality-preview.js': { status: 1, stdout: '' } },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.failedStep, 'review');
+    assert.equal(envelope.cause, 'review-cap');
+    assert.equal(h.blocks.length, 1);
+    assert.ok(envelope.steps.some((s) => s.name === 'preflight'));
+  });
+
+  test('a clean review carries no reviewRound and never reads the history', async () => {
+    const h = harness();
+    h.deps.readReviewHistoryFn = () => {
+      throw new Error('must not read');
+    };
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.ok(!('reviewRound' in envelope));
+  });
+});
+
+describe('story-handoff — the review-first retry (Story #6099)', () => {
+  const HALTED = {
+    halted: true,
+    haltCause: 'critical',
+    severity: { critical: 1 },
+  };
+  const CLEAN = { halted: false, severity: { critical: 0 } };
+  const statePath = () =>
+    path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`);
+  const seedState = (record) => {
+    mkdirSync(path.dirname(statePath()), { recursive: true });
+    writeFileSync(statePath(), JSON.stringify(record));
+  };
+  const PRE_CHECKS = [
+    'typecheck',
+    'lint',
+    'quality-preview.js',
+    'update-maintainability-baseline.js',
+    'coverage-capture.js',
+  ];
+
+  /** A first run stopped on review-critical after preflight passed. */
+  async function afterCritical(next) {
+    const h = harness({ deposit: HALTED });
+    const first = await h.run();
+    assert.equal(first.envelope.cause, 'review-critical');
+    h.runCommand.calls.length = 0;
+    h.rescores.length = 0;
+    h.reviews.length = 0;
+    const events = [];
+    h.deps.computeReview = async (input) => {
+      h.reviews.push(input);
+      events.push('review');
+      return { written: true, path: '/tmp/story-review.json', deposit: next };
+    };
+    const { runDuplicationRescore } = h.deps;
+    h.deps.runDuplicationRescore = async (input) => {
+      events.push('rescore');
+      return runDuplicationRescore(input);
+    };
+    return { h, events };
+  }
+
+  test('AC-5/AC-6: a still-CRITICAL retry settles before the re-score, the seat or any check, listing each as skipped', async () => {
+    const { h, events } = await afterCritical(HALTED);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'review');
+    assert.equal(envelope.cause, 'review-critical');
+    assert.deepEqual(events, ['review']);
+    const keys = spawned(h.runCommand);
+    for (const key of PRE_CHECKS) {
+      assert.ok(!keys.includes(key), `${key} never spawns`);
+    }
+    assert.deepEqual(stepNames(envelope), [
+      'base-merge',
+      'review',
+      'duplication-rescore',
+      'seat-static',
+      'preflight',
+      'credited-run',
+      'seat',
+      'post-capture',
+      'push',
+    ]);
+    for (const step of envelope.steps.slice(2)) {
+      assert.equal(step.outcome, 'skipped');
+      assert.equal(
+        step.detail,
+        'review-first retry: held review still CRITICAL',
+      );
+    }
+    assert.equal(h.world.remote, null, 'nothing pushed');
+  });
+
+  test('AC-5: the retry at the cap blocks the same way', async () => {
+    const { h } = await afterCritical(HALTED);
+    h.deps.readReviewHistoryFn = () => ({
+      runs: [1, 2].map(() => ({
+        headSha: HEAD,
+        findings: [{ id: 'c1', severity: 'critical', title: 'leak' }],
+      })),
+      overridden: [],
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(envelope.cause, 'review-cap');
+    assert.equal(stepNames(envelope).at(-1), 'push');
+    assert.equal(h.blocks.length, 1);
+  });
+
+  test('AC-7: a clean retry review continues into the full handoff, computing the review once', async () => {
+    const { h, events } = await afterCritical(CLEAN);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.status, 'ready');
+    assert.equal(events[0], 'review', 'awaited before anything else');
+    assert.deepEqual(stepNames(envelope), [
+      'base-merge',
+      'duplication-rescore',
+      'seat-static',
+      'preflight',
+      'credited-run',
+      'seat',
+      'post-capture',
+      'push',
+      'review',
+    ]);
+    assert.equal(h.reviews.length, 1);
+    assert.equal(h.world.remote, HEAD);
+  });
+
+  test('AC-8: another prior stop, a preflight that did not pass at the stop head, or no state runs the normal order', async () => {
+    const records = [
+      null,
+      { state: {}, envelope: { cause: 'review-critical', headSha: HEAD } },
+      {
+        state: { preflightHead: HEAD },
+        envelope: { cause: 'lint', headSha: HEAD },
+      },
+      {
+        state: { preflightHead: 'f'.repeat(40) },
+        envelope: { cause: 'review-critical', headSha: HEAD },
+      },
+    ];
+    for (const record of records) {
+      if (record) seedState(record);
+      const h = harness({ deposit: HALTED });
+      const events = [];
+      const { runCommand } = h.deps;
+      h.deps.runCommand = async (cmd, args, opts) => {
+        events.push(commandKey(cmd, args));
+        return runCommand(cmd, args, opts);
+      };
+      const { computeReview } = h.deps;
+      h.deps.computeReview = async (input) => {
+        events.push('review');
+        return computeReview(input);
+      };
+      const { envelope } = await h.run();
+      assert.deepEqual(stepNames(envelope).slice(0, 4), [
+        'base-merge',
+        'duplication-rescore',
+        'seat-static',
+        'preflight',
+      ]);
+      assert.equal(envelope.failedStep, 'review');
+      assert.ok(
+        events.indexOf('review') >
+          events.indexOf('update-maintainability-baseline.js'),
+        'the review starts after the static seat',
+      );
+    }
+  });
+
+  test('AC-8: --report-all after a review-critical stop is unchanged', async () => {
+    seedState({
+      state: { preflightHead: HEAD },
+      envelope: { cause: 'review-critical', headSha: HEAD },
+    });
+    const h = harness({ deposit: HALTED });
+    const { envelope } = await runStoryHandoff(
+      { storyId: STORY, cwd: '/work', config: configFor(), reportAll: true },
+      h.deps,
+    );
+    assert.deepEqual(stepNames(envelope).slice(0, 2), [
+      'preflight',
+      'post-capture',
+    ]);
+    assert.equal(h.reviews.length, 0);
+  });
+});
+
+describe('story-handoff — the preflight fast lane (Story #6099)', () => {
+  const firstConfig = (firstChecks) =>
+    configFor({ delivery: { handoff: { firstChecks } } });
+
+  test('AC-10: a failing first check settles fix-required naming it and quoting its rows, with no other check and no review', async () => {
+    const h = harness({
+      config: firstConfig([{ cmd: 'pre-screen', args: ['--fast'] }]),
+      outputs: {
+        'pre-screen': { status: 1, stdout: 'noise\n✖ rows.json is stale\n' },
+      },
+    });
+    let probed = false;
+    h.deps.probeReview = () => {
+      probed = true;
+      return { deposit: null };
+    };
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.equal(envelope.cause, 'first-check');
+    const { detail, findings } = stopStep(envelope);
+    assert.match(detail, /^first check `pre-screen --fast` finding: /);
+    assert.match(detail, /rows\.json is stale/);
+    assert.deepEqual(
+      findings.map((f) => f.check),
+      ['first-check-1'],
+    );
+    const keys = spawned(h.runCommand);
+    for (const key of ['typecheck', 'lint', 'quality-preview.js']) {
+      assert.ok(!keys.includes(key), `${key} never spawns`);
+    }
+    assert.equal(probed, false, 'no held review starts');
+    assert.equal(h.reviews.length, 0);
+    assert.ok(!stepNames(envelope).includes('review'));
+  });
+
+  test('AC-9/AC-13: entries run first in config order under the preflight step env; malformed ones are dropped; a clean lane changes nothing else', async () => {
+    const h = harness({
+      config: firstConfig([
+        { cmd: 'pre-a' },
+        { cmd: '' },
+        { cmd: 'pre-x', args: [7] },
+        { cmd: 'pre-b', args: ['--y'] },
+      ]),
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    const keys = spawned(h.runCommand);
+    assert.deepEqual(keys.slice(0, 4), [
+      'update-maintainability-baseline.js',
+      'pre-a',
+      'pre-b',
+      'typecheck',
+    ]);
+    assert.ok(!keys.includes('pre-x') && !keys.includes(''));
+    const call = h.runCommand.calls.find((c) => c.key === 'pre-b');
+    assert.deepEqual(call.args, ['--y']);
+    assert.equal(call.opts.env.MANDREL_HANDOFF_STEP, 'preflight');
+    assert.deepEqual(stepNames(envelope), [
+      'base-merge',
+      'duplication-rescore',
+      'seat-static',
+      'preflight',
+      'credited-run',
+      'seat',
+      'post-capture',
+      'push',
+      'review',
+    ]);
+  });
+
+  test('AC-12: --report-all lists both fast-lane finding kinds beside the other preflight findings', async () => {
+    const config = configFor({
+      delivery: {
+        handoff: { firstChecks: [{ cmd: 'pre-screen' }] },
+        quality: {
+          gates: {
+            maintainability: { enabled: true },
+            duplication: { enabled: true },
+          },
+        },
+      },
+    });
+    const failing = { status: 1, stdout: '' };
+    const h = harness({
+      config,
+      outputs: {
+        'pre-screen': failing,
+        'check-baselines.js maintainability,duplication': failing,
+        npm: failing,
+      },
+    });
+    h.deps.presentBaselines = ['maintainability', 'duplication'];
+    const { envelope } = await runStoryHandoff(
+      { storyId: STORY, cwd: '/work', config, reportAll: true },
+      h.deps,
+    );
+    const checks = envelope.findings.map((f) => f.check);
+    assert.deepEqual(checks.slice(0, 2), [
+      'first-check-1',
+      'check-baselines-independent',
+    ]);
+    assert.ok(checks.includes('lint'), 'the remaining checks still ran');
+    assert.equal(h.reviews.length, 0);
   });
 });

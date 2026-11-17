@@ -267,6 +267,7 @@
       "bodyTrailers": []
     },
     "handoff": {
+      "firstChecks": [],
       "postSeatChecks": []
     },
     "routing": {

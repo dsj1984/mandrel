@@ -868,7 +868,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/handoff.js",
-      "mi": 123.646
+      "mi": 124.807
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
@@ -2068,7 +2068,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "mi": 95.389
+      "mi": 96.731
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
