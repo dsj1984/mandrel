@@ -265,9 +265,11 @@ describe('suite admission across processes (Story #5668)', () => {
     });
 
     it('AC-6: the head waiter is admitted once the window closes despite a stream of small waiters', async () => {
-      // small-0 must start inside the window or the pair never releases; a
-      // cold Windows runner can spend 1.5s between the go file and admission.
-      const windowMs = 5_000;
+      // The gate reads each backfiller's own window. small-0 must start or
+      // the pair never releases, so its window spans its whole wait: a cold
+      // Windows runner can spend seconds between the go file and admission.
+      // The stream keeps the short window the starvation bound is about.
+      const windowMs = 1_500;
       const small = (name, spec) =>
         contend(name, {
           config: backfilling,
@@ -282,7 +284,10 @@ describe('suite admission across processes (Story #5668)', () => {
       const smalls = [
         small('small-a', pair),
         small('small-b', pair),
-        small('small-0', { goFile: releaseFile('go') }),
+        small('small-0', {
+          goFile: releaseFile('go'),
+          backfillWindowMs: 20_000,
+        }),
       ];
       await until(
         () =>
@@ -320,9 +325,10 @@ describe('suite admission across processes (Story #5668)', () => {
           /^small-\d/.test(e.name) && e.event === 'start' && e.at < bigStart,
       );
       assert.ok(ahead.length > 0, 'small waiters backfilled meanwhile');
+      const stream = ahead.filter((e) => e.name !== 'small-0');
       // A poll that passed the gate just inside the window may start a few
       // ms after it closes; none starts a full poll interval later.
-      for (const e of ahead) {
+      for (const e of stream) {
         assert.ok(e.at < closes + 250, `${e.name} overtook after the window`);
       }
     });
