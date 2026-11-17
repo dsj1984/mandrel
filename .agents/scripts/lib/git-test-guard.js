@@ -56,12 +56,20 @@ function isMoving(args) {
   );
 }
 
+// `.native` expands Windows 8.3 short names (RUNNER~1) that git never prints.
 function realpathOr(p) {
   try {
-    return fs.realpathSync(p);
+    return fs.realpathSync.native(path.resolve(p));
   } catch {
     return path.resolve(p);
   }
+}
+
+/** Windows paths compare case-insensitively. */
+function samePath(a, b) {
+  return process.platform === 'win32'
+    ? a?.toLowerCase() === b.toLowerCase()
+    : a === b;
 }
 
 /** The toplevel of the repository `cwd` sits in, or null outside one. */
@@ -103,7 +111,8 @@ export function assertGitAllowed(cwd, args, env = process.env) {
   const root = env[TEST_GUARD_ROOT_ENV];
   if (!root || !isMoving(args)) return;
   const dir = realpathOr(cwd ?? process.cwd());
-  if (!fs.existsSync(dir) || toplevelOf(dir) !== realpathOr(root)) return;
+  if (!fs.existsSync(dir) || !samePath(toplevelOf(dir), realpathOr(root)))
+    return;
   throw new Error(
     `git ${subcommandOf(args).name} refused in the checkout under test (${root}) — pass a temp cwd`,
   );
