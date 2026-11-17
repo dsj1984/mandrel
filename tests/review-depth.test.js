@@ -27,7 +27,6 @@ import {
   resolveReviewEffort,
 } from '../.agents/scripts/lib/orchestration/review-depth.js';
 import {
-  EXHAUSTIVE_DIRECTIVE,
   renderDepthDirective,
   renderExhaustiveDirective,
 } from '../.agents/scripts/lib/orchestration/review-providers/review-depth.js';
@@ -345,6 +344,8 @@ describe('.agentrc.json validation of delivery.codeReview.effortByDepth', () => 
 
 // --- Exhaustive first-pass directive ---------------------------------------
 
+const EXHAUSTIVE_DIRECTIVE = renderExhaustiveDirective(true);
+
 describe('renderExhaustiveDirective', () => {
   test('AC-2: the directive asks for an every-instance sweep per class and every access path', () => {
     assert.match(EXHAUSTIVE_DIRECTIVE, /every defect class/);
@@ -359,7 +360,7 @@ describe('renderExhaustiveDirective', () => {
   });
 
   test('AC-2/AC-3: only a first pass renders it, and the depth directive never carries it', () => {
-    assert.equal(renderExhaustiveDirective(true), EXHAUSTIVE_DIRECTIVE);
+    assert.ok(EXHAUSTIVE_DIRECTIVE.length > 0);
     for (const off of [false, undefined]) {
       assert.equal(renderExhaustiveDirective(off), '');
     }

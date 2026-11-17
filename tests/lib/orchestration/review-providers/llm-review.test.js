@@ -18,7 +18,7 @@ import {
   createLlmReviewProvider,
   resolveLlmReviewDelegate,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/llm-review.js';
-import { EXHAUSTIVE_DIRECTIVE } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-depth.js';
+import { renderExhaustiveDirective } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-depth.js';
 import { createReviewProvider } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
 import { createSecurityReviewProvider } from '../../../../.agents/scripts/lib/orchestration/review-providers/security-review.js';
 import { buildUltrareviewMessage } from '../../../../.agents/scripts/lib/orchestration/review-providers/ultrareview.js';
@@ -272,6 +272,7 @@ async function renderedPrompts(t, input) {
 }
 
 test('AC-2: every LLM-backed provider renders the exhaustive directive on a first pass only', async (t) => {
+  const EXHAUSTIVE_DIRECTIVE = renderExhaustiveDirective(true);
   const first = await renderedPrompts(t, {
     ...STORY_INPUT,
     depth: 'deep',

@@ -29,7 +29,7 @@ const DEPTH_DIRECTIVES = Object.freeze({
  * Follows the depth directive on a Story's first review pass, so it leads with
  * a space; see `BUG_CLASS_RULE`.
  */
-export const EXHAUSTIVE_DIRECTIVE =
+const EXHAUSTIVE_DIRECTIVE =
   ' This is the first review of this Story: make it exhaustive. Enumerate ' +
   'every defect class you raise. For each class, sweep every changed file ' +
   'for every instance before returning, and report them all in that ' +
