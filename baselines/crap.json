@@ -2800,7 +2800,6 @@
       "applyTestDelta": 3,
       "buildTestDeltaGate": 1,
       "keptRun": 2,
-      "overBudgetOf": 2,
       "readStoryFiles": 4,
       "resolveTestChangedCommand": 3,
       "substituteChangedSince": 1,
