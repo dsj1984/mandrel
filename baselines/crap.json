@@ -3084,6 +3084,7 @@
       "buildScopePredicate": 3,
       "classifyAbsent": 2,
       "compareScores": 10,
+      "coverageRowFromScores": 1,
       "dispatchEnvelopeWrite": 2,
       "isEnvelopeShape": 3,
       "narrowScopeToMeasured": 2,
@@ -5342,6 +5343,7 @@
     },
     ".agents/scripts/lib/orchestration/handoff-suite-of-record.js": {
       "deferred": 1,
+      "depositorReason": 3,
       "settleSuiteOfRecord": 4
     },
     ".agents/scripts/lib/orchestration/lease-guard-shared.js": {
