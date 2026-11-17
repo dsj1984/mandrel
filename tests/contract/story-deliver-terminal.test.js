@@ -710,6 +710,27 @@ describe('story-deliver-terminal — blocked / failed', () => {
     );
   });
 
+  it('stamps blocked.recovery from the block class and requires it', () => {
+    const build = (blockClass) =>
+      buildTerminalEnvelope({
+        storyId: 6091,
+        status: 'blocked',
+        phase: 'confirm-merge',
+        blocked: { blockClass, reason: 'r' },
+        nextCommand: null,
+        elapsedSeconds: 0,
+      });
+    assert.equal(build('checks-failed').blocked.recovery, 'agent');
+    assert.equal(build('arm-failure').blocked.recovery, 'operator');
+    const env = build('checks-failed');
+    delete env.blocked.recovery;
+    assert.equal(
+      validateTerminalEnvelope(env).valid,
+      false,
+      'an envelope missing recovery fails',
+    );
+  });
+
   it('a blocked envelope carrying advisory-gate-inconclusive validates (Story #5266)', () => {
     // The class is emitted DIRECTLY by the arm and merge-wait phases — the
     // classifier cannot produce it — so nothing but this schema enum stands

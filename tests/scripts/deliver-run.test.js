@@ -215,6 +215,19 @@ describe('deliver-run — one beat, one envelope (AC-1)', () => {
     assert.ok(envelope.blockedReason);
   });
 
+  it('keeps a Story resting at agent::closing after an agent-recovery block in flight, not blocked', async () => {
+    const closing = node(101, { labels: ['agent::closing'] });
+    assert.notEqual(classifyStory(closing), 'blocked');
+    const { envelope, exitCode } = await beat(
+      { nodes: [closing] },
+      { stories: '101' },
+    );
+
+    assert.strictEqual(exitCode, 0);
+    assert.ok(!envelope.blocked?.length);
+    assert.notEqual(envelope.done, true);
+  });
+
   it('reports an input error as exit 1 without ticking', async () => {
     const { envelope, exitCode } = await runDeliverRunBeat({
       stories: '',
