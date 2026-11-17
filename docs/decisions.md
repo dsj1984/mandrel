@@ -29,13 +29,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (64).** Each governs the surface named beside it; a
+**In force (65).** Each governs the surface named beside it; a
 `Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261117-6099`](#adr-20261117-6099-the-handoff-fast-lane-raises-the-agentrc-leaf-key-ceiling-to-170) | The handoff fast lane raises the agentrc leaf-key ceiling to 170 | `.agents/scripts/lib/config/handoff.js` | Accepted |
 | [`20261112-6068`](#adr-20261112-6068-untested-cli-wiring-raises-the-agentrc-leaf-key-ceiling-to-169) | Untested CLI wiring raises the agentrc leaf-key ceiling to 169 | `.agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js` | Accepted |
 | [`20261111-6054`](#adr-20261111-6054-over-rest-a-merge-queue-base-is-armed-through-the-ccr-route) | Over REST, a merge-queue base is armed through the CCR route | `.agents/scripts/lib/orchestration/merge-queue.js` | Accepted |
 | [`20261111-6050`](#adr-20261111-6050-closes-ci-revalidation-after-a-base-merge-raises-the-agentrc-leaf-key-ceiling-to-168) | Close's CI revalidation after a base merge raises the agentrc leaf-key ceiling to 168 | `.agents/scripts/lib/close-validation/base-sync-revalidation.js` | Accepted |
@@ -5317,3 +5318,29 @@ files no test can load is a consumer judgement, not a property of the code.
 
 Every consumer's new uncovered files now face the full CRAP check. A consumer
 with untestable CLI entry points lists their globs.
+
+## ADR 20261117-6099: The handoff fast lane raises the agentrc leaf-key ceiling to 170
+
+**Status:** Accepted
+**Date:** 2026-11-17
+**Surface:** `.agents/scripts/lib/config/handoff.js`
+**Story:** #6099
+
+### Context
+
+A handoff paid for typecheck and a whole lint pass before it learned of a
+deterministic failure a consumer's seconds-long pre-screen would have found.
+
+### Decision
+
+Add `delivery.handoff.firstChecks` (default `[]`) and raise the ceiling by one.
+Preflight runs it first, beside close's independent baseline compare, and a
+finding there stops preflight before any other check or the held review
+starts. No existing source holds it: `postSeatChecks` runs after the seat by
+design, and which of a consumer's checks are cheap and deterministic is the
+consumer's judgement, not a property of its gate list.
+
+### Consequences
+
+A consumer with a fast pre-screen lists it and fails fast; one without pays
+only the baseline compare before lint.

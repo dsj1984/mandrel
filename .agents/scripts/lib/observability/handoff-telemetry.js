@@ -22,6 +22,7 @@ const HANDOFF_CAUSES = Object.freeze(
     'base-merge-conflict',
     'base-merge-failed',
     'preflight-unresolved',
+    'first-check',
     'lint',
     'format',
     'quality-preview',
@@ -42,6 +43,7 @@ const HANDOFF_CAUSES = Object.freeze(
     'ref-behind',
     'push-hook',
     'review-critical',
+    'review-cap',
     'other',
   ]),
 );

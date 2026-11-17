@@ -6,7 +6,10 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { getPostSeatChecks } from '../../../.agents/scripts/lib/config/handoff.js';
+import {
+  getFirstChecks,
+  getPostSeatChecks,
+} from '../../../.agents/scripts/lib/config/handoff.js';
 import { getAgentrcValidator } from '../../../.agents/scripts/lib/config-settings-schema.js';
 
 const validate = getAgentrcValidator();
@@ -60,6 +63,42 @@ describe('getPostSeatChecks', () => {
         { cmd: 'node', args: ['a.js'] },
         { cmd: 'make', args: [] },
       ],
+    );
+  });
+});
+
+describe('delivery.handoff.firstChecks (Story #6099 AC-9)', () => {
+  it('validates as an optional array of { cmd, args? }', () => {
+    assert.equal(validate(docWith({})), true, JSON.stringify(validate.errors));
+    const ok = validate(
+      docWith({ firstChecks: [{ cmd: 'node', args: ['a.js'] }, { cmd: 'x' }] }),
+    );
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+    for (const bad of [
+      [{ args: ['a'] }],
+      [{ cmd: 'x', args: [1] }],
+      [{ cmd: 'x', shell: true }],
+      'node a.js',
+    ]) {
+      assert.equal(validate(docWith({ firstChecks: bad })), false);
+    }
+  });
+
+  it('the getter defaults to [] and drops a malformed entry', () => {
+    assert.deepEqual(getFirstChecks({}), []);
+    assert.deepEqual(
+      getFirstChecks({
+        delivery: {
+          handoff: {
+            firstChecks: [
+              { cmd: 'a' },
+              { args: ['x'] },
+              { cmd: 'b', args: [2] },
+            ],
+          },
+        },
+      }),
+      [{ cmd: 'a', args: [] }],
     );
   });
 });
