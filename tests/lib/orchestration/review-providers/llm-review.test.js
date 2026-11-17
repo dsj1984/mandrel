@@ -232,6 +232,7 @@ test('schema: llm-review is an accepted codeReview.providers name', () => {
 async function renderedPrompts(t, input) {
   const prompts = {};
   await createCodeReviewProviderForRegistry({
+    probeFn: () => true,
     gitSpawnFn: () => ({ status: 0, stdout: 'diff --git a/x b/x\n' }),
     authSpawnFn: () => ({
       status: 0,
