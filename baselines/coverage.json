@@ -724,9 +724,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js",
-      "lines": 95.38,
-      "branches": 88.89,
-      "functions": 75
+      "lines": 98.88,
+      "branches": 88,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
@@ -1188,13 +1188,13 @@
       "path": ".agents/scripts/lib/config-settings-schema-delivery.js",
       "lines": 100,
       "branches": 100,
-      "functions": 0
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/config-settings-schema-quality.js",
       "lines": 100,
       "branches": 100,
-      "functions": 0
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/config/acceptance-eval.js",
@@ -1260,7 +1260,7 @@
       "path": ".agents/scripts/lib/config/gates/coverage.schema.js",
       "lines": 100,
       "branches": 100,
-      "functions": 0
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/config/gates/crap-incremental-coverage.schema.js",
@@ -1415,7 +1415,7 @@
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
       "lines": 100,
-      "branches": 89.6,
+      "branches": 93.08,
       "functions": 100
     },
     {
@@ -1427,7 +1427,7 @@
     {
       "path": ".agents/scripts/lib/coverage-capture-delta.js",
       "lines": 100,
-      "branches": 91.13,
+      "branches": 91.97,
       "functions": 100
     },
     {
@@ -1444,8 +1444,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-own-fix.js",
-      "lines": 100,
-      "branches": 93.9,
+      "lines": 99.19,
+      "branches": 91.21,
       "functions": 100
     },
     {
@@ -1864,8 +1864,8 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "lines": 94.34,
-      "branches": 87.23,
+      "lines": 94.44,
+      "branches": 88.24,
       "functions": 100
     },
     {
@@ -2122,8 +2122,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 96.39,
-      "branches": 89.47,
+      "lines": 97.37,
+      "branches": 86.59,
       "functions": 100
     },
     {
@@ -3579,6 +3579,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/util/glob-match.js",
+      "lines": 100,
+      "branches": 91.3,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/util/parse-id-list.js",
       "lines": 100,
       "branches": 100,
@@ -4048,9 +4054,9 @@
     },
     {
       "path": ".agents/scripts/single-story-init.js",
-      "lines": 89.13,
-      "branches": 67.62,
-      "functions": 69.44
+      "lines": 89.63,
+      "branches": 70.83,
+      "functions": 71.05
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
