@@ -8,6 +8,7 @@ import nodeFs from 'node:fs';
 import { storyTerminalEnvelopePath } from '../config/temp-paths.js';
 import { resolveConfig } from '../config-resolver.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
+import { BLOCK_CLASS_RECOVERY } from './block-class-recovery.js';
 import { validateTerminalEnvelope } from './story-deliver-terminal-schema.js';
 
 export { validateTerminalEnvelope };
@@ -95,6 +96,12 @@ function compact(obj) {
   return out;
 }
 
+/** An unknown class gets no `recovery`, so the schema rejects the envelope. */
+function withRecovery(blocked) {
+  if (!blocked) return null;
+  return { ...blocked, recovery: BLOCK_CLASS_RECOVERY[blocked.blockClass] };
+}
+
 /**
  * Throws a `TypeError` on a schema violation — callers trust the status
  * without re-probing GitHub. An unreadable schema does not throw.
@@ -163,7 +170,7 @@ export function buildTerminalEnvelope({
     pr: pr ?? null,
     gates,
     tail: tail ?? null,
-    blocked: blocked ?? null,
+    blocked: withRecovery(blocked),
     failure: failure ?? null,
     escalation: escalation ?? null,
     nextCommand: nextCommand ?? null,

@@ -381,9 +381,16 @@ PR, and not when the CI digest recorded a red against that head.
 
 ## Step 4 — CI watch + fix recovery
 
-Enter this step **only** when Step 3 returned `blocked` with
-`blockClass: "checks-failed"` (a required check went red), or when a
-`--no-wait-merge` run left the PR for you to shepherd. When a required check is
+Enter this step when Step 3 returned `blocked` with `blocked.recovery:
+"agent"` — `checks-failed` (a required check went red), `queue-ejected`,
+`checks-pending-timeout`, an advisory-gate red or `api-race-other` — or when
+a `--no-wait-merge` run left the PR for you to shepherd. Those blocks leave
+the Story at `agent::closing` (`merged-flip-failed` is also `agent`, but the
+merge already landed: re-run its `nextCommand`). The fix is this session's,
+in this turn ([`deliver-story.md` § Drive to merge](deliver-story.md#drive-to-merge)).
+An `operator` class (`branch-protection-human-required`, `arm-failure`,
+`predicate-refused`, `merge-queue-rest-unsupported`) carries `agent::blocked`
+and waits for a human. When a required check is
 red, the agent owns the green-CI outcome, not just the push: CI runs on a
 different OS and concurrency, and coverage rounding, platform-conditional
 branches, and timing-sensitive tests routinely drift from the dev host.
