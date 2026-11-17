@@ -15,6 +15,21 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.124.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.123.0...mandrel-v2.124.0) (2026-11-17)
+
+
+### Added
+
+* a Story's first held review is an exhaustive deep pass that sweeps every instance of each defect class ([#6100](https://github.com/dsj1984/mandrel/issues/6100)) ([#6102](https://github.com/dsj1984/mandrel/issues/6102)) ([ba0b87f](https://github.com/dsj1984/mandrel/commit/ba0b87f20709a37152885826f04493ae7ddddf16))
+* deliver drives the PR to merge: agent-recoverable CI reds and conflicts are fixed in-session, only operator-owned blocks pause ([#6091](https://github.com/dsj1984/mandrel/issues/6091)) ([#6092](https://github.com/dsj1984/mandrel/issues/6092)) ([07caf64](https://github.com/dsj1984/mandrel/commit/07caf6459d1ffd8e266b530529f0f28670837226))
+* story-handoff bounds the held-review loop, retries a review-critical fix review-first, and fails fast on cheap blocking gates ([#6099](https://github.com/dsj1984/mandrel/issues/6099)) ([#6103](https://github.com/dsj1984/mandrel/issues/6103)) ([9a4db8a](https://github.com/dsj1984/mandrel/commit/9a4db8aca84b54c1b4b518e8a8f4a6c911a1c580))
+
+
+### Fixed
+
+* **deps:** replace picomatch with minimatch behind one glob seam ([#6093](https://github.com/dsj1984/mandrel/issues/6093)) ([2db3b96](https://github.com/dsj1984/mandrel/commit/2db3b969e15f7b749f0bac1502c590a8ccdbf035))
+* **test:** give suite-admission AC-6's first backfiller its own window (refs [#6105](https://github.com/dsj1984/mandrel/issues/6105)) ([#6106](https://github.com/dsj1984/mandrel/issues/6106)) ([896851e](https://github.com/dsj1984/mandrel/commit/896851e220733a242ad32773e37b52005cbfd2f9))
+
 ## [2.123.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.122.0...mandrel-v2.123.0) (2026-11-17)
 
 
