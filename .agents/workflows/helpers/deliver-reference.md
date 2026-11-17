@@ -518,6 +518,10 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   `testChanged` or an unreadable merge-base falls back to the full
   `project.commands.test`, logging which reason applied. An exit 76 from any
   `test` form settles by `coverage.onOverBudget`, as the capture's does.
+  Under `coverage.suiteOfRecord: "ci"` none of this runs: the `test`
+  depositor is deferred to CI like the capture (no lock, no credit, the
+  `Coverage-deferred:` marker), after the changed-tests guard when
+  `testChanged` is set.
 - **Runner shapes.** A bare `npm test` earns the `test` credit **only** where
   the project's test script routes through mandrel's own runner, which prints
   the outcome. On any other runner it deposits nothing and prints nothing, so
@@ -714,8 +718,9 @@ line naming host contention — neither is reported as failing tests. A
 coverage-capture exiting `76` (the consumer's capture script declared its
 slice over this host's budget, so nothing ran) follows
 `delivery.quality.gates.coverage.onOverBudget`, and under
-`coverage.suiteOfRecord: "ci"` the capture is deferred before anything
-spawns (no lock, no credit). A deferral reports the gate `deferred`, the
+`coverage.suiteOfRecord: "ci"` the credited suite — the capture or the
+`test` depositor — is deferred before anything spawns (no lock, no
+credit). A deferral reports the gate `deferred`, the
 coverage-reading gates `skipped` (`coverage-deferred-ci`), settles the
 handoff `ready` with a `coverage` field, and puts a `Coverage-deferred:
 <reason>` key line in the PR body. CI's `ciRatchetCheck` job then runs

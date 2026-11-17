@@ -784,7 +784,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/test-delta.js",
-      "mi": 105.496
+      "mi": 107.118
     },
     {
       "path": ".agents/scripts/lib/codex/agents-projection.js",
@@ -1544,7 +1544,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/handoff-suite-of-record.js",
-      "mi": 105.639
+      "mi": 108.145
     },
     {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",

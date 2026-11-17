@@ -14,6 +14,7 @@ import {
   COVERAGE_DEFERRED_SKIP_REASON,
 } from '../../../.agents/scripts/lib/close-validation/gates.js';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
+import { suiteGateDeferral } from '../../../.agents/scripts/lib/coverage-deferral.js';
 import { buildPullRequestFields } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js';
 import { closeEnvelopeGates } from '../../../.agents/scripts/lib/orchestration/single-story-close/result.js';
 
@@ -303,9 +304,8 @@ describe('suiteOfRecord: "ci" (Story #5955)', () => {
     assert.equal(byName(local, 'coverage-capture').suiteOfRecordCi, undefined);
   });
 
-  it('changes nothing when an incremental skip is predicted', () => {
-    const lines = [];
-    const gates = buildDefaultGates({
+  const skipBranchGates = (coverage, lines, gitCalls = []) =>
+    buildDefaultGates({
       config: {
         delivery: {
           quality: {
@@ -314,7 +314,7 @@ describe('suiteOfRecord: "ci" (Story #5955)', () => {
                 enabled: true,
                 incrementalCoverage: { skipWhenUnchanged: true },
               },
-              coverage: { suiteOfRecord: 'ci' },
+              coverage,
             },
           },
         },
@@ -326,15 +326,101 @@ describe('suiteOfRecord: "ci" (Story #5955)', () => {
       log: (m) => lines.push(m),
       getChangedFilesImpl: () => [],
       resolveBaseRefImpl: () => ({ ref: 'origin/main' }),
-      gitSpawnImpl: () => ({ status: 1, stdout: '' }),
+      gitSpawnImpl: (...args) => {
+        gitCalls.push(args);
+        return { status: 1, stdout: '' };
+      },
       shouldSkipImpl: () => ({ skip: false }),
     });
+
+  it('defers the skip-branch test gate under the ci posture (Story #6087)', () => {
+    const lines = [];
+    const gitCalls = [];
+    const gates = skipBranchGates(
+      { suiteOfRecord: 'ci', ciRatchetCheck: 'ratchet' },
+      lines,
+      gitCalls,
+    );
     const capture = byName(gates, 'coverage-capture');
     assert.equal(capture.skip.reason, 'incremental-no-crap-changes');
     assert.equal(capture.suiteOfRecordCi, undefined);
-    assert.ok(byName(gates, 'test'), 'the plain test gate comes back');
+    assert.deepEqual(byName(gates, 'test').suiteOfRecordCi, {
+      ciRatchetCheck: 'ratchet',
+    });
+    assert.ok(!lines.some((l) => /still runs the suite/.test(l)));
+    assert.deepEqual(gitCalls, [], 'no merge-base probe for a deferred gate');
+  });
+
+  it('keeps the skip-branch test gate local under the local posture', () => {
+    const lines = [];
+    const gates = skipBranchGates({ suiteOfRecord: 'local' }, lines);
+    const test = byName(gates, 'test');
+    assert.equal(test.suiteOfRecordCi, undefined);
+    assert.equal(test.cmd, 'npm');
     assert.ok(lines.some((l) => /incremental skip/.test(l)));
   });
+
+  it('defers the test gate when no capture is active (Story #6087)', () => {
+    const gates = buildDefaultGates({
+      config: {
+        delivery: {
+          quality: {
+            gates: {
+              coverage: { suiteOfRecord: 'ci', ciRatchetCheck: 'ratchet' },
+            },
+          },
+        },
+      },
+      packageScripts: {},
+      presentBaselines: 'none',
+    });
+    assert.equal(byName(gates, 'coverage-capture'), undefined);
+    assert.deepEqual(byName(gates, 'test').suiteOfRecordCi, {
+      ciRatchetCheck: 'ratchet',
+    });
+  });
+
+  for (const ciRatchetCheck of ['ratchet', null]) {
+    it(`settles a CI-owned test gate without spawning (ciRatchetCheck ${ciRatchetCheck}) (Story #6087)`, async () => {
+      const spawned = [];
+      const validation = await runCloseValidation({
+        cwd: '/repo',
+        gates: [
+          {
+            name: 'test',
+            cmd: 'npm',
+            args: ['test'],
+            fullSuiteLock: true,
+            suiteOfRecordCi: { ciRatchetCheck },
+          },
+        ],
+        runner: (cmd, args) => {
+          spawned.push([cmd, ...args]);
+          return { status: 0 };
+        },
+        runProjections: async () => ({}),
+      });
+      assert.deepEqual(spawned, []);
+      if (ciRatchetCheck) {
+        assert.equal(validation.ok, true);
+        assert.deepEqual(
+          validation.deferred.map((d) => [d.gate.name, d.reason]),
+          [['test', 'suite-of-record-ci']],
+        );
+        assert.equal(
+          suiteGateDeferral(validation.deferred).reason,
+          'suite-of-record-ci',
+          'the PR body carries the suite-of-record key line',
+        );
+      } else {
+        assert.equal(validation.ok, false);
+        assert.match(
+          validation.failed[0].gate.hint,
+          /coverage\.ciRatchetCheck/,
+        );
+      }
+    });
+  }
 
   async function runPosture(ciRatchetCheck) {
     const spawned = [];

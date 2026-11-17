@@ -53,6 +53,24 @@ function planTestGate(config) {
   return { gate: gates.find((g) => g.name === 'test'), logged };
 }
 
+describe('test delta re-credit under suiteOfRecord: ci (Story #6087)', () => {
+  it('keeps a CI-owned test gate CI-owned through the delta swap', () => {
+    const config = loadConfig({ testChanged: TEST_CHANGED });
+    const owned = { ...FULL_TEST, suiteOfRecordCi: { ciRatchetCheck: 'r' } };
+    const gates = applyTestDelta([owned], {
+      baseSync: { changedPaths: ['src/b.js'], creditedCommit: SINCE },
+      config,
+      storyId: 6087,
+      cwd: ROOT,
+      baseBranch: 'main',
+      shouldSkipImpl: () => ({ skip: true, reason: 'credited' }),
+      getChangedFilesImpl: () => ['src/a.js'],
+    });
+    assert.equal(gates.length, 1);
+    assert.deepEqual(gates[0].suiteOfRecordCi, { ciRatchetCheck: 'r' });
+  });
+});
+
 describe('test delta re-credit through the real config resolver', () => {
   it('plans the delta gate from a resolved config that sets testChanged', () => {
     const config = loadConfig({ testChanged: TEST_CHANGED });

@@ -115,7 +115,7 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    per-host `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
    above 1 (default 1): close's independent gates then run in admitted
    lanes beside the base lane — [`deliver-reference.md`](deliver-reference.md) § Preflight.
-3. **One depositor**, by the one predicate close registers `coverage-capture`
+3. **One depositor** (`suiteOfRecord: ci`: CI's), by one predicate close registers `coverage-capture`
    on — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →
      `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`,

@@ -136,6 +136,11 @@ function suiteOfRecordFlag(config) {
   return ci ? { suiteOfRecordCi: { ciRatchetCheck } } : {};
 }
 
+/** A skip branch close scopes locally: under `suiteOfRecord: "ci"` CI owns it. */
+function scopesSkipBranch(skipBranch, config) {
+  return skipBranch && !suiteOfRecord(config).ci;
+}
+
 /** Shown when `suiteOfRecord: "ci"` has no ratchet check to hand the ratchet to. */
 export const CI_RATCHET_UNDECLARED_HINT =
   '`delivery.quality.gates.coverage.suiteOfRecord: "ci"` defers the coverage capture to CI, but `delivery.quality.gates.coverage.ciRatchetCheck` is unset, so nothing would ratchet coverage or CRAP. Name the CI check that runs `coverage-ratchet.js`, or set `suiteOfRecord` back to `"local"`.';
@@ -171,7 +176,9 @@ function isCoverageCaptureActive(config, scripts) {
  * close must keep exactly one working test gate. Its argv is
  * `project.commands.test` (default `npm test`); after a base move close's
  * phase may swap it for the delta re-credit (`test-delta.js`), which runs
- * `testChanged` keyed on `MANDREL_CHANGED_SINCE`.
+ * `testChanged` keyed on `MANDREL_CHANGED_SINCE`. Under
+ * `suiteOfRecord: "ci"` it carries the posture, so the runner defers it to
+ * CI before spawning, as it does the capture.
  *
  * @param {boolean} coverageCaptureRunsSuite
  * @param {object|undefined|null} config - Canonical resolved config.
@@ -181,7 +188,13 @@ function buildTestGateEntry(coverageCaptureRunsSuite, config, scope) {
   if (coverageCaptureRunsSuite) return [];
   // `fullSuiteLock` serializes this suite behind the host lock; when
   // coverage-capture runs instead, `runCapture` takes the lock itself.
-  return [{ ...closeTestGate(config, scope), ...overBudgetFlag(config) }];
+  return [
+    {
+      ...closeTestGate(config, scope),
+      ...overBudgetFlag(config),
+      ...suiteOfRecordFlag(config),
+    },
+  ];
 }
 
 const CHECK_BASELINES_HINT =
@@ -605,7 +618,7 @@ export function buildDefaultGates({
       resolveBaseRefImpl,
     }).skipBranch;
   const testScope = closeTestScope({
-    skipBranch: captureSkipPredicted,
+    skipBranch: scopesSkipBranch(captureSkipPredicted, config),
     config,
     cwd,
     baseBranch,

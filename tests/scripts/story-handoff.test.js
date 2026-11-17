@@ -3205,22 +3205,69 @@ describe('story-handoff — CI is the suite of record (Story #5955)', () => {
     assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
   });
 
-  test('the local posture and the test depositor change nothing', async () => {
+  test('the local posture changes nothing', async () => {
     const local = harness({
       config: postureConfig({ suiteOfRecord: 'local' }),
     });
     const { envelope } = await local.run();
     assert.equal(envelope.coverage, undefined);
     assert.ok(spawned(local.runCommand).includes('coverage-capture.js'));
-    const testDepositor = harness({
-      config: postureConfig({ suiteOfRecord: 'ci' }),
-      scripts: {},
-    });
-    const result = await testDepositor.run();
-    assert.equal(result.envelope.depositor, 'test');
-    assert.equal(result.envelope.status, 'ready');
-    assert.equal(result.envelope.coverage, undefined);
   });
+
+  // Story #6087 — the posture defers the `test` depositor too.
+  for (const [label, shape, reason] of [
+    [
+      'a diff with no file under crap.targetDirs',
+      { changed: ['docs/decisions.md'] },
+      /depositor test \(no changed file under crap\.targetDirs\)/,
+    ],
+    [
+      'an inactive capture',
+      { scripts: { test: 'x' } },
+      /depositor test \(no active coverage capture\)/,
+    ],
+  ]) {
+    test(`the test depositor on ${label} defers with no suite, lock or credit`, async () => {
+      const h = harness({
+        config: postureConfig({
+          suiteOfRecord: 'ci',
+          ciRatchetCheck: 'coverage-ratchet',
+        }),
+        ...shape,
+      });
+      const channels = withChannelSpy(h);
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 0);
+      assert.equal(envelope.status, 'ready');
+      assert.equal(envelope.depositor, 'test');
+      assert.deepEqual(envelope.coverage, {
+        status: 'deferred',
+        reason: 'suite-of-record-ci',
+        policy: 'suite-of-record',
+      });
+      const credited = envelope.steps.find((s) => s.name === 'credited-run');
+      assert.equal(credited.outcome, 'deferred');
+      assert.match(credited.detail, reason);
+      assert.equal(channels(), 0, 'no full-suite lock channel opened');
+      const keys = spawned(h.runCommand);
+      assert.ok(!keys.includes('evidence-gate.js'), 'no test credit run');
+      assert.ok(!keys.includes('coverage-capture.js'));
+      assert.ok(!keys.includes('npm'), 'no guard without testChanged');
+    });
+
+    test(`the test depositor on ${label} blocks when no ratchet check is declared`, async () => {
+      const h = harness({
+        config: postureConfig({ suiteOfRecord: 'ci' }),
+        ...shape,
+      });
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 1);
+      assert.equal(envelope.depositor, 'test');
+      assert.equal(envelope.status, 'blocked');
+      assert.equal(envelope.reason, 'ci-ratchet-undeclared');
+      assert.ok(!spawned(h.runCommand).includes('evidence-gate.js'));
+    });
+  }
 });
 
 describe('story-handoff — the changed-tests guard under suiteOfRecord: ci (Story #6061)', () => {
@@ -3356,6 +3403,28 @@ describe('story-handoff — the changed-tests guard under suiteOfRecord: ci (Sto
     assert.equal(credited(envelope).outcome, 'aborted');
     assert.ok(!spawned(h.runCommand).includes('git'), 'nothing was pushed');
     assert.equal(stateFile().changedTestsHead, undefined);
+  });
+
+  test('the test depositor runs the guard before deferring, and a red guard stops it', async () => {
+    const docsOnly = { changed: ['docs/decisions.md'] };
+    const green = guardHarness(0, docsOnly);
+    noLock(green);
+    const { envelope } = await green.run();
+    assert.equal(envelope.depositor, 'test');
+    assert.equal(envelope.status, 'ready');
+    assert.equal(envelope.coverage.reason, 'suite-of-record-ci');
+    assert.match(credited(envelope).detail, /changed-tests guard passed/);
+    const keys = spawned(green.runCommand);
+    assert.ok(keys.includes('npm'), 'guard ran');
+    assert.ok(!keys.includes('evidence-gate.js'), 'no test credit deposited');
+    rmSync(path.join(tempRoot, 'orchestration'), {
+      recursive: true,
+      force: true,
+    });
+    const red = guardHarness(1, docsOnly);
+    const failed = await red.run();
+    assert.equal(failed.envelope.status, 'fix-required');
+    assert.equal(failed.envelope.cause, 'changed-tests');
   });
 
   test('AC-5: a re-run at a head whose guard passed does not run it again', async () => {

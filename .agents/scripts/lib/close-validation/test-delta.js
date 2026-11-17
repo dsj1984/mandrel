@@ -90,9 +90,14 @@ function keptRun(gate) {
   return gate?.evidenceNote ? 'the skip-branch scoped run' : 'the full suite';
 }
 
-/** The replaced gate's over-budget flag, carried onto the delta. */
-function overBudgetOf({ deferOnOverBudget }) {
-  return deferOnOverBudget ? { deferOnOverBudget } : {};
+/** The replaced gate's flags the delta keeps: over-budget, and CI ownership. */
+const CARRIED_FLAGS = ['deferOnOverBudget', 'suiteOfRecordCi'];
+
+/** The replaced gate's carried flags that are set. */
+function carriedFlags(gate) {
+  return Object.fromEntries(
+    CARRIED_FLAGS.filter((key) => gate[key]).map((key) => [key, gate[key]]),
+  );
 }
 
 /**
@@ -150,6 +155,6 @@ export function applyTestDelta(
     since,
     incoming: incoming.length,
   });
-  const swapped = { ...delta, ...overBudgetOf(gates[index]) };
+  const swapped = { ...delta, ...carriedFlags(gates[index]) };
   return gates.map((g, i) => (i === index ? swapped : g));
 }
