@@ -4029,6 +4029,7 @@
       "assertGitAllowed": 5,
       "isMoving": 4,
       "realpathOr": 1,
+      "samePath": 2,
       "subcommandOf": 5.072886297376093,
       "toplevelOf": 2
     },
