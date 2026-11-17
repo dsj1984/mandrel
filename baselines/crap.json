@@ -4022,6 +4022,17 @@
       "remoteBranchSha": 3,
       "seedStoryBranchRef": 11
     },
+    ".agents/scripts/lib/git-test-guard.js": {
+      "<anon isMoving/some(a)#0>": 1,
+      "<anon toplevelOf/filter(k)#0>": 1,
+      "armGitGuard": 2,
+      "assertGitAllowed": 5,
+      "isMoving": 4,
+      "realpathOr": 1,
+      "samePath": 2,
+      "subcommandOf": 5.072886297376093,
+      "toplevelOf": 2
+    },
     ".agents/scripts/lib/git-utils.js": {
       "__resetCleanGitEnv": 1,
       "__setGitRunners": 1,
