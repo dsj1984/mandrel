@@ -54,6 +54,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cleanupRepoTestTempArtifacts } from '../.agents/scripts/cleanup-repo-test-temp.js';
+import { armGitGuard } from '../.agents/scripts/lib/git-test-guard.js';
 import { buildWebhookSafeTestEnv } from '../.agents/scripts/lib/test-env.js';
 import {
   runTierPreflight,
@@ -136,7 +137,10 @@ export function runCoveragePipeline({
     stdio: 'inherit',
     // GIT_*-scrubbed: under a husky pre-push from a linked worktree the
     // inherited GIT_DIR poisons fixture `git init` runs (#4580).
-    env: { ...buildWebhookSafeTestEnv(process.env), NODE_V8_COVERAGE: v8Tmp },
+    env: {
+      ...armGitGuard(buildWebhookSafeTestEnv(process.env), process.env),
+      NODE_V8_COVERAGE: v8Tmp,
+    },
   });
 
   cleanup({ repoRoot });

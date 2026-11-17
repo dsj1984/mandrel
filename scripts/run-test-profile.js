@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnChild } from '../.agents/scripts/lib/child-exec.js';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
+import { armGitGuard } from '../.agents/scripts/lib/git-test-guard.js';
 import { buildWebhookSafeTestEnv } from '../.agents/scripts/lib/test-env.js';
 import { buildNodeTestArgs } from '../.agents/scripts/run-tests.js';
 import { parseTapOutput } from './lib/test-profile/parse-tap.js';
@@ -82,7 +83,7 @@ export function runTestProfile({
     cwd,
     encoding: 'utf8',
     env: {
-      ...buildWebhookSafeTestEnv(process.env),
+      ...armGitGuard(buildWebhookSafeTestEnv(process.env), process.env),
       SKIP_PREFLIGHT: process.env.SKIP_PREFLIGHT ?? '1',
       FORCE_COLOR: '0',
       NO_COLOR: '1',
