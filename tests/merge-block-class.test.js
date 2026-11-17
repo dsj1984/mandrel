@@ -16,6 +16,10 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
+  BLOCK_CLASS_RECOVERY,
+  recoveryOf,
+} from '../.agents/scripts/lib/orchestration/block-class-recovery.js';
+import {
   classifyMergeBlock,
   isValidBlockClass,
   MERGE_UNLANDED_BLOCK_CLASSES,
@@ -543,5 +547,37 @@ describe('head-anchored required-check gating (Story #4695)', () => {
       },
     });
     assert.notEqual(verdict.blockClass, 'checks-failed');
+  });
+});
+
+describe('recoveryOf — who clears each block class', () => {
+  it('classifies every unlanded class plus merged-flip-failed, and nothing else', () => {
+    assert.deepEqual(
+      Object.keys(BLOCK_CLASS_RECOVERY).sort(),
+      [...MERGE_UNLANDED_BLOCK_CLASSES, 'merged-flip-failed'].sort(),
+    );
+    for (const cls of Object.keys(BLOCK_CLASS_RECOVERY)) {
+      assert.ok(['agent', 'operator'].includes(recoveryOf(cls)), cls);
+    }
+  });
+
+  it('routes CI reds to the agent and settings/approvals to the operator', () => {
+    for (const cls of [
+      'checks-failed',
+      'queue-ejected',
+      'checks-pending-timeout',
+    ]) {
+      assert.equal(recoveryOf(cls), 'agent', cls);
+    }
+    for (const cls of ['branch-protection-human-required', 'arm-failure']) {
+      assert.equal(recoveryOf(cls), 'operator', cls);
+    }
+  });
+
+  it('throws on an unclassified class', () => {
+    assert.throws(
+      () => recoveryOf('vibes'),
+      /unclassified block class "vibes"/,
+    );
   });
 });

@@ -21,7 +21,7 @@
     },
     "status": {
       "type": "string",
-      "description": "landed — the PR merged, the Story is agent::done, and the post-land tail was attempted. pending — a bounded wait expired with the PR still in flight; NO label was mutated and no merge.unlanded event was emitted, so the run is resumable via nextCommand. blocked — a classified hard block; the Story carries agent::blocked and blocked.blockClass names the class. failed — a phase crashed; phase names which one. escalated — /deliver-light's suitability gate refused a prompt on an un-waivable risk rule or an un-ledgered verdict; nothing was created and the LIGHT PATH ends here, nextCommand naming the /mandrel-plan invocation that owns the work instead. Story #5344 narrowed what refuses (the predicted-shape ceilings are gone) and loosened what follows (that command may be run in the same session, seeded with escalation.reasons) without touching this shape.",
+      "description": "landed — the PR merged, the Story is agent::done, and the post-land tail was attempted. pending — a bounded wait expired with the PR still in flight; NO label was mutated and no merge.unlanded event was emitted, so the run is resumable via nextCommand. blocked — a classified hard block; blocked.blockClass names the class and blocked.recovery who clears it: with recovery agent an unlanded merge leaves the Story at agent::closing for the session to fix and resume, with recovery operator the Story carries agent::blocked. failed — a phase crashed; phase names which one. escalated — /deliver-light's suitability gate refused a prompt on an un-waivable risk rule or an un-ledgered verdict; nothing was created and the LIGHT PATH ends here, nextCommand naming the /mandrel-plan invocation that owns the work instead. Story #5344 narrowed what refuses (the predicted-shape ceilings are gone) and loosened what follows (that command may be run in the same session, seeded with escalation.reasons) without touching this shape.",
       "enum": ["landed", "pending", "blocked", "failed", "escalated"]
     },
     "phase": {
@@ -145,7 +145,7 @@
     "blocked": {
       "type": ["object", "null"],
       "description": "Present iff status === \"blocked\". blockClass comes from the shared classifier (merge-block-class.js) or the merged-flip-failed terminal, never an ad hoc string.",
-      "required": ["blockClass", "reason"],
+      "required": ["blockClass", "reason", "recovery"],
       "properties": {
         "blockClass": {
           "type": "string",
@@ -167,6 +167,11 @@
         "frictionCommentId": {
           "type": ["string", "null"],
           "description": "Pointer to the friction comment carrying the operator-facing remediation."
+        },
+        "recovery": {
+          "type": "string",
+          "enum": ["agent", "operator"],
+          "description": "Who clears the block, from BLOCK_CLASS_RECOVERY in merge-block-class.js. agent: the delivering session fixes and resumes in the same turn, and an unlanded merge leaves the Story at agent::closing. operator: a human must act; the Story carries agent::blocked."
         }
       },
       "additionalProperties": false
