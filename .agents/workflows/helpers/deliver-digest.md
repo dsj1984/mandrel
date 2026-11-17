@@ -146,25 +146,24 @@ respawned.
 `single-story-close.js` emits exactly one envelope on stdout between
 `--- STORY DELIVER TERMINAL ---` markers, schema-validated against
 [`story-deliver-terminal.schema.json`](../../schemas/story-deliver-terminal.schema.json)
-— the SSOT. Relay it verbatim; never hand-compose one.
+— the SSOT; relay it verbatim.
 
 | `status` | Exit | Meaning | You do |
 | --- | --- | --- | --- |
-| `landed` | 0 | PR merged, `agent::done`, tail ran (`tail.*: false` degrades the report, not the land) | Relay it. Done. |
+| `landed` | 0 | PR merged, `agent::done`, tail ran (`tail.*: false` degrades the report, not the land) | Relay it. |
 | `pending` | 3 | **Resumable, not a failure** — the bounded wait expired healthy, or a human owns the merge. Nothing was mutated. | Run `nextCommand`. Each beat: run every `confirm[]` verbatim, pre-epilogue. |
-| `blocked` | 1 | Hard block; `blocked.blockClass` names it | `checks-failed` → fix + resume; else relay |
+| `blocked` | 1 | `blocked.blockClass` names it, `blocked.recovery` who clears it | `agent` (stays `agent::closing`) → fix, push, resume; `operator` → relay, pause |
 | `failed` | 1 | A phase crashed; `phase` names which | Diagnose, fix, re-run close. `base-sync` conflict (files in `failure.reason`): resolve in `workCwd`, commit, run `nextCommand`; block only if you cannot |
 
 Required fields: `kind` (`story-deliver-terminal`), `storyId`, `status`,
-`phase` (the schema's enum names where it stopped), `elapsedSeconds`,
-`nextCommand`. `gates`
+`phase` (where it stopped), `elapsedSeconds`, `nextCommand`. `gates`
 reports every gate as `passed` / `failed` / `skipped` — a skipped gate is
 never omitted, so a missing gate never reads as passing.
 
 ## 7. When to leave this file
 
-Unclear state / a re-run refusal → `deliver-recover.js --story <id>`; boot
-auto-lists stalled `agent::executing` Stories with it (read-only, advisory).
+Unclear state / a re-run refusal → `deliver-recover.js --story <id>` (boot
+runs it on stalled Stories).
 Lease, sweep, worktree scope; sequencing, epilogue, checklist threading → [`deliver-story-reference.md`](deliver-story-reference.md) and
-[`deliver-reference.md`](deliver-reference.md). CI red after the PR opens →
-[`rules/ci-remediation.md`](../../rules/ci-remediation.md).
+[`deliver-reference.md`](deliver-reference.md). After the PR opens, loop to
+`landed`: [`deliver-story.md` § Drive to merge](deliver-story.md#drive-to-merge).
