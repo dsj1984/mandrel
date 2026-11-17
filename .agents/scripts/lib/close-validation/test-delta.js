@@ -122,6 +122,8 @@ export function applyTestDelta(
   const since = baseSync.creditedCommit;
   const testChanged = resolveTestChangedCommand(config);
   const index = gates.findIndex((g) => g.name === 'test');
+  // CI owns a `suiteOfRecordCi` gate; the delta would run it locally.
+  if (gates[index]?.suiteOfRecordCi) return gates;
   const reason = testDeltaIneligibility({
     testChanged,
     captureRuns: index === -1,

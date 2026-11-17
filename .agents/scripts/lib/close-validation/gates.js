@@ -171,7 +171,9 @@ function isCoverageCaptureActive(config, scripts) {
  * close must keep exactly one working test gate. Its argv is
  * `project.commands.test` (default `npm test`); after a base move close's
  * phase may swap it for the delta re-credit (`test-delta.js`), which runs
- * `testChanged` keyed on `MANDREL_CHANGED_SINCE`.
+ * `testChanged` keyed on `MANDREL_CHANGED_SINCE`. Under
+ * `suiteOfRecord: "ci"` it carries the posture, so the runner defers it to
+ * CI before spawning, as it does the capture.
  *
  * @param {boolean} coverageCaptureRunsSuite
  * @param {object|undefined|null} config - Canonical resolved config.
@@ -181,7 +183,13 @@ function buildTestGateEntry(coverageCaptureRunsSuite, config, scope) {
   if (coverageCaptureRunsSuite) return [];
   // `fullSuiteLock` serializes this suite behind the host lock; when
   // coverage-capture runs instead, `runCapture` takes the lock itself.
-  return [{ ...closeTestGate(config, scope), ...overBudgetFlag(config) }];
+  return [
+    {
+      ...closeTestGate(config, scope),
+      ...overBudgetFlag(config),
+      ...suiteOfRecordFlag(config),
+    },
+  ];
 }
 
 const CHECK_BASELINES_HINT =
@@ -604,8 +612,9 @@ export function buildDefaultGates({
       getChangedFilesImpl,
       resolveBaseRefImpl,
     }).skipBranch;
+  // Under `suiteOfRecord: "ci"` the `test` gate is deferred, so no scope.
   const testScope = closeTestScope({
-    skipBranch: captureSkipPredicted,
+    skipBranch: captureSkipPredicted && !suiteOfRecord(config).ci,
     config,
     cwd,
     baseBranch,
