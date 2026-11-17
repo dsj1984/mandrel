@@ -3,11 +3,11 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import picomatch from 'picomatch';
 import { getPaths, PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
 import { softFailOrThrow } from '../degraded-mode.js';
 import { gitSpawn } from '../git-utils.js';
 import { resolveNavConfig } from '../orchestration/plan-navigation.js';
+import { globMatcher } from '../util/glob-match.js';
 import { withTimeout } from '../util/with-timeout.js';
 import { readAuditRulesSync } from './audit-rules-reader.js';
 import { resolveSensitivePaths } from './sensitive-paths.js';
@@ -529,12 +529,12 @@ export function hasExternalDependencies({ projectRoot = PROJECT_ROOT } = {}) {
 
 /** Single file × single glob, with the project's matcher semantics (`dot: true`). */
 export function matchesFilePattern(pattern, file) {
-  return picomatch(pattern, { dot: true })(file);
+  return globMatcher(pattern, { dot: true })(file);
 }
 
 export function matchesAnyFilePattern(patterns, files) {
   if (!patterns?.length || !files?.length) return false;
-  const matchers = patterns.map((p) => picomatch(p, { dot: true }));
+  const matchers = patterns.map((p) => globMatcher(p, { dot: true }));
   return files.some((file) => matchers.some((m) => m(file)));
 }
 

@@ -137,7 +137,7 @@ export const CODE_REVIEW_SCHEMA = {
     sensitivePaths: {
       type: 'object',
       description:
-        "The project's own sensitive-path classes, merged additively over the shipped `audit-rules.json` `sensitivePaths`: a class named like a shipped one appends its patterns to it, a new name adds a class, and no shipped class or pattern can be removed or narrowed. A changed file matching any class derives a `high` change level, which drives both code-review depth (`deep`, never `light`) and plan-time routing. Patterns are picomatch globs matched with `dot: true`.",
+        "The project's own sensitive-path classes, merged additively over the shipped `audit-rules.json` `sensitivePaths`: a class named like a shipped one appends its patterns to it, a new name adds a class, and no shipped class or pattern can be removed or narrowed. A changed file matching any class derives a `high` change level, which drives both code-review depth (`deep`, never `light`) and plan-time routing. Patterns are globs matched with `dot: true`.",
       propertyNames: { pattern: '^[a-z0-9][a-z0-9-]*$' },
       additionalProperties: {
         type: 'object',

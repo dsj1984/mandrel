@@ -22,7 +22,7 @@
  *      `mandrel` is expected to add exactly that one package to the
  *      consumer manifest (npm/pnpm/yarn all record the installed dep); what
  *      MUST NOT happen is the framework's own runtime deps (ajv, js-yaml,
- *      picomatch, …) leaking into the consumer's declared dependencies. Those
+ *      minimatch, …) leaking into the consumer's declared dependencies. Those
  *      packages are declared inside `.agents/runtime-deps.json` and the
  *      framework scripts free-ride on the consumer's node_modules — they are
  *      never written into the consumer's package.json.
@@ -70,7 +70,7 @@ const FRAMEWORK_RUNTIME_DEPS = [
   'escomplex-plugin-metrics-module',
   'escomplex-plugin-syntax-babylon',
   'js-yaml',
-  'picomatch',
+  'minimatch',
   'typhonjs-ast-walker',
   'typhonjs-escomplex-commons',
 ];

@@ -1,6 +1,6 @@
 /** The gate `compareCrap` applies to a method with no baseline row. A leaf. */
 
-import picomatch from 'picomatch';
+import { isGlobMatch } from '../../util/glob-match.js';
 import { canonicalizeBaselinePath } from '../path-canon.js';
 
 /**
@@ -55,7 +55,7 @@ function isUntestableWiring(file, globs) {
 }
 
 function matchesAny(file, globs) {
-  return picomatch.isMatch(canonicalizeBaselinePath(file), globs, {
+  return isGlobMatch(canonicalizeBaselinePath(file), globs, {
     dot: true,
   });
 }

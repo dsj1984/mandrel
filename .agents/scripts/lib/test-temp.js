@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import picomatch from 'picomatch';
+import { globMatcher } from './util/glob-match.js';
 import { toPosix, walkFiles } from './util/paths.js';
 
 /** Suite-root name prefix; the guard matches on it. */
@@ -253,21 +253,21 @@ const LINT_ESCAPE = 'test-temp-allow';
  * Raw OS-temp mints outside {@link makeTempDir}, in explicit globs only.
  *
  * @param {string} repoRoot
- * @param {string[]} globs repo-relative picomatch patterns
+ * @param {string[]} globs repo-relative glob patterns
  * @param {{ fsImpl?: typeof fs }} [deps]
  * @returns {{ file: string, line: number, text: string }[]}
  */
 export function findRawTmpdirMkdtemp(repoRoot, globs, { fsImpl = fs } = {}) {
   const patterns = (globs ?? []).filter(Boolean);
-  // Split negations out: in a mixed picomatch array a `!` entry is its own
+  // Split negations out: in a mixed glob array a `!` entry is its own
   // positive matcher, which widens the scan instead of narrowing it.
   const include = patterns.filter((p) => !p.startsWith('!'));
   const exclude = patterns
     .filter((p) => p.startsWith('!'))
     .map((p) => p.slice(1));
   if (include.length === 0) return [];
-  const isIncluded = picomatch(include);
-  const isExcluded = exclude.length > 0 ? picomatch(exclude) : () => false;
+  const isIncluded = globMatcher(include);
+  const isExcluded = exclude.length > 0 ? globMatcher(exclude) : () => false;
   const findings = [];
   for (const rel of listJsSources(repoRoot, fsImpl)) {
     if (!isIncluded(rel) || isExcluded(rel)) continue;

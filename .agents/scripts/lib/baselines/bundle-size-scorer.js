@@ -10,7 +10,7 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
-import picomatch from 'picomatch';
+import { globMatcher, scanGlob } from '../util/glob-match.js';
 import { toPosix, walkFiles } from '../util/paths.js';
 
 /** Directories a bundle glob never descends into. */
@@ -47,11 +47,11 @@ function staticBase(segments) {
  */
 function resolveBundleFiles(pattern, cwd, fs = nodeFs) {
   const posix = pattern.replace(/\\/g, '/').replace(/^\.\//, '');
-  if (!picomatch.scan(posix).isGlob) {
+  if (!scanGlob(posix).isGlob) {
     const abs = path.resolve(cwd, posix);
     return fs.existsSync(abs) && fs.statSync(abs).isFile() ? [abs] : [];
   }
-  const isMatch = picomatch(posix, { dot: true });
+  const isMatch = globMatcher(posix, { dot: true });
   const base = staticBase(posix.split('/'));
   return walkFiles(path.resolve(cwd, base), {
     skipDirs: SKIPPED_DIRS,

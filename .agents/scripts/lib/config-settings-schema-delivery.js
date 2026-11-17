@@ -249,7 +249,7 @@ const CLOSE_SCHEMA = {
       type: 'array',
       items: { type: 'string', minLength: 1 },
       description:
-        'Globs (picomatch, dotfiles included) for whole-repo invariants: a base merge bringing in any matching path always re-runs every gate under `revalidateAfterBaseSync: "ci"`.',
+        'Globs (dotfiles included) for whole-repo invariants: a base merge bringing in any matching path always re-runs every gate under `revalidateAfterBaseSync: "ci"`.',
     },
   },
   additionalProperties: false,

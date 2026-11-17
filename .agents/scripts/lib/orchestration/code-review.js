@@ -6,11 +6,11 @@
  * under `onNoVerdict: "block"`, a missing verdict (`haltCause`).
  */
 
-import picomatch from 'picomatch';
 import { hasSurvivingCritical } from '../audit-suite/findings.js';
 import { resolveConfig } from '../config-resolver.js';
 import { gitSpawn } from '../git-utils.js';
 import { PROJECT_ROOT } from '../project-root.js';
+import { globMatcher } from '../util/glob-match.js';
 import { computeChangeSet } from './change-set.js';
 import { remoteBaseRef } from './review-base-ref.js';
 import {
@@ -336,7 +336,7 @@ function applySkipPaths(findings, skipPaths) {
   if (!Array.isArray(skipPaths) || skipPaths.length === 0) {
     return { findings, skipped: 0 };
   }
-  const isSkipped = picomatch(skipPaths, { dot: true });
+  const isSkipped = globMatcher(skipPaths, { dot: true });
   const kept = findings.filter((f) => {
     const files = findingInstances(f).map((i) => i.file);
     return !(files.length > 0 && files.every((file) => isSkipped(file)));

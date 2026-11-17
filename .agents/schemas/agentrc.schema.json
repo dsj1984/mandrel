@@ -776,7 +776,7 @@
                         },
                         "minLength": 1
                       },
-                      "description": "Repo-relative picomatch globs naming paths no test reads. A matching path is dropped from both sides of the coverage delta-refresh overlap check and from the re-measured set — a delta of only matching, baseline and coverage-directory paths restamps without a run — and from the overlap check of close's `test` delta re-credit (its incoming count and emptiness test are unchanged). It never changes the suite-input filter, the tree digest or stamp freshness. Default `[]`: nothing is built in, so Markdown counts as an input unless declared here.",
+                      "description": "Repo-relative globs naming paths no test reads. A matching path is dropped from both sides of the coverage delta-refresh overlap check and from the re-measured set — a delta of only matching, baseline and coverage-directory paths restamps without a run — and from the overlap check of close's `test` delta re-credit (its incoming count and emptiness test are unchanged). It never changes the suite-input filter, the tree digest or stamp freshness. Default `[]`: nothing is built in, so Markdown counts as an input unless declared here.",
                       "default": []
                     },
                     "captureHandlesConfigChanges": {
@@ -1467,7 +1467,7 @@
                 "type": "string",
                 "minLength": 1
               },
-              "description": "Globs (picomatch, dotfiles included) for whole-repo invariants: a base merge bringing in any matching path always re-runs every gate under `revalidateAfterBaseSync: \"ci\"`."
+              "description": "Globs (dotfiles included) for whole-repo invariants: a base merge bringing in any matching path always re-runs every gate under `revalidateAfterBaseSync: \"ci\"`."
             }
           },
           "additionalProperties": false
@@ -1556,7 +1556,7 @@
             },
             "sensitivePaths": {
               "type": "object",
-              "description": "The project's own sensitive-path classes, merged additively over the shipped `audit-rules.json` `sensitivePaths`: a class named like a shipped one appends its patterns to it, a new name adds a class, and no shipped class or pattern can be removed or narrowed. A changed file matching any class derives a `high` change level, which drives both code-review depth (`deep`, never `light`) and plan-time routing. Patterns are picomatch globs matched with `dot: true`.",
+              "description": "The project's own sensitive-path classes, merged additively over the shipped `audit-rules.json` `sensitivePaths`: a class named like a shipped one appends its patterns to it, a new name adds a class, and no shipped class or pattern can be removed or narrowed. A changed file matching any class derives a `high` change level, which drives both code-review depth (`deep`, never `light`) and plan-time routing. Patterns are globs matched with `dot: true`.",
               "propertyNames": {
                 "pattern": "^[a-z0-9][a-z0-9-]*$"
               },

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import picomatch from 'picomatch';
+import { globMatcher } from '../../../.agents/scripts/lib/util/glob-match.js';
 import { toPosix, walkFiles } from '../../../.agents/scripts/lib/util/paths.js';
 
 /**
@@ -69,6 +69,6 @@ export function resolveTestFiles({ pattern, repoRoot, allFiles, fsLike = fs }) {
   }
 
   // Glob → filter the universe.
-  const isMatch = picomatch(target, { dot: true });
+  const isMatch = globMatcher(target, { dot: true });
   return discoverAll().filter((f) => isMatch(f));
 }

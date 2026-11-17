@@ -5,8 +5,8 @@
  * @module lib/audit-baselines/surface-entry
  */
 
-import picomatch from 'picomatch';
 import { IGNORED_DIRS } from '../maintainability-utils.js';
+import { globMatcher } from '../util/glob-match.js';
 import { GATE_KINDS, KIND_SPECS, measuredTotalOf, rollupOf } from './kinds.js';
 import { stalenessOf } from './staleness.js';
 
@@ -110,7 +110,7 @@ function isJudgeableGlob(glob, scannerSkipDirs) {
  * @returns {boolean}
  */
 function matchesNothing(glob, files) {
-  const isMatch = picomatch(glob, { dot: true });
+  const isMatch = globMatcher(glob, { dot: true });
   return !files.some((f) => isMatch(f));
 }
 

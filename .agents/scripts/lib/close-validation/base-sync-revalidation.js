@@ -5,8 +5,8 @@
  * the first failing rule is the reason the close re-runs everything.
  */
 
-import picomatch from 'picomatch';
 import { COVERAGE_DEFERRED_REASONS } from '../coverage-deferral.js';
+import { globMatcher } from '../util/glob-match.js';
 import {
   shouldSkip as defaultShouldSkip,
   hashCommandConfig,
@@ -53,7 +53,7 @@ function mergeIneligibility(baseSync, alwaysPaths) {
     return { reason: 'conflict-resolved' };
   }
   if (alwaysPaths.length === 0) return null;
-  const matches = picomatch(alwaysPaths, { dot: true });
+  const matches = globMatcher(alwaysPaths, { dot: true });
   const hit = incoming.find((path) => matches(path));
   return hit ? { reason: 'always-revalidate-path', detail: hit } : null;
 }
