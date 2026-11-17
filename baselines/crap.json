@@ -5466,6 +5466,7 @@
       "disarmByDequeue": 2,
       "ejectedHead": 4,
       "ejectingRunOf": 1,
+      "failedJobsOf": 1,
       "failedOnItsOwn": 3,
       "parseGraphqlData": 4,
       "queryPrNode": 1,
@@ -5474,7 +5475,8 @@
       "readMergeQueueState": 7,
       "readMergeQueueStateRest": 2,
       "readQueueEjection": 4,
-      "resolvePrNodeId": 4
+      "resolvePrNodeId": 4,
+      "settledConclusion": 3
     },
     ".agents/scripts/lib/orchestration/pinned-identifier-lint.js": {
       "<anon codeSpans/map(m)#0>": 1,
