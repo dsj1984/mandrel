@@ -8,12 +8,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import picomatch from 'picomatch';
 import {
   filterSuiteInputPaths,
   supersededArtifactPath,
   supersededStampPath,
 } from './coverage-capture.js';
+import { globMatcher } from './util/glob-match.js';
 
 const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
 const TEST_DIR_RE = /(^|\/)(tests?|__tests__|spec|e2e)\//;
@@ -172,7 +172,7 @@ function ownFixContext({
 }) {
   const isNonInput =
     coverage.nonInputGlobs?.length > 0
-      ? picomatch(coverage.nonInputGlobs, { dot: true })
+      ? globMatcher(coverage.nonInputGlobs, { dot: true })
       : () => false;
   const suite = (files) => filterSuiteInputPaths(files, crap.coveragePath);
   return {

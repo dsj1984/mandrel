@@ -3143,7 +3143,7 @@
       "<anon ruleInputs/suite.filter(f)#0>": 1,
       "<anon skipRun()#0>": 1,
       "canRestamp": 3,
-      "classifyCommittedDelta": 5,
+      "classifyCommittedDelta": 4,
       "classifyDeltaRefresh": 6,
       "classifySuperseded": 3,
       "closeDeltaIneligibility": 1,
@@ -3212,7 +3212,6 @@
       "judgeBase": 4,
       "judgeOwnChanges": 5,
       "judgeOwnFix": 4,
-      "judgeOwnTests": 4,
       "lines": 1,
       "must": 2,
       "ownChanges": 1,
@@ -4898,7 +4897,7 @@
       "resolveProviderName": 5,
       "resolveStoryScope": 5.150262960180315,
       "runCodeReview": 1,
-      "scoreFindings": 2,
+      "scoreFindings": 1,
       "settleInRun": 4,
       "storedCritical": 1
     },
@@ -8367,6 +8366,19 @@
     ".agents/scripts/lib/util/concurrent-map.js": {
       "concurrentMap": 6.04548595344797,
       "concurrentMap/worker": 4
+    },
+    ".agents/scripts/lib/util/glob-match.js": {
+      "<anon compile/(file)#0>": 1,
+      "<anon compile/(file)#1>": 2,
+      "<anon compile/(file)#2>": 2,
+      "<anon globMatcher/(file)#0/matchers.some(match)#0>": 1,
+      "<anon globMatcher/(file)#0>": 1,
+      "<anon globMatcher/map(p)#0>": 1,
+      "<anon hasMagic(segment)#0>": 1,
+      "compile": 3,
+      "globMatcher": 1,
+      "isGlobMatch": 1,
+      "scanGlob": 4
     },
     ".agents/scripts/lib/util/parse-id-list.js": {
       "<anon expandIdList/fail(message)#0>": 1,

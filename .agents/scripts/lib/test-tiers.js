@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import picomatch from 'picomatch';
+import { globMatcher } from './util/glob-match.js';
 
 /** Slow suites (real git, binary spawns) excluded from `test:quick`. */
 export const INTEGRATION_INCLUDE = [
@@ -14,7 +14,7 @@ export const INTEGRATION_INCLUDE = [
   'tests/single-story-close-sync.test.js',
 ];
 
-const matchesIntegration = picomatch(INTEGRATION_INCLUDE, { dot: true });
+const matchesIntegration = globMatcher(INTEGRATION_INCLUDE, { dot: true });
 
 /**
  * Pack-and-install suites driving the shipped binary — too expensive for
@@ -23,7 +23,7 @@ const matchesIntegration = picomatch(INTEGRATION_INCLUDE, { dot: true });
  */
 const E2E_INCLUDE = ['tests/e2e/**/*.test.js'];
 
-const matchesE2E = picomatch(E2E_INCLUDE, { dot: true });
+const matchesE2E = globMatcher(E2E_INCLUDE, { dot: true });
 
 const TIERS = ['full', 'quick', 'integration', 'e2e'];
 

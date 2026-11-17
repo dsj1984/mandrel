@@ -8,8 +8,8 @@
  */
 
 import path from 'node:path';
-import picomatch from 'picomatch';
 import { gitSpawn } from '../git-utils.js';
+import { globMatcher } from '../util/glob-match.js';
 import { readJsonc, readYaml } from './read.js';
 
 const ALWAYS_EXCLUDED = Object.freeze([
@@ -81,7 +81,7 @@ function collectManifests(root, rootPkg, files, pnpmWorkspace) {
     : [];
   const globs = workspaceGlobs(rootPkg, pnpmWorkspace);
   if (globs.length === 0) return manifests;
-  const isWorkspace = picomatch(globs);
+  const isWorkspace = globMatcher(globs);
   for (const rel of files) {
     if (path.posix.basename(rel) !== 'package.json' || rel === 'package.json')
       continue;

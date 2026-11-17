@@ -2371,6 +2371,10 @@
       "mi": 98.282
     },
     {
+      "path": ".agents/scripts/lib/util/glob-match.js",
+      "mi": 116.305
+    },
+    {
       "path": ".agents/scripts/lib/util/parse-id-list.js",
       "mi": 92.232
     },

@@ -1,3 +1,10 @@
 {
-  "exceptions": []
+  "exceptions": [
+    {
+      "id": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "reason": "picomatch ReDoS (single-branch repeated extglobs) has no patched release (<=4.0.7). It now reaches only dev tooling (knip, lint-staged, jscpd, markdownlint-cli2, c8 via fast-glob/micromatch/tinyglobby), matching repo-controlled patterns; the shipped glob engine moved to minimatch, so --omit=dev is clean. Drop this entry once picomatch ships a fix.",
+      "reviewBy": "2026-12-17"
+    }
+  ]
 }

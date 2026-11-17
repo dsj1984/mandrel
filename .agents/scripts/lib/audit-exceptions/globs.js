@@ -10,8 +10,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import picomatch from 'picomatch';
 import { gitSpawn } from '../git-utils.js';
+import { globMatcher } from '../util/glob-match.js';
 
 const GLOB_CHAR_RE = /[*?[\]{}()!]/;
 
@@ -62,7 +62,7 @@ function byDesignHint(glob) {
  */
 function probeOne(ctx, glob) {
   const clean = glob.replace(/^\.\//, '').replace(/^!/, '');
-  const isMatch = picomatch([clean, `${clean.replace(/\/+$/, '')}/**`], {
+  const isMatch = globMatcher([clean, `${clean.replace(/\/+$/, '')}/**`], {
     dot: true,
   });
   if (ctx.scope.files.some((f) => isMatch(f)))

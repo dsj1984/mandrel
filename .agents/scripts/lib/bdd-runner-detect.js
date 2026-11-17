@@ -11,9 +11,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { load } from 'js-yaml';
-import picomatch from 'picomatch';
-
 import { Logger } from './Logger.js';
+import { globMatcher } from './util/glob-match.js';
 import { toPosix } from './util/paths.js';
 
 /** npm package name → pending tag. Preferred-first: the first match wins. */
@@ -186,7 +185,7 @@ function expandWorkspacePatterns(cwd, patterns, logger) {
   const excludes = patterns
     .filter((p) => p.startsWith('!'))
     .map((p) => p.slice(1));
-  const excludeMatchers = excludes.map((e) => picomatch(e));
+  const excludeMatchers = excludes.map((e) => globMatcher(e));
 
   const results = new Set();
 
@@ -211,7 +210,7 @@ function expandWorkspacePatterns(cwd, patterns, logger) {
     const baseDir = path.join(cwd, ...literalSegments);
     if (!existsSyncDir(baseDir, logger)) continue;
     const recursive = segments.slice(i).includes('**');
-    const includeMatcher = picomatch(pattern);
+    const includeMatcher = globMatcher(pattern);
     walkPackages({
       dir: baseDir,
       relBase: literalSegments.join('/'),

@@ -7,7 +7,6 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import picomatch from 'picomatch';
 import { getQuality } from './config/quality.js';
 import {
   captureStampPath,
@@ -18,6 +17,7 @@ import {
 } from './coverage-capture.js';
 import { judgeOwnFix, supersededSeed } from './coverage-capture-own-fix.js';
 import { gitSpawn } from './git-utils.js';
+import { globMatcher } from './util/glob-match.js';
 
 /** Basenames whose change moves coverage beyond the files it names. */
 const COVERAGE_CONFIG_RE =
@@ -127,7 +127,7 @@ function treeIneligibility({ cwd, commit, spawn }) {
 /** `nonInputGlobs` as a predicate; an unset list matches nothing. */
 function nonInputMatcher(globs) {
   return Array.isArray(globs) && globs.length > 0
-    ? picomatch(globs, { dot: true })
+    ? globMatcher(globs, { dot: true })
     : () => false;
 }
 

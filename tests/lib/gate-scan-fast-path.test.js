@@ -10,7 +10,7 @@
  *   1. `resolveTsTranspilerVersion()` reads the manifest — same string, and
  *      the 9 MB compiler is provably not evaluated.
  *   2. The precompiled `ignoreGlobs` matcher answers exactly what the
- *      functional `picomatch.isMatch()` call it replaced answered, over this
+ *      functional `isGlobMatch()` call it replaced answered, over this
  *      repository's real configured patterns and real tree.
  *   3. In-process and pooled scoring produce identical MI scores, which is
  *      what lets `POOL_SERIAL_THRESHOLD` be retuned at all.
@@ -28,8 +28,6 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-
-import picomatch from 'picomatch';
 import {
   getQuality,
   resolveConfig,
@@ -48,6 +46,7 @@ import {
 } from '../../.agents/scripts/lib/maintainability-utils.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { resolveTsTranspilerVersion } from '../../.agents/scripts/lib/transpile.js';
+import { isGlobMatch } from '../../.agents/scripts/lib/util/glob-match.js';
 import {
   GENERATED_VALIDATOR_PATH,
   runCli as runGeneratedValidatorCli,
@@ -132,8 +131,8 @@ describe('lazy TypeScript — the version stamp costs no compiler', () => {
   });
 });
 
-describe('precompiled ignore globs — same verdicts as functional picomatch', () => {
-  it('agrees with picomatch.isMatch() on every file the real gate scope walks', () => {
+describe('precompiled ignore globs — same verdicts as functional glob matching', () => {
+  it('agrees with isGlobMatch() on every file the real gate scope walks', () => {
     const { targetDirs, ignoreGlobs } = realMaintainabilityScope();
     assert.ok(
       ignoreGlobs.length > 0,
@@ -148,7 +147,7 @@ describe('precompiled ignore globs — same verdicts as functional picomatch', (
       const rel = path.relative(REPO_ROOT, abs).replace(/\\/g, '/');
       // The functional call this replaced, reproduced verbatim.
       const functional = ignoreGlobs.some((g) =>
-        picomatch.isMatch(rel, g, { dot: true }),
+        isGlobMatch(rel, g, { dot: true }),
       );
       const compiled = isIgnoredByGlobs(abs, ignoreGlobs, REPO_ROOT);
       assert.equal(compiled, functional, `verdict diverged for ${rel}`);

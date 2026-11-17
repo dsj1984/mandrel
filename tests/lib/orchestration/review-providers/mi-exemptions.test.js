@@ -110,7 +110,7 @@ test('scopeMaintainabilityFiles: an empty or absent list is a no-op that scores 
 
 test('scopeMaintainabilityFiles: matches dot-prefixed roots like .agents/', () => {
   // The repo's own exemptions all live under `.agents/`, so a matcher without
-  // picomatch's `{ dot: true }` would silently exempt nothing here.
+  // The `{ dot: true }` matcher would silently exempt nothing here.
   const { ignored } = scopeWith(
     ['.agents/scripts/lib/config/gates/crap.schema.js'],
     ['.agents/scripts/lib/config/gates/*.schema.js'],

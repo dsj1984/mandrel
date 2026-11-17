@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import picomatch from 'picomatch';
+import {
+  globMatcher,
+  isGlobMatch,
+  scanGlob,
+} from '../../../.agents/scripts/lib/util/glob-match.js';
 
 /**
  * Pins the verdict every corpus glob produced through minimatch before the
  * four glob sites (ignoreGlobs, baseline components, bundle `path`
- * patterns, doc-link `--exclude`) moved to picomatch. The parity run over
+ * patterns, doc-link `--exclude`) moved to picomatch, and kept through the move back to minimatch behind
+ * lib/util/glob-match.js. The parity run over
  * this corpus found no divergence, so these expectations are minimatch's.
  */
 const PATHS = [
@@ -105,19 +110,19 @@ const CASES = [
   ['dist/app.js', false, ['dist/app.js']],
 ];
 
-describe('glob corpus verdicts under picomatch { dot: true }', () => {
+describe('glob corpus verdicts under glob-match { dot: true }', () => {
   for (const [glob, isGlob, matches] of CASES) {
     it(`${glob} matches its pinned paths`, () => {
-      const isMatch = picomatch(glob, { dot: true });
+      const isMatch = globMatcher(glob, { dot: true });
       assert.deepEqual(
         PATHS.filter((p) => isMatch(p)),
         matches,
       );
       assert.equal(
-        picomatch.isMatch(PATHS[0], glob, { dot: true }),
+        isGlobMatch(PATHS[0], glob, { dot: true }),
         matches.includes(PATHS[0]),
       );
-      assert.equal(picomatch.scan(glob).isGlob, isGlob);
+      assert.equal(scanGlob(glob).isGlob, isGlob);
     });
   }
 });

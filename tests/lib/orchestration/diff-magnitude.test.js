@@ -168,7 +168,7 @@ describe('summarizeDiffMagnitude — the companion boundary', () => {
   });
 
   test('the companion globs are positive — a ! negation would widen the match', () => {
-    // picomatch treats a leading `!` as negation, which WIDENS rather than
+    // The glob engine treats a leading `!` as negation, which WIDENS rather than
     // narrows, so the behavior-bearing exceptions are expressed by omission.
     // Pinned against the source because the list is deliberately not exported.
     const src = readFileSync(

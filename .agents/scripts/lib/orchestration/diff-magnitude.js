@@ -7,7 +7,7 @@
  * Contracts: lines are additions + deletions, never net (a big deletion is
  * not trivial); a pure rename is free but its file still counts; exemption
  * is from counting, never from sensitive-path risk. Companion globs are a
- * positive list — a `!` picomatch pattern widens rather than narrows. Every
+ * positive list — a `!` glob pattern widens rather than narrows. Every
  * export is total.
  *
  * @module lib/orchestration/diff-magnitude

@@ -48,7 +48,7 @@ describe('loadRuntimeDepsManifest', () => {
   it('parses the vendored manifest with required + optional sets', () => {
     const m = loadRuntimeDepsManifest();
     assert.ok(m.required.includes('ajv'));
-    assert.ok(m.required.includes('picomatch'));
+    assert.ok(m.required.includes('minimatch'));
     assert.ok(m.declared.has('ajv'));
     // optional deps are declared but kept out of the required (preflight) set.
     assert.ok(m.optional.includes('chokidar'));
@@ -343,14 +343,14 @@ describe('scan-imports extraction', () => {
       "export { x } from 'ajv-formats';",
       "import 'string-argv';",
       "const y = require('js-yaml');",
-      "const z = await import('picomatch');",
+      "const z = await import('minimatch');",
     ].join('\n');
     const found = extractThirdPartyImports(src);
     assert.deepEqual([...found].sort(), [
       'ajv',
       'ajv-formats',
       'js-yaml',
-      'picomatch',
+      'minimatch',
       'string-argv',
     ]);
   });
