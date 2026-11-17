@@ -2963,7 +2963,6 @@
       "getGitHub": 10
     },
     ".agents/scripts/lib/config/handoff.js": {
-      "<anon getPostSeatChecks/map(cmd,args)#0>": 1,
       "<anon isCheck(c)#0>": 4,
       "<anon isStringArray(v)#0/v.every(a)#0>": 1,
       "<anon isStringArray(v)#0>": 2,
@@ -7376,8 +7375,6 @@
       "<anon stepDuplicationRescore/rescoreDuplication()#0>": 1,
       "<anon steppedPush/map(sha)#0>": 1,
       "<anon stepPostCapture/run(a)#0>": 1,
-      "<anon stepPreflight/checks.filter(c)#0>": 1,
-      "<anon stepPreflight/isCompare(c)#0>": 1,
       "<anon stepTargets/range.filter(_,i)#0>": 3,
       "<anon timed/results.map(r)#0>": 1,
       "<anon withLockProgress/()#0>": 3,
