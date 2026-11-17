@@ -115,7 +115,7 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    per-host `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
    above 1 (default 1): close's independent gates then run in admitted
    lanes beside the base lane — [`deliver-reference.md`](deliver-reference.md) § Preflight.
-3. **One depositor**, by the one predicate close registers `coverage-capture`
+3. **One depositor** (`suiteOfRecord: ci`: CI's), by one predicate close registers `coverage-capture`
    on — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →
      `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`,
@@ -125,8 +125,6 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
      --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`;
      a predicted capture skip runs `testChanged --changed-since` the
      merge-base, else says why. Signal: `✓ test passed`.
-   - Under `coverage.suiteOfRecord: "ci"` either depositor is deferred to
-     CI instead: no suite, no lock, no credit.
 4. **Seat.** `--seat-missing` (`seated: N`): MI before step 2, CRAP and
    capture-path coverage here, committed `chore(baselines): baseline-refresh:
    …`; then post-capture checks: close's `quality-preview-crap` and `check-baselines`,
