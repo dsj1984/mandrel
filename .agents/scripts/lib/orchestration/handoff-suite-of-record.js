@@ -1,7 +1,7 @@
 /**
  * handoff-suite-of-record.js — the credited-run step under
  * `coverage.suiteOfRecord: "ci"`, decided from config before any lock or spawn
- * but the changed-tests guard.
+ * but the changed-tests guard, whichever depositor was resolved.
  */
 
 import { suiteOfRecord } from '../close-validation/gates.js';
@@ -14,6 +14,14 @@ import { changedTestsGuard } from './handoff-changed-tests.js';
 const UNDECLARED_DETAIL =
   'delivery.quality.gates.coverage.suiteOfRecord is "ci" but delivery.quality.gates.coverage.ciRatchetCheck is unset — name the CI check that runs coverage-ratchet.js, or set suiteOfRecord to "local"';
 
+/** Why this depositor holds the credited run, named in the deferred detail. */
+function depositorReason(ctx) {
+  if (ctx.depositor === 'coverage-capture') return 'coverage-capture';
+  return ctx.skipBranch
+    ? 'test (no changed file under crap.targetDirs)'
+    : 'test (no active coverage capture)';
+}
+
 /**
  * The deferred step, once the changed-tests guard did not stop the run.
  *
@@ -25,25 +33,25 @@ function deferred(ctx, name, ciRatchetCheck, checked) {
   return {
     name,
     outcome: 'deferred',
-    detail: `coverage deferred to CI (suiteOfRecord: ci, ratchet check "${ciRatchetCheck}") — no capture spawned and no credit was deposited${checked.note}`,
+    detail: `coverage deferred to CI (suiteOfRecord: ci, ratchet check "${ciRatchetCheck}", depositor ${depositorReason(ctx)}) — no suite spawned and no credit was deposited${checked.note}`,
     depositor: ctx.depositor,
     ...checked.extra,
   };
 }
 
 /**
- * The capture depositor's step under the `ci` posture: deferred to CI, or
- * `blocked` when no `ciRatchetCheck` would take the ratchet. `null` when the
- * posture is off or the depositor is `test`.
+ * The credited-run step under the `ci` posture, for either depositor:
+ * deferred to CI, or `blocked` when no `ciRatchetCheck` would take the
+ * ratchet. `null` when the posture is off.
  *
- * @param {{ config: object, depositor: string, head: string, state: object }} ctx
+ * @param {{ config: object, depositor: string, skipBranch?: boolean, head: string, state: object }} ctx
  * @param {string} name
  * @param {{ run: Function, signal: AbortSignal }} guard runs `testChanged`.
  * @returns {Promise<object|null>}
  */
 export async function settleSuiteOfRecord(ctx, name, guard) {
   const { ci, ciRatchetCheck } = suiteOfRecord(ctx.config);
-  if (!ci || ctx.depositor !== 'coverage-capture') return null;
+  if (!ci) return null;
   const extra = { depositor: ctx.depositor };
   if (!ciRatchetCheck) {
     return {
