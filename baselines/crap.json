@@ -7446,6 +7446,7 @@
       "reportAllFindings": 1,
       "resolveLanes": 2,
       "reviewAtMerge": 2,
+      "reviewFirstFor": 2,
       "reviewFirstStep": 2,
       "reviewRoundEnvelope": 2,
       "reviewVerdict": 2,
