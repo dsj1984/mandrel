@@ -186,18 +186,22 @@ function ejectingRunOf(runs) {
   );
 }
 
-/**
- * First rule wins: a red parent is inherited; a cancelled run is own when a
- * job failed on its own (a fail-fast cancel), else inherited; then own,
- * unknown. Inherited is capped at `MAX_INHERITED_REARMS` entries.
- */
-function classifyEjection({ ejecting, parentRuns, entries, ownFailedJobs }) {
-  const inherited = entries > MAX_INHERITED_REARMS ? 'own' : 'inherited';
-  if (parentRuns.some((r) => RED_RUN.has(r.conclusion))) return inherited;
-  if (ejecting.conclusion === 'cancelled') {
-    return ownFailedJobs?.length ? 'own' : inherited;
+/** First rule wins: inherited (capped), own, unknown. */
+function classifyEjection({ conclusion, parentRuns, entries }) {
+  const inherited =
+    conclusion === 'cancelled' ||
+    parentRuns.some((r) => RED_RUN.has(r.conclusion));
+  if (inherited) return entries > MAX_INHERITED_REARMS ? 'own' : 'inherited';
+  return conclusion === 'failure' ? 'own' : 'unknown';
+}
+
+/** A cancelled run with a job that failed on its own was a fail-fast cancel. */
+async function settledConclusion(get, ejecting) {
+  if (ejecting.conclusion !== 'cancelled') {
+    return { conclusion: ejecting.conclusion, jobs: null };
   }
-  return ejecting.conclusion === 'failure' ? 'own' : 'unknown';
+  const jobs = await readFailedJobs(get, ejecting.id);
+  return { conclusion: jobs?.length ? 'failure' : 'cancelled', jobs };
 }
 
 /**
@@ -244,15 +248,11 @@ export async function readQueueEjection({
     const parentRuns = (
       (await get(`${QUEUE_RUNS}&head_sha=${parentSha}`))?.workflow_runs ?? []
     ).filter((r) => r.head_sha === parentSha);
-    const cancelledJobs =
-      ejecting.conclusion === 'cancelled'
-        ? await readFailedJobs(get, ejecting.id)
-        : null;
+    const settled = await settledConclusion(get, ejecting);
     const verdict = classifyEjection({
-      ejecting,
+      conclusion: settled.conclusion,
       parentRuns,
       entries: new Set(runs.map((r) => r.head_sha)).size,
-      ownFailedJobs: cancelledJobs,
     });
     const run = {
       id: ejecting.id,
@@ -262,7 +262,7 @@ export async function readQueueEjection({
     };
     const failedJobs =
       verdict === 'own'
-        ? (cancelledJobs ?? (await readFailedJobs(get, ejecting.id)) ?? [])
+        ? await failedJobsOf(get, ejecting.id, settled.jobs)
         : [];
     return { verdict, labels, run, failedJobs };
   } catch (err) {
@@ -279,6 +279,11 @@ function failedOnItsOwn(job) {
     job.conclusion === 'cancelled' &&
     (job.steps ?? []).some((s) => s.conclusion === 'failure')
   );
+}
+
+/** Failed job names, reusing a read already made; `[]` when unreadable. */
+async function failedJobsOf(get, runId, jobs) {
+  return jobs ?? (await readFailedJobs(get, runId)) ?? [];
 }
 
 /** Names of a run's jobs that failed on their own; `null` when unreadable. */
