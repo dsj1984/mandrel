@@ -54,7 +54,7 @@ function planTestGate(config) {
 }
 
 describe('test delta re-credit under suiteOfRecord: ci (Story #6087)', () => {
-  it('leaves a CI-owned test gate in place so it stays deferred', () => {
+  it('keeps a CI-owned test gate CI-owned through the delta swap', () => {
     const config = loadConfig({ testChanged: TEST_CHANGED });
     const owned = { ...FULL_TEST, suiteOfRecordCi: { ciRatchetCheck: 'r' } };
     const gates = applyTestDelta([owned], {
@@ -66,7 +66,8 @@ describe('test delta re-credit under suiteOfRecord: ci (Story #6087)', () => {
       shouldSkipImpl: () => ({ skip: true, reason: 'credited' }),
       getChangedFilesImpl: () => ['src/a.js'],
     });
-    assert.deepEqual(gates, [owned]);
+    assert.equal(gates.length, 1);
+    assert.deepEqual(gates[0].suiteOfRecordCi, { ciRatchetCheck: 'r' });
   });
 });
 

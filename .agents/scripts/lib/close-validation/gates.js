@@ -136,6 +136,11 @@ function suiteOfRecordFlag(config) {
   return ci ? { suiteOfRecordCi: { ciRatchetCheck } } : {};
 }
 
+/** A skip branch close scopes locally: under `suiteOfRecord: "ci"` CI owns it. */
+function scopesSkipBranch(skipBranch, config) {
+  return skipBranch && !suiteOfRecord(config).ci;
+}
+
 /** Shown when `suiteOfRecord: "ci"` has no ratchet check to hand the ratchet to. */
 export const CI_RATCHET_UNDECLARED_HINT =
   '`delivery.quality.gates.coverage.suiteOfRecord: "ci"` defers the coverage capture to CI, but `delivery.quality.gates.coverage.ciRatchetCheck` is unset, so nothing would ratchet coverage or CRAP. Name the CI check that runs `coverage-ratchet.js`, or set `suiteOfRecord` back to `"local"`.';
@@ -612,9 +617,8 @@ export function buildDefaultGates({
       getChangedFilesImpl,
       resolveBaseRefImpl,
     }).skipBranch;
-  // Under `suiteOfRecord: "ci"` the `test` gate is deferred, so no scope.
   const testScope = closeTestScope({
-    skipBranch: captureSkipPredicted && !suiteOfRecord(config).ci,
+    skipBranch: scopesSkipBranch(captureSkipPredicted, config),
     config,
     cwd,
     baseBranch,
