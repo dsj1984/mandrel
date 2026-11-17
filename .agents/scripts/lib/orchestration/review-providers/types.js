@@ -40,6 +40,8 @@
  *   providers MUST render it into their prompt. Absent → `standard`.
  * @property {string=} effort      - `claude --effort` level resolved from `depth`;
  *   absent → `low`.
+ * @property {boolean=} exhaustive - The Story's first review pass; LLM-backed
+ *   providers render it via `renderExhaustiveDirective`.
  * @property {(string|null)=} guidance - Project review guidance; LLM-backed
  *   providers render it via `renderGuidanceBlock`.
  *

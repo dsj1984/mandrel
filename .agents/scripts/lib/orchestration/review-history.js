@@ -13,7 +13,7 @@
  * @typedef {{ id: string, status: 'still-open'|'fixed'|'refuted',
  *   reason?: string }} EarlierOutcome
  * @typedef {{ runs: { headSha: string, findings: HistoryFinding[],
- *   earlierCriticals?: EarlierOutcome[] }[],
+ *   earlierCriticals?: EarlierOutcome[], exhaustive?: true }[],
  *   overridden: string[], overrideReason?: string }} ReviewHistory
  * @typedef {{ id: string, finding: HistoryFinding, headSha: string,
  *   status: 'open'|'fixed'|'refuted'|'overridden', reason?: string }} EarlierCritical
@@ -136,21 +136,18 @@ function toHistoryFinding(f) {
 /**
  * @param {number} storyId
  * @param {{ headSha: string, findings: Finding[],
- *   earlierCriticals?: EarlierOutcome[] }} run
+ *   earlierCriticals?: EarlierOutcome[], exhaustive?: boolean }} entry
  * @param {{ config?: object, fsImpl?: typeof nodeFs }} [deps]
  */
-export function appendReviewRun(
-  storyId,
-  { headSha, findings, earlierCriticals },
-  deps,
-) {
-  const run = toHistoryRun(headSha, findings, earlierCriticals);
+export function appendReviewRun(storyId, entry, deps) {
+  const run = toHistoryRun(entry);
   updateReviewHistory(storyId, (h) => ({ ...h, runs: [...h.runs, run] }), deps);
 }
 
-function toHistoryRun(headSha, findings, earlierCriticals) {
+function toHistoryRun({ headSha, findings, earlierCriticals, exhaustive }) {
   const run = { headSha, findings: findings.map(toHistoryFinding) };
   if (Array.isArray(earlierCriticals)) run.earlierCriticals = earlierCriticals;
+  if (exhaustive) run.exhaustive = true;
   return run;
 }
 

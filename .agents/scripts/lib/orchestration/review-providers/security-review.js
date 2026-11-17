@@ -13,7 +13,10 @@ import { spawnSync } from 'node:child_process';
 import { resolveAgentrcRoot } from '../../config/git-roots.js';
 import { BUG_CLASS_RULE, parseProviderFindings } from './parse-findings.js';
 import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
-import { renderDepthDirective } from './review-depth.js';
+import {
+  renderDepthDirective,
+  renderExhaustiveDirective,
+} from './review-depth.js';
 import { renderGuidanceBlock } from './review-guidance.js';
 
 export const SECURITY_REVIEW_REMEDIATIONS = Object.freeze({
@@ -122,7 +125,11 @@ export function buildSecurityReviewPrompt(input) {
     .replace('{headRef}', headRef)
     .replace('{scopeLabel}', scopeLabel)
     .replace('{ticketId}', ticketId)
-    .replace('{depthDirective}', renderDepthDirective(input?.depth))
+    .replace(
+      '{depthDirective}',
+      renderDepthDirective(input?.depth) +
+        renderExhaustiveDirective(input?.exhaustive),
+    )
     .replace('{guidance}', () => renderGuidanceBlock(input?.guidance));
 }
 
@@ -211,6 +218,7 @@ export function createSecurityReviewProvider(deps = {}) {
         baseRef,
         headRef,
         depth: input.depth,
+        exhaustive: input.exhaustive,
         guidance: input.guidance,
       });
       if (result.status !== 0) {

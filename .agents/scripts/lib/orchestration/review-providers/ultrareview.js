@@ -9,7 +9,10 @@
  * @typedef {import('./types.js').ReviewInput}          ReviewInput
  */
 
-import { renderDepthDirective } from './review-depth.js';
+import {
+  renderDepthDirective,
+  renderExhaustiveDirective,
+} from './review-depth.js';
 
 export const ULTRAREVIEW_PROMPT_TEMPLATE =
   '💡 **Suggested:** Consider running `/ultrareview` on this ' +
@@ -29,7 +32,15 @@ export function buildUltrareviewMessage(input) {
   return ULTRAREVIEW_PROMPT_TEMPLATE.replace('{scopeLabel}', scopeLabel)
     .replace('{baseRef}', baseRef)
     .replace('{headRef}', headRef)
-    .replace('{depthDirective}', renderDepthDirective(input?.depth));
+    .replace('{depthDirective}', directives(input));
+}
+
+/** The depth directive, then the exhaustive one on a first pass. */
+function directives(input) {
+  return (
+    renderDepthDirective(input?.depth) +
+    renderExhaustiveDirective(input?.exhaustive)
+  );
 }
 
 /**

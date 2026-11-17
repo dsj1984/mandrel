@@ -20,7 +20,10 @@ import { resolveConfig } from '../../config-resolver.js';
 import { STRICT_CLAIM_SCHEMA } from './claim-grounding.js';
 import { BUG_CLASS_RULE } from './parse-findings.js';
 import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
-import { renderDepthDirective } from './review-depth.js';
+import {
+  renderDepthDirective,
+  renderExhaustiveDirective,
+} from './review-depth.js';
 import { renderGuidanceBlock } from './review-guidance.js';
 
 const PROBE_TIMEOUT_MS = 5000;
@@ -109,14 +112,14 @@ export function defaultProbeCodexCommand(opts = {}) {
 
 /**
  * @param {{ baseRef: string, headRef: string, depth?: ReviewDepth,
- *   guidance?: string|null }} args
+ *   exhaustive?: boolean, guidance?: string|null }} args
  * @returns {string}
  */
-function buildReviewPrompt({ baseRef, headRef, depth, guidance }) {
+function buildReviewPrompt({ baseRef, headRef, depth, exhaustive, guidance }) {
   return (
     `Review the code changes in the git diff \`${baseRef}...${headRef}\` ` +
     `of this repository (run \`git diff ${baseRef}...${headRef}\` to read ` +
-    `it). ${renderDepthDirective(depth)}\n\n` +
+    `it). ${renderDepthDirective(depth)}${renderExhaustiveDirective(exhaustive)}\n\n` +
     'Report correctness, security, reliability and maintainability problems ' +
     'the change introduces. For each one give the file and line in the new ' +
     'version when attributable (otherwise null), a short title, a markdown ' +
@@ -146,7 +149,7 @@ function readIfPresent(file) {
  * file becomes `stdout`.
  *
  * @param {{ baseRef: string, headRef: string, depth?: ReviewDepth,
- *   guidance?: string|null }} args
+ *   exhaustive?: boolean, guidance?: string|null }} args
  * @param {{ run?: Function, tempRoot?: string, cwd?: string }} [deps]
  * @returns {Promise<InvokeResult>}
  */
