@@ -44,7 +44,10 @@ import {
 } from './claude-verdict.js';
 import { readDiff } from './generated-diff.js';
 import { BUG_CLASS_RULE } from './parse-findings.js';
-import { renderDepthDirective } from './review-depth.js';
+import {
+  renderDepthDirective,
+  renderExhaustiveDirective,
+} from './review-depth.js';
 import { renderGuidanceBlock } from './review-guidance.js';
 import { probeClaudeCli } from './security-review.js';
 
@@ -220,7 +223,11 @@ function buildPrompt(
     .replace('{headRef}', input.headRef)
     .replace('{ticketId}', String(input.ticketId))
     .replace('{scopeNote}', scope)
-    .replace('{depthDirective}', renderDepthDirective(input.depth))
+    .replace(
+      '{depthDirective}',
+      renderDepthDirective(input.depth) +
+        renderExhaustiveDirective(input.exhaustive),
+    )
     .replace('{guidance}', () => renderGuidanceBlock(input.guidance));
   return `${head}<diff>\n${body}${note}\n</diff>\n${callers}`;
 }

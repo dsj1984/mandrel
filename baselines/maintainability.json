@@ -1796,7 +1796,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "mi": 103.884
+      "mi": 106.851
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/critical-verifier.js",
@@ -1860,7 +1860,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/ultrareview.js",
-      "mi": 117.348
+      "mi": 118.687
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",

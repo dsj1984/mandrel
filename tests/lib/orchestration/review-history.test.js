@@ -106,6 +106,25 @@ test('appendReviewRun and recordOverriddenIds write one history beside the depos
   assert.deepEqual(record.overridden, [findingId(f)]);
 });
 
+test('AC-5: appendReviewRun records exhaustive only on a run that was one', (t) => {
+  const { config } = deps(t);
+  appendReviewRun(
+    8,
+    { headSha: 'abc', findings: [], exhaustive: true },
+    { config },
+  );
+  appendReviewRun(
+    8,
+    { headSha: 'def', findings: [], exhaustive: false },
+    { config },
+  );
+  appendReviewRun(8, { headSha: 'ghi', findings: [] }, { config });
+  const { runs } = readReviewHistory(8, { config });
+  assert.equal(runs[0].exhaustive, true);
+  assert.ok(!Object.hasOwn(runs[1], 'exhaustive'));
+  assert.ok(!Object.hasOwn(runs[2], 'exhaustive'));
+});
+
 test('markRepeats: same id within ±10 lines is a repeat; further away or another id is not', () => {
   const earlier = finding();
   const history = {

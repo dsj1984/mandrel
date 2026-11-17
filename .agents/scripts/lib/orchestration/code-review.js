@@ -183,9 +183,16 @@ function resolveInjectedChangedFiles({ opts, baseRef, headRef }) {
 
 /**
  * Build the `runReview` input with its depth; an unenumerable diff yields
- * `standard`.
+ * `standard`. A first pass is always `deep` and `exhaustive`.
  */
-function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
+function buildReviewInput({
+  opts,
+  scope,
+  ticketId,
+  baseRef,
+  headRef,
+  firstPass,
+}) {
   const changedFiles = resolveInjectedChangedFiles({ opts, baseRef, headRef });
   const changedFileCount =
     typeof opts.changedFileCount === 'number'
@@ -203,9 +210,13 @@ function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
     baseRef,
     headRef,
     labels: Array.isArray(opts.ticketLabels) ? opts.ticketLabels : [],
-    depth,
+    ...depthFields(firstPass, depth),
   };
 }
+
+/** A first pass reviews `deep` and exhaustively, whatever the diff derived. */
+const depthFields = (firstPass, depth) =>
+  firstPass ? { depth: 'deep', exhaustive: true } : { depth };
 
 /**
  * Optional `getPromptMessages`; absent or throwing yields `[]`.
@@ -353,6 +364,14 @@ function resolveHistoryDeps(opts, config) {
   return opts.reviewProvider ? null : { config };
 }
 
+/** A first pass has a history seam and no recorded run. */
+const isFirstPass = (history) => history?.runs.length === 0;
+
+/** The Story's review history, or `null` without a history seam. */
+function readHistory(ticketId, historyDeps) {
+  return historyDeps ? readReviewHistory(ticketId, historyDeps) : null;
+}
+
 /** How the current run settles an earlier CRITICAL it raised again, if it did. */
 function settleInRun(entry, findings) {
   const again = findings.filter((f) => raisedAgain(f, entry.finding));
@@ -460,19 +479,12 @@ function earlierSection(history, outcomes) {
 
 /**
  * Mark repeats, then carry forward the open earlier CRITICALs. Without a
- * history seam the findings pass through unchanged.
+ * history seam (`history` null) the findings pass through unchanged.
  */
-async function applyHistory({
-  findings,
-  ticketId,
-  historyDeps,
-  reviewInput,
-  opts,
-}) {
-  if (!historyDeps) {
+async function applyHistory({ findings, history, reviewInput, opts }) {
+  if (!history) {
     return { findings, outcomes: null, earlier: [], degradations: [] };
   }
-  const history = readReviewHistory(ticketId, historyDeps);
   const carry = await carryForward({
     findings: markRepeats(findings, history),
     history,
@@ -492,6 +504,7 @@ function recordRun({
   headRef,
   findings,
   outcomes,
+  exhaustive,
   historyDeps,
   logger,
 }) {
@@ -499,7 +512,7 @@ function recordRun({
   try {
     appendReviewRun(
       ticketId,
-      { headSha: headRef, findings, earlierCriticals: outcomes },
+      { headSha: headRef, findings, earlierCriticals: outcomes, exhaustive },
       historyDeps,
     );
   } catch (err) {
@@ -533,12 +546,16 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     codeReviewConfig,
     root: opts.cwd ?? PROJECT_ROOT,
   });
+  // One history snapshot drives both the first-pass decision and carry-forward.
+  const historyDeps = resolveHistoryDeps(opts, config);
+  const history = readHistory(ticketId, historyDeps);
   const baseInput = buildReviewInput({
     opts,
     scope,
     ticketId,
     baseRef,
     headRef,
+    firstPass: isFirstPass(history),
   });
   const reviewInput = {
     ...baseInput,
@@ -573,11 +590,9 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     ],
   });
   const skip = applySkipPaths(vetted.findings, codeReviewConfig?.skipPaths);
-  const historyDeps = resolveHistoryDeps(opts, config);
   const carry = await applyHistory({
     findings: skip.findings,
-    ticketId,
-    historyDeps,
+    history,
     reviewInput,
     opts,
   });
@@ -607,6 +622,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     headRef,
     findings,
     outcomes: carry.outcomes,
+    exhaustive: reviewInput.exhaustive,
     historyDeps,
     logger,
   });

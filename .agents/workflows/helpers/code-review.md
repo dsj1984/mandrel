@@ -87,6 +87,13 @@ The `code-review` provider also maps depth to `claude --effort`: `low` at
 `light` and `standard`, `high` at `deep`. `delivery.codeReview.effortByDepth`
 overrides that per depth (`low`/`medium`/`high`/`xhigh`/`max`).
 
+A Story's **first pass** (its review history holds no run) is always `deep`
+and carries `exhaustive: true`: the LLM-backed providers append one shared
+directive asking the reviewer to sweep every changed file for every instance
+of each defect class it raises, and every added read, write and response path
+for an access or role-narrowing class. The history marks that run
+`exhaustive`. A review with no history seam is never a first pass.
+
 The LLM-backed review providers (code-review, codex, security-review,
 ultrareview) render the resolved `depth` into the prompt/instructions they emit so the underlying
 model actually changes thoroughness. The native provider deliberately ignores

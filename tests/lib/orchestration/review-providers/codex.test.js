@@ -275,7 +275,7 @@ test('runReview: returns parsed Finding[] with canonical severities', async () =
   }
 });
 
-test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth + guidance', async () => {
+test('runReview: invokeFn receives the review input, exhaustive included', async () => {
   let captured = null;
   const provider = createCodexProvider({
     probeFn: presentProbe,
@@ -290,6 +290,7 @@ test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth 
     baseRef: 'epic/2815',
     headRef: 'story-2830',
     depth: 'deep',
+    exhaustive: true,
     guidance: 'Flag unbounded retries.',
   });
   assert.deepEqual(captured, {
@@ -298,6 +299,7 @@ test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth 
     scope: 'story',
     ticketId: 2830,
     depth: 'deep',
+    exhaustive: true,
     guidance: 'Flag unbounded retries.',
   });
 });

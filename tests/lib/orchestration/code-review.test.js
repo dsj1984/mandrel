@@ -589,7 +589,8 @@ const verdictOf = (verdict, reason = 'r') =>
 
 /**
  * History plus verifier seams; `answers[i]` answers the i-th verifier call
- * (the last repeats). `diffOut` is what `git diff --name-only` prints.
+ * (the last repeats). `diffOut` is what `git diff --name-only` prints. The
+ * first run is a deep first pass, so it vets each CRITICAL with three calls.
  */
 function carryOpts(t, answers, { diffOut = '' } = {}) {
   const prompts = [];
@@ -612,6 +613,8 @@ function carryOpts(t, answers, { diffOut = '' } = {}) {
   return { opts, prompts };
 }
 
+const FIRST_PASS = [CONFIRMED_AT_HEAD, CONFIRMED_AT_HEAD, CONFIRMED_AT_HEAD];
+
 const unproven = verdictEnvelope({
   verdict: 'confirmed',
   evidence: { file: 'src/a.js', line: 99 },
@@ -625,11 +628,11 @@ for (const [name, answer] of [
   ['an error', { status: 1, stdout: '', stderr: 'boom' }],
 ]) {
   test(`#5974 AC-1: an earlier CRITICAL absent from the next run halts when the re-check returns ${name}`, async (t) => {
-    const { opts, prompts } = carryOpts(t, [CONFIRMED_AT_HEAD, answer]);
+    const { opts, prompts } = carryOpts(t, [...FIRST_PASS, answer]);
     const first = await review(fakeAdapter([retryAt(10)]), opts);
     assert.equal(first.halted, true);
     const second = await review(fakeAdapter([]), opts);
-    assert.equal(prompts.length, 2);
+    assert.equal(prompts.length, 4);
     assert.equal(second.halted, true);
     assert.equal(second.severity.critical, 1);
     assert.equal(typeof second.findings[0].carried, 'string');
@@ -644,7 +647,7 @@ for (const [name, answer] of [
 
 test('#5974 AC-2: a refuting re-check does not halt, and a later run does not re-check it', async (t) => {
   const { opts, prompts } = carryOpts(t, [
-    CONFIRMED_AT_HEAD,
+    ...FIRST_PASS,
     verdictOf('refuted', 'guarded now'),
   ]);
   await review(fakeAdapter([retryAt(10)]), opts);
@@ -654,12 +657,12 @@ test('#5974 AC-2: a refuting re-check does not halt, and a later run does not re
   assert.match(second.report, /No findings/);
   const third = await review(fakeAdapter([]), opts);
   assert.equal(third.halted, false);
-  assert.equal(prompts.length, 2);
+  assert.equal(prompts.length, 4);
   assert.match(third.report, /\*\*refuted\*\*/);
 });
 
 test('#5974: a refuted earlier CRITICAL whose instance files changed is reported fixed', async (t) => {
-  const { opts } = carryOpts(t, [CONFIRMED_AT_HEAD, verdictOf('refuted')], {
+  const { opts } = carryOpts(t, [...FIRST_PASS, verdictOf('refuted')], {
     diffOut: 'src/a.js\n',
   });
   await review(fakeAdapter([retryAt(10)]), opts);
@@ -674,7 +677,7 @@ test('#5974 AC-3: a CRITICAL refuted when raised, ungrounded, or overridden is n
   assert.equal(first.halted, false);
   const after = await review(fakeAdapter([]), refutedOpts.opts);
   assert.equal(after.halted, false);
-  assert.equal(refutedOpts.prompts.length, 1);
+  assert.equal(refutedOpts.prompts.length, 3);
 
   const ungrounded = carryOpts(t, [CONFIRMED_AT_HEAD]);
   appendReviewRun(
@@ -693,7 +696,7 @@ test('#5974 AC-3: a CRITICAL refuted when raised, ungrounded, or overridden is n
   });
   const cleared = await review(fakeAdapter([]), overridden.opts);
   assert.equal(cleared.halted, false);
-  assert.equal(overridden.prompts.length, 1);
+  assert.equal(overridden.prompts.length, 3);
   assert.match(cleared.report, /\*\*overridden\*\*/);
 });
 
@@ -703,7 +706,7 @@ test('#5974 AC-4: a carried CRITICAL stays open on the next run until an overrid
   await review(fakeAdapter([]), opts);
   const third = await review(fakeAdapter([]), opts);
   assert.equal(third.halted, true);
-  assert.equal(prompts.length, 3);
+  assert.equal(prompts.length, 5);
   await handleOverriddenReviewBlock({
     provider: {},
     storyId: 42,
@@ -717,7 +720,7 @@ test('#5974 AC-4: a carried CRITICAL stays open on the next run until an overrid
   });
   const fourth = await review(fakeAdapter([]), opts);
   assert.equal(fourth.halted, false);
-  assert.equal(prompts.length, 3);
+  assert.equal(prompts.length, 5);
 });
 
 test('#5974 AC-7: a CRITICAL raised again at an overlapping location is not re-checked', async (t) => {
@@ -727,7 +730,7 @@ test('#5974 AC-7: a CRITICAL raised again at an overlapping location is not re-c
   assert.equal(second.halted, true);
   assert.equal(second.findings.length, 1);
   assert.equal(second.findings[0].repeat, true);
-  assert.equal(prompts.length, 2, 'one vetting call per run, no re-check');
+  assert.equal(prompts.length, 4, 'vetting calls only, no re-check');
   assert.match(second.report, /\*\*still open\*\*/);
 });
 
