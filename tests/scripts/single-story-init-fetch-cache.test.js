@@ -18,7 +18,12 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
-import { FetchCache } from '../../.agents/scripts/lib/git/cached-fetch.js';
+import {
+  __DEFAULT_WINDOW_MS,
+  __moduleCacheSize,
+  __resetModuleCache,
+  FetchCache,
+} from '../../.agents/scripts/lib/git/cached-fetch.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { materializeBaseBranch } from '../../.agents/scripts/single-story-init.js';
 import { makeGitRepo } from '../fixtures/git-fixture.js';
@@ -94,6 +99,7 @@ describe('materializeBaseBranch — cachedGitFetch coalescing (Story #3654)', ()
 
   beforeEach(() => {
     dirs = makeClone();
+    __resetModuleCache();
   });
 
   afterEach(() => {
@@ -133,12 +139,23 @@ describe('materializeBaseBranch — cachedGitFetch coalescing (Story #3654)', ()
       0,
       `Did not expect a cache-hit message on a cold cache but got: ${JSON.stringify(progress.calls)}`,
     );
-    assert.equal(cache.shouldFetch(dirs.clone, 'origin', 30_000), false);
+    assert.equal(
+      cache.shouldFetch(dirs.clone, 'origin', __DEFAULT_WINDOW_MS),
+      false,
+    );
+    assert.equal(
+      __moduleCacheSize(),
+      0,
+      'an injected cache leaves the module cache alone',
+    );
   });
 
   it('records a fetch in the cache so the next call is a hit', () => {
     const cache = new FetchCache({ now: () => 0 });
     cache.recordFetch(dirs.clone, 'origin');
-    assert.equal(cache.shouldFetch(dirs.clone, 'origin', 30_000), false);
+    assert.equal(
+      cache.shouldFetch(dirs.clone, 'origin', __DEFAULT_WINDOW_MS),
+      false,
+    );
   });
 });

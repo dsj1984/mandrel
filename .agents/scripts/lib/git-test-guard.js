@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnCapture } from './child-exec.js';
 
-export const TEST_GUARD_ROOT_ENV = 'MANDREL_TEST_GUARD_ROOT';
+const TEST_GUARD_ROOT_ENV = 'MANDREL_TEST_GUARD_ROOT';
 
 const MOVING = new Set([
   'checkout',

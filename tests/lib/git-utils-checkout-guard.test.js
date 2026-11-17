@@ -6,10 +6,11 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   armGitGuard,
   assertGitAllowed,
-  TEST_GUARD_ROOT_ENV,
 } from '../../.agents/scripts/lib/git-test-guard.js';
 import { gitSpawn, gitSync } from '../../.agents/scripts/lib/git-utils.js';
 import { makeGitRepo } from '../fixtures/git-fixture.js';
+
+const TEST_GUARD_ROOT_ENV = 'MANDREL_TEST_GUARD_ROOT';
 
 describe('git test guard', () => {
   let repo;
