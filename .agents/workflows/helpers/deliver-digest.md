@@ -99,22 +99,20 @@ After the self-eval's last fix commit the worker runs **one** command:
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
 `ready` (exit 0) → hand off. `fix-required` (exit 2) → a finding, a red or
-deferred suite, a base-merge conflict, a non-fast-forward push,
-a `commit_refs_rules` push stepping missed or a CRITICAL: fix, commit,
-re-run; labels untouched. `blocked` (exit 1) → only a remote-refused push,
-an unreachable remote, an unconfirmed base branch, an unregistered merge
-driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
-`friction`. A re-run skips every step still valid for HEAD. Past the sync ceiling → **background**, explicit timeout: parallel-tooling Rule 2.
+deferred suite, a base-merge conflict, a push to fix or a CRITICAL: fix,
+commit, re-run; labels untouched. `blocked` (exit 1) → only a remote-refused
+push, an unreachable remote, an unconfirmed base branch, an unregistered
+merge driver, `review-cap` or `host-resources` (exit 77): it flips
+`agent::blocked` and posts `friction`. A re-run skips every step still valid for HEAD. Past the sync ceiling → **background**, explicit timeout: parallel-tooling Rule 2.
 
 1. **Base merge:** merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of every check: close's base-sync then no-ops. Then close's **duplication re-score**, committed
    **untagged** before any credit.
-2. **Preflight — blocking.** `typecheck`/`lint`/`format` (close's credit),
-   `quality-preview.js --changed-since origin/<baseBranch>`, each baselined
-   ratchet, `check-baselines`; one `fix-required` lists all. Serial unless
-   per-host `.agentrc.local.json` sets `delivery.execution.preflightConcurrency`
-   above 1 (default 1): close's independent gates then run in admitted
-   lanes beside the base lane — [`deliver-reference.md`](deliver-reference.md) § Preflight.
+2. **Preflight — blocking.** Fast lane first: `delivery.handoff.firstChecks`,
+   `check-baselines`; a finding stops there. Then `typecheck`/`lint`/`format`
+   (close's credit), `quality-preview.js --changed-since origin/<baseBranch>`,
+   each baselined ratchet; one `fix-required` lists all. Lanes:
+   `preflightConcurrency` — [`deliver-reference.md`](deliver-reference.md) § Preflight.
 3. **One depositor** (`suiteOfRecord: ci`: CI's), by one predicate close registers `coverage-capture`
    on — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →
@@ -130,8 +128,10 @@ driver or `host-resources` (exit 77): it flips `agent::blocked` and posts
    …`; then post-capture checks: close's `quality-preview-crap` and `check-baselines`,
    then `delivery.handoff.postSeatChecks`. Children get `MANDREL_HANDOFF_STEP`.
 5. **Push** `story-<id>`; the remote ref must equal HEAD.
-6. **Held review** from step 1, beside 2: a CRITICAL skips or aborts 3,
-   one envelope with any finding — [`deliver-reference.md`](deliver-reference.md) § Held review.
+6. **Held review**, from a clean fast lane: a CRITICAL skips or aborts 3.
+   Fix, commit, re-run: a **review-first retry** settles the review before
+   any check; `blocked` (`review-cap`) at `acceptanceEval.maxRounds`
+   rounds — [`deliver-reference.md`](deliver-reference.md) § Held review.
 
 A later commit voids any credit; a baseline-JSON seat keeps the stamp. It
 reads the **output**, not the exit code: no signal deposits nothing. Seat order, runner shapes:

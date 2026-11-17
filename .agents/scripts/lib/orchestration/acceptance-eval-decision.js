@@ -17,12 +17,13 @@ const EPIC_SIGNALS_BASENAME = 'signals.ndjson';
 const MET_VERDICTS = Object.freeze(new Set(['met']));
 
 /**
- * Integer ≥ 1 — the last guard against an unbounded redraft loop.
+ * Integer ≥ 1 — the last guard against an unbounded redraft loop. Shared
+ * with the handoff's held-review round cap, so the two gates cannot drift.
  *
  * @param {unknown} value
  * @returns {number}
  */
-function effectiveCap(value) {
+export function effectiveCap(value) {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
     return 1;
   }
