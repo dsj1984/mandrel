@@ -1552,13 +1552,17 @@ function skippedAfterReviewFirst(order) {
     .map((step) => skipped(handoffStepName(step), REVIEW_FIRST_SKIP));
 }
 
+/** `--report-all` never retries review-first. */
+function reviewFirstFor(prior, reportAll) {
+  return !reportAll && isReviewFirstRetry(prior);
+}
+
 /**
  * The previous run stopped on a CRITICAL after its preflight passed at its
  * head: this run settles the review before paying for any check again.
  */
-function isReviewFirstRetry({ state, envelope }, reportAll) {
+function isReviewFirstRetry({ state, envelope }) {
   return (
-    !reportAll &&
     envelope?.cause === 'review-critical' &&
     Boolean(envelope.headSha) &&
     state.preflightHead === envelope.headSha
@@ -2024,7 +2028,7 @@ export async function runStoryHandoff(
     isCaptureFresh: isCaptureFreshFn,
     reportAll,
     state: prior.state,
-    reviewFirst: isReviewFirstRetry(prior, reportAll),
+    reviewFirst: reviewFirstFor(prior, reportAll),
     readReviewHistory: readReviewHistoryFn,
     reviewRound: null,
     review: null,
