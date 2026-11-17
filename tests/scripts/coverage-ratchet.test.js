@@ -225,6 +225,121 @@ describe('coverage-ratchet — the value ratchet (AC-8)', () => {
   });
 });
 
+// Story #6087 — under `suiteOfRecord: "ci"` a Story with no file under the
+// CRAP target dirs still carries the deferral marker, so CI's ratchet runs on
+// a diff with no scorable file and must hold.
+describe('coverage-ratchet — a diff with no scorable file holds', () => {
+  const AGENTRC = {
+    project: {
+      baseBranch: 'main',
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+    },
+    delivery: {
+      quality: {
+        gates: {
+          crap: { enabled: true, targetDirs: ['src'] },
+          coverage: {
+            enabled: true,
+            suiteOfRecord: 'ci',
+            ciRatchetCheck: 'ratchet',
+          },
+        },
+      },
+    },
+  };
+  const SCRIPTS = path.dirname(CLI);
+  /** Istanbul data for `src/a.js` (`export const a = () => 1;`), fully hit. */
+  const istanbul = (file) => ({
+    [file]: {
+      path: file,
+      statementMap: {
+        0: { start: { line: 1, column: 0 }, end: { line: 1, column: 25 } },
+        1: { start: { line: 1, column: 23 }, end: { line: 1, column: 24 } },
+      },
+      fnMap: {
+        0: {
+          name: 'a',
+          decl: {
+            start: { line: 1, column: 17 },
+            end: { line: 1, column: 18 },
+          },
+          loc: { start: { line: 1, column: 17 }, end: { line: 1, column: 24 } },
+          line: 1,
+        },
+      },
+      branchMap: {},
+      s: { 0: 1, 1: 1 },
+      f: { 0: 1 },
+      b: {},
+    },
+  });
+
+  it('exits 0 on a docs-only diff against baselines seated on the base', () => {
+    const cwd = fs.realpathSync(makeTempDir('coverage-ratchet-docs-'));
+    const git = (...args) =>
+      execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+    const node = (script, ...args) =>
+      spawnSync(process.execPath, [path.join(SCRIPTS, script), ...args], {
+        cwd,
+        encoding: 'utf8',
+      });
+    git('init', '-q');
+    git('config', 'user.email', 'ratchet@test.local');
+    git('config', 'user.name', 'ratchet');
+    git('config', 'commit.gpgsign', 'false');
+    for (const dir of ['src', 'docs', 'ci']) fs.mkdirSync(path.join(cwd, dir));
+    fs.writeFileSync(
+      path.join(cwd, 'src', 'a.js'),
+      'export const a = () => 1;\n',
+    );
+    fs.writeFileSync(path.join(cwd, '.gitignore'), 'ci/\ncoverage/\ntemp/\n');
+    fs.writeFileSync(path.join(cwd, '.agentrc.json'), JSON.stringify(AGENTRC));
+    const artifact = path.join(cwd, 'ci', 'coverage-final.json');
+    fs.writeFileSync(
+      artifact,
+      JSON.stringify(istanbul(path.join(cwd, 'src', 'a.js'))),
+    );
+    git('add', '.');
+    git('commit', '-qm', 'seed');
+    git('branch', '-M', 'main');
+    git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+    const seat = (...steps) => {
+      for (const [script, ...args] of steps) {
+        const res = node(script, ...args);
+        assert.equal(res.status, 0, `${script}: ${res.stderr}${res.stdout}`);
+      }
+    };
+    seat(
+      [
+        'coverage-ratchet.js',
+        '--artifact',
+        artifact,
+        '--head',
+        git('rev-parse', 'HEAD'),
+        '--adopt-only',
+      ],
+      ['update-coverage-baseline.js', '--full-scope'],
+      ['update-crap-baseline.js'],
+    );
+    git('add', 'baselines');
+    git('commit', '-qm', 'baselines');
+    git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+    git('checkout', '-qb', 'story');
+    fs.writeFileSync(path.join(cwd, 'docs', 'notes.md'), '# notes\n');
+    git('add', 'docs');
+    git('commit', '-qm', 'docs only');
+    const res = node(
+      'coverage-ratchet.js',
+      '--artifact',
+      artifact,
+      '--head',
+      git('rev-parse', 'HEAD'),
+    );
+    assert.equal(res.status, 0, res.stderr + res.stdout);
+    assert.doesNotMatch(res.stderr + res.stdout, /produced no baseline rows/);
+  });
+});
+
 describe('coverage-ratchet — arguments', () => {
   it('defaults to affected scope and requires --artifact and --head', () => {
     const args = parseRatchetArgs(['--artifact', 'a.json', '--head', 'abc']);

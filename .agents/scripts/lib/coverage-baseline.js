@@ -13,6 +13,7 @@ import {
   MissingCoverageArtifactError,
 } from './coverage-capture.js';
 import { isObject } from './json-utils.js';
+import { isScorableSourceFile } from './source-extensions.js';
 
 const COVERAGE_FINAL_PATH = COVERAGE_CAPTURE_DEFAULTS.coveragePath;
 const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
@@ -342,9 +343,12 @@ export async function resolveCoverageRefreshScope({
     if (fullScope) return { fullScope: true };
     return diffScopeRef ? { baseRef: diffScopeRef } : {};
   }
+  // Only a scorable source can carry a row; a docs-only diff scopes nothing.
   const diff = fullScope
     ? null
-    : await deriveDiffFiles(diffScopeRef ?? 'origin/main');
+    : (await deriveDiffFiles(diffScopeRef ?? 'origin/main')).filter(
+        isScorableSourceFile,
+      );
   return {
     scopeFiles: narrowScopeToMeasured(diff, listMeasured(cwd), inCoverageScope),
     requireRowsForScopeFiles: true,
