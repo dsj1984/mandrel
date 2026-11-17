@@ -26,6 +26,18 @@ const DEPTH_DIRECTIVES = Object.freeze({
 });
 
 /**
+ * Follows the depth directive on a Story's first review pass, so it leads with
+ * a space; see `BUG_CLASS_RULE`.
+ */
+const EXHAUSTIVE_DIRECTIVE =
+  ' This is the first review of this Story: make it exhaustive. Enumerate ' +
+  'every defect class you raise. For each class, sweep every changed file ' +
+  'for every instance before returning, and report them all in that ' +
+  "finding's `instances`. For an access-control, authorization or " +
+  'role-narrowing class, check every read, write and response path the ' +
+  'diff adds.';
+
+/**
  * Anything unrecognised, including `undefined`, is `standard`.
  *
  * @param {unknown} depth
@@ -43,4 +55,14 @@ export function normalizeDepth(depth) {
  */
 export function renderDepthDirective(depth) {
   return DEPTH_DIRECTIVES[normalizeDepth(depth)];
+}
+
+/**
+ * `EXHAUSTIVE_DIRECTIVE` on a first pass; otherwise empty.
+ *
+ * @param {boolean|undefined} exhaustive
+ * @returns {string}
+ */
+export function renderExhaustiveDirective(exhaustive) {
+  return exhaustive ? EXHAUSTIVE_DIRECTIVE : '';
 }

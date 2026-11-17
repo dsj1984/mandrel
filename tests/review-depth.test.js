@@ -26,6 +26,10 @@ import {
   resolveDepth,
   resolveReviewEffort,
 } from '../.agents/scripts/lib/orchestration/review-depth.js';
+import {
+  renderDepthDirective,
+  renderExhaustiveDirective,
+} from '../.agents/scripts/lib/orchestration/review-providers/review-depth.js';
 
 const { softFiles, hardFiles } = DEFAULT_DIFF_WIDTH;
 
@@ -335,5 +339,33 @@ describe('.agentrc.json validation of delivery.codeReview.effortByDepth', () => 
   test('rejects an unknown depth key or an unknown effort value', () => {
     assert.equal(validate(agentrc({ heavy: 'high' })), false);
     assert.equal(validate(agentrc({ deep: 'extreme' })), false);
+  });
+});
+
+// --- Exhaustive first-pass directive ---------------------------------------
+
+const EXHAUSTIVE_DIRECTIVE = renderExhaustiveDirective(true);
+
+describe('renderExhaustiveDirective', () => {
+  test('AC-2: the directive asks for an every-instance sweep per class and every access path', () => {
+    assert.match(EXHAUSTIVE_DIRECTIVE, /every defect class/);
+    assert.match(EXHAUSTIVE_DIRECTIVE, /sweep every changed file/);
+    assert.match(EXHAUSTIVE_DIRECTIVE, /every instance/);
+    assert.match(EXHAUSTIVE_DIRECTIVE, /`instances`/);
+    assert.match(
+      EXHAUSTIVE_DIRECTIVE,
+      /access-control, authorization or role-narrowing/,
+    );
+    assert.match(EXHAUSTIVE_DIRECTIVE, /every read, write and response path/);
+  });
+
+  test('AC-2/AC-3: only a first pass renders it, and the depth directive never carries it', () => {
+    assert.ok(EXHAUSTIVE_DIRECTIVE.length > 0);
+    for (const off of [false, undefined]) {
+      assert.equal(renderExhaustiveDirective(off), '');
+    }
+    for (const depth of ['light', 'standard', 'deep']) {
+      assert.ok(!renderDepthDirective(depth).includes(EXHAUSTIVE_DIRECTIVE));
+    }
   });
 });

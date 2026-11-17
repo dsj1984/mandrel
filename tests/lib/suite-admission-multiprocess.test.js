@@ -265,12 +265,15 @@ describe('suite admission across processes (Story #5668)', () => {
     });
 
     it('AC-6: the head waiter is admitted once the window closes despite a stream of small waiters', async () => {
+      // small-0 must start inside the window or the pair never releases; a
+      // cold Windows runner can spend 1.5s between the go file and admission.
+      const windowMs = 5_000;
       const small = (name, spec) =>
         contend(name, {
           config: backfilling,
           command: SMALL,
           holdMs: 1_000,
-          backfillWindowMs: 1_500,
+          backfillWindowMs: windowMs,
           ...spec,
         });
       // Child boot can outlast both a fixed hold and the window, so the pair
@@ -311,7 +314,7 @@ describe('suite admission across processes (Story #5668)', () => {
       assert.equal(await big.exited, 0, 'the head waiter was not starved');
       for (const run of smalls) assert.equal(await run.exited, 0);
       const bigStart = at('big', 'start');
-      const closes = at('big', 'waiting') + 1_500;
+      const closes = at('big', 'waiting') + windowMs;
       const ahead = events().filter(
         (e) =>
           /^small-\d/.test(e.name) && e.event === 'start' && e.at < bigStart,

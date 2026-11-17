@@ -18,9 +18,15 @@
 // this is pure logic, no I/O.
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import { runCodeReview } from '../.agents/scripts/lib/orchestration/code-review.js';
-import { DEFAULT_DIFF_WIDTH } from '../.agents/scripts/lib/orchestration/review-depth.js';
+import {
+  DEFAULT_DIFF_WIDTH,
+  resolveReviewEffort,
+} from '../.agents/scripts/lib/orchestration/review-depth.js';
+import { readReviewHistory } from '../.agents/scripts/lib/orchestration/review-history.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 // --- Test seams -----------------------------------------------------------
 
@@ -449,4 +455,70 @@ test('review deposit: carries the verification tally, and an older deposit witho
   const adopted = depositAsComputedReview(older).result;
   assert.equal(adopted.verification, null);
   assert.equal(adopted.status, 'ok');
+});
+
+// --- First pass: deep and exhaustive ----------------------------------------
+
+/** A history seam over a fresh tempRoot, removed after the test. */
+function historySeam(t) {
+  const tempRoot = makeTempDir('code-review-first-pass-');
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+  return { config: { project: { paths: { tempRoot } } } };
+}
+
+/** A light-depth diff reviewed with the history seam; returns the input. */
+async function reviewWithHistory(historyDeps, findings = []) {
+  const captured = {};
+  const result = await runCodeReview({
+    ...buildOpts({ findings, captured, changedFiles: ['README.md'] }),
+    historyDeps,
+  });
+  return { input: captured.input, result };
+}
+
+const critical = (line) => ({
+  severity: 'critical',
+  title: 'Unbounded retry',
+  body: 'b',
+  file: 'src/a.js',
+  line,
+  class: 'unbounded-retry',
+});
+
+test('AC-1: a Story with no review history is reviewed deep, at the deep effort, exhaustively', async (t) => {
+  const { input } = await reviewWithHistory(historySeam(t));
+  assert.equal(input.depth, 'deep');
+  assert.equal(input.effort, resolveReviewEffort('deep'));
+  assert.equal(input.exhaustive, true);
+});
+
+test('AC-3/AC-5: a later review resolves depth from the diff, and only the first run records exhaustive', async (t) => {
+  const historyDeps = historySeam(t);
+  await reviewWithHistory(historyDeps);
+  const { input } = await reviewWithHistory(historyDeps);
+  assert.equal(input.depth, 'light');
+  assert.equal(input.effort, resolveReviewEffort('light'));
+  assert.ok(!Object.hasOwn(input, 'exhaustive'));
+  const { runs } = readReviewHistory(100, historyDeps);
+  assert.equal(runs[0].exhaustive, true);
+  assert.ok(!Object.hasOwn(runs[1], 'exhaustive'));
+});
+
+test('AC-4: a review with no history seam is never a first pass', async () => {
+  const captured = {};
+  await runCodeReview(buildOpts({ captured, changedFiles: ['README.md'] }));
+  assert.equal(captured.input.depth, 'light');
+  assert.ok(!Object.hasOwn(captured.input, 'exhaustive'));
+});
+
+test('AC-6: after a first pass, repeats are marked and an absent earlier CRITICAL is carried', async (t) => {
+  const historyDeps = historySeam(t);
+  const first = await reviewWithHistory(historyDeps, [critical(10)]);
+  assert.equal(first.result.halted, true);
+  assert.ok(!first.result.findings[0].repeat);
+  const again = await reviewWithHistory(historyDeps, [critical(12)]);
+  assert.equal(again.result.findings[0].repeat, true);
+  const absent = await reviewWithHistory(historyDeps, []);
+  assert.equal(absent.result.halted, true);
+  assert.equal(typeof absent.result.findings[0].carried, 'string');
 });

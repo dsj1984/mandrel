@@ -4883,9 +4883,11 @@
       "<anon applySkipPaths/findings.filter(f)#0/map(i)#0>": 1,
       "<anon applySkipPaths/findings.filter(f)#0>": 2,
       "<anon carryForward/absent.forEach(entry,i)#0>": 3,
+      "<anon depthFields(firstPass,depth)#0>": 2,
       "<anon earlierSection/map(e)#0>": 2,
       "<anon earlierSection/outcomes.map(o)#0>": 1,
       "<anon instanceFilesChanged/map(i)#0>": 1.0013717421124828,
+      "<anon isFirstPass(history)#0>": 1,
       "<anon resolveCriticalByProvider/findings.some(f)#0>": 1,
       "<anon resolveProviderName/providers.map(p)#0>": 1,
       "<anon settleInRun/again.find(f)#0>": 2,
@@ -4901,6 +4903,7 @@
       "instanceFilesChanged": 3.0123456790123457,
       "postReviewComment": 3.000302104662482,
       "postUnlessDeferred": 2,
+      "readHistory": 2,
       "recordRun": 2.2560000000000002,
       "resolveCommentTargetId": 3,
       "resolveConfigBase": 1,
@@ -6207,6 +6210,7 @@
       "<anon criticalContent(f)#0>": 3,
       "<anon earlierCriticals/forEach(f)#0>": 1,
       "<anon earlierCriticals/forEach(o)#0>": 1,
+      "<anon exhaustiveField(exhaustive)#0>": 2,
       "<anon flags(f)#0>": 1,
       "<anon list(v)#0>": 2,
       "<anon markOverridden/entries.map(e)#0>": 2,
@@ -6502,7 +6506,8 @@
     },
     ".agents/scripts/lib/orchestration/review-providers/review-depth.js": {
       "normalizeDepth": 3,
-      "renderDepthDirective": 1
+      "renderDepthDirective": 1,
+      "renderExhaustiveDirective": 2
     },
     ".agents/scripts/lib/orchestration/review-providers/review-guidance.js": {
       "loadReviewGuidance": 3,
@@ -6546,7 +6551,8 @@
     ".agents/scripts/lib/orchestration/review-providers/ultrareview.js": {
       "buildUltrareviewMessage": 3,
       "createUltrareviewProvider": 1,
-      "createUltrareviewProviderForRegistry": 1
+      "createUltrareviewProviderForRegistry": 1,
+      "directives": 1
     },
     ".agents/scripts/lib/orchestration/run-epilogue.js": {
       "<anon buildRollupStepResult/proposals.discarded.map(item)#0>": 1,

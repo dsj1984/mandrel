@@ -5,18 +5,24 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import { REVIEW_PROVIDER_CLIS } from '../../../../.agents/scripts/lib/config/review-provider-clis.js';
 import { getAgentrcValidator } from '../../../../.agents/scripts/lib/config-settings-schema.js';
 import { CODE_REVIEW_SCHEMA } from '../../../../.agents/scripts/lib/config-settings-schema-quality.js';
 import { createCodeReviewProviderForRegistry } from '../../../../.agents/scripts/lib/orchestration/review-providers/code-review.js';
 import { createCodexProvider } from '../../../../.agents/scripts/lib/orchestration/review-providers/codex.js';
+import { invokeCodexExec } from '../../../../.agents/scripts/lib/orchestration/review-providers/codex-cli.js';
 import {
   buildLlmReviewUnavailableError,
   createLlmReviewProvider,
   resolveLlmReviewDelegate,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/llm-review.js';
+import { renderExhaustiveDirective } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-depth.js';
 import { createReviewProvider } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
+import { createSecurityReviewProvider } from '../../../../.agents/scripts/lib/orchestration/review-providers/security-review.js';
+import { buildUltrareviewMessage } from '../../../../.agents/scripts/lib/orchestration/review-providers/ultrareview.js';
+import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
 
 const STORY_INPUT = Object.freeze({
   scope: 'story',
@@ -220,4 +226,69 @@ test('schema: llm-review is an accepted codeReview.providers name', () => {
     },
   });
   assert.equal(ok, true, JSON.stringify(validate.errors));
+});
+
+/** The prompt each LLM-backed provider renders for `input`, by provider. */
+async function renderedPrompts(t, input) {
+  const prompts = {};
+  await createCodeReviewProviderForRegistry({
+    probeFn: () => true,
+    gitSpawnFn: () => ({ status: 0, stdout: 'diff --git a/x b/x\n' }),
+    authSpawnFn: () => ({
+      status: 0,
+      stdout: JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }),
+    }),
+    spawnFn: (_file, _args, options) => {
+      prompts['code-review'] = options.input;
+      return {
+        status: 0,
+        stdout: JSON.stringify({ structured_output: { findings: [] } }),
+      };
+    },
+  }).runReview(input);
+  const tempRoot = makeTempDir('exhaustive-codex-');
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+  await createCodexProvider({
+    probeFn: () => true,
+    invokeFn: (args) =>
+      invokeCodexExec(args, {
+        tempRoot,
+        cwd: tempRoot,
+        run: async (_file, argv, options) => {
+          prompts['codex-cli'] = options.input;
+          fs.writeFileSync(argv[argv.indexOf('-o') + 1], '{"findings":[]}');
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      }),
+  }).runReview(input);
+  await createSecurityReviewProvider({
+    probeFn: () => true,
+    spawnFn: (_file, argv) => {
+      prompts['security-review'] = argv[1];
+      return { status: 0, stdout: '[]', stderr: '' };
+    },
+  }).runReview(input);
+  prompts.ultrareview = buildUltrareviewMessage(input);
+  return prompts;
+}
+
+test('AC-2: every LLM-backed provider renders the exhaustive directive on a first pass only', async (t) => {
+  const EXHAUSTIVE_DIRECTIVE = renderExhaustiveDirective(true);
+  const first = await renderedPrompts(t, {
+    ...STORY_INPUT,
+    depth: 'deep',
+    exhaustive: true,
+  });
+  const later = await renderedPrompts(t, { ...STORY_INPUT, depth: 'deep' });
+  const providers = [
+    'code-review',
+    'codex-cli',
+    'security-review',
+    'ultrareview',
+  ];
+  assert.deepEqual(Object.keys(first).sort(), providers);
+  for (const name of providers) {
+    assert.ok(first[name].includes(EXHAUSTIVE_DIRECTIVE), name);
+    assert.ok(!later[name].includes(EXHAUSTIVE_DIRECTIVE), name);
+  }
 });
