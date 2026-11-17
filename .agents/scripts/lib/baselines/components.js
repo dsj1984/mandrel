@@ -2,7 +2,7 @@
 // buckets for per-component floors. The `*` component is the whole-repo
 // rollup and matches every row; overlap between components is allowed.
 
-import picomatch from 'picomatch';
+import { globMatcher } from '../util/glob-match.js';
 
 /**
  * Compiled matchers keyed by glob: `groupRows` runs over tens of thousands of
@@ -19,7 +19,7 @@ const GLOB_MATCHER_CACHE = new Map();
 function matcherFor(glob) {
   let matcher = GLOB_MATCHER_CACHE.get(glob);
   if (!matcher) {
-    matcher = picomatch(glob, { dot: true });
+    matcher = globMatcher(glob, { dot: true });
     GLOB_MATCHER_CACHE.set(glob, matcher);
   }
   return matcher;

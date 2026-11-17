@@ -6,8 +6,6 @@
  * the union path (`audit-provenance.js`).
  */
 
-import picomatch from 'picomatch';
-
 import { parseAuditFindingRecords } from '../../findings/audit-finding-record.js';
 import { ownedProvenanceSource } from '../../findings/provenance-field.js';
 import {
@@ -15,6 +13,7 @@ import {
   parseFingerprintFooter,
   parseSemanticKeyFooter,
 } from '../../findings/route-finding.js';
+import { globMatcher } from '../../util/glob-match.js';
 
 /**
  * @param {unknown} changes — `changes[]` entries, strings or `{ path }`.
@@ -27,7 +26,7 @@ function coverageMatchers(changes) {
     .filter((p) => typeof p === 'string' && p.trim().length > 0)
     .map((p) => {
       const glob = p.trim();
-      const match = picomatch(glob, { dot: true });
+      const match = globMatcher(glob, { dot: true });
       return (file) => file === glob || match(file);
     });
 }
@@ -83,7 +82,7 @@ function attributionApplies(storyCount, provenanceSource) {
  * Attribute each seed finding to the Stories that cover it. Order per Story:
  * an authored `provenance` wins outright; otherwise the Story owns every
  * finding one of whose files its `changes[]` covers (exact path, or a glob
- * under picomatch `dot: true`). A finding no Story owns is unattributed: it
+ * under `dot: true`). A finding no Story owns is unattributed: it
  * rides on every non-authored Story and is named in the warnings.
  *
  * @param {Array<{ provenance: object|null, changes?: unknown }>} stories — draft order.

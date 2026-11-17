@@ -4,14 +4,14 @@
  * @module lib/orchestration/git-cleanup/phases/filters
  */
 
-import picomatch from 'picomatch';
+import { globMatcher } from '../../../util/glob-match.js';
 
 /**
  * Pure: build a `(branch) => boolean` filter from include/exclude globs.
  */
 export function buildGlobFilter({ include = [], exclude = [] } = {}) {
-  const includeMatch = include.length > 0 ? picomatch(include) : () => true;
-  const excludeMatch = exclude.length > 0 ? picomatch(exclude) : () => false;
+  const includeMatch = include.length > 0 ? globMatcher(include) : () => true;
+  const excludeMatch = exclude.length > 0 ? globMatcher(exclude) : () => false;
   return (branch) => includeMatch(branch) && !excludeMatch(branch);
 }
 

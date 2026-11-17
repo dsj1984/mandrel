@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import picomatch from 'picomatch';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   FULL_TIER_GLOBS,
@@ -10,6 +9,7 @@ import {
   listTestFilesForTier,
   parseTierArgv,
 } from '../../.agents/scripts/lib/test-tiers.js';
+import { globMatcher } from '../../.agents/scripts/lib/util/glob-match.js';
 
 test('parseTierArgv defaults to full', () => {
   assert.deepEqual(parseTierArgv([]), { tier: 'full', rest: [] });
@@ -268,7 +268,7 @@ test('FULL_TIER_GLOBS is the measured surface: a superset of the full tier', () 
   // the measured run would deflate bin/mandrel.js and lib/cli/update.js and
   // red the coverage ratchet on code nobody touched.
   const repoRoot = path.resolve(import.meta.dirname, '..', '..');
-  const measured = picomatch(FULL_TIER_GLOBS, { dot: true });
+  const measured = globMatcher(FULL_TIER_GLOBS, { dot: true });
   const e2e = listTestFilesForTier('e2e', repoRoot);
   assert.ok(e2e.length > 0);
   for (const file of e2e) {
@@ -291,7 +291,7 @@ test('every FULL_TIER_GLOB matches at least one real test file', () => {
     listTestFilesForTier('integration', repoRoot),
   );
   for (const glob of FULL_TIER_GLOBS) {
-    const isMatch = picomatch(glob, { dot: true });
+    const isMatch = globMatcher(glob, { dot: true });
     assert.ok(
       all.some((f) => isMatch(f)),
       `full-tier glob ${glob} matches no file on disk — the tier walks a surface that does not exist`,

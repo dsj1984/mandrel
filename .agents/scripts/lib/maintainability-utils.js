@@ -1,5 +1,4 @@
 import path from 'node:path';
-import picomatch from 'picomatch';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
 import { POOL_SERIAL_THRESHOLD, runOnPool } from './cpu-pool.js';
 import { Logger } from './Logger.js';
@@ -7,6 +6,7 @@ import { scoreFile } from './maintainability-engine.js';
 import { isScored, reportUnscorable } from './maintainability-unscorable.js';
 import { isScorableSourceFile } from './source-extensions.js';
 import { CompilerMissingError } from './transpile.js';
+import { globMatcher, isGlobMatch } from './util/glob-match.js';
 import { walkFiles } from './util/paths.js';
 
 const MAINTAINABILITY_WORKER_URL = new URL(
@@ -33,7 +33,7 @@ export const IGNORED_DIRS = new Set([
 
 /**
  * Compiled matchers plus a per-path verdict memo, keyed on the pattern list:
- * `picomatch.isMatch()` recompiles per call, and the gates ask about the
+ * `isGlobMatch()` recompiles per call, and the gates ask about the
  * same path once per CRAP row. Inputs are immutable config, so it is bounded.
  * `\u0000` is the join separator because it cannot occur in a glob, so two
  * different lists cannot collide onto one key.
@@ -55,7 +55,7 @@ function ignoreMatcherEntry(ignoreGlobs) {
   entry = {
     matchers: ignoreGlobs
       .filter((g) => typeof g === 'string')
-      .map((g) => picomatch(g, { dot: true })),
+      .map((g) => globMatcher(g, { dot: true })),
     verdicts: new Map(),
   };
   IGNORE_MATCHER_CACHE.set(key, entry);
@@ -69,7 +69,7 @@ function ignoreMatcherEntry(ignoreGlobs) {
  * match.
  *
  * @param {string} filePath absolute or relative path to the source file
- * @param {string[]} ignoreGlobs picomatch patterns; empty/absent is a no-op
+ * @param {string[]} ignoreGlobs glob patterns; empty/absent is a no-op
  * @param {string} [cwd] root for repo-relative resolution; defaults to cwd
  * @returns {boolean} true when the file matches at least one ignore glob
  */

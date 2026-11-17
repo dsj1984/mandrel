@@ -5,7 +5,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import picomatch from 'picomatch';
 import { write, writeFile } from './baselines/writer.js';
 import { COVERAGE_CAPTURE_DEFAULTS } from './config/gates/coverage.schema.js';
 import {
@@ -14,6 +13,7 @@ import {
 } from './coverage-capture.js';
 import { isObject } from './json-utils.js';
 import { isScorableSourceFile } from './source-extensions.js';
+import { globMatcher } from './util/glob-match.js';
 
 const COVERAGE_FINAL_PATH = COVERAGE_CAPTURE_DEFAULTS.coveragePath;
 const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
@@ -30,9 +30,9 @@ function toForwardSlash(p) {
 /** c8's scope rule: some `include` matches and no `exclude` does. */
 export function buildScopePredicate({ include = [], exclude = [] } = {}) {
   const inc =
-    include.length === 0 ? () => true : picomatch(include, { dot: true });
+    include.length === 0 ? () => true : globMatcher(include, { dot: true });
   const exc =
-    exclude.length === 0 ? () => false : picomatch(exclude, { dot: true });
+    exclude.length === 0 ? () => false : globMatcher(exclude, { dot: true });
   return (relPath) => {
     const norm = toForwardSlash(relPath);
     return inc(norm) && !exc(norm);

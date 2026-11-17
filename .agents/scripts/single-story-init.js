@@ -57,7 +57,7 @@ import { createProvider } from './lib/provider-factory.js';
 import { buildProtectionCtx } from './lib/single-story-sweep/protection-ctx.js';
 import { resolveSweepLockPath } from './lib/single-story-sweep/sweep-lock.js';
 // `sweepMergedStoryBranches` is imported dynamically: its graph reaches
-// `picomatch`, which would crash before `assertDepsInstalled()` can report.
+// `minimatch`, which would crash before `assertDepsInstalled()` can report.
 import { WorktreeManager } from './lib/worktree-manager.js';
 
 export { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
@@ -68,11 +68,11 @@ export { makeGhRunner } from './lib/single-story-sweep/protection-ctx.js';
  * opaque `ERR_MODULE_NOT_FOUND` from deep in the sweep graph. Builtins only.
  */
 function assertDepsInstalled(projectRoot) {
-  const probe = path.join(projectRoot, 'node_modules', 'picomatch');
+  const probe = path.join(projectRoot, 'node_modules', 'minimatch');
   if (!existsSync(probe)) {
     throw new Error(
       [
-        'Project dependencies are not installed (missing node_modules/picomatch).',
+        'Project dependencies are not installed (missing node_modules/minimatch).',
         `Run \`npm install\` from ${projectRoot} before invoking this script.`,
       ].join(' '),
     );

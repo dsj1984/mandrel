@@ -111,7 +111,7 @@ severity rule, excuse a `shortcut:` comment, or change the output shape. Over
 8,000 characters it is truncated and recorded as a degraded gate.
 
 Prose cannot silence a finding. Only `delivery.codeReview.skipPaths`
-(picomatch globs) drops findings, after grounding and verification and before
+(globs) drops findings, after grounding and verification and before
 severity is counted; the report states how many were dropped.
 
 ### Bug classes, instances and repeats

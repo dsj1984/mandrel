@@ -9,7 +9,7 @@
  * @module lib/wave-runner/footprint
  */
 
-import picomatch from 'picomatch';
+import { globMatcher, scanGlob } from '../util/glob-match.js';
 
 /**
  * One class today; kept on the envelope so consumers keyed on `source` stay
@@ -62,7 +62,7 @@ const GLOB_OPTIONS = Object.freeze({ dot: true });
  * @returns {string}
  */
 function globBase(glob) {
-  return picomatch.scan(glob).base;
+  return scanGlob(glob).base;
 }
 
 /**
@@ -117,7 +117,7 @@ function addHit(hits, path, side) {
  */
 function collectGlobHits(hits, mine, theirs, side) {
   for (const glob of mine.globs) {
-    const matches = picomatch(glob, GLOB_OPTIONS);
+    const matches = globMatcher(glob, GLOB_OPTIONS);
     const covers =
       theirs.concrete.some((path) => matches(path)) ||
       theirs.globs.some((other) => globsOverlap(glob, other));

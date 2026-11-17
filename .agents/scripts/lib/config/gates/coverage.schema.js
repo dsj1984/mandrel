@@ -114,7 +114,7 @@ export const COVERAGE_GATE = {
       type: 'array',
       items: { ...SAFE_STRING, minLength: 1 },
       description:
-        "Repo-relative picomatch globs naming paths no test reads. A matching path is dropped from both sides of the coverage delta-refresh overlap check and from the re-measured set — a delta of only matching, baseline and coverage-directory paths restamps without a run — and from the overlap check of close's `test` delta re-credit (its incoming count and emptiness test are unchanged). It never changes the suite-input filter, the tree digest or stamp freshness. Default `[]`: nothing is built in, so Markdown counts as an input unless declared here.",
+        "Repo-relative globs naming paths no test reads. A matching path is dropped from both sides of the coverage delta-refresh overlap check and from the re-measured set — a delta of only matching, baseline and coverage-directory paths restamps without a run — and from the overlap check of close's `test` delta re-credit (its incoming count and emptiness test are unchanged). It never changes the suite-input filter, the tree digest or stamp freshness. Default `[]`: nothing is built in, so Markdown counts as an input unless declared here.",
       default: [],
     },
     captureHandlesConfigChanges: {
