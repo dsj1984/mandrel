@@ -15,8 +15,8 @@
  * check fails fast instead of burning the budget.
  *
  * Terminals: `landed` (confirmed, post-land tail ran); `pending` (nothing
- * mutated); `blocked` (classified, `merge.unlanded` emitted, friction posted,
- * Story → `agent::blocked`); `blocked`/`merged-flip-failed` (merged but the
+ * mutated); `blocked` (classified, `merge.unlanded` emitted, friction posted;
+ * only an operator-recovery class flips `agent::blocked`); `blocked`/`merged-flip-failed` (merged but the
  * `agent::done` write failed — its own event and wording, since the merge
  * is not in question).
  */
@@ -32,6 +32,7 @@ import {
 import { pollUntil } from '../../../util/poll-loop.js';
 import { defaultSleep } from '../../../util/sleep.js';
 import { applyBehindUpdate } from '../../behind-recovery.js';
+import { recoveryOf } from '../../block-class-recovery.js';
 import {
   checkVerdict,
   classifyRollupEntry,
@@ -495,8 +496,15 @@ function formatUnlandedFriction({
     `gave up after ${elapsedSeconds}s without observing a confirmed merge.\n\n` +
     `**Block class:** \`${blockClass}\`\n\n` +
     `**Reason:** ${reason}\n\n` +
-    `Story transitioned to \`agent::blocked\`.\n\n${remedy}`
+    `${recoveryLine(blockClass)}\n\n${remedy}`
   );
+}
+
+/** Agent-class blocks stay `agent::closing`: the session owns the fix. */
+function recoveryLine(blockClass) {
+  return recoveryOf(blockClass) === 'agent'
+    ? 'Story stays at `agent::closing` — the delivering session fixes and resumes it (recovery: agent).'
+    : 'Story transitioned to `agent::blocked` — an operator must act (recovery: operator).';
 }
 
 /** Friction for a merge that landed but whose `agent::done` write failed. */
@@ -927,6 +935,34 @@ function pinnedRun(run) {
   return { writeDigestFn: (args) => writeCiDigest({ ...args, checkRunFn }) };
 }
 
+/** Only an operator-class block is the HITL pause; best-effort. */
+async function blockIfOperatorOwned({
+  provider,
+  storyId,
+  blockClass,
+  progress,
+}) {
+  if (recoveryOf(blockClass) === 'agent') {
+    progress?.(
+      'CONFIRM',
+      `🔧 Story #${storyId} stays agent::closing (${blockClass}, recovery: agent).`,
+    );
+    return;
+  }
+  try {
+    await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {});
+    progress?.(
+      'CONFIRM',
+      `🛑 Story #${storyId} → agent::blocked (${blockClass}).`,
+    );
+  } catch (err) {
+    progress?.(
+      'CONFIRM',
+      `⚠️ Failed to flip Story #${storyId} to agent::blocked: ${err?.message ?? err}`,
+    );
+  }
+}
+
 /** Classify, emit `merge.unlanded`, post friction, block — all best-effort. */
 async function blockOnUnlanded({
   storyId,
@@ -999,18 +1035,7 @@ async function blockOnUnlanded({
     progress,
   });
 
-  try {
-    await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {});
-    progress?.(
-      'CONFIRM',
-      `🛑 Story #${storyId} → agent::blocked (${blockClass}).`,
-    );
-  } catch (err) {
-    progress?.(
-      'CONFIRM',
-      `⚠️ Failed to flip Story #${storyId} to agent::blocked: ${err?.message ?? err}`,
-    );
-  }
+  await blockIfOperatorOwned({ provider, storyId, blockClass, progress });
 
   return {
     confirmed: false,

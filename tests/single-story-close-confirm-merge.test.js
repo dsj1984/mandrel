@@ -541,9 +541,11 @@ describe('merge wait — blocked terminals', () => {
     assert.equal(emitted[0].blockClass, 'checks-failed');
     // AC-4: the emitted merge.unlanded record names the evidence path.
     assert.equal(emitted[0].evidencePath, 'per-run');
-    assert.deepEqual(provider._updates()[0].patch.labels.add, [
-      'agent::blocked',
-    ]);
+    assert.equal(
+      provider._updates().length,
+      0,
+      'an agent-recovery block stays agent::closing',
+    );
     // The friction comment names the red check, not branch protection.
     // Story #5279's negative control too: the advisory paragraph must not
     // reach a class where the PR is genuinely NOT mergeable.
@@ -631,9 +633,11 @@ describe('merge wait — blocked terminals', () => {
     assert.equal(sleeps, 1, 'slept once between the two failing probes');
     // AC-4: the fallback path is named on the emitted record.
     assert.equal(emitted[0].evidencePath, 'consecutive-probe');
-    assert.deepEqual(provider._updates()[0].patch.labels.add, [
-      'agent::blocked',
-    ]);
+    assert.equal(
+      provider._updates().length,
+      0,
+      'an agent-recovery block stays agent::closing',
+    );
   });
 
   it('a single failing rollup probe followed by a merge never blocks (evidence unavailable)', async () => {
@@ -724,9 +728,11 @@ describe('merge wait — blocked terminals', () => {
       }),
     );
     assert.equal(outcome.terminal, 'blocked');
-    assert.deepEqual(provider._updates()[0].patch.labels.add, [
-      'agent::blocked',
-    ]);
+    assert.equal(
+      provider._updates().length,
+      0,
+      'an agent-recovery block stays agent::closing',
+    );
   });
 
   it('blocks when the cumulative budget is exhausted', async () => {
@@ -753,9 +759,11 @@ describe('merge wait — blocked terminals', () => {
     assert.equal(outcome.blockClass, 'checks-pending-timeout');
     assert.equal(emitted.length, 1);
     assert.equal(emitted[0].scope, 'story');
-    assert.deepEqual(provider._updates()[0].patch.labels.add, [
-      'agent::blocked',
-    ]);
+    assert.equal(
+      provider._updates().length,
+      0,
+      'an agent-recovery block stays agent::closing',
+    );
   });
 
   it('an enqueued PR at budget exhaustion is reported as queued, not human-required (Story #5395)', async () => {
@@ -823,9 +831,11 @@ describe('merge wait — blocked terminals', () => {
     );
     assert.equal(outcome.terminal, 'blocked');
     assert.equal(polls, 1);
-    assert.deepEqual(provider._updates()[0].patch.labels.add, [
-      'agent::blocked',
-    ]);
+    assert.equal(
+      provider._updates().length,
+      0,
+      'an agent-recovery block stays agent::closing',
+    );
   });
 
   it('a merged PR whose agent::done flip failed blocks as merged-flip-failed, not unlanded', async () => {
@@ -977,9 +987,11 @@ describe('merge wait — async mode (Story #4698)', () => {
     assert.equal(outcome.blockClass, 'checks-failed');
     assert.equal(polls, 1, 'failed fast on the first evidence-bearing probe');
     assert.equal(emitted[0].evidencePath, 'per-run');
-    assert.deepEqual(provider._updates()[0].patch.labels.add, [
-      'agent::blocked',
-    ]);
+    assert.equal(
+      provider._updates().length,
+      0,
+      'an agent-recovery block stays agent::closing',
+    );
   });
 
   it('AC-2: an instant merge inside the async window still lands, not pends', async () => {
@@ -1140,9 +1152,11 @@ describe('merge wait — async mode (Story #4698)', () => {
       }),
     );
     assert.equal(outcome.terminal, 'blocked');
-    assert.deepEqual(provider._updates()[0].patch.labels.add, [
-      'agent::blocked',
-    ]);
+    assert.equal(
+      provider._updates().length,
+      0,
+      'an agent-recovery block stays agent::closing',
+    );
   });
 
   it('Story #5479 AC-4: an explicit --max-wait-seconds override keeps the multi-poll wait under async', async () => {
@@ -1447,9 +1461,11 @@ describe('resolveMergeWaitConfig / resolveBudgetAnchorMs', () => {
       }),
     );
     assert.equal(outcome.terminal, 'blocked');
-    assert.deepEqual(provider._updates()[0].patch.labels.add, [
-      'agent::blocked',
-    ]);
+    assert.equal(
+      provider._updates().length,
+      0,
+      'an agent-recovery block stays agent::closing',
+    );
   });
 
   it('ignores invalid config values rather than producing a zero-second wait', () => {
@@ -3205,7 +3221,7 @@ describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #54
     }
   });
 
-  it('a digest-write failure still blocks, flips agent::blocked, and says the digest is missing', async () => {
+  it('a digest-write failure still blocks, stays agent::closing, and says the digest is missing', async () => {
     const tempRoot = makeTempDir('mandrel-5405-');
     try {
       const ctx = run({
@@ -3225,9 +3241,10 @@ describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #54
 
       assert.equal(outcome.terminal, 'blocked');
       assert.equal(outcome.blockClass, 'checks-failed');
+      assert.equal(outcome.terminal, 'blocked', 'the block stands');
       assert.ok(
-        ctx.provider._story().labels.includes('agent::blocked'),
-        'the block stands',
+        !ctx.provider._story().labels.includes('agent::blocked'),
+        'a checks-failed block stays agent::closing',
       );
       const friction = ctx.provider._comments()[0].payload.body;
       assert.match(friction, /No CI digest was written \(EACCES/);
@@ -3273,7 +3290,7 @@ describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #54
       const outcome = await runConfirmMergePhase(ctx.args);
       assert.equal(outcome.blockClass, 'checks-failed');
       assert.equal(outcome.redRecord.digestError, 'gh unavailable');
-      assert.ok(ctx.provider._story().labels.includes('agent::blocked'));
+      assert.ok(!ctx.provider._story().labels.includes('agent::blocked'));
       const friction = ctx.provider._comments()[0].payload.body;
       assert.match(
         friction,

@@ -137,12 +137,31 @@ child, and never end your turn while it is still running: "close is running"
 is not a return value. On a host that limits background commands (cloud,
 `-p`, Agent SDK, CI) a one-Story close still runs in the foreground but adds
 `--merge-watch-mode async`, so its merge wait moves into the background
-confirm (reference § Async merge-confirm mode). Branch on the envelope's `status` per **digest § 6**
-(`landed` → Step 7; `pending` → run `nextCommand`; `blocked`/`checks-failed`
-→ Step 4; `failed` → diagnose, re-run; a `phase: base-sync` conflict comes
-back with labels untouched — resolve it in `workCwd`, commit, run
-`nextCommand`, and take the blocked path only if you cannot). Gate output is
-captured.
+confirm (reference § Async merge-confirm mode). Gate output is captured.
+
+### Drive to merge {#drive-to-merge}
+
+**Once the PR is open, the land is yours until it merges.** A red check, a
+conflict or a slow CI run is the next step of the delivery, not where it
+ends. Loop on the envelope's `status` (**digest § 6**) until `landed`:
+
+1. **`landed`** → Step 7.
+2. **`pending`** → run `nextCommand`. When it can outlive the host's
+   foreground ceiling, run it in the background and resume when it exits;
+   never end the turn on prose over an unconfirmed merge.
+3. **`failed`** → diagnose, fix, re-run close; a `phase: base-sync`
+   conflict comes back with labels untouched — resolve it in `workCwd`,
+   commit, run `nextCommand`, and take the blocked path only if you cannot.
+4. **`blocked`, `blocked.recovery: "agent"`** (the Story stays
+   `agent::closing`) → apply the friction comment's remedy in this turn:
+   read the CI digest, fix at source per
+   [`rules/ci-remediation.md`](../../rules/ci-remediation.md), commit, push,
+   re-watch, then run `nextCommand` (reference § Step 4).
+5. **Pause only** on `blocked.recovery: "operator"` (close already set
+   `agent::blocked`), a PR a human closed, a `capacity` /
+   `unreproducible-tier` verdict filed with `--block`, or the third failure
+   with the same fix shape ([`instructions.md` § 1.I](../../instructions.md)) — for the last two, flip
+   `agent::blocked` with `update-ticket-state.js` and say why.
 
 Internals, merge-wait budgets, the slow-CI **async** confirm mode, the
 `autoMerge` policy and every close flag: reference § Step 3.
@@ -158,7 +177,8 @@ shipped [schema](../../schemas/story-deliver-terminal.schema.json)).
 ## Steps 4–6 — Recovery (**recovery-only**) {#recover}
 
 A `landed` envelope means everything ran — go to Step 7. Enter recovery **only**
-when the envelope routes you there; procedures are reference §§ Step 4–6.
+when [§ Drive to merge](#drive-to-merge) routes you there; procedures are
+reference §§ Step 4–6.
 Two rules the spine keeps: a red **disarms auto-merge**,
 so only a green on a NEW head SHA re-arms it — a re-run is refused; fix at source
 and push ([`rules/ci-remediation.md`](../../rules/ci-remediation.md)). And a

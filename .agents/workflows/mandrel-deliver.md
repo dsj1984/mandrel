@@ -115,7 +115,8 @@ to an attended run.
    - **2 / 3 / 4** — `cycleError` / `wedged` / `blocked`: stop the loop and
      route per reference. **4** is the protocol's HITL pause
      ([`instructions.md` § 1.J](../instructions.md)) — surface it and wait for
-     the operator; never poll.
+     the operator; never poll. A CI red the session can fix leaves its Story
+     at `agent::closing`, so it never reaches exit 4.
 
 4. **Land what the workers hand back** (§ Closing what the workers hand back —
    the beat renders each command), then, with every Story landed, run the
@@ -151,7 +152,10 @@ resume what it names.
 
 **Reading the outcome.** Each close ends the Story in one schema-validated
 envelope — `landed` | `pending` | `blocked` | `failed`; statuses, exits and
-fields are digest § 6. `pending` is **not** a failure — run its `nextCommand`.
+fields are digest § 6. Drive each close you run to merge before starting the
+next — [`deliver-story.md` § Drive to merge](helpers/deliver-story.md#drive-to-merge):
+run `pending`'s `nextCommand`, resolve a `base-sync` conflict, and fix, push
+and resume a `blocked.recovery: "agent"` block yourself.
 
 **Branch model (authoritative).** `story-<id>` → PR → `main` (squash +
 required checks), per digest § 2; dependent Stories land sequentially. The
@@ -165,6 +169,8 @@ table is reference § Ceremony.
 - **Land or block — never a silent local build** (digest § 2). Attended delivers
   default to close-and-land (`delivery.routing.closeAndLand: true`); rest at
   `agent::closing` only when a human owns the merge.
+- **A run ends at `landed` or an operator-owned block** — never at a red
+  check or a conflict this session can fix.
 - **`/mandrel-deliver` never plans.** Planned tickets come from
   [`/mandrel-plan`](mandrel-plan.md), and a refused prompt **escalates**: the
   light path ends, and the escalation's `nextCommand` is what owns the work —

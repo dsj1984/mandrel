@@ -71,7 +71,9 @@ dispatchable and nothing in flight, with the undone Stories and their unmet
 blockers named; land a blocker or add it to `--ids`. **4** — `blocked`: a Story
 carries `agent::blocked` with `blockedReason`, the protocol's HITL pause
 ([`instructions.md` § 1.J](../../instructions.md)). Blocked outranks a wedge,
-but not a cycle.
+but not a cycle. Only an operator-owned block lands here: a close that ends
+`blocked.recovery: "agent"` leaves its Story `agent::closing` (in flight), and
+you fix and resume it before the next close.
 
 **Resuming an exit-4 `blocked`.** Read the friction comment with
 `gh issue view <id> --comments`, and resume only once the operator has
