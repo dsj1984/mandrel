@@ -4565,6 +4565,9 @@
       "applyBehindUpdate": 4,
       "settleUpdate": 4
     },
+    ".agents/scripts/lib/orchestration/block-class-recovery.js": {
+      "recoveryOf": 2
+    },
     ".agents/scripts/lib/orchestration/board-access-latch.js": {
       "boardScopeFailure": 2,
       "isProjectAccessFailure": 5,
@@ -6711,6 +6714,7 @@
       "advisoryRerunsLeft": 2,
       "advisoryRunSignature": 1,
       "baseRequiresQueue": 1,
+      "blockIfOperatorOwned": 2.0284478834774693,
       "blockNeverArmed": 1,
       "blockOnFlipFailed": 3.0327719617660445,
       "blockOnUnlanded": 6.1373291015625,
@@ -6749,6 +6753,7 @@
       "readString": 3,
       "recordRed": 2,
       "recoverOpenPr": 4,
+      "recoveryLine": 2,
       "releaseVetoHolds": 1,
       "rerunAdvisoryRuns": 2.019906849871592,
       "resolveAdvisoryRerunAllowance": 3,
@@ -7273,7 +7278,8 @@
       "prBaseFor": 2,
       "quoteForPlan": 3,
       "terminalFromWaitOutcome": 4,
-      "tolerantConfig": 1
+      "tolerantConfig": 1,
+      "withRecovery": 2
     },
     ".agents/scripts/lib/orchestration/story-follow-ups.js": {
       "<anon assessRollupOutcome/filter(reason)#0>": 2,
