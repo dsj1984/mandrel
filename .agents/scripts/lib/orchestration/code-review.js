@@ -210,9 +210,13 @@ function buildReviewInput({
     baseRef,
     headRef,
     labels: Array.isArray(opts.ticketLabels) ? opts.ticketLabels : [],
-    ...(firstPass ? { depth: 'deep', exhaustive: true } : { depth }),
+    ...depthFields(firstPass, depth),
   };
 }
+
+/** A first pass reviews `deep` and exhaustively, whatever the diff derived. */
+const depthFields = (firstPass, depth) =>
+  firstPass ? { depth: 'deep', exhaustive: true } : { depth };
 
 /**
  * Optional `getPromptMessages`; absent or throwing yields `[]`.

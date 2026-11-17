@@ -147,9 +147,11 @@ export function appendReviewRun(storyId, entry, deps) {
 function toHistoryRun({ headSha, findings, earlierCriticals, exhaustive }) {
   const run = { headSha, findings: findings.map(toHistoryFinding) };
   if (Array.isArray(earlierCriticals)) run.earlierCriticals = earlierCriticals;
-  if (exhaustive) run.exhaustive = true;
-  return run;
+  return { ...run, ...exhaustiveField(exhaustive) };
 }
+
+const exhaustiveField = (exhaustive) =>
+  exhaustive ? { exhaustive: true } : {};
 
 const list = (v) => (Array.isArray(v) ? v : []);
 const RESOLVED = new Set(['fixed', 'refuted']);
