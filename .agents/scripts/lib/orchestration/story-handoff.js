@@ -444,7 +444,7 @@ function preflightFinding(check, run) {
 async function stepPreflight(ctx) {
   const name = 'preflight';
   if (preflightCredited(ctx)) {
-    startReview(ctx);
+    ensureReview(ctx);
     return creditSkip(
       name,
       `preflight already passed at ${ctx.head.slice(0, 12)}`,
@@ -470,7 +470,7 @@ async function stepPreflight(ctx) {
   if (lane.findings.length > 0 && !ctx.reportAll) {
     return [...rescore, settlePreflight(ctx, { ...lane, pass, extra: {} })];
   }
-  startReview(ctx);
+  ensureReview(ctx);
   const run = await runChecks(ctx, rest, pass);
   run.findings.unshift(...lane.findings);
   return [...rescore, settlePreflight(ctx, run)];
@@ -554,12 +554,14 @@ async function joinRescore(ctx, scan) {
 
 /** A baselined ratchet's finding is a `ratchet`; any other check is its own key. */
 function preflightCause(key) {
-  if (key.startsWith('first-check-')) return 'first-check';
-  return key === BASELINES_GATE_NAMES.independent ||
-    STANDALONE_RATCHETS.some((r) => r.key === key)
-    ? 'ratchet'
-    : key;
+  const cause = key.replace(/^first-check-\d+$/, 'first-check');
+  return RATCHET_KEYS.has(cause) ? 'ratchet' : cause;
 }
+
+const RATCHET_KEYS = new Set([
+  BASELINES_GATE_NAMES.independent,
+  ...STANDALONE_RATCHETS.map((r) => r.key),
+]);
 
 /**
  * Runs one check unless this pass's lint covers it; records the lint result
@@ -928,6 +930,18 @@ async function settleHostResources(ctx, name, output, extra) {
     stop: 'blocked',
     ...extra,
   };
+}
+
+/** The envelope's `reviewRound`, present only once a CRITICAL settled. */
+function reviewRoundEnvelope(ctx) {
+  return ctx.reviewRound ? { reviewRound: ctx.reviewRound } : {};
+}
+
+/** A worker cannot fix a blocked review, so it outranks a fixable stop. */
+function outrankingStop(stop, review) {
+  const outranks =
+    review?.stop === HANDOFF_STATUS.BLOCKED && stop?.stop !== review.stop;
+  return outranks ? review : stop;
 }
 
 /** The envelope's `hostResources` field, present only when the consumer reported counts. */
@@ -1374,6 +1388,11 @@ function haltedReview(ctx, deposit, depositPath) {
       evidence,
     );
   }
+  return criticalStop(ctx, evidence);
+}
+
+/** The CRITICAL halt, `blocked` once its round reaches the cap. */
+function criticalStop(ctx, evidence) {
   const history = ctx.readReviewHistory(ctx.storyId, { config: ctx.config });
   const round = Math.max(1, criticalRounds(history));
   const cap = effectiveCap(getAcceptanceEval(ctx.config).maxRounds);
@@ -1471,9 +1490,8 @@ async function computeHeldReview(ctx) {
   );
 }
 
-/** Once per run, never under `--report-all`; pinned to the head it resolves now; never rejects. */
+/** Pinned to the head it resolves now; never rejects. */
 function startReview(ctx) {
-  if (ctx.reviewPending || ctx.reportAll) return ctx.reviewPending;
   const startedAt = ctx.now();
   ctx.reviewPending = computeHeldReview(ctx)
     .catch((err) => ({
@@ -1506,15 +1524,22 @@ function stepReview(ctx) {
   return ctx.reviewPending;
 }
 
+/** Start the held review once per run, never under `--report-all`. */
+function ensureReview(ctx) {
+  if (!ctx.reviewPending && !ctx.reportAll) startReview(ctx);
+}
+
 /** A review-first retry starts the held review at the base merge. */
 function reviewAtMerge(ctx) {
-  if (ctx.reviewFirst) startReview(ctx);
+  if (ctx.reviewFirst) ensureReview(ctx);
 }
 
 /** The retry's held review, settled before any other step; clean adds nothing. */
 async function stepReviewFirst(ctx) {
   const review = await ctx.reviewPending;
-  return review?.stop ? review : [];
+  return review?.stop
+    ? [review, ...skippedAfterReviewFirst(stepOrder(ctx))]
+    : [];
 }
 
 const REVIEW_FIRST_SKIP = 'review-first retry: held review still CRITICAL';
@@ -1531,8 +1556,9 @@ function skippedAfterReviewFirst(order) {
  * The previous run stopped on a CRITICAL after its preflight passed at its
  * head: this run settles the review before paying for any check again.
  */
-function isReviewFirstRetry({ state, envelope }) {
+function isReviewFirstRetry({ state, envelope }, reportAll) {
   return (
+    !reportAll &&
     envelope?.cause === 'review-critical' &&
     Boolean(envelope.headSha) &&
     state.preflightHead === envelope.headSha
@@ -1679,7 +1705,7 @@ function stepOrder({ depositor, overlapRescore, reviewFirst }) {
       : [beforeRun(stepCreditedRun), stepSeat];
   return [
     stepBaseMerge,
-    ...(reviewFirst ? [stepReviewFirst] : []),
+    ...reviewFirstStep(reviewFirst),
     ...serialRescore(overlapRescore),
     stepSeatStatic,
     stepPreflight,
@@ -1688,6 +1714,11 @@ function stepOrder({ depositor, overlapRescore, reviewFirst }) {
     stepPush,
     stepReview,
   ];
+}
+
+/** The review-first await, present only on that retry. */
+function reviewFirstStep(reviewFirst) {
+  return reviewFirst ? [stepReviewFirst] : [];
 }
 
 /** The standalone re-score step, absent when it overlaps preflight. */
@@ -1740,9 +1771,6 @@ async function runSteps(ctx, steps) {
       ctx.progress(result.name, `${result.outcome} — ${result.detail}`);
     }
     const stop = results.find((r) => r.stop);
-    if (stop && step === stepReviewFirst) {
-      steps.push(...skippedAfterReviewFirst(order));
-    }
     if (stop && !ctx.reportAll) return stop;
     first ??= stop ?? null;
   }
@@ -1996,7 +2024,7 @@ export async function runStoryHandoff(
     isCaptureFresh: isCaptureFreshFn,
     reportAll,
     state: prior.state,
-    reviewFirst: !reportAll && isReviewFirstRetry(prior),
+    reviewFirst: isReviewFirstRetry(prior, reportAll),
     readReviewHistory: readReviewHistoryFn,
     reviewRound: null,
     review: null,
@@ -2051,10 +2079,7 @@ export async function runStoryHandoff(
   }
   const review = await ctx.reviewPending;
   appendReview(steps, review);
-  // A worker cannot fix a blocked review, so it outranks a fixable stop.
-  if (review?.stop === HANDOFF_STATUS.BLOCKED && stop?.stop !== review.stop) {
-    stop = review;
-  }
+  stop = outrankingStop(stop, review);
 
   const status = stop?.stop ?? HANDOFF_STATUS.READY;
   const credited = steps.find((s) => s.name === 'credited-run');
@@ -2082,7 +2107,7 @@ export async function runStoryHandoff(
     lockWait: credited?.lockWait ?? null,
     suiteTimings: credited?.suiteTimings ?? null,
     reviewMs: ctx.reviewMs,
-    ...(ctx.reviewRound ? { reviewRound: ctx.reviewRound } : {}),
+    ...reviewRoundEnvelope(ctx),
     ...coverageEnvelope(ctx),
     ...hostResourcesEnvelope(ctx),
     ...ctx.baseMergeEnvelope,
