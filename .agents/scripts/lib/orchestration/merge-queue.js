@@ -186,12 +186,17 @@ function ejectingRunOf(runs) {
   );
 }
 
-/** First rule wins: inherited (capped), own, unknown. */
-function classifyEjection({ ejecting, parentRuns, entries }) {
-  const inherited =
-    ejecting.conclusion === 'cancelled' ||
-    parentRuns.some((r) => RED_RUN.has(r.conclusion));
-  if (inherited) return entries > MAX_INHERITED_REARMS ? 'own' : 'inherited';
+/**
+ * First rule wins: a red parent is inherited; a cancelled run is own when a
+ * job failed on its own (a fail-fast cancel), else inherited; then own,
+ * unknown. Inherited is capped at `MAX_INHERITED_REARMS` entries.
+ */
+function classifyEjection({ ejecting, parentRuns, entries, ownFailedJobs }) {
+  const inherited = entries > MAX_INHERITED_REARMS ? 'own' : 'inherited';
+  if (parentRuns.some((r) => RED_RUN.has(r.conclusion))) return inherited;
+  if (ejecting.conclusion === 'cancelled') {
+    return ownFailedJobs?.length ? 'own' : inherited;
+  }
   return ejecting.conclusion === 'failure' ? 'own' : 'unknown';
 }
 
@@ -239,10 +244,15 @@ export async function readQueueEjection({
     const parentRuns = (
       (await get(`${QUEUE_RUNS}&head_sha=${parentSha}`))?.workflow_runs ?? []
     ).filter((r) => r.head_sha === parentSha);
+    const cancelledJobs =
+      ejecting.conclusion === 'cancelled'
+        ? await readFailedJobs(get, ejecting.id)
+        : null;
     const verdict = classifyEjection({
       ejecting,
       parentRuns,
       entries: new Set(runs.map((r) => r.head_sha)).size,
+      ownFailedJobs: cancelledJobs,
     });
     const run = {
       id: ejecting.id,
@@ -251,24 +261,35 @@ export async function readQueueEjection({
       conclusion: ejecting.conclusion,
     };
     const failedJobs =
-      verdict === 'own' ? await readFailedJobs(get, ejecting.id) : [];
+      verdict === 'own'
+        ? (cancelledJobs ?? (await readFailedJobs(get, ejecting.id)) ?? [])
+        : [];
     return { verdict, labels, run, failedJobs };
   } catch (err) {
     return { verdict: 'unknown', labels, detail: describeGhFailure(err) };
   }
 }
 
-/** Failed job names of a run; `[]` when unreadable. */
+const OWN_FAILURE = new Set(['failure', 'timed_out']);
+
+/** A run cancel rewrites a running job to `cancelled`; its failed step keeps `failure`. */
+function failedOnItsOwn(job) {
+  if (OWN_FAILURE.has(job.conclusion)) return true;
+  return (
+    job.conclusion === 'cancelled' &&
+    (job.steps ?? []).some((s) => s.conclusion === 'failure')
+  );
+}
+
+/** Names of a run's jobs that failed on their own; `null` when unreadable. */
 async function readFailedJobs(get, runId) {
   try {
     const body = await get(
       `repos/{owner}/{repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`,
     );
-    return (body?.jobs ?? [])
-      .filter((j) => j.conclusion === 'failure')
-      .map((j) => j.name);
+    return (body?.jobs ?? []).filter(failedOnItsOwn).map((j) => j.name);
   } catch {
-    return [];
+    return null;
   }
 }
 
