@@ -5,6 +5,7 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { execFileCapture, spawnCapture } from './child-exec.js';
+import { assertGitAllowed } from './git-test-guard.js';
 import { defaultSleep } from './util/sleep.js';
 
 /**
@@ -62,6 +63,7 @@ export function __setGitRunners(exec, spawn) {
  * @returns {string}
  */
 function runGitSync(exec, cwd, args) {
+  assertGitAllowed(cwd, args);
   return String(
     execFileCapture('git', args, {
       run: exec,
@@ -79,6 +81,7 @@ function runGitSync(exec, cwd, args) {
  * @returns {GitResult}
  */
 function runGitSpawn(spawn, cwd, args) {
+  assertGitAllowed(cwd, args);
   return spawnCapture('git', args, {
     run: spawn,
     cwd,

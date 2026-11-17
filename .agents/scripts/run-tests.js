@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { assertNoReservedIdStreams } from './check-test-temp-hygiene.js';
 import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { armGitGuard } from './lib/git-test-guard.js';
 import { buildWebhookSafeTestEnv } from './lib/test-env.js';
 import { reportTestRunCredit } from './lib/test-run-credit.js';
 import {
@@ -224,7 +225,7 @@ export async function runTestSuite({
       ...options,
       files,
       cwd,
-      env: buildWebhookSafeTestEnv(process.env),
+      env: armGitGuard(buildWebhookSafeTestEnv(process.env), process.env),
       stdout,
     });
   } finally {
