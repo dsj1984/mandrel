@@ -1,8 +1,8 @@
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail as one
- * deterministic sequence: base merge (starting the held review) → duplication
- * re-score → blocking preflight (lint and format deposited as close's credit,
- * quality-preview, baselined ratchets) → the one credited run, which a halted
+ * deterministic sequence: base merge → duplication re-score → blocking
+ * preflight (a fast lane, then the held review starts; lint and format
+ * deposited as close's credit, quality-preview, baselined ratchets) → the one credited run, which a halted
  * review skips or aborts → baseline seating → close's post-capture CRAP and
  * baselines scoring → push + remote-ref check → review awaited. It runs exactly what deliver-digest § 5 and deliver-reference
  * define, with close's own gate identities, and settles one envelope:
@@ -12,7 +12,7 @@
  *   labels untouched.
  * - `blocked` (exit 1) — the worker cannot: a rejected push, an unreachable
  *   remote, an unconfirmed base branch, an unregistered baseline merge
- *   driver or a suite that lost workers to host memory (exit 77). Flips `agent::blocked` and posts a `friction` comment.
+ *   driver, a CRITICAL at the review round cap or a suite that lost workers to host memory (exit 77). Flips `agent::blocked` and posts a `friction` comment.
  *
  * Idempotent: a re-run skips every step whose result is still valid for the
  * current HEAD, judged by the step's output signal, never its exit code alone.
@@ -39,8 +39,9 @@ import { isBiomeNoFilesProcessed } from '../close-validation/process.js';
 import { applyChangedFileScope } from '../close-validation/runner.js';
 import { skipBranchDeposit } from '../close-validation/skip-branch-test.js';
 import { substituteChangedSince } from '../close-validation/test-delta.js';
+import { getAcceptanceEval } from '../config/acceptance-eval.js';
 import { getBaselines } from '../config/baselines.js';
-import { getPostSeatChecks } from '../config/handoff.js';
+import { getFirstChecks, getPostSeatChecks } from '../config/handoff.js';
 import { getQuality } from '../config/quality.js';
 import {
   orchestrationLogDir,
@@ -74,6 +75,7 @@ import { describeBlocking } from '../suite-admission.js';
 import { writeFileAtomic } from '../util/atomic-write.js';
 import { defaultSleep } from '../util/sleep.js';
 import { hashCommandConfig } from '../validation-evidence.js';
+import { effectiveCap } from './acceptance-eval-decision.js';
 import { runStreamed } from './evidence-stream.js';
 import {
   baselineComparePreflight,
@@ -101,6 +103,7 @@ import { handoffStatePath } from './handoff-state.js';
 import { settleSuiteOfRecord } from './handoff-suite-of-record.js';
 import { requestedLanes, runPreflightLanes } from './preflight-lanes.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
+import { earlierCriticals, readReviewHistory } from './review-history.js';
 import {
   applyDuplicationRescore,
   runDuplicationCloseRescore,
@@ -357,8 +360,8 @@ function describeSuiteFailure(status) {
 }
 
 /**
- * Typecheck, lint and format (deposited), quality-preview, each ratchet whose
- * baseline is committed, then close's artifact-free baseline compare.
+ * Typecheck, lint and format (deposited), quality-preview, then each ratchet
+ * whose baseline is committed.
  *
  * @param {object} ctx
  * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean, deposit?: object }>}
@@ -386,8 +389,21 @@ function preflightChecks(ctx) {
       ],
     },
     ...ratchets,
-    ...baselineComparePreflight(ctx),
   ];
+}
+
+/**
+ * The fast lane: each `delivery.handoff.firstChecks` entry, then close's
+ * artifact-free baseline compare.
+ */
+function fastLaneChecks(ctx) {
+  const first = getFirstChecks(ctx.config).map(({ cmd, args }, i) => ({
+    key: `first-check-${i + 1}`,
+    label: `first check \`${[cmd, ...args].join(' ')}\``,
+    cmd,
+    args,
+  }));
+  return [...first, ...baselineComparePreflight(ctx)];
 }
 
 /**
@@ -416,18 +432,19 @@ function preflightFinding(check, run) {
 }
 
 /**
- * Runs every check — serially, or over admitted lanes when
- * `preflightConcurrency` asks (preflight-lanes.js) — then settles one
- * `fix-required` listing each finding in check order; a passed carryable
- * check keeps its credit either way. With the re-score overlapped, the scan
- * runs beside the checks and the independent baseline compare waits for its
- * join, so it scores the committed rows.
+ * The fast lane runs first; a finding there settles before any other check
+ * or the held review starts (`--report-all` runs on). The rest run serially
+ * or over admitted lanes (preflight-lanes.js); one `fix-required` lists every
+ * finding in check order. With the re-score overlapped, the scan runs beside
+ * the first checks and the compare waits for its join, so it scores the
+ * committed rows.
  *
  * @param {object} ctx @returns {Promise<StepResult|StepResult[]>}
  */
 async function stepPreflight(ctx) {
   const name = 'preflight';
   if (preflightCredited(ctx)) {
+    ensureReview(ctx);
     return creditSkip(
       name,
       `preflight already passed at ${ctx.head.slice(0, 12)}`,
@@ -435,9 +452,11 @@ async function stepPreflight(ctx) {
   }
   ctx.state.preflightCredits = {};
   delete ctx.state.heldLint;
-  let checks;
+  let fast;
+  let rest;
   try {
-    checks = preflightChecks(ctx);
+    fast = fastLaneChecks(ctx);
+    rest = preflightChecks(ctx);
   } catch (err) {
     return fixRequired(
       name,
@@ -445,23 +464,40 @@ async function stepPreflight(ctx) {
       { cause: 'preflight-unresolved' },
     );
   }
-  const pass = { checks, lint: null, covered: [] };
-  if (!ctx.overlapRescore) {
-    return settlePreflight(ctx, await runChecks(ctx, checks, pass));
+  const pass = { checks: [...fast, ...rest], lint: null, covered: [] };
+  const lane = await runFastLane(ctx, fast, pass);
+  const rescore = lane.rescore ? [lane.rescore] : [];
+  if (lane.findings.length > 0 && !ctx.reportAll) {
+    return [...rescore, settlePreflight(ctx, { ...lane, pass, extra: {} })];
   }
-  const scan = startDuplicationScan(ctx);
+  ensureReview(ctx);
+  const run = await runChecks(ctx, rest, pass);
+  run.findings.unshift(...lane.findings);
+  return [...rescore, settlePreflight(ctx, run)];
+}
+
+/** The first checks (beside an overlapped scan), then the compare. */
+async function runFastLane(ctx, checks, pass) {
+  const scan = ctx.overlapRescore ? startDuplicationScan(ctx) : null;
   const isCompare = (c) => c.key === BASELINES_GATE_NAMES.independent;
-  const run = await runChecks(
+  const findings = await runSerial(
     ctx,
     checks.filter((c) => !isCompare(c)),
     pass,
   );
-  const rescore = await joinRescore(ctx, scan);
-  for (const check of checks.filter(isCompare)) {
+  const rescore = scan ? await joinRescore(ctx, scan) : null;
+  findings.push(...(await runSerial(ctx, checks.filter(isCompare), pass)));
+  return { findings, rescore };
+}
+
+/** Each check in order; the findings it settled. */
+async function runSerial(ctx, checks, pass) {
+  const findings = [];
+  for (const check of checks) {
     const finding = await runPreflightCheck(ctx, check, pass);
-    if (finding) run.findings.push(finding);
+    if (finding) findings.push(finding);
   }
-  return [rescore, settlePreflight(ctx, run)];
+  return findings;
 }
 
 /** Preflight passed at HEAD and, when overlapped, the re-score ran there. */
@@ -474,12 +510,7 @@ function preflightCredited(ctx) {
 /** Run `checks` over the admitted lanes, or serially. */
 async function runChecks(ctx, checks, pass) {
   if (!ctx.lanes) {
-    const findings = [];
-    for (const check of checks) {
-      const finding = await runPreflightCheck(ctx, check, pass);
-      if (finding) findings.push(finding);
-    }
-    return { findings, pass, extra: {} };
+    return { findings: await runSerial(ctx, checks, pass), pass, extra: {} };
   }
   const run = await runPreflightLanes(ctx, checks, ctx.lanes, (check, env) =>
     runPreflightCheck(ctx, check, pass, env),
@@ -523,11 +554,14 @@ async function joinRescore(ctx, scan) {
 
 /** A baselined ratchet's finding is a `ratchet`; any other check is its own key. */
 function preflightCause(key) {
-  return key === BASELINES_GATE_NAMES.independent ||
-    STANDALONE_RATCHETS.some((r) => r.key === key)
-    ? 'ratchet'
-    : key;
+  const cause = key.replace(/^first-check-\d+$/, 'first-check');
+  return RATCHET_KEYS.has(cause) ? 'ratchet' : cause;
 }
+
+const RATCHET_KEYS = new Set([
+  BASELINES_GATE_NAMES.independent,
+  ...STANDALONE_RATCHETS.map((r) => r.key),
+]);
 
 /**
  * Runs one check unless this pass's lint covers it; records the lint result
@@ -648,7 +682,7 @@ async function stepBaseMerge(ctx) {
   const name = 'base-merge';
   const skip = await handoffRerunSkip(ctx);
   if (skip) {
-    startReview(ctx);
+    reviewAtMerge(ctx);
     return skipped(name, skip);
   }
   const sync = await ctx.syncFromBase({
@@ -659,7 +693,7 @@ async function stepBaseMerge(ctx) {
   if (sync.synced) {
     ctx.state.baseMergeSettled = true;
     ctx.head = headSha(ctx) ?? ctx.head;
-    startReview(ctx);
+    reviewAtMerge(ctx);
     return sync.kind === 'noop-already-current'
       ? skipped(name, `origin/${ctx.baseBranch} already merged`)
       : ran(name, mergedDetail(sync, ctx.baseBranch));
@@ -896,6 +930,18 @@ async function settleHostResources(ctx, name, output, extra) {
     stop: 'blocked',
     ...extra,
   };
+}
+
+/** The envelope's `reviewRound`, present only once a CRITICAL settled. */
+function reviewRoundEnvelope(ctx) {
+  return ctx.reviewRound ? { reviewRound: ctx.reviewRound } : {};
+}
+
+/** A worker cannot fix a blocked review, so it outranks a fixable stop. */
+function outrankingStop(stop, review) {
+  const outranks =
+    review?.stop === HANDOFF_STATUS.BLOCKED && stop?.stop !== review.stop;
+  return outranks ? review : stop;
 }
 
 /** The envelope's `hostResources` field, present only when the consumer reported counts. */
@@ -1317,28 +1363,79 @@ async function stepPush(ctx) {
 }
 
 /**
+ * @param {object} ctx
  * @param {object} deposit
  * @param {string|null} depositPath
  * @param {StepResult} settled
  * @returns {StepResult}
  */
-function reviewVerdict(deposit, depositPath, settled) {
-  if (deposit?.halted) return haltedReview(deposit, depositPath);
+function reviewVerdict(ctx, deposit, depositPath, settled) {
+  if (deposit?.halted) return haltedReview(ctx, deposit, depositPath);
   return settled;
 }
 
-/** No code change resolves a missing verdict, so that halt is blocked. */
-function haltedReview(deposit, depositPath) {
+/**
+ * No code change resolves a missing verdict, so that halt is blocked; a
+ * CRITICAL is the worker's to fix until its round reaches the cap.
+ */
+function haltedReview(ctx, deposit, depositPath) {
+  const evidence = { evidencePath: depositPath };
   if (deposit.haltCause === 'no-verdict') {
-    return blocked('review', 'review-no-verdict', deposit.blockerReason, {
-      evidencePath: depositPath,
-    });
+    return blocked(
+      'review',
+      'review-no-verdict',
+      deposit.blockerReason,
+      evidence,
+    );
+  }
+  return criticalStop(ctx, evidence);
+}
+
+/** The CRITICAL halt, `blocked` once its round reaches the cap. */
+function criticalStop(ctx, evidence) {
+  const history = ctx.readReviewHistory(ctx.storyId, { config: ctx.config });
+  const round = Math.max(1, criticalRounds(history));
+  const cap = effectiveCap(getAcceptanceEval(ctx.config).maxRounds);
+  ctx.reviewRound = { round, cap };
+  if (round >= cap) {
+    return blocked(
+      'review',
+      'review-cap',
+      capDetail(history, round, cap),
+      evidence,
+    );
   }
   return fixRequired(
     'review',
     'held review found a CRITICAL — fix, commit, re-run the handoff',
-    { evidencePath: depositPath, cause: 'review-critical' },
+    { ...evidence, cause: 'review-critical' },
   );
+}
+
+/** Runs holding a CRITICAL that survived grounding, verification and override. */
+function criticalRounds({ runs, overridden }) {
+  const cleared = new Set(overridden);
+  const surviving = (f) =>
+    f?.severity === 'critical' &&
+    !f.unverified &&
+    !f.ungrounded &&
+    !cleared.has(f.id);
+  return runs.filter(
+    (run) => Array.isArray(run?.findings) && run.findings.some(surviving),
+  ).length;
+}
+
+/** The cap stop's friction text, naming each open CRITICAL. */
+function capDetail(history, round, cap) {
+  const titles = earlierCriticals(history)
+    .filter((e) => e.status === 'open')
+    .map((e) => `- ${e.finding.title ?? e.id}`);
+  return [
+    `held review still CRITICAL at round ${round} of ${cap} (delivery.acceptanceEval.maxRounds) — open CRITICALs:`,
+    ...(titles.length > 0
+      ? titles
+      : ['- (none recorded in the review history)']),
+  ].join('\n');
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */
@@ -1355,6 +1452,7 @@ async function computeHeldReview(ctx) {
   if (held?.deposit) {
     ctx.review = held.deposit.severity ?? null;
     return reviewVerdict(
+      ctx,
       held.deposit,
       ctx.reviewPath,
       creditSkip(name, 'held review already matches this diff'),
@@ -1383,6 +1481,7 @@ async function computeHeldReview(ctx) {
   }
   ctx.review = outcome.deposit?.severity ?? null;
   return reviewVerdict(
+    ctx,
     outcome.deposit,
     outcome.path ?? null,
     ran(name, 'held review computed and deposited', {
@@ -1423,6 +1522,51 @@ async function stepCreditedRun(ctx) {
 
 function stepReview(ctx) {
   return ctx.reviewPending;
+}
+
+/** Start the held review once per run, never under `--report-all`. */
+function ensureReview(ctx) {
+  if (!ctx.reviewPending && !ctx.reportAll) startReview(ctx);
+}
+
+/** A review-first retry starts the held review at the base merge. */
+function reviewAtMerge(ctx) {
+  if (ctx.reviewFirst) ensureReview(ctx);
+}
+
+/** The retry's held review, settled before any other step; clean adds nothing. */
+async function stepReviewFirst(ctx) {
+  const review = await ctx.reviewPending;
+  return review?.stop
+    ? [review, ...skippedAfterReviewFirst(stepOrder(ctx))]
+    : [];
+}
+
+const REVIEW_FIRST_SKIP = 'review-first retry: held review still CRITICAL';
+
+/** Every step after the review-first stop, listed `skipped`. */
+function skippedAfterReviewFirst(order) {
+  return order
+    .slice(order.indexOf(stepReviewFirst) + 1)
+    .filter((step) => step !== stepReview)
+    .map((step) => skipped(handoffStepName(step), REVIEW_FIRST_SKIP));
+}
+
+/** `--report-all` never retries review-first. */
+function reviewFirstFor(prior, reportAll) {
+  return !reportAll && isReviewFirstRetry(prior);
+}
+
+/**
+ * The previous run stopped on a CRITICAL after its preflight passed at its
+ * head: this run settles the review before paying for any check again.
+ */
+function isReviewFirstRetry({ state, envelope }) {
+  return (
+    envelope?.cause === 'review-critical' &&
+    Boolean(envelope.headSha) &&
+    state.preflightHead === envelope.headSha
+  );
 }
 
 /**
@@ -1553,17 +1697,19 @@ function appendReview(steps, review) {
  * coverage seat after the capture keeps the stamp fresh.
  *
  * Under admitted preflight lanes the re-score runs inside preflight instead.
+ * A review-first retry awaits the held review right after the base merge.
  *
- * @param {{ depositor: 'coverage-capture'|'test', overlapRescore?: boolean }} ctx
+ * @param {{ depositor: 'coverage-capture'|'test', overlapRescore?: boolean, reviewFirst?: boolean }} ctx
  * @returns {Array<(ctx: object) => Promise<StepResult>>}
  */
-function stepOrder({ depositor, overlapRescore }) {
+function stepOrder({ depositor, overlapRescore, reviewFirst }) {
   const middle =
     depositor === 'test'
       ? [beforeRun(stepSeat), beforeRun(stepCreditedRun)]
       : [beforeRun(stepCreditedRun), stepSeat];
   return [
     stepBaseMerge,
+    ...reviewFirstStep(reviewFirst),
     ...serialRescore(overlapRescore),
     stepSeatStatic,
     stepPreflight,
@@ -1572,6 +1718,11 @@ function stepOrder({ depositor, overlapRescore }) {
     stepPush,
     stepReview,
   ];
+}
+
+/** The review-first await, present only on that retry. */
+function reviewFirstStep(reviewFirst) {
+  return reviewFirst ? [stepReviewFirst] : [];
 }
 
 /** The standalone re-score step, absent when it overlaps preflight. */
@@ -1682,27 +1833,29 @@ function precheck(ctx) {
 }
 
 /**
- * `{}` when absent or corrupt; a corrupt file is reported.
+ * The previous run's state and envelope; `{ state: {} }` when absent or
+ * corrupt, and a corrupt file is reported.
  *
  * @param {string} statePath
  * @param {(tag: string, msg: string) => void} progress
- * @returns {{ baseMergeSettled?: boolean, preflightHead?: string, preflightCredits?: Record<string, { head: string, configHash: string }>, creditHead?: string, creditTimings?: object, seatHead?: string, staticSeatHead?: string, postCaptureHead?: string, duplicationRescore?: { head: string, partners: Record<string, string[]> } }}
+ * @returns {{ envelope?: object, state: { baseMergeSettled?: boolean, preflightHead?: string, preflightCredits?: Record<string, { head: string, configHash: string }>, creditHead?: string, creditTimings?: object, seatHead?: string, staticSeatHead?: string, postCaptureHead?: string, duplicationRescore?: { head: string, partners: Record<string, string[]> } } }}
  */
 function readState(statePath, progress) {
   let raw;
   try {
     raw = fs.readFileSync(statePath, 'utf8');
   } catch {
-    return {};
+    return { state: {} };
   }
   try {
-    return JSON.parse(raw)?.state ?? {};
+    const parsed = JSON.parse(raw);
+    return { state: parsed?.state ?? {}, envelope: parsed?.envelope };
   } catch (err) {
     progress(
       'STATE',
       `⚠️ ignoring corrupt ${statePath} (${err.message}) — every step re-runs`,
     );
-    return {};
+    return { state: {} };
   }
 }
 
@@ -1779,6 +1932,7 @@ async function defaultBlock({
  *   emitFriction?: typeof emitRuntimeFriction,
  *   writeSignal?: typeof import('../signals/write.js').appendSignal,
  *   readSignals?: typeof import('../signals/write.js').forEachLine,
+ *   readReviewHistoryFn?: typeof readReviewHistory,
  * }} deps `evidenceCwd` anchors close's evidence store (the main checkout);
  *   `runCommand` receives `onChunk`, `signal` and (when set)
  *   `timeoutMs` beside `cwd`/`env`; a runner that never calls `onChunk`
@@ -1820,6 +1974,7 @@ export async function runStoryHandoff(
     admitSuite = withSuiteAdmission,
     pruneStaleCrap = pruneStaleCrapRows,
     isCaptureFreshFn = isCaptureFresh,
+    readReviewHistoryFn = readReviewHistory,
     writeSignal,
     readSignals,
   } = deps;
@@ -1836,6 +1991,7 @@ export async function runStoryHandoff(
   const branch = getStoryBranch(storyId);
   const evidencePathFor = (name) =>
     path.join(logDir, `story-handoff-${storyId}-${name}.log`);
+  const prior = readState(statePath, progress);
   const storyProgress = createStoryProgress({
     storyId,
     stage: 'handoff',
@@ -1871,7 +2027,10 @@ export async function runStoryHandoff(
     pruneStaleCrap,
     isCaptureFresh: isCaptureFreshFn,
     reportAll,
-    state: readState(statePath, progress),
+    state: prior.state,
+    reviewFirst: reviewFirstFor(prior, reportAll),
+    readReviewHistory: readReviewHistoryFn,
+    reviewRound: null,
     review: null,
     reviewPending: null,
     reviewSettled: null,
@@ -1922,7 +2081,9 @@ export async function runStoryHandoff(
     steps.push(stop);
     progress(stop.name, `${stop.outcome} — ${stop.detail}`);
   }
-  appendReview(steps, await ctx.reviewPending);
+  const review = await ctx.reviewPending;
+  appendReview(steps, review);
+  stop = outrankingStop(stop, review);
 
   const status = stop?.stop ?? HANDOFF_STATUS.READY;
   const credited = steps.find((s) => s.name === 'credited-run');
@@ -1950,6 +2111,7 @@ export async function runStoryHandoff(
     lockWait: credited?.lockWait ?? null,
     suiteTimings: credited?.suiteTimings ?? null,
     reviewMs: ctx.reviewMs,
+    ...reviewRoundEnvelope(ctx),
     ...coverageEnvelope(ctx),
     ...hostResourcesEnvelope(ctx),
     ...ctx.baseMergeEnvelope,
