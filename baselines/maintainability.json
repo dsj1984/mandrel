@@ -1159,6 +1159,10 @@
       "mi": 100.287
     },
     {
+      "path": ".agents/scripts/lib/git-test-guard.js",
+      "mi": 105.84
+    },
+    {
       "path": ".agents/scripts/lib/git-utils.js",
       "mi": 112.562
     },
