@@ -373,6 +373,20 @@ Agents update state on GitHub, always through `update-ticket-state.js`:
   guard). Out-of-scope discoveries become a `follow-ups` comment, rolled up
   per run at the epilogue. `diagnose-friction.js` is separate: it wraps a
   command and records a local NDJSON signal, never a ticket comment.
+- **Delivery stage**: each Story carries at most one `delivery-stage`
+  structured comment, so a tool on another machine can show how far a
+  delivery has got. It is written on stage entry only: init completing
+  writes `build`, `acceptance-eval.js --init` writes `check`, handoff
+  starting writes `handoff`, close starting writes `close`, and
+  `single-story-confirm-merge.js` starting writes `merge`. Phases inside a
+  stage are never published, and entering the stage the comment already
+  names writes nothing. The body is a one-line summary plus a JSON block
+  `{ "kind": "delivery-stage", "storyId", "stage", "prNumber", "updatedAt" }`
+  and nothing else; `parseDeliveryStage` in
+  [`story-stage-publish.js`](../.agents/scripts/lib/orchestration/story-stage-publish.js)
+  reads it back. Like the local story-progress record it is advisory: one
+  attempt, a failure is logged at debug and swallowed, and no exit code or
+  envelope depends on it.
 
 ### Cross-clone coordination
 

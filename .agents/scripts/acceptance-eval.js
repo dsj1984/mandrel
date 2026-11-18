@@ -37,6 +37,7 @@ import {
   resolveAcceptanceEvalRound,
   scoreVerifyRuns,
 } from './lib/orchestration/acceptance-eval-decision.js';
+import { publishDeliveryStage } from './lib/orchestration/story-stage-publish.js';
 import {
   classifyVerifyEntries,
   FULL_SUITE_SHAPE_WARNING,
@@ -603,15 +604,22 @@ function requireStoryId(storyId) {
 /**
  * `--init`: write the skeleton and print its summary; scores nothing.
  *
- * @param {{ storyId: number, cwd: string|null, resolveConfigImpl: typeof resolveConfig, logger: { info: Function }, deps: { initSkeletonImpl?: typeof initVerdictSkeleton } }} args
+ * @param {{ storyId: number, cwd: string|null, resolveConfigImpl: typeof resolveConfig, logger: { info: Function }, deps: { initSkeletonImpl?: typeof initVerdictSkeleton, createProviderFn?: typeof createProvider } }} args
  * @returns {Promise<object>}
  */
 async function runInitCli({ storyId, cwd, resolveConfigImpl, logger, deps }) {
   const workCwd = path.resolve(cwd ?? process.cwd());
+  const config = resolveConfigImpl({ cwd: workCwd });
+  const createProviderFn = deps.createProviderFn ?? createProvider;
+  await publishDeliveryStage({
+    provider: () => createProviderFn(config),
+    storyId,
+    stage: 'check',
+  });
   const skeleton = await (deps.initSkeletonImpl ?? initVerdictSkeleton)({
     storyId,
     cwd: workCwd,
-    config: resolveConfigImpl({ cwd: workCwd }),
+    config,
   });
   logger.info(JSON.stringify(skeleton));
   return skeleton;
@@ -631,6 +639,7 @@ async function runInitCli({ storyId, cwd, resolveConfigImpl, logger, deps }) {
  *   runEntryImpl?: typeof runScopedVerifyEntry,
  *   readHeadImpl?: typeof readHeadSha,
  *   initSkeletonImpl?: typeof initVerdictSkeleton,
+ *   createProviderFn?: typeof createProvider,
  *   logger?: { info: Function, warn?: Function },
  * }} [deps]
  * @returns {Promise<object>} the emitted envelope (the skeleton summary under `--init`).

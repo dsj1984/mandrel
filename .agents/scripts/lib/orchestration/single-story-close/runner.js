@@ -23,6 +23,7 @@ import {
   releaseStoryLease,
 } from '../single-story-lease-guard.js';
 import { createStoryProgress } from '../story-progress.js';
+import { publishStagePhase } from '../story-stage-publish.js';
 import { createPhaseTimer } from './phase-timer.js';
 import { parsePrNumber } from './phases/code-review.js';
 import { runConfirmMergePhase } from './phases/confirm-merge.js';
@@ -520,6 +521,7 @@ async function finishPhase(ctx, deps) {
 
 /** Each phase extends the shared context; a non-null return ends the run. */
 const CLOSE_PIPELINE = Object.freeze([
+  publishStagePhase('close'),
   loadStoryPhase,
   graphqlPreflightPhase,
   resolveBasePhase,

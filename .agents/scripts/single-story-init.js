@@ -49,6 +49,7 @@ import {
 } from './lib/orchestration/single-story-lease-guard.js';
 import { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
 import { composeStoryInitResult } from './lib/orchestration/story-init-result.js';
+import { publishDeliveryStage } from './lib/orchestration/story-stage-publish.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -763,6 +764,8 @@ export async function runSingleStoryInit({
       await rollbackClaimOnInitFailure(provider, storyId, config);
       throw err;
     }
+    // Every mutation has landed: the Story is now in its build stage.
+    await publishDeliveryStage({ provider, storyId, stage: 'build' });
   }
 
   // Every path gets the checklist; `buildStoryChecklist` never throws.

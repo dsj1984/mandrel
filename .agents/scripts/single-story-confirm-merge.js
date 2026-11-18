@@ -44,6 +44,7 @@ import {
   NEXT_COMMANDS,
   terminalFromWaitOutcome,
 } from './lib/orchestration/story-deliver-terminal.js';
+import { publishDeliveryStage } from './lib/orchestration/story-stage-publish.js';
 import { PROJECT_ROOT } from './lib/project-root.js';
 import { createProvider } from './lib/provider-factory.js';
 import { confirmAndLand } from './lib/single-story/confirm-and-land.js';
@@ -453,6 +454,12 @@ export async function runConfirmMerge({
     pr,
     storyBranch,
     gh: ctx.gh,
+  });
+  await publishDeliveryStage({
+    provider: ctx.provider,
+    storyId,
+    stage: 'merge',
+    prNumber,
   });
   if (prNumber == null) return await confirmWithoutPr(ctx);
   const withPr = { ...ctx, prNumber };
