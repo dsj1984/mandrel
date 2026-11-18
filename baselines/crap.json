@@ -3555,13 +3555,11 @@
       "storyRow": 1
     },
     ".agents/scripts/lib/dispatch/verdict.js": {
-      "<anon atCapacity/environments.find(e)#0>": 1,
       "<anon ids(list)#0/list.map(id)#0>": 1,
       "<anon ids(list)#0>": 1,
       "<anon refuse(action,reason,detail)#0>": 1,
       "<anon sharedRefusal/environments.map(e)#0>": 1,
       "<anon sharedRefusal/environments.some(e)#0>": 1,
-      "atCapacity": 2,
       "decide": 3,
       "decideDispatch": 6,
       "decideResume": 8,
