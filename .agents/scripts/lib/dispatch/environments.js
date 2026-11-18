@@ -1,12 +1,14 @@
 /**
  * The delivery-environment registry behind `mandrel dispatch`: the resolved
  * `delivery.environments` map, the `env::<name>` label that records which
- * environment holds a Story, and an environment's load. No I/O.
+ * environment holds a Story, and an environment's load. No I/O: a cloud
+ * entry is online when its token variable is set in the env map passed in.
  *
  * @module lib/dispatch/environments
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
+import { resolveEntry } from './targets.js';
 
 /**
  * `env::<name>` records which environment holds a Story; minted on demand.
@@ -17,13 +19,6 @@ const ENV_LABEL_PREFIX = 'env::';
 /** The colour an `env::` label is created with. */
 export const ENV_LABEL_COLOR = '#5319E7';
 
-/** The argv a dispatched delivery runs when an environment names none. */
-const DEFAULT_COMMAND = Object.freeze([
-  'claude',
-  '-p',
-  '/mandrel-deliver {id}',
-]);
-
 /** States in which a labelled open Story counts against its environment. */
 const LOAD_STATES = new Set([
   AGENT_LABELS.READY,
@@ -33,7 +28,9 @@ const LOAD_STATES = new Set([
 ]);
 
 /**
- * @typedef {{ name: string, target: string, capacity: number, command: string[] }} Environment
+ * @typedef {{ name: string, target: string, capacity: number, online: boolean,
+ *   offlineReason?: string, command?: string[], routine?: string,
+ *   tokenEnv?: string }} Environment
  */
 
 /**
@@ -41,20 +38,16 @@ const LOAD_STATES = new Set([
  * `local` environment (capacity 1) when none is configured.
  *
  * @param {object} [config]
+ * @param {Record<string, string|undefined>} [env] Where a cloud token is looked up.
  * @returns {Environment[]}
  */
-export function resolveEnvironments(config) {
+export function resolveEnvironments(config, env = process.env) {
   const map = config?.delivery?.environments;
   const entries =
     map && typeof map === 'object' && Object.keys(map).length > 0
       ? Object.entries(map)
       : [['local', { target: 'local' }]];
-  return entries.map(([name, entry]) => ({
-    name,
-    target: entry?.target ?? 'local',
-    capacity: entry?.capacity ?? 1,
-    command: [...(entry?.command ?? DEFAULT_COMMAND)],
-  }));
+  return entries.map(([name, entry]) => resolveEntry(name, entry, env));
 }
 
 /**
