@@ -15,7 +15,7 @@ import {
   tokenMatches,
   validateAction,
 } from '../../lib/cli/ui/request-guard.js';
-import { createUiServer, SECURITY_HEADERS } from '../../lib/cli/ui/server.js';
+import { createUiServer } from '../../lib/cli/ui/server.js';
 import { createSources } from '../../lib/cli/ui/sources.js';
 import run, { DEFAULT_PORT, parseUiArgs, runUi } from '../../lib/cli/ui.js';
 import { makeDispatchBoard } from '../helpers/dispatch-board.js';
@@ -117,7 +117,18 @@ function close(server) {
   return new Promise((resolve) => server.close(resolve));
 }
 
+/** The headers the Spec requires on every response, verbatim. */
+const SECURITY_HEADERS = {
+  'Content-Security-Policy':
+    "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Cache-Control': 'no-store',
+};
+
 function assertSecurityHeaders(res) {
+  assert.match(res.headers['strict-transport-security'], /^max-age=\d+/);
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     assert.equal(res.headers[name.toLowerCase()], value, name);
   }

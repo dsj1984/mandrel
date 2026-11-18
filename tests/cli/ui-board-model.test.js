@@ -6,18 +6,32 @@ import { describe, it } from 'node:test';
 
 import {
   buildBoard,
-  COLUMNS,
-  cardView,
-  checksText,
   connectionSummary,
   dropZones,
   environmentCards,
   moveOptions,
   nextTheme,
-  UNTRACKED,
-  verdictText,
   zoneVerdict,
 } from '../../lib/cli/ui/board-model.js';
+
+const UNTRACKED = 'untracked';
+const COLUMN_IDS = [
+  'backlog',
+  'planning',
+  'ready',
+  'delivering',
+  'blocked',
+  'done',
+];
+
+/** The one card buildBoard renders for a lone Story. */
+function cardOf(row) {
+  return buildBoard({ environments: [], stories: [row] })
+    .columns.flatMap((c) =>
+      c.lanes ? c.lanes.flatMap((l) => l.cards) : c.cards,
+    )
+    .at(0);
+}
 
 const ok = (action, environment) => ({
   ok: true,
@@ -92,7 +106,6 @@ describe('buildBoard', () => {
       board.columns.map((c) => c.title),
       ['Backlog', 'Planning', 'Ready', 'Delivering', 'Blocked', 'Done'],
     );
-    assert.equal(COLUMNS.length, 6);
   });
 
   it('places each Story in the column the read model names', () => {
@@ -160,7 +173,7 @@ describe('cardView', () => {
       url: 'https://github.com/o/r/pull/60',
       checks: '2/3 passed, 1 failed',
     });
-    const card = cardView(
+    const card = cardOf(
       story(3, 'delivering', { stage: 'check', environment: 'local' }),
     );
     assert.equal(card.stage, 'check');
@@ -169,7 +182,7 @@ describe('cardView', () => {
   });
 
   it('defaults missing fields', () => {
-    const card = cardView({ id: 7 });
+    const card = cardOf({ id: 7, column: 'backlog' });
     assert.equal(card.title, '');
     assert.equal(card.stage, null);
     assert.equal(card.pr, null);
@@ -177,15 +190,18 @@ describe('cardView', () => {
   });
 });
 
-describe('checksText', () => {
+describe('check summary', () => {
   it('summarises a rollup', () => {
-    assert.equal(checksText(null), 'no checks');
+    const withChecks = (checks) =>
+      cardOf(story(1, 'done', { pr: { number: 1, url: 'u', checks } })).pr
+        .checks;
+    assert.equal(withChecks(null), 'no checks');
     assert.equal(
-      checksText({ total: 0, passed: 0, failed: 0, pending: 0 }),
+      withChecks({ total: 0, passed: 0, failed: 0, pending: 0 }),
       'no checks',
     );
     assert.equal(
-      checksText({ total: 4, passed: 1, failed: 1, pending: 2 }),
+      withChecks({ total: 4, passed: 1, failed: 1, pending: 2 }),
       '1/4 passed, 1 failed, 2 pending',
     );
   });
@@ -242,10 +258,15 @@ describe('zoneVerdict', () => {
   });
 });
 
-describe('verdictText', () => {
+describe('refusal text', () => {
   it('falls back from detail to reason to a default', () => {
-    assert.equal(verdictText(refused('stop', 'closing', '')), 'closing');
-    assert.equal(verdictText({ ok: false, action: 'stop' }), 'Refused');
+    const text = (verdict) =>
+      zoneVerdict(
+        story(1, 'delivering', { drops: { ready: verdict } }),
+        'ready',
+      ).text;
+    assert.equal(text(refused('stop', 'closing', '')), 'closing');
+    assert.equal(text({ ok: false, action: 'stop' }), 'Refused');
   });
 });
 
@@ -278,10 +299,7 @@ describe('moveOptions and dropZones', () => {
       moveOptions(s.stories[0], zones).map((o) => o.kind),
       ['copy'],
     );
-    assert.deepEqual(
-      dropZones(null),
-      COLUMNS.map((c) => c.id),
-    );
+    assert.deepEqual(dropZones(null), COLUMN_IDS);
   });
 });
 
