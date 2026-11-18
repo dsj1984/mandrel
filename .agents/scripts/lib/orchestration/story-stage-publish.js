@@ -13,7 +13,7 @@ import { findStructuredComment } from './ticketing/reads.js';
 import { upsertStructuredComment } from './ticketing/state.js';
 
 export const DELIVERY_STAGE_TYPE = 'delivery-stage';
-export const DELIVERY_STAGES = Object.freeze([
+const DELIVERY_STAGES = Object.freeze([
   'build',
   'check',
   'handoff',
