@@ -12,6 +12,7 @@
 import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { detachChild } from './child-detached.js';
 import { streamChild } from './child-stream.js';
 
 const MIB = 1024 * 1024;
@@ -169,6 +170,16 @@ export async function spawnCaptureNullableAsync(file, args, opts = {}) {
  */
 export const spawnStreamAsync = (file, args, opts = {}) =>
   streamChild(file, args, { spawnImpl: spawn, ...opts });
+
+/**
+ * Start a child detached, output appended to a log; see `child-detached.js`.
+ *
+ * @param {string}   file
+ * @param {string[]} args
+ * @param {{ logPath: string, cwd?: string }} opts
+ */
+export const spawnDetached = (file, args, opts) =>
+  detachChild(file, args, { run: spawn, ...opts });
 
 /**
  * `status=null` is printed verbatim: it means the child was killed.

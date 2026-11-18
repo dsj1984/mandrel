@@ -558,6 +558,27 @@ const TEMP_RETENTION_SCHEMA = {
   additionalProperties: false,
 };
 
+const ENVIRONMENTS_SCHEMA = {
+  type: 'object',
+  description:
+    'Named delivery environments for `mandrel dispatch`, keyed by name (lowercase letters, digits and hyphens, at most 31 characters). Each entry is `{ target, capacity, command }`: `target` is where the delivery runs (`local` only); `capacity` is how many Stories may hold the environment at once (default 1); `command` is the argv started for a Story, `{id}` replaced by the Story id (default `["claude", "-p", "/mandrel-deliver {id}"]`). Spawned without a shell. Unset, one implicit `local` environment with capacity 1 is used. `.agentrc.local.json` adds or overrides an entry through the usual merge.',
+  propertyNames: { pattern: '^[a-z0-9][a-z0-9-]{0,30}$' },
+  additionalProperties: {
+    type: 'object',
+    properties: {
+      target: { type: 'string', enum: ['local'] },
+      capacity: { type: 'integer', minimum: 1 },
+      command: {
+        type: 'array',
+        minItems: 1,
+        items: { type: 'string', minLength: 1 },
+      },
+    },
+    required: ['target'],
+    additionalProperties: false,
+  },
+};
+
 export const DELIVERY_SCHEMA = {
   type: 'object',
   description:
@@ -581,6 +602,7 @@ export const DELIVERY_SCHEMA = {
     handoff: HANDOFF_SCHEMA,
     orchestrate: ORCHESTRATE_SCHEMA,
     routing: ROUTING_SCHEMA,
+    environments: ENVIRONMENTS_SCHEMA,
   },
   additionalProperties: false,
 };

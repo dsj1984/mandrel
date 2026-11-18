@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * @typedef {{ description: string, knownFlags: Set<string> }} SubcommandMeta
+ * @typedef {{ description: string, knownFlags: string[] }} SubcommandMeta
  * @type {Map<string, SubcommandMeta>}
  */
 const SUBCOMMANDS = new Map([
@@ -21,7 +21,7 @@ const SUBCOMMANDS = new Map([
     'init',
     {
       description: 'install and configure mandrel in the current project',
-      knownFlags: new Set([
+      knownFlags: [
         '--assume-yes',
         '--skip-github',
         '--owner',
@@ -30,14 +30,14 @@ const SUBCOMMANDS = new Map([
         '--project-number',
         '--operator-handle',
         '--dry-run',
-      ]),
+      ],
     },
   ],
   [
     'sync',
     {
       description: 'materialize .agents/ payload from installed package',
-      knownFlags: new Set(['--dry-run']),
+      knownFlags: ['--dry-run'],
     },
   ],
   [
@@ -47,7 +47,7 @@ const SUBCOMMANDS = new Map([
       // No --dry-run: the projection scripts have no preview mode, and
       // accepting the flag while syncing for real overwrote .claude/ on an
       // operator who asked for a preview. Reject it at the dispatcher.
-      knownFlags: new Set([]),
+      knownFlags: [],
     },
   ],
   [
@@ -55,42 +55,56 @@ const SUBCOMMANDS = new Map([
     {
       description: 'regenerate .claude/agents/ from .agents/agents/',
       // Same contract as sync-commands: no preview mode, so no --dry-run.
-      knownFlags: new Set([]),
+      knownFlags: [],
     },
   ],
   [
     'doctor',
     {
       description: 'run readiness checks and report remedies',
-      knownFlags: new Set([]),
+      knownFlags: [],
     },
   ],
   [
     'update',
     {
       description: 'upgrade mandrel to the newest published version',
-      knownFlags: new Set(['--dry-run', '--install-cmd']),
+      knownFlags: ['--dry-run', '--install-cmd'],
     },
   ],
   [
     'migrate',
     {
       description: 'apply version-keyed migrations for a version range',
-      knownFlags: new Set(['--from', '--to', '--dry-run']),
+      knownFlags: ['--from', '--to', '--dry-run'],
     },
   ],
   [
     'explain',
     {
       description: 'print resolved config values and their sources',
-      knownFlags: new Set(['--json']),
+      knownFlags: ['--json'],
+    },
+  ],
+  [
+    'dispatch',
+    {
+      description: 'start, resume or stop a Story in a named environment',
+      knownFlags: [
+        '--env',
+        '--resume',
+        '--stop',
+        '--status',
+        '--json',
+        '--dry-run',
+      ],
     },
   ],
   [
     'uninstall',
     {
       description: 'reverse a recorded install using the install ledger',
-      knownFlags: new Set(['--include-github', '--dry-run']),
+      knownFlags: ['--include-github', '--dry-run'],
     },
   ],
 ]);
@@ -165,7 +179,7 @@ const UNIVERSAL_FLAGS = new Set(['--help', '-h']);
  * Only flag names are checked (`--flag=value` is split).
  *
  * @param {string} subName
- * @param {Set<string>} knownFlags
+ * @param {string[]} knownFlags
  * @param {string[]} argv
  * @returns {string | null}
  */
@@ -174,7 +188,7 @@ function findUnknownFlag(subName, knownFlags, argv) {
     if (!arg.startsWith('-')) continue;
     const flagName = arg.includes('=') ? arg.slice(0, arg.indexOf('=')) : arg;
     if (UNIVERSAL_FLAGS.has(flagName)) continue;
-    if (!knownFlags.has(flagName)) {
+    if (!knownFlags.includes(flagName)) {
       const names = [...knownFlags].sort().join(', ');
       const hint = names.length > 0 ? `  Known flags: ${names}\n` : '';
       return (
