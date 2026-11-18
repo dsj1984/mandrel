@@ -100,7 +100,12 @@ test('toggle off: close and confirm-merge make no outcome-record call (AC-1)', a
     injectedGh: { pr: { list: async () => [] } },
   });
   assert.equal(outcome.terminal.status, 'pending');
-  assert.deepEqual(provider.calls, []);
+  // Only the delivery-stage comment is written; no outcome record.
+  assert.deepEqual(
+    provider.comments.filter((c) => c.body.includes(MARKER)),
+    [],
+  );
+  assert.equal(provider.comments.length, 1);
 });
 
 test('confirm-merge records its terminal when the toggle is on', async (t) => {
