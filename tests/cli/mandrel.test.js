@@ -71,6 +71,7 @@ describe('mandrel CLI — bare invocation prints help', () => {
     assert.match(stdout, /update\s/);
     assert.match(stdout, /uninstall\s/);
     assert.match(stdout, /dispatch\s/);
+    assert.match(stdout, /^\s+ui\s+serve the local dispatch board/m);
   });
 });
 

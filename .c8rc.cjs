@@ -98,5 +98,9 @@ module.exports = {
     // Orchestration glue over live filesystem/npm state; unit-mocking it
     // asserts only the mock's structure.
     '.agents/scripts/lib/worktree/node-modules-strategy.js',
+    // `mandrel ui` page script: browser-only DOM glue that `node --test`
+    // cannot load (no document). Its view logic is lib/cli/ui/board-model.js,
+    // which the tests cover.
+    'lib/cli/ui/board.js',
   ],
 };
