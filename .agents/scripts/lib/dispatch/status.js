@@ -162,14 +162,12 @@ export function buildStatus({
     .slice(0, DONE_LIMIT)
     .map((t) => storyRow(t, 'done', ctx));
   return {
-    environments: environments.map((e) => ({
-      name: e.name,
-      target: e.target,
-      capacity: e.capacity,
-      load: loads[e.name],
-      online: e.online !== false,
-      ...(e.offlineReason ? { offlineReason: e.offlineReason } : {}),
-    })),
+    environments: environments.map(
+      ({ command, routine, tokenEnv, ...shown }) => ({
+        ...shown,
+        load: loads[shown.name],
+      }),
+    ),
     stories: [...open, ...done],
   };
 }
@@ -210,6 +208,9 @@ export async function fetchBoard({ provider, gh, config }) {
   return { openTickets, closedStories, prs: Array.isArray(prs) ? prs : [] };
 }
 
+const offlineNote = (env) =>
+  env.online ? '' : ` offline (${env.offlineReason})`;
+
 /**
  * A short human table of the same data `--status --json` returns.
  *
@@ -220,7 +221,7 @@ export function renderStatus(status) {
   const lines = ['Environments:'];
   for (const env of status.environments) {
     lines.push(
-      `  ${env.name.padEnd(16)} ${env.target.padEnd(12)} ${env.load}/${env.capacity}${env.online ? '' : ` offline (${env.offlineReason})`}`,
+      `  ${env.name.padEnd(16)} ${env.target.padEnd(12)} ${env.load}/${env.capacity}${offlineNote(env)}`,
     );
   }
   for (const column of [...COLUMNS, 'done']) {

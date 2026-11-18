@@ -55,12 +55,18 @@ export function launcherFor(environment, deps) {
   return isCloud(environment) ? deps.launchCloudImpl : deps.launchImpl;
 }
 
+/** Whether a failed launch takes back the label it applied. */
+export function releasesLabel(applied, err) {
+  return applied && !err?.keepLabel;
+}
+
 /**
- * Envelope fields for a launch that threw: the cloud failure fields, or
- * `null` when the error is not a cloud fire's and should propagate.
+ * Envelope fields for a cloud fire that failed; any other launch error is
+ * rethrown as the command failing.
  */
 export function launchFailureFields(err) {
-  return err instanceof CloudLaunchError ? cloudEnvelopeFields(err) : null;
+  if (err instanceof CloudLaunchError) return cloudEnvelopeFields(err);
+  throw new Error(`launch failed: ${err?.message ?? err}`);
 }
 
 /** Where a launched delivery can be followed. */

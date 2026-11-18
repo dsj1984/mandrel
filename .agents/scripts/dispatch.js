@@ -40,6 +40,7 @@ import {
   launchedFields,
   launcherFor,
   launchFailureFields,
+  releasesLabel,
   stoppedFields,
 } from './lib/dispatch/targets.js';
 import { decide } from './lib/dispatch/verdict.js';
@@ -205,12 +206,10 @@ async function launch({ ctx, verdict, storyId }) {
       provider,
     });
   } catch (err) {
-    if (verdict.applyLabel && !err?.keepLabel) {
+    if (releasesLabel(verdict.applyLabel, err)) {
       await provider.updateTicket(storyId, { labels: { remove: [label] } });
     }
-    const failure = launchFailureFields(err);
-    if (!failure) throw new Error(`launch failed: ${err?.message ?? err}`);
-    return { ok: false, ...head, ...failure };
+    return { ok: false, ...head, ...launchFailureFields(err) };
   }
   deps.writeRecordImpl(record, { config });
   return { ok: true, ...head, ...launchedFields(record) };
@@ -264,7 +263,8 @@ async function act(ctx, args) {
   const step = { ctx, verdict, storyId: args.storyId, story: input.story };
   if (args.dryRun) return { code: 0, envelope: dryRunEnvelope(step) };
   const envelope = args.mode === 'stop' ? await stop(step) : await launch(step);
-  return { code: envelope.ok ? 0 : 1, envelope };
+  // A failed cloud fire is the command failing: exit 1.
+  return { code: Number(!envelope.ok), envelope };
 }
 
 async function status(ctx, { json }) {
