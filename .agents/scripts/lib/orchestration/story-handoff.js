@@ -1999,7 +1999,7 @@ export async function runStoryHandoff(
     config,
   });
   await publishDeliveryStage({
-    provider: createProviderFn && (() => createProviderFn(config)),
+    provider: () => createProviderFn(config),
     storyId,
     stage: 'handoff',
   });
