@@ -595,6 +595,7 @@
       "<anon launch/ctx.environments.find(e)#0>": 1,
       "<anon parseDispatchArgv/filter(m)#0>": 1,
       "<anon runAsCli()#0>": 1,
+      "<anon runDispatch/launchCloudImpl(args)#0>": 1,
       "<anon runDispatch/write(s)#0>": 1,
       "act": 4,
       "dryRunEnvelope": 2,
@@ -3517,6 +3518,16 @@
       "holdsEnvironment": 3,
       "resolveEnvironments": 4
     },
+    ".agents/scripts/lib/dispatch/launch-cloud.js": {
+      "<anon scrub(text,token)#0>": 1,
+      "cloudEnvelopeFields": 3,
+      "describeFireRequest": 1,
+      "fireRequest": 1,
+      "launchCloud": 3.0461273524949775,
+      "refused": 2,
+      "send": 1,
+      "sessionOf": 2
+    },
     ".agents/scripts/lib/dispatch/launch-local.js": {
       "launchLocal": 1,
       "stopLocal": 3
@@ -3554,18 +3565,29 @@
       "renderStatus": 4,
       "storyRow": 1
     },
+    ".agents/scripts/lib/dispatch/targets.js": {
+      "<anon isCloud(environment)#0>": 1,
+      "dryRunFields": 2,
+      "launchedFields": 2,
+      "launcherFor": 2,
+      "launchFailureFields": 2,
+      "resolveEntry": 3,
+      "stoppedFields": 2
+    },
     ".agents/scripts/lib/dispatch/verdict.js": {
       "<anon ids(list)#0/list.map(id)#0>": 1,
       "<anon ids(list)#0>": 1,
       "<anon refuse(action,reason,detail)#0>": 1,
       "<anon sharedRefusal/environments.map(e)#0>": 1,
       "<anon sharedRefusal/environments.some(e)#0>": 1,
+      "<anon unavailable/environments.find(e)#0>": 1,
       "decide": 3,
       "decideDispatch": 6,
       "decideResume": 8,
       "decideStop": 7,
       "foreignOwner": 4,
-      "sharedRefusal": 3
+      "sharedRefusal": 3,
+      "unavailable": 3
     },
     ".agents/scripts/lib/doc-tiers.js": {
       "<anon docsContextPaths/contextDocs.map(f)#0>": 1,
