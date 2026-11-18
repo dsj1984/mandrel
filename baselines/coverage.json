@@ -171,6 +171,12 @@
       "functions": 71.43
     },
     {
+      "path": ".agents/scripts/dispatch.js",
+      "lines": 100,
+      "branches": 91.57,
+      "functions": 91.67
+    },
+    {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "lines": 98.68,
       "branches": 97.06,
@@ -1017,6 +1023,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/child-detached.js",
+      "lines": 100,
+      "branches": 88.89,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/child-exec.js",
       "lines": 100,
       "branches": 100,
@@ -1566,6 +1578,36 @@
       "path": ".agents/scripts/lib/detect-package-manager.js",
       "lines": 100,
       "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/environments.js",
+      "lines": 100,
+      "branches": 86.84,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/launch-local.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 66.67
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/record.js",
+      "lines": 73.08,
+      "branches": 100,
+      "functions": 0
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/status.js",
+      "lines": 100,
+      "branches": 80,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/verdict.js",
+      "lines": 100,
+      "branches": 83.82,
       "functions": 100
     },
     {
@@ -4183,6 +4225,12 @@
       "lines": 100,
       "branches": 90,
       "functions": 80
+    },
+    {
+      "path": "lib/cli/dispatch.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
