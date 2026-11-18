@@ -123,13 +123,15 @@ test('selector: no web lens survives the gate on a no-web-surface repo', async (
   }
 });
 
-test('selector: end-to-end on THIS repo, the real probe drops audit-seo (no seam)', async () => {
-  _resetWebSurfaceCache();
-  // No injected probe: this is the #4579 report reproduced verbatim — a real
-  // Story body on the real (web-surface-free) mandrel checkout.
+test('selector: end-to-end with the real probe on a web-free checkout drops audit-seo (no seam)', async () => {
+  // The #4579 report reproduced: a real Story body, and the real filesystem
+  // probe (no stubbed verdict) over a checkout with no web surface.
+  const root = fixtureRoot({ 'package.json': JSON.stringify({ name: 'cli' }) });
   const selected = await select({
     body: STORY_BODY_WITH_META_COMMENT,
     changedFiles: ['.agents/scripts/lib/audit-suite/selector.js'],
+    hasWebSurfaceFn: ({ config }) =>
+      hasWebSurface({ config, projectRoot: root }),
   });
 
   assert.ok(!selected.includes('audit-seo'), `got: ${selected}`);
@@ -142,13 +144,11 @@ test('selector: end-to-end on THIS repo, the real probe drops audit-seo (no seam
   assert.ok(selected.includes('audit-architecture'), `got: ${selected}`);
 });
 
-test('selector: THIS repo has no web surface — the real probe agrees', () => {
+test('selector: THIS repo has a web surface — the real probe finds the board page', () => {
   _resetWebSurfaceCache();
-  // No routeGlobs in .agentrc.json, no web-framework dep, no tracked
-  // .html/.css/.jsx/.tsx. If this ever flips, the roster on this repo is
-  // supposed to change and the fixture-driven tests above are no longer the
-  // whole story.
-  assert.equal(hasWebSurface({ config: null }), false);
+  // `mandrel ui` ships a rendered page (lib/cli/ui/board.html and .css), so
+  // the web lenses apply to this repo's own changes.
+  assert.equal(hasWebSurface({ config: null }), true);
 });
 
 // ---------------------------------------------------------------------------
