@@ -72,6 +72,8 @@ function harness({ verdict = verdictFixture(), envelope, exitCode = 0 } = {}) {
       // test overrides it.
       readAcceptanceCountImpl: async () => null,
       readVerifyImpl: async () => [],
+      // `--init` publishes the check stage; no test reaches GitHub.
+      createProviderFn: () => null,
       validateVerdictImpl: (v) => v,
       runAcceptanceEvalImpl: async (args) => {
         seen.push(args);

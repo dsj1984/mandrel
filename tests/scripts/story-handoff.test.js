@@ -1640,7 +1640,9 @@ describe('story-handoff — the default block writes the label and the friction 
     assert.equal(exitCode, 1);
     assert.equal(updates.length, 1);
     assert.deepEqual(updates[0].payload.labels.add, ['agent::blocked']);
-    assert.match(comments[0].body, /story-handoff blocked: remote-unreachable/);
+    // The delivery-stage comment is posted first, on handoff entry.
+    assert.match(comments[0].body, /"stage":"handoff"/);
+    assert.match(comments[1].body, /story-handoff blocked: remote-unreachable/);
   });
 
   test('a provider that fails to build degrades to a warning, keeping the block', async () => {
@@ -1662,17 +1664,25 @@ describe('story-handoff — the default block writes the label and the friction 
     );
   });
 
-  test('a fix-required settle writes no label and no comment', async () => {
+  test('a fix-required settle writes no label and no comment beyond the stage', async () => {
     const touched = [];
     const h = harness({ outputs: { lint: { status: 1 } } });
     delete h.deps.block;
-    h.deps.createProviderFn = () => {
-      touched.push('provider');
-      return {};
-    };
+    h.deps.createProviderFn = () => ({
+      async getTicketComments() {
+        return [];
+      },
+      async postComment(_id, payload) {
+        touched.push(payload.type);
+        return { id: 1 };
+      },
+      async updateTicket() {
+        touched.push('label');
+      },
+    });
     const { exitCode } = await h.run();
     assert.equal(exitCode, 2);
-    assert.deepEqual(touched, []);
+    assert.deepEqual(touched, ['delivery-stage']);
   });
 });
 

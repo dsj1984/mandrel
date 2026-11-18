@@ -3201,6 +3201,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-stage-publish.js",
+      "lines": 98.45,
+      "branches": 94.87,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
       "lines": 96.48,
       "branches": 97.06,

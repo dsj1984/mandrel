@@ -2119,6 +2119,10 @@
       "mi": 105.753
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-stage-publish.js",
+      "mi": 97.319
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
       "mi": 100.683
     },

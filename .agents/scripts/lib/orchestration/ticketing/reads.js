@@ -65,6 +65,8 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'plan-rewrite',
   // Opt-in per-Story close outcome record, upserted on every close attempt.
   'story-outcome',
+  // The delivery stage a Story has reached, upserted on each stage entry.
+  'delivery-stage',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

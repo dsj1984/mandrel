@@ -20,6 +20,7 @@
       "<anon resolveVerifyGate/scoped.map(command)#0>": 1.0063506579281614,
       "<anon runAcceptanceEval/outcome.notMet.map(c)#0>": 1,
       "<anon runAcceptanceEvalCli/envelope.unmetCriteria.map(c)#0>": 1,
+      "<anon runInitCli/provider()#0>": 1,
       "<anon validateVerdict/map(e)#0>": 2,
       "assertCriteriaCoverage": 4,
       "assertScoringCwd": 3,
@@ -7479,9 +7480,11 @@
       "<anon runSteps/results.find(r)#0>": 1,
       "<anon runSteps/timed()#0>": 1,
       "<anon runStoryHandoff/()#0>": 1,
+      "<anon runStoryHandoff/()#1>": 1,
       "<anon runStoryHandoff/(args)#0/warn(m)#0>": 1,
       "<anon runStoryHandoff/(args)#0>": 1,
       "<anon runStoryHandoff/evidencePathFor(name)#0>": 1,
+      "<anon runStoryHandoff/provider()#0>": 1,
       "<anon runStoryHandoff/steps.find(s)#0>": 1,
       "<anon runStoryHandoff/steps.map(step)#0>": 1,
       "<anon runStoryHandoff/timed()#0>": 1,
@@ -7630,6 +7633,13 @@
     ".agents/scripts/lib/orchestration/story-reachability.js": {
       "<anon computeStoryReachability/stories.find(s)#0>": 1,
       "computeStoryReachability": 6
+    },
+    ".agents/scripts/lib/orchestration/story-stage-publish.js": {
+      "<anon publishStagePhase/(ctx,deps)#0>": 1,
+      "formatDeliveryStageBody": 1,
+      "parseDeliveryStage": 8.074646449919813,
+      "publishDeliveryStage": 6,
+      "publishStagePhase": 1
     },
     ".agents/scripts/lib/orchestration/task-body-validator.js": {
       "<anon collectChangesErrors/changes.every(c)#0>": 1,
