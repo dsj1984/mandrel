@@ -595,6 +595,7 @@
       "<anon launch/ctx.environments.find(e)#0>": 1,
       "<anon parseDispatchArgv/filter(m)#0>": 1,
       "<anon runAsCli()#0>": 1,
+      "<anon runDispatch/launchCloudImpl(args)#0>": 1,
       "<anon runDispatch/write(s)#0>": 1,
       "act": 4,
       "dryRunEnvelope": 2,
@@ -3517,6 +3518,18 @@
       "holdsEnvironment": 3,
       "resolveEnvironments": 4
     },
+    ".agents/scripts/lib/dispatch/launch-cloud.js": {
+      "<anon launchCloud/then()#0>": 1,
+      "<anon launchCloud/then()#1>": 1.002679183813443,
+      "<anon scrub(text,token)#0>": 1,
+      "cloudEnvelopeFields": 3,
+      "describeFireRequest": 1,
+      "fireRequest": 1,
+      "launchCloud": 3.0461273524949775,
+      "refused": 2,
+      "send": 1,
+      "sessionOf": 2
+    },
     ".agents/scripts/lib/dispatch/launch-local.js": {
       "launchLocal": 1,
       "stopLocal": 3
@@ -3527,7 +3540,7 @@
       "writeRecord": 1.512
     },
     ".agents/scripts/lib/dispatch/status.js": {
-      "<anon buildStatus/environments.map(e)#0>": 1,
+      "<anon buildStatus/environments.map(command,routine,tokenEnv,shown)#0>": 1,
       "<anon buildStatus/filter(column)#0>": 1,
       "<anon buildStatus/map(t,column)#0>": 1,
       "<anon buildStatus/map(t)#0>": 1,
@@ -3542,6 +3555,7 @@
       "<anon fetchBoard/map(issue)#0/map(l)#0>": 1,
       "<anon fetchBoard/map(issue)#0>": 1,
       "<anon isEpic(ticket)#0>": 1,
+      "<anon offlineNote(env)#0>": 2,
       "<anon prFor/prs.find(p)#0>": 1,
       "<anon renderStatus/status.stories.filter(s)#0>": 1,
       "buildStatus": 1,
@@ -3554,20 +3568,30 @@
       "renderStatus": 4,
       "storyRow": 1
     },
+    ".agents/scripts/lib/dispatch/targets.js": {
+      "<anon isCloud(environment)#0>": 1,
+      "dryRunFields": 2,
+      "launchedFields": 2,
+      "launcherFor": 2,
+      "launchFailureFields": 2,
+      "releasesLabel": 2,
+      "resolveEntry": 3,
+      "stoppedFields": 2
+    },
     ".agents/scripts/lib/dispatch/verdict.js": {
-      "<anon atCapacity/environments.find(e)#0>": 1,
       "<anon ids(list)#0/list.map(id)#0>": 1,
       "<anon ids(list)#0>": 1,
       "<anon refuse(action,reason,detail)#0>": 1,
       "<anon sharedRefusal/environments.map(e)#0>": 1,
       "<anon sharedRefusal/environments.some(e)#0>": 1,
-      "atCapacity": 2,
+      "<anon unavailable/environments.find(e)#0>": 1,
       "decide": 3,
       "decideDispatch": 6,
       "decideResume": 8,
       "decideStop": 7,
       "foreignOwner": 4,
-      "sharedRefusal": 3
+      "sharedRefusal": 3,
+      "unavailable": 3
     },
     ".agents/scripts/lib/doc-tiers.js": {
       "<anon docsContextPaths/contextDocs.map(f)#0>": 1,

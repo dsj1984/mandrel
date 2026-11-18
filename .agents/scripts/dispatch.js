@@ -23,6 +23,7 @@ import {
   envLabel,
   resolveEnvironments,
 } from './lib/dispatch/environments.js';
+import { launchCloud } from './lib/dispatch/launch-cloud.js';
 import { launchLocal, stopLocal } from './lib/dispatch/launch-local.js';
 import {
   readRecord,
@@ -34,6 +35,14 @@ import {
   fetchBoard,
   renderStatus,
 } from './lib/dispatch/status.js';
+import {
+  dryRunFields,
+  launchedFields,
+  launcherFor,
+  launchFailureFields,
+  releasesLabel,
+  stoppedFields,
+} from './lib/dispatch/targets.js';
 import { decide } from './lib/dispatch/verdict.js';
 import { gh as defaultGh } from './lib/gh-exec.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
@@ -56,6 +65,8 @@ Starts an agent::ready Story's delivery in a named environment
 labelling the Story env::<name> as the claim. The launched command is the
 environment's argv with {id} replaced by the Story id, started detached
 without a shell; its output goes to <tempRoot>/dispatch/story-<id>.log.
+A claude-cloud environment instead fires its Claude Code routine once with
+the payload "mandrel-deliver <id>" and posts the session URL on the Story.
 
 Flags:
   --env <name>  Environment to dispatch to (required for a dispatch).
@@ -63,14 +74,18 @@ Flags:
                 label names; changes no agent::* label.
   --stop        Stop the recorded process, release the lease, return the
                 Story to agent::ready and remove its env:: label. The
-                branch and worktree are kept.
+                branch and worktree are kept. A cloud session is not
+                stopped: archive it at the printed session URL.
   --status      Print environments, load and every Story's column.
   --json        With --status, emit the read model as JSON.
-  --dry-run     Print the verdict and the argv; write and start nothing.
+  --dry-run     Print the verdict and the argv (or the cloud request,
+                Authorization redacted); write and start nothing.
   --help        Show this message.
 
 stdout is one JSON envelope. Exit 0 on success, 2 on a refusal
-({ ok: false, reason, detail }), 1 when the command could not run.
+({ ok: false, reason, detail }), 1 when the command could not run or a
+cloud fire failed (reason launch-failed, rate-limited or
+launch-unconfirmed).
 `;
 
 const STORY_ID_RE = /^[1-9]\d*$/;
@@ -173,29 +188,31 @@ async function launch({ ctx, verdict, storyId }) {
     ]);
     await provider.updateTicket(storyId, { labels: { add: [label] } });
   }
+  const head = {
+    action: verdict.action,
+    storyId,
+    environment: environment.name,
+  };
   let record;
   try {
-    record = await deps.launchImpl({
+    record = await launcherFor(
+      environment,
+      deps,
+    )({
       storyId,
       environment,
       cwd: ctx.cwd,
       config,
+      provider,
     });
   } catch (err) {
-    if (verdict.applyLabel) {
+    if (releasesLabel(verdict.applyLabel, err)) {
       await provider.updateTicket(storyId, { labels: { remove: [label] } });
     }
-    throw new Error(`launch failed: ${err?.message ?? err}`);
+    return { ok: false, ...head, ...launchFailureFields(err) };
   }
   deps.writeRecordImpl(record, { config });
-  return {
-    ok: true,
-    action: verdict.action,
-    storyId,
-    environment: environment.name,
-    pid: record.pid,
-    logPath: record.logPath,
-  };
+  return { ok: true, ...head, ...launchedFields(record) };
 }
 
 async function stop({ ctx, verdict, storyId, story }) {
@@ -220,6 +237,7 @@ async function stop({ ctx, verdict, storyId, story }) {
     storyId,
     environment: verdict.environment,
     pid: record?.pid ?? null,
+    ...stoppedFields(record),
   };
 }
 
@@ -235,7 +253,7 @@ function dryRunEnvelope({ ctx, verdict, storyId }) {
   const environment = ctx.environments.find(
     (e) => e.name === verdict.environment,
   );
-  return { ...envelope, argv: commandFor(environment.command, storyId) };
+  return { ...envelope, ...dryRunFields(environment, storyId, commandFor) };
 }
 
 async function act(ctx, args) {
@@ -245,7 +263,8 @@ async function act(ctx, args) {
   const step = { ctx, verdict, storyId: args.storyId, story: input.story };
   if (args.dryRun) return { code: 0, envelope: dryRunEnvelope(step) };
   const envelope = args.mode === 'stop' ? await stop(step) : await launch(step);
-  return { code: 0, envelope };
+  // A failed cloud fire is the command failing: exit 1.
+  return { code: Number(!envelope.ok), envelope };
 }
 
 async function status(ctx, { json }) {
@@ -274,6 +293,8 @@ async function status(ctx, { json }) {
  *   resolveConfigImpl?: typeof resolveConfig,
  *   createProviderImpl?: typeof createProvider,
  *   launchImpl?: typeof launchLocal, stopImpl?: typeof stopLocal,
+ *   launchCloudImpl?: typeof launchCloud, fetchImpl?: typeof fetch,
+ *   env?: Record<string, string|undefined>,
  *   fetchBoardImpl?: typeof fetchBoard,
  *   transitionImpl?: typeof transitionTicketState,
  *   releaseLeaseImpl?: typeof releaseLease,
@@ -289,6 +310,9 @@ export async function runDispatch(argv, overrides = {}) {
     createProviderImpl: createProvider,
     launchImpl: launchLocal,
     stopImpl: stopLocal,
+    launchCloudImpl: (args) =>
+      launchCloud(args, { fetchImpl: deps.fetchImpl, env: deps.env }),
+    env: process.env,
     fetchBoardImpl: fetchBoard,
     transitionImpl: transitionTicketState,
     releaseLeaseImpl: releaseLease,
@@ -312,7 +336,7 @@ export async function runDispatch(argv, overrides = {}) {
       config,
       cwd: deps.cwd,
       provider: deps.provider ?? deps.createProviderImpl(config),
-      environments: resolveEnvironments(config),
+      environments: resolveEnvironments(config, deps.env),
       operator: normalizeOperatorHandle(config?.github?.operatorHandle),
     };
     result =

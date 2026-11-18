@@ -22,6 +22,7 @@ describe('resolveEnvironments', () => {
           name: 'local',
           target: 'local',
           capacity: 1,
+          online: true,
           command: ['claude', '-p', '/mandrel-deliver {id}'],
         },
       ]);
@@ -42,9 +43,16 @@ describe('resolveEnvironments', () => {
         name: 'box',
         target: 'local',
         capacity: 1,
+        online: true,
         command: ['claude', '-p', '/mandrel-deliver {id}'],
       },
-      { name: 'big', target: 'local', capacity: 3, command: ['run', '{id}'] },
+      {
+        name: 'big',
+        target: 'local',
+        capacity: 3,
+        online: true,
+        command: ['run', '{id}'],
+      },
     ]);
   });
 });
