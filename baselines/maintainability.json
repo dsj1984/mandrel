@@ -2927,6 +2927,30 @@
       "mi": 94.495
     },
     {
+      "path": "lib/cli/ui.js",
+      "mi": 106.587
+    },
+    {
+      "path": "lib/cli/ui/board-model.js",
+      "mi": 106.93
+    },
+    {
+      "path": "lib/cli/ui/board.js",
+      "mi": 101.83
+    },
+    {
+      "path": "lib/cli/ui/request-guard.js",
+      "mi": 101.859
+    },
+    {
+      "path": "lib/cli/ui/server.js",
+      "mi": 100.867
+    },
+    {
+      "path": "lib/cli/ui/sources.js",
+      "mi": 103.719
+    },
+    {
       "path": "lib/cli/uninstall.js",
       "mi": 90.33
     },
