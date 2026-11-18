@@ -101,6 +101,13 @@ const SUBCOMMANDS = new Map([
     },
   ],
   [
+    'ui',
+    {
+      description: 'serve the local dispatch board on 127.0.0.1',
+      knownFlags: ['--port'],
+    },
+  ],
+  [
     'uninstall',
     {
       description: 'reverse a recorded install using the install ledger',

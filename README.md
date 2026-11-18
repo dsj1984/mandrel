@@ -81,6 +81,14 @@ unplanned work: it authors a receipt Story on the fly and escalates to
 The full process — labels, state, review, troubleshooting — is in
 [`docs/SDLC.md`](docs/SDLC.md).
 
+### The dispatch board
+
+`npx mandrel ui` serves a local board on `http://127.0.0.1:4319/` that shows
+every Story's column and environment, and dispatches, resumes or stops a
+delivery when you drag a card (the same actions as `mandrel dispatch`). It is
+bound to your machine and guarded by a per-run token; see the
+[dispatch board runbook](.agents/docs/runbooks/dispatch-board.md).
+
 ## Audits
 
 The `/audit-*` workflows are read-only lenses that examine the codebase along

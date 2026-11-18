@@ -1095,9 +1095,9 @@ const PRIOR_STORY_BODY = serialize({
 // project is web-capable at all, and a predicted path matches one of the
 // `target: "web"` lens filePatterns in audit-rules.json.
 //
-// The signal CANNOT fire in this repository (no rendered frontend), which is
-// the point of AC-8 — so exercising it at all needs a synthetic web-surface
-// fixture. `planning.navigation.routeGlobs` is the cheapest one:
+// The signal cannot fire in a frontend-less checkout, which is the point of
+// AC-8; the unfired cases use a web-free temp root for that, and exercising
+// the fired case needs a synthetic web-surface fixture. `planning.navigation.routeGlobs` is the cheapest one:
 // `hasWebSurface` treats a configured route-glob set as a determinate web
 // signal and returns before it touches the filesystem, so the fixture needs no
 // temp tree and cannot be perturbed by the process-lifetime fs memo.
@@ -1128,14 +1128,22 @@ describe('plan-context uiSurface offer (Story #4765)', () => {
     '',
   ].join('\n');
 
-  const envelopeFor = (seedText, config) =>
+  const envelopeFor = (seedText, config, cwd) =>
     buildPlanContext({
       mode: 'seed',
       seedText,
       provider: buildProvider(),
       config,
       settings: {},
+      cwd,
     });
+
+  /** A frontend-less checkout: a package.json and no web asset or framework. */
+  const webFreeRoot = async () => {
+    const dir = await makeTempDir('plan-ctx-no-web-');
+    await writeFile(path.join(dir, 'package.json'), '{"name":"cli"}');
+    return dir;
+  };
 
   it('fires on a web-capable project whose predicted footprint touches UI paths (AC-5)', async () => {
     const env = await envelopeFor(UI_SEED, WEB_CONFIG);
@@ -1174,11 +1182,12 @@ describe('plan-context uiSurface offer (Story #4765)', () => {
     assert.match(ui.reasons[0], /no predicted path matches/);
   });
 
-  it('resolves falsey in this frontend-less repository even for a UI-shaped seed (AC-8)', async () => {
+  it('resolves falsey in a frontend-less repository even for a UI-shaped seed (AC-8)', async () => {
     // No routeGlobs, no web framework in package.json, no .html/.css/.jsx/.tsx
-    // in the tree: hasWebSurface is determinately false here, so the offer
+    // in the tree: hasWebSurface is determinately false there, so the offer
     // cannot fire however the seed is written.
-    const ui = (await envelopeFor(UI_SEED, {})).complexitySignals.uiSurface;
+    const ui = (await envelopeFor(UI_SEED, {}, await webFreeRoot()))
+      .complexitySignals.uiSurface;
     assert.equal(ui.webSurface, false);
     assert.equal(
       ui.detected,
@@ -1203,7 +1212,7 @@ describe('plan-context uiSurface offer (Story #4765)', () => {
     // field intact, and produce an identical key set — so no /mandrel-plan exit code
     // can depend on it.
     const fired = await envelopeFor(UI_SEED, WEB_CONFIG);
-    const unfired = await envelopeFor(UI_SEED, {});
+    const unfired = await envelopeFor(UI_SEED, {}, await webFreeRoot());
     assert.equal(fired.complexitySignals.uiSurface.detected, true);
     assert.equal(unfired.complexitySignals.uiSurface.detected, false);
     assert.deepEqual(

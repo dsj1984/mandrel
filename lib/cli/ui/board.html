@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="mandrel-token" content="__MANDREL_TOKEN__">
+<title>Mandrel board</title>
+<link rel="stylesheet" href="/board.css">
+<script type="module" src="/board.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="product">Mandrel</span>
+    <span class="repo mono" id="repository"></span>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button type="button" role="tab" id="tab-board" data-testid="tab-board" aria-selected="true" aria-controls="board">Board</button>
+    <button type="button" role="tab" id="tab-environments" data-testid="tab-environments" aria-selected="false" aria-controls="environments">Environments <span class="count" id="offline-count"></span></button>
+  </div>
+  <div class="actions">
+    <button type="button" class="status" id="connections-button" data-testid="connections-button" aria-haspopup="dialog">Checking connections…</button>
+    <details class="overflow">
+      <summary aria-label="More options">More</summary>
+      <div class="menu">
+        <button type="button" id="theme-toggle" data-testid="theme-toggle">Theme: auto</button>
+      </div>
+    </details>
+  </div>
+</header>
+
+<p class="zone-verdict" id="zone-verdict" data-testid="zone-verdict" role="status" aria-live="polite"></p>
+
+<main>
+  <div class="board" id="board" data-testid="board" role="tabpanel" aria-labelledby="tab-board">
+    <section class="column" data-testid="column-backlog" data-zone="backlog" aria-label="Backlog">
+      <h2>Backlog <span class="zone-hint"></span></h2>
+      <div class="cards"></div>
+    </section>
+    <section class="column" data-testid="column-planning" data-zone="planning" aria-label="Planning">
+      <h2>Planning <span class="zone-hint"></span></h2>
+      <div class="cards"></div>
+    </section>
+    <section class="column" data-testid="column-ready" data-zone="ready" aria-label="Ready">
+      <h2>Ready <span class="zone-hint"></span></h2>
+      <div class="cards"></div>
+    </section>
+    <section class="column delivering" data-testid="column-delivering" data-zone="delivering" aria-label="Delivering">
+      <h2>Delivering <span class="zone-hint"></span></h2>
+      <div class="lanes"></div>
+    </section>
+    <section class="column" data-testid="column-blocked" data-zone="blocked" aria-label="Blocked">
+      <h2>Blocked <span class="zone-hint"></span></h2>
+      <div class="cards"></div>
+    </section>
+    <section class="column" data-testid="column-done" data-zone="done" aria-label="Done">
+      <h2>Done <span class="zone-hint"></span></h2>
+      <div class="cards"></div>
+    </section>
+  </div>
+
+  <div class="environments" id="environments" role="tabpanel" aria-labelledby="tab-environments" hidden></div>
+</main>
+
+<dialog class="panel" id="connections-dialog" data-testid="connections-dialog" aria-labelledby="connections-title">
+  <h2 id="connections-title">Connections</h2>
+  <ul class="connection-lines" id="connection-lines"></ul>
+  <div class="dialog-actions">
+    <button type="button" id="connections-close">Close</button>
+  </div>
+</dialog>
+
+<dialog class="panel" id="confirm-stop" data-testid="confirm-stop" aria-labelledby="confirm-title">
+  <h2 id="confirm-title">Stop delivery?</h2>
+  <p id="confirm-text"></p>
+  <div class="dialog-actions">
+    <button type="button" id="confirm-cancel">Cancel</button>
+    <button type="button" class="danger" id="confirm-ok">Stop</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" data-testid="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

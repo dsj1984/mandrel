@@ -3,6 +3,7 @@
   "entry": [
     "bin/*.js!",
     "lib/cli/*.js!",
+    "lib/cli/ui/board.js!",
     "lib/migrations/index.js!",
     ".agents/scripts/acceptance-eval.js!",
     ".agents/scripts/agents-bootstrap-github.js!",
