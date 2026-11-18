@@ -3519,6 +3519,8 @@
       "resolveEnvironments": 4
     },
     ".agents/scripts/lib/dispatch/launch-cloud.js": {
+      "<anon launchCloud/then()#0>": 1,
+      "<anon launchCloud/then()#1>": 1.002679183813443,
       "<anon scrub(text,token)#0>": 1,
       "cloudEnvelopeFields": 3,
       "describeFireRequest": 1,
@@ -3538,6 +3540,7 @@
       "writeRecord": 1.512
     },
     ".agents/scripts/lib/dispatch/status.js": {
+      "<anon buildStatus/environments.map(command,routine,tokenEnv,shown)#0>": 1,
       "<anon buildStatus/filter(column)#0>": 1,
       "<anon buildStatus/map(t,column)#0>": 1,
       "<anon buildStatus/map(t)#0>": 1,
@@ -3552,6 +3555,7 @@
       "<anon fetchBoard/map(issue)#0/map(l)#0>": 1,
       "<anon fetchBoard/map(issue)#0>": 1,
       "<anon isEpic(ticket)#0>": 1,
+      "<anon offlineNote(env)#0>": 2,
       "<anon prFor/prs.find(p)#0>": 1,
       "<anon renderStatus/status.stories.filter(s)#0>": 1,
       "buildStatus": 1,
@@ -3570,6 +3574,7 @@
       "launchedFields": 2,
       "launcherFor": 2,
       "launchFailureFields": 2,
+      "releasesLabel": 2,
       "resolveEntry": 3,
       "stoppedFields": 2
     },
