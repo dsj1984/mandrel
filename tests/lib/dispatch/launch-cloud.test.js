@@ -40,7 +40,10 @@ const ok = () =>
  * Run dispatch with a fake fetch; capture the envelope, every byte written to
  * the real stdout/stderr meanwhile, the requests and the posted comments.
  */
-async function run(argv, { respond = ok, tickets, env, records } = {}) {
+async function run(
+  argv,
+  { respond = ok, tickets, env, records, postComment } = {},
+) {
   const board = makeDispatchBoard(tickets ?? [ready(7)]);
   for (const [id, record] of records ?? []) board.records.set(id, record);
   const comments = [];
@@ -65,6 +68,7 @@ async function run(argv, { respond = ok, tickets, env, records } = {}) {
       provider: {
         ...deps.provider,
         async postComment(id, payload) {
+          if (postComment) return postComment();
           comments.push({ id, body: payload.body });
         },
       },
@@ -147,6 +151,7 @@ describe('fire request (AC-2, AC-4)', () => {
       storyId: 7,
       environment: 'cloud',
       sessionUrl: SESSION_URL,
+      commentPosted: true,
     });
     const record = result.board.records.get(7);
     assert.equal(record.sessionId, 'session_01abc');
@@ -156,6 +161,22 @@ describe('fire request (AC-2, AC-4)', () => {
     assert.ok(result.comments[0].body.includes(SESSION_URL));
     assert.ok(result.board.store.get(7).labels.includes('env::cloud'));
     assert.equal(result.board.launches.length, 0, 'no local launch');
+    assertNoSentinel(result);
+  });
+});
+
+describe('failed comment after a fire', () => {
+  it('keeps the label and the record, and reports the comment unposted', async () => {
+    const result = await run(['--env', 'cloud', '7'], {
+      postComment: async () => {
+        throw new Error('gh 502');
+      },
+    });
+    assert.equal(result.code, 0);
+    assert.equal(result.envelope.sessionUrl, SESSION_URL);
+    assert.equal(result.envelope.commentPosted, false);
+    assert.ok(result.board.store.get(7).labels.includes('env::cloud'));
+    assert.equal(result.board.records.get(7).sessionUrl, SESSION_URL);
     assertNoSentinel(result);
   });
 });

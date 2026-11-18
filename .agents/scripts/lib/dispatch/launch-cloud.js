@@ -144,14 +144,21 @@ export async function launchCloud(
   );
   if (!response.ok) throw refused(response);
   const session = await sessionOf(response);
-  await provider.postComment(storyId, {
-    body: `Dispatched to environment \`${environment.name}\` (claude-cloud): ${session.claude_code_session_url}`,
-  });
+  // The session already exists: a failed comment must not undo the claim.
+  const commentPosted = await provider
+    .postComment(storyId, {
+      body: `Dispatched to environment \`${environment.name}\` (claude-cloud): ${session.claude_code_session_url}`,
+    })
+    .then(
+      () => true,
+      () => false,
+    );
   return {
     storyId,
     environment: environment.name,
     startedAt: now().toISOString(),
     sessionId: session.claude_code_session_id ?? null,
     sessionUrl: session.claude_code_session_url,
+    commentPosted,
   };
 }

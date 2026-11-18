@@ -102,7 +102,7 @@ The payload of this run contains one line of the form `mandrel-deliver <id>`, wh
 
 | Response | Result |
 | --- | --- |
-| 200 | The session id and URL go in the dispatch record, the envelope returns `sessionUrl`, and one comment on the Story names the environment and the session URL. |
+| 200 | The session id and URL go in the dispatch record, the envelope returns `sessionUrl`, and one comment on the Story names the environment and the session URL. If that comment fails, the dispatch still succeeds with `commentPosted: false`; the label and record stay. |
 | 429 | Exit 1, reason `rate-limited`, `retryAfter` from the `Retry-After` header; the `env::` label is removed. |
 | Any other non-2xx | Exit 1, reason `launch-failed`, `status` the HTTP code; the `env::` label is removed. |
 | No response (network failure) | Exit 1, reason `launch-unconfirmed`; the `env::` label is **kept**, because a session may have started. Check the routine's sessions before dispatching again. |

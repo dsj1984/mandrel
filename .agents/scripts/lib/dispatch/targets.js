@@ -72,7 +72,7 @@ export function launchFailureFields(err) {
 /** Where a launched delivery can be followed. */
 export function launchedFields(record) {
   return record.sessionUrl
-    ? { sessionUrl: record.sessionUrl }
+    ? { sessionUrl: record.sessionUrl, commentPosted: record.commentPosted }
     : { pid: record.pid, logPath: record.logPath };
 }
 
