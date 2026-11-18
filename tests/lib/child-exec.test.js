@@ -11,6 +11,7 @@
 
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { describe, it } from 'node:test';
 import {
   execFileCapture,
@@ -21,6 +22,7 @@ import {
   spawnCaptureAsync,
   spawnCaptureNullableAsync,
   spawnChild,
+  spawnDetached,
 } from '../../.agents/scripts/lib/child-exec.js';
 import { streamChild } from '../../.agents/scripts/lib/child-stream.js';
 
@@ -338,5 +340,76 @@ describe('streamChild — signal forwarding (Story #5913)', () => {
     });
     assert.equal(result.status, 1);
     assert.equal(process.listenerCount('SIGTERM'), before);
+  });
+});
+
+describe('spawnDetached', () => {
+  /** A fake child that emits `event` on the next tick. */
+  function fakeSpawn(event, payload) {
+    const calls = [];
+    const run = (file, args, opts) => {
+      const child = new EventEmitter();
+      child.pid = 4242;
+      child.unrefCalled = false;
+      child.unref = () => {
+        child.unrefCalled = true;
+      };
+      calls.push({ file, args, opts, child });
+      setImmediate(() => child.emit(event, payload));
+      return child;
+    };
+    return { calls, run };
+  }
+  const fdSeams = () => {
+    const closed = [];
+    return {
+      closed,
+      open: () => 99,
+      close: (fd) => closed.push(fd),
+    };
+  };
+
+  it('spawns detached from an argv array, never through a shell, and resolves the pid', async () => {
+    const { calls, run } = fakeSpawn('spawn');
+    const fds = fdSeams();
+    const out = await spawnDetached('claude', ['-p', 'x'], {
+      logPath: 'ignored.log',
+      run,
+      open: fds.open,
+      close: fds.close,
+    });
+    assert.deepEqual(out, { pid: 4242 });
+    assert.equal(calls[0].file, 'claude');
+    assert.deepEqual(calls[0].args, ['-p', 'x']);
+    assert.equal(calls[0].opts.shell, false);
+    assert.equal(calls[0].opts.detached, true);
+    assert.deepEqual(calls[0].opts.stdio, ['ignore', 99, 99]);
+    assert.equal(calls[0].child.unrefCalled, true);
+    assert.deepEqual(fds.closed, [99]);
+  });
+
+  it('rejects on a spawn error and closes the log fd once', async () => {
+    const { run } = fakeSpawn('error', new Error('spawn claude ENOENT'));
+    const fds = fdSeams();
+    await assert.rejects(
+      spawnDetached('claude', [], { logPath: 'x', run, ...fds }),
+      /ENOENT/,
+    );
+    assert.deepEqual(fds.closed, [99]);
+  });
+
+  it('rejects when the spawn itself throws', async () => {
+    const fds = fdSeams();
+    await assert.rejects(
+      spawnDetached('claude', [], {
+        logPath: 'x',
+        run: () => {
+          throw new Error('spawn EINVAL');
+        },
+        ...fds,
+      }),
+      /EINVAL/,
+    );
+    assert.deepEqual(fds.closed, [99]);
   });
 });

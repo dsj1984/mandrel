@@ -588,6 +588,25 @@
       "runDiagnose": 5,
       "validateDiagnoseArgs": 4
     },
+    ".agents/scripts/dispatch.js": {
+      "<anon dryRunEnvelope/ctx.environments.find(e)#0>": 1,
+      "<anon gatherVerdictInput/environments.some(e)#0>": 1,
+      "<anon gatherVerdictInput/map(c)#0>": 1,
+      "<anon launch/ctx.environments.find(e)#0>": 1,
+      "<anon parseDispatchArgv/filter(m)#0>": 1,
+      "<anon runAsCli()#0>": 1,
+      "<anon runDispatch/write(s)#0>": 1,
+      "act": 4,
+      "dryRunEnvelope": 2,
+      "gatherVerdictInput": 3,
+      "launch": 3,
+      "openDependencies": 2,
+      "parseDispatchArgv": 8,
+      "runDispatch": 3,
+      "status": 2,
+      "stop": 4,
+      "usageError": 1
+    },
     ".agents/scripts/drain-pending-cleanup.js": {
       "<anon escalateFrom(value)#0>": 2,
       "<anon runDrainPendingCleanup/before.map(e)#0>": 1,
@@ -2427,10 +2446,18 @@
       "resolveCeiling": 3,
       "splitFrontmatter": 4
     },
+    ".agents/scripts/lib/child-detached.js": {
+      "<anon detachChild/Promise(resolve,reject)#0/child.once:error(err)#0>": 1,
+      "<anon detachChild/Promise(resolve,reject)#0/child.once:spawn()#0>": 1,
+      "<anon detachChild/Promise(resolve,reject)#0/settle(fn,value)#0>": 2,
+      "<anon detachChild/Promise(resolve,reject)#0>": 1,
+      "detachChild": 1
+    },
     ".agents/scripts/lib/child-exec.js": {
       "<anon execCollect/Promise(resolve)#0/child.stdin.on:error()#0>": 1,
       "<anon execCollect/Promise(resolve)#0/execFile(error,stdout,stderr)#0>": 5,
       "<anon execCollect/Promise(resolve)#0>": 1,
+      "<anon spawnDetached(file,args,opts)#0>": 1,
       "<anon spawnStreamAsync(file,args,opts)#0>": 1,
       "childOptions": 1,
       "execCollect": 1,
@@ -3052,6 +3079,8 @@
       "anchorTempRoot": 9,
       "closeGateLogName": 1,
       "closeGateLogPath": 1,
+      "dispatchLogPath": 1,
+      "dispatchRecordPath": 1.2962962962962963,
       "inNodeTestContext": 3,
       "orchestrateRunDir": 1,
       "orchestrationLogDir": 1,
@@ -3473,6 +3502,72 @@
       "detectPackageManager": 6,
       "detectPackageManagerWithWorkspace": 2,
       "packageScriptArgv": 1
+    },
+    ".agents/scripts/lib/dispatch/environments.js": {
+      "<anon agentStateOf/find(l)#0>": 1,
+      "<anon commandFor/command.map(part)#0>": 1,
+      "<anon computeLoads/environments.map(e)#0>": 1,
+      "<anon environmentOf/find(l)#0>": 1,
+      "<anon resolveEnvironments/entries.map(name,entry)#0>": 1,
+      "agentStateOf": 1,
+      "commandFor": 1,
+      "computeLoads": 3,
+      "environmentOf": 2,
+      "envLabel": 1,
+      "holdsEnvironment": 3,
+      "resolveEnvironments": 4
+    },
+    ".agents/scripts/lib/dispatch/launch-local.js": {
+      "launchLocal": 1,
+      "stopLocal": 3
+    },
+    ".agents/scripts/lib/dispatch/record.js": {
+      "readRecord": 1.7023319615912207,
+      "removeRecord": 1.2962962962962963,
+      "writeRecord": 1.512
+    },
+    ".agents/scripts/lib/dispatch/status.js": {
+      "<anon buildStatus/environments.map(e)#0>": 1,
+      "<anon buildStatus/filter(column)#0>": 1,
+      "<anon buildStatus/map(t,column)#0>": 1,
+      "<anon buildStatus/map(t)#0>": 1,
+      "<anon buildStatus/map(t)#1>": 1,
+      "<anon buildStatus/openTickets.filter(t)#0>": 1,
+      "<anon buildStatus/openTickets.map(t)#0>": 1,
+      "<anon buildStatus/sort(a,b)#0>": 1,
+      "<anon dropsFor/filter(id)#0>": 1,
+      "<anon dropsFor/map(column)#0>": 1,
+      "<anon fetchBoard/filter(issue)#0>": 1,
+      "<anon fetchBoard/map(issue)#0/map(a)#0>": 1,
+      "<anon fetchBoard/map(issue)#0/map(l)#0>": 1,
+      "<anon fetchBoard/map(issue)#0>": 1,
+      "<anon isEpic(ticket)#0>": 1,
+      "<anon prFor/prs.find(p)#0>": 1,
+      "<anon renderStatus/status.stories.filter(s)#0>": 1,
+      "buildStatus": 1,
+      "checkSummary": 7,
+      "columnOf": 8,
+      "dropsFor": 1,
+      "environmentDropAction": 2,
+      "fetchBoard": 3,
+      "prFor": 2,
+      "renderStatus": 4,
+      "storyRow": 1
+    },
+    ".agents/scripts/lib/dispatch/verdict.js": {
+      "<anon atCapacity/environments.find(e)#0>": 1,
+      "<anon ids(list)#0/list.map(id)#0>": 1,
+      "<anon ids(list)#0>": 1,
+      "<anon refuse(action,reason,detail)#0>": 1,
+      "<anon sharedRefusal/environments.map(e)#0>": 1,
+      "<anon sharedRefusal/environments.some(e)#0>": 1,
+      "atCapacity": 2,
+      "decide": 3,
+      "decideDispatch": 6,
+      "decideResume": 8,
+      "decideStop": 7,
+      "foreignOwner": 4,
+      "sharedRefusal": 3
     },
     ".agents/scripts/lib/doc-tiers.js": {
       "<anon docsContextPaths/contextDocs.map(f)#0>": 1,
@@ -9488,6 +9583,10 @@
     "lib/cli/claude-code-version.js": {
       "parseClaudeVersion": 2,
       "runClaudeCodeVersion": 7
+    },
+    "lib/cli/dispatch.js": {
+      "<anon run/(code)#0>": 1,
+      "run": 1
     },
     "lib/cli/doctor-checks/codex.js": {
       "<anon projectionParity/filter(n,body)#0>": 2,

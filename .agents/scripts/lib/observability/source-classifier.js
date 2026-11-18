@@ -52,6 +52,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'deliver-run.js',
   'diagnose-friction.js',
   'diagnose.js',
+  'dispatch.js',
   'drain-pending-cleanup.js',
   'evidence-gate.js',
   'file-ci-gap.js',

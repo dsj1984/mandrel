@@ -587,8 +587,21 @@ delivery. It runs end-to-end inside the operator's Claude session, composing the
 orchestration primitives into a Story-sequencing coordinator (see
 [`workflows/mandrel-deliver.md`](../.agents/workflows/mandrel-deliver.md)). There is no
 remote-trigger surface and no deliver-runner CLI — delivery only ever runs
-locally, in the operator's session, with Story sub-agents launched through the
+locally, in a Claude session, with Story sub-agents launched through the
 Agent tool.
+
+**Dispatching to an environment.** `mandrel dispatch` (one implementation
+with `.agents/scripts/dispatch.js`) starts that session for an operator: it
+reads the `delivery.environments` registry, applies the Story's `env::<name>`
+label as the claim, and spawns the environment's argv (default
+`claude -p /mandrel-deliver <id>`) detached and shell-free, recording the pid
+and log under `<tempRoot>/dispatch/`. One pure verdict function
+(`lib/dispatch/verdict.js`) decides every action, so the command, its
+`--dry-run` and the `--status` read model cannot disagree about a refusal.
+The label, not a local file, is the record of placement: an environment's
+load is a count of open labelled Stories, readable by any tool. The launched
+delivery takes the assignee lease as usual. See the
+[dispatch runbook](../.agents/docs/runbooks/dispatch.md).
 
 **Side effects are direct calls, not events.** Epic #2172 routed phase
 transitions through a typed lifecycle bus with a fixed listener roster; the

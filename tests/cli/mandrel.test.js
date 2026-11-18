@@ -70,6 +70,7 @@ describe('mandrel CLI — bare invocation prints help', () => {
     assert.match(stdout, /doctor\s/);
     assert.match(stdout, /update\s/);
     assert.match(stdout, /uninstall\s/);
+    assert.match(stdout, /dispatch\s/);
   });
 });
 

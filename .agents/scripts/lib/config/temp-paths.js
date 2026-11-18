@@ -210,6 +210,32 @@ export function storyProgressPath(sid, config) {
   );
 }
 
+/**
+ * `<tempRoot>/dispatch/story-<id>.log`: a dispatched delivery's output.
+ *
+ * @param {number} sid
+ * @param {object} [config]
+ * @returns {string}
+ */
+export function dispatchLogPath(sid, config) {
+  return path.join(
+    anchorTempRoot(tempRootFrom(config)),
+    'dispatch',
+    `story-${storyId(sid)}.log`,
+  );
+}
+
+/**
+ * The dispatch record (`pid`, `argv`, …) beside {@link dispatchLogPath}.
+ *
+ * @param {number} sid
+ * @param {object} [config]
+ * @returns {string}
+ */
+export function dispatchRecordPath(sid, config) {
+  return dispatchLogPath(sid, config).replace(/\.log$/, '.json');
+}
+
 const runId = (id) => {
   if (!Number.isInteger(id) || id <= 0) {
     throw new Error(`[temp-paths] runId must be a positive integer; got ${id}`);
