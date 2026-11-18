@@ -12,7 +12,7 @@ import { Logger } from '../Logger.js';
 import { findStructuredComment } from './ticketing/reads.js';
 import { upsertStructuredComment } from './ticketing/state.js';
 
-export const DELIVERY_STAGE_TYPE = 'delivery-stage';
+const DELIVERY_STAGE_TYPE = 'delivery-stage';
 const DELIVERY_STAGES = Object.freeze([
   'build',
   'check',
@@ -29,12 +29,7 @@ const RECORD_RE = /```json\n(\{[^\n]*"kind":"delivery-stage"[^\n]*\})\n```/;
  * @param {{ storyId: number, stage: string, prNumber: number|null, updatedAt: string }} record
  * @returns {string}
  */
-export function formatDeliveryStageBody({
-  storyId,
-  stage,
-  prNumber,
-  updatedAt,
-}) {
+function formatDeliveryStageBody({ storyId, stage, prNumber, updatedAt }) {
   const record = {
     kind: DELIVERY_STAGE_TYPE,
     storyId,
@@ -47,7 +42,9 @@ export function formatDeliveryStageBody({
 
 /**
  * The stage record a comment body carries, or `null` for any other comment.
+ * Exported for readers that list an issue's comments.
  *
+ * @public
  * @param {unknown} body
  * @returns {{ kind: 'delivery-stage', storyId: number, stage: string, prNumber: number|null, updatedAt: string }|null}
  */

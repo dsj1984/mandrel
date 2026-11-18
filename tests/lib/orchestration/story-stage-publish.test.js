@@ -9,8 +9,6 @@ import { runAcceptanceEvalCli } from '../../../.agents/scripts/acceptance-eval.j
 import { runSingleStoryClose } from '../../../.agents/scripts/lib/orchestration/single-story-close/runner.js';
 import { runStoryHandoff } from '../../../.agents/scripts/lib/orchestration/story-handoff.js';
 import {
-  DELIVERY_STAGE_TYPE,
-  formatDeliveryStageBody,
   parseDeliveryStage,
   publishDeliveryStage,
 } from '../../../.agents/scripts/lib/orchestration/story-stage-publish.js';
@@ -20,6 +18,7 @@ import { runConfirmMerge } from '../../../.agents/scripts/single-story-confirm-m
 import { runSingleStoryInit } from '../../../.agents/scripts/single-story-init.js';
 
 const STORY = 6109;
+const DELIVERY_STAGE_TYPE = 'delivery-stage';
 const NOW = () => new Date('2026-11-18T00:00:00.000Z');
 
 /** An in-memory provider holding one issue's comments. */
@@ -162,14 +161,21 @@ function fakeProviderSharing(provider) {
 }
 
 describe('parseDeliveryStage', () => {
-  it('AC-5: returns the record from a published body and null for any other comment', () => {
+  it('AC-5: returns the record from a published body and null for any other comment', async () => {
     const record = {
       storyId: STORY,
       stage: 'handoff',
       prNumber: null,
       updatedAt: '2026-11-18T00:00:00.000Z',
     };
-    const body = `${structuredCommentMarker(DELIVERY_STAGE_TYPE)}\n\n${formatDeliveryStageBody(record)}`;
+    const provider = fakeProvider();
+    await publishDeliveryStage({
+      provider,
+      storyId: STORY,
+      stage: 'handoff',
+      now: NOW,
+    });
+    const { body } = provider.comments[0];
     assert.deepEqual(parseDeliveryStage(body), {
       kind: 'delivery-stage',
       ...record,

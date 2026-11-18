@@ -764,6 +764,8 @@ export async function runSingleStoryInit({
       await rollbackClaimOnInitFailure(provider, storyId, config);
       throw err;
     }
+    // Every mutation has landed: the Story is now in its build stage.
+    await publishDeliveryStage({ provider, storyId, stage: 'build' });
   }
 
   // Every path gets the checklist; `buildStoryChecklist` never throws.
@@ -803,9 +805,6 @@ export async function runSingleStoryInit({
       ? '✅ Dry-run complete. No git or ticket changes made.'
       : `✅ Standalone Story #${storyId} initialized on ${storyBranch}.`,
   );
-  if (!dryRun) {
-    await publishDeliveryStage({ provider, storyId, stage: 'build' });
-  }
 
   return { success: true, result };
 }
