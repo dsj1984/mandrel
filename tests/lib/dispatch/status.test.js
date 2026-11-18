@@ -4,8 +4,6 @@ import { describe, it } from 'node:test';
 import { resolveEnvironments } from '../../../.agents/scripts/lib/dispatch/environments.js';
 import {
   buildStatus,
-  checkSummary,
-  columnOf,
   fetchBoard,
   renderStatus,
 } from '../../../.agents/scripts/lib/dispatch/status.js';
@@ -20,7 +18,16 @@ const t = (id, labels, extra = {}) => ({
   ...extra,
 });
 
-describe('columnOf', () => {
+/** One ticket through the read model: its row, or undefined when unlisted. */
+const rowOf = (ticket, prs = []) =>
+  buildStatus({
+    environments: resolveEnvironments({}),
+    openTickets: ticket.state === 'closed' ? [] : [ticket],
+    closedStories: ticket.state === 'closed' ? [ticket] : [],
+    prs,
+  }).stories[0];
+
+describe('column mapping', () => {
   const cases = [
     [t(1, ['type::story']), 'backlog'],
     [t(2, ['agent::review-spec']), 'planning'],
@@ -30,27 +37,37 @@ describe('columnOf', () => {
     [t(6, ['agent::closing']), 'delivering'],
     [t(7, ['agent::blocked']), 'blocked'],
     [t(8, ['agent::done'], { state: 'closed' }), 'done'],
-    [t(9, ['agent::done']), null],
+    [t(9, ['agent::done']), undefined],
   ];
   for (const [ticket, column] of cases) {
     it(`maps ${ticket.labels.join(',')} (${ticket.state}) to ${column}`, () => {
-      assert.equal(columnOf(ticket), column);
+      assert.equal(rowOf(ticket)?.column, column);
     });
   }
 });
 
-describe('checkSummary', () => {
+describe('PR check summary', () => {
   it('counts passed, failed and pending checks', () => {
-    assert.deepEqual(
-      checkSummary([
-        { conclusion: 'SUCCESS' },
-        { conclusion: 'SKIPPED' },
-        { conclusion: 'FAILURE' },
-        { status: 'IN_PROGRESS', conclusion: '' },
-        { state: 'PENDING' },
-      ]),
-      { total: 5, passed: 2, failed: 1, pending: 2 },
-    );
+    const row = rowOf(t(1, ['agent::executing']), [
+      {
+        number: 3,
+        url: 'u',
+        headRefName: 'story-1',
+        statusCheckRollup: [
+          { conclusion: 'SUCCESS' },
+          { conclusion: 'SKIPPED' },
+          { conclusion: 'FAILURE' },
+          { status: 'IN_PROGRESS', conclusion: '' },
+          { state: 'PENDING' },
+        ],
+      },
+    ]);
+    assert.deepEqual(row.pr.checks, {
+      total: 5,
+      passed: 2,
+      failed: 1,
+      pending: 2,
+    });
   });
 });
 

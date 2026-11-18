@@ -22,7 +22,7 @@ const DELIVERING = new Set([AGENT_LABELS.EXECUTING, AGENT_LABELS.CLOSING]);
  * @returns {'backlog'|'planning'|'ready'|'delivering'|'blocked'|'done'|null}
  *   `null` for an open ticket no column shows (`agent::done` still open).
  */
-export function columnOf(ticket) {
+function columnOf(ticket) {
   if (String(ticket.state ?? '').toLowerCase() === 'closed') return 'done';
   const state = agentStateOf(ticket.labels);
   if (state === null) return 'backlog';
@@ -41,7 +41,7 @@ export function columnOf(ticket) {
  * @param {Array<{ status?: string, conclusion?: string, state?: string }>} [rollup]
  * @returns {{ total: number, passed: number, failed: number, pending: number }}
  */
-export function checkSummary(rollup) {
+function checkSummary(rollup) {
   const summary = { total: 0, passed: 0, failed: 0, pending: 0 };
   for (const check of rollup ?? []) {
     summary.total += 1;
