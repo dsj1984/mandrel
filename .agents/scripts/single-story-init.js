@@ -49,6 +49,7 @@ import {
 } from './lib/orchestration/single-story-lease-guard.js';
 import { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
 import { composeStoryInitResult } from './lib/orchestration/story-init-result.js';
+import { publishDeliveryStage } from './lib/orchestration/story-stage-publish.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -802,6 +803,9 @@ export async function runSingleStoryInit({
       ? '✅ Dry-run complete. No git or ticket changes made.'
       : `✅ Standalone Story #${storyId} initialized on ${storyBranch}.`,
   );
+  if (!dryRun) {
+    await publishDeliveryStage({ provider, storyId, stage: 'build' });
+  }
 
   return { success: true, result };
 }

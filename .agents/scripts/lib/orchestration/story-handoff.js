@@ -110,6 +110,7 @@ import {
   scanDuplicationRescore,
 } from './story-close/duplication-close-rescore.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
+import { publishDeliveryStage } from './story-stage-publish.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -1996,6 +1997,11 @@ export async function runStoryHandoff(
     storyId,
     stage: 'handoff',
     config,
+  });
+  await publishDeliveryStage({
+    provider: createProviderFn && (() => createProviderFn(config)),
+    storyId,
+    stage: 'handoff',
   });
   const ctx = {
     storyId,
