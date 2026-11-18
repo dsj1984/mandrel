@@ -131,6 +131,10 @@
       "mi": 98.829
     },
     {
+      "path": ".agents/scripts/dispatch.js",
+      "mi": 89.669
+    },
+    {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "mi": 103.222
     },
@@ -695,6 +699,10 @@
       "mi": 92.389
     },
     {
+      "path": ".agents/scripts/lib/child-detached.js",
+      "mi": 113.33
+    },
+    {
       "path": ".agents/scripts/lib/child-exec.js",
       "mi": 112.652
     },
@@ -1029,6 +1037,26 @@
     {
       "path": ".agents/scripts/lib/detect-package-manager.js",
       "mi": 107.772
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/environments.js",
+      "mi": 114.399
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/launch-local.js",
+      "mi": 101.572
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/record.js",
+      "mi": 121.927
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/status.js",
+      "mi": 105.344
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/verdict.js",
+      "mi": 98.246
     },
     {
       "path": ".agents/scripts/lib/doc-tiers.js",
@@ -2793,6 +2821,10 @@
     {
       "path": "lib/cli/claude-code-version.js",
       "mi": 96.661
+    },
+    {
+      "path": "lib/cli/dispatch.js",
+      "mi": 136.293
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
