@@ -60,8 +60,16 @@ function sharedRefusal({ action, story, envName, environments, operator }) {
   return null;
 }
 
-function atCapacity({ action, envName, environments, loads }) {
+/** An offline environment takes no new Story; capacity is checked after. */
+function unavailable({ action, envName, environments, loads }) {
   const env = environments.find((e) => e.name === envName);
+  if (env.online === false) {
+    return refuse(
+      action,
+      'offline',
+      `Environment "${envName}" is offline (${env.offlineReason ?? 'unavailable'}).`,
+    );
+  }
   const load = loads?.[envName] ?? 0;
   if (load < env.capacity) return null;
   return refuse(
@@ -97,7 +105,7 @@ function decideDispatch(input) {
       `#${story.id} is blocked by open ${ids(input.unmetDependencies)}.`,
     );
   }
-  const full = atCapacity({ ...input, action: 'dispatch' });
+  const full = unavailable({ ...input, action: 'dispatch' });
   if (full) return full;
   return {
     ok: true,
@@ -128,10 +136,13 @@ function decideResume(input) {
   const target = holder ?? envName;
   const shared = sharedRefusal({ ...input, envName: target, action: 'resume' });
   if (shared) return shared;
-  if (!holder) {
-    const full = atCapacity({ ...input, envName: target, action: 'resume' });
-    if (full) return full;
-  }
+  const offline = unavailable({
+    ...input,
+    envName: target,
+    loads: holder ? {} : input.loads,
+    action: 'resume',
+  });
+  if (offline) return offline;
   return {
     ok: true,
     action: 'resume',

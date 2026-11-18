@@ -167,7 +167,8 @@ export function buildStatus({
       target: e.target,
       capacity: e.capacity,
       load: loads[e.name],
-      online: true,
+      online: e.online !== false,
+      ...(e.offlineReason ? { offlineReason: e.offlineReason } : {}),
     })),
     stories: [...open, ...done],
   };
@@ -219,7 +220,7 @@ export function renderStatus(status) {
   const lines = ['Environments:'];
   for (const env of status.environments) {
     lines.push(
-      `  ${env.name.padEnd(16)} ${env.target.padEnd(8)} ${env.load}/${env.capacity}`,
+      `  ${env.name.padEnd(16)} ${env.target.padEnd(12)} ${env.load}/${env.capacity}${env.online ? '' : ` offline (${env.offlineReason})`}`,
     );
   }
   for (const column of [...COLUMNS, 'done']) {

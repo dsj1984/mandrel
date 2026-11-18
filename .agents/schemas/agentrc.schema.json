@@ -1843,32 +1843,57 @@
         },
         "environments": {
           "type": "object",
-          "description": "Named delivery environments for `mandrel dispatch`, keyed by name (lowercase letters, digits and hyphens, at most 31 characters). Each entry is `{ target, capacity, command }`: `target` is where the delivery runs (`local` only); `capacity` is how many Stories may hold the environment at once (default 1); `command` is the argv started for a Story, `{id}` replaced by the Story id (default `[\"claude\", \"-p\", \"/mandrel-deliver {id}\"]`). Spawned without a shell. Unset, one implicit `local` environment with capacity 1 is used. `.agentrc.local.json` adds or overrides an entry through the usual merge.",
+          "description": "Named delivery environments for `mandrel dispatch`, keyed by name (lowercase letters, digits and hyphens, at most 31 characters). `target` is where the delivery runs and `capacity` how many Stories may hold the environment at once (default 1). A `local` entry may set `command`, the argv started for a Story with `{id}` replaced by the Story id (default `[\"claude\", \"-p\", \"/mandrel-deliver {id}\"]`), spawned without a shell. A `claude-cloud` entry fires a Claude Code routine instead: it requires `routine` (the routine id, `trig_…`) and `tokenEnv` (the NAME of the environment variable holding the routine token, never the token) and takes no `command`. Unset, one implicit `local` environment with capacity 1 is used. `.agentrc.local.json` adds or overrides an entry through the usual merge.",
           "propertyNames": {
             "pattern": "^[a-z0-9][a-z0-9-]{0,30}$"
           },
           "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "string",
-                "enum": ["local"]
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "const": "local"
+                  },
+                  "capacity": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "command": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": ["target"],
+                "additionalProperties": false
               },
-              "capacity": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "command": {
-                "type": "array",
-                "minItems": 1,
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                }
+              {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "const": "claude-cloud"
+                  },
+                  "capacity": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "routine": {
+                    "type": "string",
+                    "pattern": "^trig_[A-Za-z0-9_]+$"
+                  },
+                  "tokenEnv": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]*$"
+                  }
+                },
+                "required": ["target", "routine", "tokenEnv"],
+                "additionalProperties": false
               }
-            },
-            "required": ["target"],
-            "additionalProperties": false
+            ]
           }
         }
       },
