@@ -5182,7 +5182,8 @@
       "normalizeNumstatPath": 5,
       "parseNumstatRows": 6,
       "readNumstatRows": 7,
-      "summarizeDiffMagnitude": 5
+      "summarizeDiffMagnitude": 5,
+      "tallyLines": 2
     },
     ".agents/scripts/lib/orchestration/doc-reader.js": {
       "<anon readDocFiles/list.map(name)#0>": 2,
@@ -5594,13 +5595,16 @@
       "deriveLightSuitability": 3,
       "deriveReceiptTitle": 3,
       "deriveUnwaivableRisk": 4,
+      "describeLineCeiling": 3,
       "describeMagnitude": 4,
       "describeSensitivity": 3,
       "describeStoryBranch": 3,
       "normalizeAmends": 8.233045061447429,
       "normalizeCeiling": 4,
       "normalizeMagnitude": 5,
+      "overCeiling": 1,
       "resolveDiffCeilings": 1,
+      "resolveImplAdded": 4,
       "resolveLedgeredVerdict": 3,
       "resolveLightGateOutcome": 3,
       "slugifyPrompt": 1,

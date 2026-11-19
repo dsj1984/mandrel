@@ -202,6 +202,7 @@ describe('summarizeDiffMagnitude — implementation vs companion halves', () => 
     assert.deepEqual(summary, {
       implFiles: 1,
       implLines: 120,
+      implAdded: 100,
       companionFiles: 2,
       companionLines: 365,
       totalFiles: 3,
@@ -217,6 +218,20 @@ describe('summarizeDiffMagnitude — implementation vs companion halves', () => 
       rows: rowsOf([8, 1111, 'src/a.js']),
     });
     assert.equal(summary.implLines, 1119);
+    assert.equal(summary.implAdded, 8);
+  });
+
+  test('implAdded tallies implementation additions only — companion additions never count', () => {
+    const summary = summarizeDiffMagnitude({
+      changedFiles: ['src/a.js', 'src/b.js', 'tests/a.test.js'],
+      rows: rowsOf(
+        [63, 1155, 'src/a.js'],
+        [7, 0, 'src/b.js'],
+        [400, 0, 'tests/a.test.js'],
+      ),
+    });
+    assert.equal(summary.implAdded, 70);
+    assert.equal(summary.implLines, 1225);
   });
 
   test('a test-only change measures zero implementation lines', () => {
@@ -234,6 +249,7 @@ describe('summarizeDiffMagnitude — implementation vs companion halves', () => 
     assert.deepEqual(summarizeDiffMagnitude({ changedFiles: [], rows: [] }), {
       implFiles: 0,
       implLines: 0,
+      implAdded: 0,
       companionFiles: 0,
       companionLines: 0,
       totalFiles: 0,

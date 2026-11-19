@@ -1480,7 +1480,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/diff-magnitude.js",
-      "mi": 95.875
+      "mi": 97.223
     },
     {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
@@ -1628,7 +1628,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/light-suitability.js",
-      "mi": 94.162
+      "mi": 95.03
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",

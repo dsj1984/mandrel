@@ -59,11 +59,15 @@ function deriveUnwaivableRisk(decision) {
 }
 
 /**
- * Implementation-half ceilings (companions exempt); `maxImplFiles` matches
- * `DEFAULT_DIFF_WIDTH.softFiles`. Constants: a widenable ceiling fails silently.
+ * Implementation-half ceilings (companions exempt). `maxImplLines` bounds
+ * ADDED lines, so a deletion-heavy simplification is not over-size;
+ * `maxImplChurn` (additions + deletions) is the wide tripwire a mass
+ * deletion still meets. `maxImplFiles` matches `DEFAULT_DIFF_WIDTH.softFiles`.
+ * Constants: a widenable ceiling fails silently.
  */
 export const LIGHT_DIFF_CEILINGS = Object.freeze({
   maxImplLines: 1000,
+  maxImplChurn: 5000,
   maxImplFiles: 15,
 });
 
@@ -82,14 +86,18 @@ function normalizeCeiling(value, fallback) {
 }
 
 /**
- * @param {{ maxImplLines?: unknown, maxImplFiles?: unknown }} [ceilings]
- * @returns {{ maxImplLines: number, maxImplFiles: number }}
+ * @param {{ maxImplLines?: unknown, maxImplChurn?: unknown, maxImplFiles?: unknown }} [ceilings]
+ * @returns {{ maxImplLines: number, maxImplChurn: number, maxImplFiles: number }}
  */
 function resolveDiffCeilings(ceilings) {
   return {
     maxImplLines: normalizeCeiling(
       ceilings?.maxImplLines,
       LIGHT_DIFF_CEILINGS.maxImplLines,
+    ),
+    maxImplChurn: normalizeCeiling(
+      ceilings?.maxImplChurn,
+      LIGHT_DIFF_CEILINGS.maxImplChurn,
     ),
     maxImplFiles: normalizeCeiling(
       ceilings?.maxImplFiles,
@@ -227,8 +235,8 @@ function describeStoryBranch(storyBranch) {
  *
  * @param {{
  *   changedFiles?: unknown,
- *   magnitude?: { implFiles?: number, implLines?: number }|null,
- *   ceilings?: { maxImplLines?: number, maxImplFiles?: number },
+ *   magnitude?: { implFiles?: number, implLines?: number, implAdded?: number }|null,
+ *   ceilings?: { maxImplLines?: number, maxImplChurn?: number, maxImplFiles?: number },
  *   injectedRules?: object,
  *   selectSensitivePathClassesFn?: Function,
  *   storyBranch?: string,
@@ -239,8 +247,8 @@ function describeStoryBranch(storyBranch) {
  *   level: 'low'|'high'|null,
  *   classes: string[],
  *   fileCount: number|null,
- *   magnitude: { implFiles: number, implLines: number }|null,
- *   ceilings: { maxImplLines: number, maxImplFiles: number },
+ *   magnitude: { implFiles: number, implLines: number, implAdded: number }|null,
+ *   ceilings: { maxImplLines: number, maxImplChurn: number, maxImplFiles: number },
  *   refusalClass: string|null,
  *   reasons: string[],
  * }}
@@ -306,7 +314,8 @@ export function checkLightDiffBackstop({
     reasons: blocked
       ? objections.map((objection) => objection.reason)
       : [
-          `diff is light: ${measured.implLines} implementation line(s) ≤ ${resolved.maxImplLines} ` +
+          `diff is light: ${measured.implAdded} added implementation line(s) ≤ ${resolved.maxImplLines} ` +
+            `(${measured.implLines} changed ≤ ${resolved.maxImplChurn}) ` +
             `across ${measured.implFiles} implementation file(s) ≤ ${resolved.maxImplFiles} ` +
             `(${files.length} file(s) total, companions exempt), no sensitive-path class — safe to land`,
         ],
@@ -314,15 +323,32 @@ export function checkLightDiffBackstop({
 }
 
 /**
+ * A missing or malformed `implAdded` falls back to `implLines`: churn is
+ * never smaller than additions, so the fallback can only over-count.
+ *
  * @param {unknown} magnitude
- * @returns {{ implFiles: number, implLines: number }|null}
+ * @returns {{ implFiles: number, implLines: number, implAdded: number }|null}
  */
 function normalizeMagnitude(magnitude) {
   const implFiles = magnitude?.implFiles;
   const implLines = magnitude?.implLines;
   if (!Number.isFinite(implFiles) || !Number.isFinite(implLines)) return null;
   if (implFiles < 0 || implLines < 0) return null;
-  return { implFiles: Math.floor(implFiles), implLines: Math.floor(implLines) };
+  return {
+    implFiles: Math.floor(implFiles),
+    implLines: Math.floor(implLines),
+    implAdded: Math.floor(resolveImplAdded(magnitude.implAdded, implLines)),
+  };
+}
+
+/**
+ * @param {unknown} added
+ * @param {number} implLines
+ * @returns {number}
+ */
+function resolveImplAdded(added, implLines) {
+  const valid = Number.isFinite(added) && added >= 0 && added <= implLines;
+  return valid ? added : implLines;
 }
 
 /**
@@ -351,8 +377,8 @@ function describeSensitivity({ level, classes }) {
 }
 
 /**
- * @param {{ implFiles: number, implLines: number }|null} measured
- * @param {{ maxImplLines: number, maxImplFiles: number }} ceilings
+ * @param {{ implFiles: number, implLines: number, implAdded: number }|null} measured
+ * @param {{ maxImplLines: number, maxImplChurn: number, maxImplFiles: number }} ceilings
  * @returns {Objection[]}
  */
 function describeMagnitude(measured, ceilings) {
@@ -366,19 +392,57 @@ function describeMagnitude(measured, ceilings) {
     ];
   }
   const objections = [];
-  if (measured.implLines > ceilings.maxImplLines) {
-    objections.push({
-      refusalClass: LIGHT_REFUSAL_CLASSES.OVER_CEILING,
-      reason: `diff changes ${measured.implLines} implementation line(s) (> maxImplLines ${ceilings.maxImplLines}) — escalate to /mandrel-plan (do not land light)`,
-    });
-  }
+  const lines = describeLineCeiling(measured, ceilings);
+  if (lines) objections.push(lines);
   if (measured.implFiles > ceilings.maxImplFiles) {
-    objections.push({
-      refusalClass: LIGHT_REFUSAL_CLASSES.OVER_CEILING,
-      reason: `diff spans ${measured.implFiles} implementation file(s) (> maxImplFiles ${ceilings.maxImplFiles}) — escalate to /mandrel-plan (do not land light)`,
-    });
+    objections.push(
+      overCeiling(
+        `spans ${measured.implFiles} implementation file(s)`,
+        'maxImplFiles',
+        ceilings.maxImplFiles,
+      ),
+    );
   }
   return objections;
+}
+
+/**
+ * Added lines first; churn only when additions are within their ceiling, so
+ * one over-size diff reports one line objection.
+ *
+ * @param {{ implLines: number, implAdded: number }} measured
+ * @param {{ maxImplLines: number, maxImplChurn: number }} ceilings
+ * @returns {Objection|null}
+ */
+function describeLineCeiling(measured, ceilings) {
+  if (measured.implAdded > ceilings.maxImplLines) {
+    return overCeiling(
+      `adds ${measured.implAdded} implementation line(s)`,
+      'maxImplLines',
+      ceilings.maxImplLines,
+    );
+  }
+  if (measured.implLines > ceilings.maxImplChurn) {
+    return overCeiling(
+      `changes ${measured.implLines} implementation line(s)`,
+      'maxImplChurn',
+      ceilings.maxImplChurn,
+    );
+  }
+  return null;
+}
+
+/**
+ * @param {string} measured
+ * @param {string} name
+ * @param {number} limit
+ * @returns {Objection}
+ */
+function overCeiling(measured, name, limit) {
+  return {
+    refusalClass: LIGHT_REFUSAL_CLASSES.OVER_CEILING,
+    reason: `diff ${measured} (> ${name} ${limit}) — escalate to /mandrel-plan (do not land light)`,
+  };
 }
 
 const RECEIPT_SLUG_MAX = 48;
