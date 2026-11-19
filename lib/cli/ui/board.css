@@ -410,6 +410,15 @@ main {
   justify-content: flex-end;
   gap: 8px;
 }
+.panel .effective {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.panel .effective p {
+  margin: 0 0 4px;
+}
 
 .toast {
   position: fixed;

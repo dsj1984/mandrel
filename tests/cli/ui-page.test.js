@@ -42,6 +42,11 @@ const FIXED_TEST_IDS = [
   'status-filter',
   'status-filter-summary',
   'status-filter-menu',
+  'launch-options-dialog',
+  'launch-options-model',
+  'launch-options-effort',
+  'launch-options-effective',
+  'launch-options-save',
 ];
 
 /** Ids the header tabs and the Connections dialog carried before the panel views. */
@@ -75,6 +80,7 @@ const GENERATED_TEST_IDS = [
   'card-status-',
   'card-liveness-',
   'card-details-',
+  'card-settings-',
 ];
 
 /** The Story detail view's ids, set once by the script. */
@@ -202,6 +208,21 @@ describe('AC-10: the served script', () => {
   it('decides no drop itself: every verdict comes from the view model', () => {
     assert.doesNotMatch(script, /agent::/);
     assert.doesNotMatch(script, /\.drops\b/);
+  });
+});
+
+describe('AC-10: the launch-options dialog', () => {
+  it('is a modal dialog whose selects each open on "Use default" and save through the endpoint', () => {
+    assert.match(
+      html,
+      /<dialog class="panel" id="launch-options-dialog" data-testid="launch-options-dialog"/,
+    );
+    for (const id of ['launch-options-model', 'launch-options-effort']) {
+      assert.match(html, new RegExp(`<label for="${id}">`));
+    }
+    assert.match(script, /\$\('launch-options-dialog'\)\.showModal\(\)/);
+    assert.match(script, /api\('\/api\/launch-options', body\)/);
+    assert.match(script, /'✎'/);
   });
 });
 
