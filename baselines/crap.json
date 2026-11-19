@@ -9869,9 +9869,6 @@
       "writeVersionMarker": 2
     },
     "lib/cli/ui.js": {
-      "<anon runUi/Promise(resolve)#0/server.listen()#0>": 1,
-      "<anon runUi/Promise(resolve)#0/server.once:error(err)#0>": 1,
-      "<anon runUi/Promise(resolve)#0>": 1,
       "parsePort": 3,
       "parseUiArgs": 6,
       "run": 1,
