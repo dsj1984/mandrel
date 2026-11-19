@@ -8,6 +8,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { runDispatch } from '../.agents/scripts/dispatch.js';
+import { launchLocal } from '../.agents/scripts/lib/dispatch/launch-local.js';
 import { makeDispatchBoard } from './helpers/dispatch-board.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,19 @@ const SCRIPT = path.resolve(
   'scripts',
   'dispatch.js',
 );
+
+const DEFAULT_ARGV = (id) => [
+  'claude',
+  '-p',
+  `/mandrel-deliver ${id}`,
+  '--session-id',
+  '{sessionId}',
+  '--name',
+  `◐ Delivery #${id}`,
+  '--output-format',
+  'stream-json',
+  '--verbose',
+];
 
 const ready = (id, extra = {}) => ({
   id,
@@ -46,12 +60,33 @@ describe('dispatch (AC-5)', () => {
     });
     assert.ok(board.store.get(7).labels.includes('env::local'));
     assert.deepEqual(board.writes[0], { ensureLabels: ['env::local'] });
-    assert.deepEqual(board.records.get(7).argv, [
-      'claude',
-      '-p',
-      '/mandrel-deliver 7',
-    ]);
+    assert.deepEqual(board.records.get(7).argv, DEFAULT_ARGV(7));
     assert.equal(board.launches.length, 1);
+  });
+
+  it('AC-1: the real local launch records the session id its argv carries', async () => {
+    const board = makeDispatchBoard([ready(7)]);
+    const spawned = [];
+    const { deps } = board.capture();
+    const code = await runDispatch(['--env', 'local', '7'], {
+      ...deps,
+      launchImpl: (args) =>
+        launchLocal(args, {
+          spawnImpl: async (file, argv) => {
+            spawned.push([file, ...argv]);
+            return { pid: 55 };
+          },
+          fsImpl: { mkdirSync: () => {} },
+          uuid: () => 'uuid-1',
+        }),
+    });
+    assert.equal(code, 0);
+    const expected = DEFAULT_ARGV(7).map((p) =>
+      p === '{sessionId}' ? 'uuid-1' : p,
+    );
+    assert.deepEqual(spawned, [expected]);
+    assert.equal(board.records.get(7).sessionId, 'uuid-1');
+    assert.deepEqual(board.records.get(7).argv, expected);
   });
 });
 
@@ -179,6 +214,38 @@ describe('--resume (AC-9)', () => {
   });
 });
 
+describe('AC-2: a record written before session ids', () => {
+  const legacy = {
+    storyId: 7,
+    environment: 'local',
+    pid: 4321,
+    startedAt: '2026-11-01T00:00:00.000Z',
+    logPath: 'log-7',
+    argv: ['claude', '-p', '/mandrel-deliver 7'],
+  };
+
+  it('still stops its process', async () => {
+    const board = makeDispatchBoard([
+      { id: 7, labels: ['type::story', 'agent::executing', 'env::local'] },
+    ]);
+    board.records.set(7, legacy);
+    const { code, envelope } = await run(board, ['--stop', '7']);
+    assert.equal(code, 0);
+    assert.equal(envelope.pid, 4321);
+    assert.deepEqual(board.kills, [4321]);
+  });
+
+  it('still resumes', async () => {
+    const board = makeDispatchBoard([
+      { id: 7, labels: ['type::story', 'agent::blocked', 'env::local'] },
+    ]);
+    board.records.set(7, legacy);
+    const { code } = await run(board, ['--resume', '7']);
+    assert.equal(code, 0);
+    assert.equal(board.launches.length, 1);
+  });
+});
+
 describe('--stop (AC-10)', () => {
   it('kills the recorded process, releases the lease, returns to ready and drops the label', async () => {
     const board = makeDispatchBoard([
@@ -238,7 +305,7 @@ describe('--dry-run (AC-11)', () => {
       storyId: 7,
       environment: 'local',
       dryRun: true,
-      argv: ['claude', '-p', '/mandrel-deliver 7'],
+      argv: DEFAULT_ARGV(7),
     });
     assert.deepEqual(board.writes, []);
     assert.deepEqual(board.launches, []);

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
@@ -7,27 +8,49 @@ import {
   launchLocal,
   stopLocal,
 } from '../../../.agents/scripts/lib/dispatch/launch-local.js';
+import {
+  readRecord,
+  writeRecord,
+} from '../../../.agents/scripts/lib/dispatch/record.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+
+function launch(environment, uuid = () => 'sess-1') {
+  const calls = [];
+  const made = [];
+  const promise = launchLocal(
+    { storyId: 42, environment, cwd: 'proj', config: {} },
+    {
+      spawnImpl: async (file, args, opts) => {
+        calls.push({ file, args, opts });
+        return { pid: 1234 };
+      },
+      fsImpl: { mkdirSync: (dir) => made.push(dir) },
+      now: () => new Date('2026-11-18T00:00:00Z'),
+      uuid,
+    },
+  );
+  return promise.then((record) => ({ record, calls, made }));
+}
 
 describe('launchLocal', () => {
-  it('spawns the argv array with {id} replaced and returns the record (AC-8)', async () => {
-    const calls = [];
-    const made = [];
+  it('AC-1: spawns the default argv with {id} and a fresh session id, and records that id', async () => {
     const [environment] = resolveEnvironments({});
-    const record = await launchLocal(
-      { storyId: 42, environment, cwd: 'proj', config: {} },
-      {
-        spawnImpl: async (file, args, opts) => {
-          calls.push({ file, args, opts });
-          return { pid: 1234 };
-        },
-        fsImpl: { mkdirSync: (dir) => made.push(dir) },
-        now: () => new Date('2026-11-18T00:00:00Z'),
-      },
-    );
+    const { record, calls, made } = await launch(environment);
+    const argv = [
+      'claude',
+      '-p',
+      '/mandrel-deliver 42',
+      '--session-id',
+      'sess-1',
+      '--name',
+      '◐ Delivery #42',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+    ];
     assert.equal(calls.length, 1);
     assert.equal(calls[0].file, 'claude');
-    assert.ok(Array.isArray(calls[0].args));
-    assert.deepEqual(calls[0].args, ['-p', '/mandrel-deliver 42']);
+    assert.deepEqual(calls[0].args, argv.slice(1));
     assert.equal(calls[0].opts.cwd, 'proj');
     assert.equal('shell' in calls[0].opts, false);
     assert.equal(path.basename(record.logPath), 'story-42.log');
@@ -39,8 +62,45 @@ describe('launchLocal', () => {
       pid: 1234,
       startedAt: '2026-11-18T00:00:00.000Z',
       logPath: record.logPath,
-      argv: ['claude', '-p', '/mandrel-deliver 42'],
+      argv,
+      sessionId: 'sess-1',
     });
+  });
+
+  it('AC-2: a custom command gets a fresh id only when it asks for one', async () => {
+    let n = 0;
+    const uuid = () => `u-${++n}`;
+    const custom = (command) => ({ name: 'box', target: 'local', command });
+    const asked = await launch(custom(['run', '{sessionId}', '{id}']), uuid);
+    assert.deepEqual(asked.record.argv, ['run', 'u-1', '42']);
+    assert.equal(asked.record.sessionId, 'u-1');
+    const again = await launch(custom(['run', '{sessionId}']), uuid);
+    assert.equal(again.record.sessionId, 'u-2');
+    const plain = await launch(custom(['run', '{id}']), uuid);
+    assert.deepEqual(plain.record.argv, ['run', '42']);
+    assert.equal('sessionId' in plain.record, false);
+  });
+});
+
+describe('dispatch record', () => {
+  it('AC-2: reads a record written before session ids', () => {
+    const tempRoot = makeTempDir('mandrel-dispatch-record-');
+    try {
+      const config = { project: { paths: { tempRoot } } };
+      const legacy = {
+        storyId: 9,
+        environment: 'local',
+        pid: 77,
+        startedAt: '2026-11-01T00:00:00.000Z',
+        logPath: path.join(tempRoot, 'dispatch', 'story-9.log'),
+        argv: ['claude', '-p', '/mandrel-deliver 9'],
+      };
+      fs.mkdirSync(path.join(tempRoot, 'dispatch'), { recursive: true });
+      writeRecord(legacy, { config });
+      assert.deepEqual(readRecord(9, { config }), legacy);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 });
 

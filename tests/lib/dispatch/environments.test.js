@@ -9,6 +9,19 @@ import {
   resolveEnvironments,
 } from '../../../.agents/scripts/lib/dispatch/environments.js';
 
+const DEFAULT_COMMAND = [
+  'claude',
+  '-p',
+  '/mandrel-deliver {id}',
+  '--session-id',
+  '{sessionId}',
+  '--name',
+  '◐ Delivery #{id}',
+  '--output-format',
+  'stream-json',
+  '--verbose',
+];
+
 describe('resolveEnvironments', () => {
   it('resolves exactly one local environment with capacity 1 when none is configured', () => {
     for (const config of [
@@ -23,7 +36,7 @@ describe('resolveEnvironments', () => {
           target: 'local',
           capacity: 1,
           online: true,
-          command: ['claude', '-p', '/mandrel-deliver {id}'],
+          command: DEFAULT_COMMAND,
         },
       ]);
     }
@@ -44,7 +57,7 @@ describe('resolveEnvironments', () => {
         target: 'local',
         capacity: 1,
         online: true,
-        command: ['claude', '-p', '/mandrel-deliver {id}'],
+        command: DEFAULT_COMMAND,
       },
       {
         name: 'big',
@@ -86,6 +99,12 @@ describe('labels and load', () => {
       '/x 42 42',
       'b',
     ]);
+  });
+
+  it('AC-2: substitutes {sessionId} in any command, keeping it for a dry run', () => {
+    const custom = ['run', '--sid={sessionId}', '{id}'];
+    assert.deepEqual(commandFor(custom, 7, 'u-1'), ['run', '--sid=u-1', '7']);
+    assert.deepEqual(commandFor(custom, 7), ['run', '--sid={sessionId}', '7']);
   });
 });
 

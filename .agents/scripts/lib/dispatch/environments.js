@@ -16,6 +16,8 @@ import { resolveEntry } from './targets.js';
  */
 const ENV_LABEL_PREFIX = 'env::';
 
+const SESSION_PLACEHOLDER = '{sessionId}';
+
 /** The colour an `env::` label is created with. */
 export const ENV_LABEL_COLOR = '#5319E7';
 
@@ -111,12 +113,23 @@ export function computeLoads(environments, tickets) {
 }
 
 /**
- * The argv for one Story: `{id}` replaced in every element.
+ * The argv for one Story: `{id}` and `{sessionId}` replaced in every
+ * element; a dry run keeps the session placeholder.
  *
  * @param {string[]} command
  * @param {number} storyId A validated positive integer.
+ * @param {string} [sessionId]
  * @returns {string[]}
  */
-export function commandFor(command, storyId) {
-  return command.map((part) => part.replaceAll('{id}', String(storyId)));
+export function commandFor(command, storyId, sessionId = SESSION_PLACEHOLDER) {
+  return command.map((part) =>
+    part
+      .replaceAll('{id}', String(storyId))
+      .replaceAll(SESSION_PLACEHOLDER, sessionId),
+  );
+}
+
+/** Whether a command asks for a session id. */
+export function wantsSessionId(command) {
+  return command.some((part) => part.includes(SESSION_PLACEHOLDER));
 }

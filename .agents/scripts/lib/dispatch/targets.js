@@ -18,6 +18,13 @@ const DEFAULT_COMMAND = Object.freeze([
   'claude',
   '-p',
   '/mandrel-deliver {id}',
+  '--session-id',
+  '{sessionId}',
+  '--name',
+  '◐ Delivery #{id}',
+  '--output-format',
+  'stream-json',
+  '--verbose',
 ]);
 
 const isCloud = (environment) => environment.target === CLOUD_TARGET;

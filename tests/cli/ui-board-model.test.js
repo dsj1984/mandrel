@@ -11,6 +11,7 @@ import {
   environmentCards,
   moveOptions,
   nextTheme,
+  storyDetailView,
   zoneVerdict,
 } from '../../lib/cli/ui/board-model.js';
 
@@ -378,5 +379,174 @@ describe('nextTheme', () => {
     assert.equal(nextTheme('dark'), 'auto');
     assert.equal(nextTheme(undefined), 'light');
     assert.equal(nextTheme('bogus'), 'auto');
+  });
+});
+
+const NOW = Date.parse('2026-11-18T02:00:00.000Z');
+const minutesAgo = (m) => new Date(NOW - m * 60_000).toISOString();
+
+describe('AC-8: the in-flight status row', () => {
+  const statusOf = (row) =>
+    buildBoard({ environments: [], stories: [row] }, null, NOW)
+      .columns.flatMap((c) =>
+        c.lanes ? c.lanes.flatMap((l) => l.cards) : c.cards,
+      )
+      .at(0).status;
+
+  it('marks the current stage and the ones before it', () => {
+    const status = statusOf(story(3, 'delivering', { stage: 'handoff' }));
+    assert.deepEqual(status.steps, [
+      { name: 'build', state: 'done' },
+      { name: 'check', state: 'done' },
+      { name: 'handoff', state: 'current' },
+      { name: 'close', state: 'todo' },
+      { name: 'merge', state: 'todo' },
+    ]);
+    assert.equal(status.stage, 'handoff');
+    const none = statusOf(story(3, 'delivering', { stage: null }));
+    assert.ok(none.steps.every((s) => s.state === 'todo'));
+    assert.equal(none.stage, 'no stage yet');
+  });
+
+  it('shows the running and updated times', () => {
+    const status = statusOf(
+      story(3, 'delivering', {
+        stage: 'check',
+        stageUpdatedAt: minutesAgo(4),
+        process: { state: 'working', startedAt: minutesAgo(125) },
+      }),
+    );
+    assert.equal(status.running, 'running 2h 5m');
+    assert.equal(status.updated, 'updated 4m ago');
+    const unknown = statusOf(story(3, 'blocked', { process: null }));
+    assert.equal(unknown.running, null);
+    assert.equal(unknown.updated, null);
+  });
+
+  it('reads each liveness state, and warns when an executing Story lost its process', () => {
+    const liveness = (process, state = 'agent::executing') =>
+      statusOf(story(3, 'delivering', { state, process })).liveness;
+    assert.deepEqual(liveness({ state: 'working' }), {
+      state: 'working',
+      text: 'working',
+      warning: false,
+    });
+    assert.deepEqual(liveness({ state: 'exited' }), {
+      state: 'exited',
+      text: 'process exited',
+      warning: true,
+    });
+    assert.equal(
+      liveness({ state: 'exited' }, 'agent::blocked').warning,
+      false,
+    );
+    assert.equal(liveness(undefined).text, 'unknown');
+    assert.equal(liveness({ state: 'bogus' }).state, 'unknown');
+  });
+
+  it('is absent outside Delivering and Blocked', () => {
+    assert.equal(statusOf(story(3, 'ready')), null);
+    assert.equal(statusOf(story(3, 'done')), null);
+  });
+});
+
+describe('AC-11: links', () => {
+  it('renders only https://github.com/ PR links', () => {
+    const card = cardOf(
+      story(3, 'done', {
+        pr: { number: 1, url: 'javascript:alert(1)', checks: null },
+      }),
+    );
+    assert.equal(card.pr.url, null);
+  });
+});
+
+describe('AC-9: storyDetailView', () => {
+  const detail = (extra = {}) => ({
+    id: 7,
+    title: 'Ship it',
+    column: 'delivering',
+    environment: 'local',
+    labels: ['type::story', 'agent::executing'],
+    issueUrl: 'https://github.com/o/r/issues/7',
+    pr: {
+      number: 9,
+      url: 'https://github.com/o/r/pull/9',
+      checks: { total: 2, passed: 2, failed: 0, pending: 0 },
+    },
+    stage: 'check',
+    history: [
+      { stage: 'build', at: minutesAgo(30) },
+      { stage: 'check', at: minutesAgo(5) },
+    ],
+    process: { state: 'working', startedAt: minutesAgo(30) },
+    record: {
+      pid: 42,
+      startedAt: '2026-11-18T01:30:00.000Z',
+      argv: ['claude', '-p', '/mandrel-deliver 7'],
+      sessionId: 's-1',
+      sessionUrl: null,
+    },
+    resumeCommand: 'claude --resume s-1',
+    logTail: ['one', 'two'],
+    ...extra,
+  });
+
+  it('builds every section from the endpoint fields', () => {
+    assert.deepEqual(storyDetailView(detail(), NOW), {
+      heading: '#7 Ship it',
+      issueUrl: 'https://github.com/o/r/issues/7',
+      pr: {
+        number: 9,
+        url: 'https://github.com/o/r/pull/9',
+        checks: '2/2 passed',
+      },
+      facts: [
+        ['Column', 'delivering'],
+        ['Environment', 'local'],
+        ['Stage', 'check'],
+        ['Process', 'working, running 30m'],
+        ['Labels', 'type::story, agent::executing'],
+      ],
+      timeline: [
+        'build: 2026-11-18 01:30 UTC (30m ago)',
+        'check: 2026-11-18 01:55 UTC (5m ago)',
+      ],
+      record: [
+        ['pid', 42],
+        ['Started', '2026-11-18 01:30 UTC'],
+        ['Session', 's-1'],
+        ['Command', 'claude -p /mandrel-deliver 7'],
+      ],
+      resumeCommand: 'claude --resume s-1',
+      log: 'one\ntwo',
+    });
+  });
+
+  it('defaults an empty Story and drops a non-GitHub link', () => {
+    const view = storyDetailView(
+      {
+        id: 8,
+        column: 'blocked',
+        issueUrl: 'https://evil.example/x',
+        pr: null,
+        process: { state: 'exited', startedAt: null },
+        record: null,
+        logTail: [],
+      },
+      NOW,
+    );
+    assert.equal(view.heading, '#8');
+    assert.equal(view.issueUrl, null);
+    assert.equal(view.pr, null);
+    assert.deepEqual(view.facts.slice(1, 4), [
+      ['Environment', 'none'],
+      ['Stage', 'none'],
+      ['Process', 'process exited'],
+    ]);
+    assert.deepEqual(view.timeline, []);
+    assert.deepEqual(view.record, []);
+    assert.equal(view.resumeCommand, null);
+    assert.equal(view.log, 'No log output yet.');
   });
 });

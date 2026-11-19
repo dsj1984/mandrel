@@ -11,8 +11,10 @@ import fs from 'node:fs';
 import { dispatchRecordPath } from '../config/temp-paths.js';
 
 /**
- * @typedef {{ storyId: number, environment: string, pid: number,
- *   startedAt: string, logPath: string, argv: string[] }} DispatchRecord
+ * New fields are optional to readers; a cloud record has `sessionUrl`, no pid.
+ * @typedef {{ storyId: number, environment: string, pid?: number,
+ *   startedAt: string, logPath?: string, argv?: string[],
+ *   sessionId?: string, sessionUrl?: string }} DispatchRecord
  */
 
 /**

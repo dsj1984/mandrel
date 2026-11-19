@@ -63,8 +63,9 @@ const DISPATCH_USAGE = `Usage: mandrel dispatch --env <name> <storyId>
 Starts an agent::ready Story's delivery in a named environment
 (delivery.environments; one implicit "local" environment when unset),
 labelling the Story env::<name> as the claim. The launched command is the
-environment's argv with {id} replaced by the Story id, started detached
-without a shell; its output goes to <tempRoot>/dispatch/story-<id>.log.
+environment's argv with {id} replaced by the Story id and {sessionId} by a
+fresh UUID, started detached without a shell; its output goes to
+<tempRoot>/dispatch/story-<id>.log.
 A claude-cloud environment instead fires its Claude Code routine once with
 the payload "mandrel-deliver <id>" and posts the session URL on the Story.
 

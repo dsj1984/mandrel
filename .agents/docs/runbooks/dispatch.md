@@ -18,7 +18,7 @@ Environments live under `delivery.environments` in `.agentrc.json` (or
       "local": { "target": "local", "capacity": 2 },
       "laptop-yolo": {
         "target": "local",
-        "command": ["claude", "-p", "/mandrel-deliver {id}"]
+        "command": ["claude", "-p", "/mandrel-deliver {id}", "--session-id", "{sessionId}"]
       }
     }
   }
@@ -32,9 +32,20 @@ Environments live under `delivery.environments` in `.agentrc.json` (or
 - **`capacity`**: how many Stories the environment may hold at once
   (default 1).
 - **`command`**: `local` only. The argv started for a Story, with `{id}`
-  replaced by the Story id (default
-  `["claude", "-p", "/mandrel-deliver {id}"]`). It is spawned as an array,
-  never through a shell.
+  replaced by the Story id and `{sessionId}` by a fresh UUID per launch.
+  It is spawned as an array, never through a shell. The default is:
+
+  ```json
+  ["claude", "-p", "/mandrel-deliver {id}", "--session-id", "{sessionId}",
+   "--name", "◐ Delivery #{id}", "--output-format", "stream-json", "--verbose"]
+  ```
+
+  `--session-id` fixes the Claude Code session id so the run can be resumed
+  with `claude --resume <sessionId>`; `--name` titles the session as an
+  interactive delivery would; `stream-json` output (which `-p` requires
+  `--verbose` for) makes the log fill as the run progresses instead of at
+  exit. A custom command that contains `{sessionId}` gets the same fresh
+  UUID; one without it records no session id.
 
 With no `delivery.environments`, one implicit environment named `local`
 with capacity 1 is used.
@@ -142,13 +153,27 @@ is proven by your first live dispatch, not by a test. On the first one:
 
 | Command | What it does |
 | --- | --- |
-| `mandrel dispatch --env <name> <id>` | Dispatch an `agent::ready` Story: apply `env::<name>`, then start the environment's command detached. Output goes to `<tempRoot>/dispatch/story-<id>.log`; the record (`pid`, `argv`, `startedAt`) sits beside it as `story-<id>.json`. If the process fails to start, the label is removed again and the command exits 1. |
+| `mandrel dispatch --env <name> <id>` | Dispatch an `agent::ready` Story: apply `env::<name>`, then start the environment's command detached. Output goes to `<tempRoot>/dispatch/story-<id>.log`; the record (`pid`, `argv`, `startedAt`, and `sessionId` when the command used `{sessionId}`) sits beside it as `story-<id>.json`. A record written before `sessionId` existed still reads, stops and resumes. If the process fails to start, the label is removed again and the command exits 1. |
 | `mandrel dispatch --resume <id>` | Relaunch an `agent::blocked` Story in the environment its label names. No `agent::*` label changes: the launched `/mandrel-deliver <id>` owns the resume path. |
 | `mandrel dispatch --stop <id>` | Stop the recorded process, release the lease, return the Story to `agent::ready` and remove its `env::` label. The branch and worktree are kept. |
 | `mandrel dispatch --status [--json]` | Print every environment with its load and every Story's board column, with the verdict each drop target would return. |
 
 `--dry-run` prints the verdict and the argv it would run, and writes and
-starts nothing.
+starts nothing. No session is created, so a `{sessionId}` placeholder is
+printed as it is.
+
+## Following a dispatched delivery
+
+The [dispatch board](dispatch-board.md) shows, per in-flight Story, whether
+its process is still running. Liveness is read from the dispatch record by
+sending signal 0 to its `pid`, which checks the process and delivers
+nothing:
+
+| State | Meaning |
+| --- | --- |
+| `working` | The recorded process exists. |
+| `exited` | The recorded process is gone. On a Story still `agent::executing`, the delivery died without blocking; resume or stop it. |
+| `unknown` | A cloud session (never polled) or a Story with no dispatch record. |
 
 The launched delivery acquires the assignee lease exactly as a delivery you
 start by hand does; dispatch never claims it.

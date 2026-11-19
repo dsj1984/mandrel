@@ -23,21 +23,22 @@ const DELIVERY_STAGES = Object.freeze([
 
 const RECORD_RE = /```json\n(\{[^\n]*"kind":"delivery-stage"[^\n]*\})\n```/;
 
-/**
- * The comment body: a one-line summary, then the machine block.
- *
- * @param {{ storyId: number, stage: string, prNumber: number|null, updatedAt: string }} record
- * @returns {string}
- */
-function formatDeliveryStageBody({ storyId, stage, prNumber, updatedAt }) {
-  const record = {
-    kind: DELIVERY_STAGE_TYPE,
-    storyId,
-    stage,
-    prNumber,
-    updatedAt,
-  };
-  return `Delivery stage: **${stage}** (Story #${storyId}).\n\n\`\`\`json\n${JSON.stringify(record)}\n\`\`\``;
+const HISTORY_LIMIT = 10;
+
+/** The comment body: a one-line summary, then the machine block. */
+function formatDeliveryStageBody(fields) {
+  const record = { kind: DELIVERY_STAGE_TYPE, ...fields };
+  return `Delivery stage: **${fields.stage}** (Story #${fields.storyId}).\n\n\`\`\`json\n${JSON.stringify(record)}\n\`\`\``;
+}
+
+const isEntry = (e) =>
+  DELIVERY_STAGES.includes(e?.stage) && typeof e?.at === 'string';
+
+/** The entries before `stage`, seeded from a pre-history record's own stage. */
+function priorHistory(previous) {
+  if (!previous) return [];
+  if (previous.history.length > 0) return previous.history;
+  return [{ stage: previous.stage, at: previous.updatedAt }];
 }
 
 /**
@@ -46,7 +47,7 @@ function formatDeliveryStageBody({ storyId, stage, prNumber, updatedAt }) {
  *
  * @public
  * @param {unknown} body
- * @returns {{ kind: 'delivery-stage', storyId: number, stage: string, prNumber: number|null, updatedAt: string }|null}
+ * @returns {object|null} The record; `history` is `[]` on an older one.
  */
 export function parseDeliveryStage(body) {
   const match = typeof body === 'string' ? RECORD_RE.exec(body) : null;
@@ -63,9 +64,18 @@ export function parseDeliveryStage(body) {
     DELIVERY_STAGES.includes(stage) &&
     (prNumber === null || Number.isInteger(prNumber)) &&
     typeof updatedAt === 'string';
-  return valid
-    ? { kind: DELIVERY_STAGE_TYPE, storyId, stage, prNumber, updatedAt }
-    : null;
+  if (!valid) return null;
+  const history = Array.isArray(record.history)
+    ? record.history.filter(isEntry).map((e) => ({ stage: e.stage, at: e.at }))
+    : [];
+  return {
+    kind: DELIVERY_STAGE_TYPE,
+    storyId,
+    stage,
+    prNumber,
+    updatedAt,
+    history,
+  };
 }
 
 /**
@@ -94,12 +104,17 @@ export async function publishDeliveryStage({
       storyId,
       DELIVERY_STAGE_TYPE,
     );
-    if (parseDeliveryStage(existing?.body)?.stage === stage) return 'unchanged';
+    const previous = parseDeliveryStage(existing?.body);
+    if (previous?.stage === stage) return 'unchanged';
+    const updatedAt = now().toISOString();
     const body = formatDeliveryStageBody({
       storyId,
       stage,
       prNumber: Number.isInteger(prNumber) && prNumber > 0 ? prNumber : null,
-      updatedAt: now().toISOString(),
+      updatedAt,
+      history: [...priorHistory(previous), { stage, at: updatedAt }].slice(
+        -HISTORY_LIMIT,
+      ),
     });
     await upsertStructuredComment(resolved, storyId, DELIVERY_STAGE_TYPE, body);
     return 'published';
