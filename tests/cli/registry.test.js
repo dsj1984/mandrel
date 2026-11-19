@@ -75,8 +75,8 @@ describe('registry', () => {
     assert.ok(Array.isArray(registry), 'registry must be an array');
   });
 
-  it('contains exactly 22 checks', () => {
-    assert.equal(registry.length, 22);
+  it('contains exactly 23 checks', () => {
+    assert.equal(registry.length, 23);
   });
 
   it('every entry has a string name and a run function', () => {
@@ -115,6 +115,7 @@ describe('registry', () => {
       'test-credit-path',
       'coverage-ratchet',
       'suite-ownership',
+      'session-title-allowlist',
     ];
     assert.deepEqual(
       registry.map((c) => c.name),

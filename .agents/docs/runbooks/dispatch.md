@@ -118,6 +118,10 @@ local process:
   config, and dispatch never prints, logs, records or comments it; an error
   names the variable, not its value.
 
+The cloud session is not retitled as it works: the fire request has no title
+field and a cloud session has no session-title tool, so it keeps the name
+the routine gives it ([session titles](session-titles.md#which-hosts-title)).
+
 Dispatch sends one request, never retried (the endpoint has no idempotency
 key):
 
