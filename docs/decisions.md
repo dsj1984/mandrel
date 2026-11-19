@@ -37,6 +37,7 @@ superseded — open it before citing it.
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
 | [`20261118-6119`](#adr-20261118-6119-session-titles-raise-the-agentrc-leaf-key-ceiling-to-172) | Session titles raise the agentrc leaf-key ceiling to 172 | `.agents/scripts/session-title.js` | Accepted |
+| [`20261119-6137`](#adr-20261119-6137-dispatch-model-overrides-raise-the-agentrc-leaf-key-ceiling-to-173) | Dispatch model overrides raise the agentrc leaf-key ceiling to 173 | `.agents/scripts/lib/dispatch/launch-options.js` | Accepted |
 | [`20261118-6108`](#adr-20261118-6108-named-delivery-environments-raise-the-agentrc-leaf-key-ceiling-to-171) | Named delivery environments raise the agentrc leaf-key ceiling to 171 | `.agents/scripts/lib/dispatch/environments.js` | Accepted |
 | [`20261117-6099`](#adr-20261117-6099-the-handoff-fast-lane-raises-the-agentrc-leaf-key-ceiling-to-170) | The handoff fast lane raises the agentrc leaf-key ceiling to 170 | `.agents/scripts/lib/config/handoff.js` | Accepted |
 | [`20261112-6068`](#adr-20261112-6068-untested-cli-wiring-raises-the-agentrc-leaf-key-ceiling-to-169) | Untested CLI wiring raises the agentrc leaf-key ceiling to 169 | `.agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js` | Accepted |
