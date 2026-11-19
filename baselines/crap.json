@@ -9912,6 +9912,7 @@
       "toggleAssignee": 2
     },
     "lib/cli/ui/board-model.js": {
+      "<anon assigneesText(assignees)#0>": 2,
       "<anon buildBoard/column.lanes.find(l)#0>": 1,
       "<anon buildBoard/columns.map(c)#0>": 1,
       "<anon buildBoard/COLUMNS.map(c)#0>": 1,
@@ -9926,6 +9927,7 @@
       "<anon environmentCards/map(env)#0/filter(s)#0>": 2,
       "<anon environmentCards/map(env)#0/map(s)#0>": 1,
       "<anon environmentCards/map(env)#0>": 2,
+      "<anon epicText(epic)#0>": 2,
       "<anon moveOptions/filter(v)#0>": 1,
       "<anon moveOptions/zones.map(zone)#0>": 1,
       "<anon recordRows/filter(value)#0>": 2,
