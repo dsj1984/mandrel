@@ -1,5 +1,6 @@
-// tests/cli/ui-board-filter.test.js — the board's People and Status filters:
-// choices from the board, the match rule, the summary and saved selection.
+// tests/cli/ui-board-filter.test.js — the board's People, Status and Epic
+// filters: choices from the board, the match rule, the summary and saved
+// selection.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -153,5 +154,45 @@ describe('the Status filter', () => {
     assert.deepEqual(loadFilter(storage, 'status'), ['Todo']);
     assert.deepEqual(loadFilter(storage, 'assignee'), []);
     assert.deepEqual([...storage.data.keys()], ['mandrel-board-statuses']);
+  });
+});
+
+describe('AC-8: the Epic filter', () => {
+  const e = (id, title) => ({ epic: { id, title } });
+  const stories = [e(12, 'Board'), {}, e(3, 'Dispatch'), e(12, 'Board')];
+
+  it('offers No Epic first, then each Epic as #<id> <title> in id order', () => {
+    assert.deepEqual(
+      filterOptions('epic', stories, ['99']).map((o) => [o.value, o.text]),
+      [
+        [':none', 'No Epic'],
+        ['3', '#3 Dispatch'],
+        ['12', '#12 Board'],
+        ['99', '#99'],
+      ],
+    );
+  });
+
+  it('matches a selected Epic, or No Epic, and combines with the other filters', () => {
+    assert.equal(matchesFilter('epic', e(12, 'Board'), ['12']), true);
+    assert.equal(matchesFilter('epic', e(3, 'Dispatch'), ['12']), false);
+    assert.equal(matchesFilter('epic', {}, [':none']), true);
+    const story = { ...e(12, 'Board'), projectStatus: 'Todo', assignees: [] };
+    const shown = (selections) =>
+      Object.entries(selections).every(([name, selected]) =>
+        matchesFilter(name, story, selected),
+      );
+    assert.equal(shown({ epic: ['12'], status: ['Todo'] }), true);
+    assert.equal(shown({ epic: ['12'], status: ['On Hold'] }), false);
+  });
+
+  it('summarises with the #id and saves under its own key', () => {
+    assert.equal(filterSummary('epic', []), 'Any Epic');
+    assert.equal(filterSummary('epic', ['12']), '#12');
+    assert.equal(filterSummary('epic', [':none']), 'No Epic');
+    const storage = memoryStorage();
+    saveFilter(storage, 'epic', ['12']);
+    assert.deepEqual(loadFilter(storage, 'epic'), ['12']);
+    assert.deepEqual(loadFilter(storage, 'status'), []);
   });
 });

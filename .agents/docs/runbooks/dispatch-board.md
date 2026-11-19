@@ -94,20 +94,47 @@ in your browser, not from other people on a network.
 ## The board
 
 Columns, in order: **Backlog**, **Planning**, **Ready**, **Delivering**,
-**Blocked**, **Done**. Delivering holds one lane per configured environment,
-headed by its name, target and `load/capacity` (or `offline`), plus an
-`untracked` lane for in-flight Stories that carry no `env::` label. A card
-shows the Story id, title, the Epic it belongs to, its Project Status, pull
-request with its check summary, unmet dependencies and environment. Every
-ticket id on the board (the card's id, each `waits on #<id>`, the Epic, the
-detail's Depends on) links to its GitHub issue, and every GitHub link opens
-in a new tab.
+**Blocked**, **Done**. Each column header shows how many cards it displays
+after the filters and search; Done adds the total closed Stories, as
+`<shown> of <total>`. A column displaying no cards collapses to a narrow
+rail; it is still a drop target, and every rail opens while you drag a card.
+
+With two or more environments, Delivering holds one lane per environment,
+headed by its name, target and `load/capacity` (or `offline`), plus a
+**Not launched from the board** lane for in-flight Stories that carry no
+`env::` label. With exactly one environment, Delivering shows no lane
+headers: the column header carries that environment's `load/capacity` (or
+`offline`), and the launched cards come first, followed by the rest. The
+whole column body is then that environment's drop target.
+
+A card shows the Story id, title, its Epic as `Epic #<id>` (the full title
+on hover), pull request with its check summary, unmet dependencies and
+environment. Every ticket id on the board (the card's id, each
+`waits on #<id>`, the Epic, the detail's Depends on) links to its GitHub
+issue, and every GitHub link opens in a new tab.
+
+**Ready** lists the Stories a drop would dispatch now first: those whose
+verdict is ok in at least one environment, in read-model order. The others
+follow, dimmed, each with one line saying why it waits: the refusal detail
+from the first environment that refuses it, such as `#12 is leased to @x.`
+or an environment at capacity. A Story waiting on an open dependency shows
+only its linked `waits on #<id>` line.
+
+A **Blocked** card shows one truncated line naming why it is blocked: the
+first heading of the latest friction comment the runtime posted on the
+Story (for example `story-handoff blocked: lint`). The Story detail shows it
+in full as **Blocked by**, linked to the comment. A blocked Story with no
+friction comment shows no line.
 
 **Project Status** is the GitHub Projects v2 **Status** field, read from the
-project `github.projectNumber` names: a dot and the Status name (grey Todo,
-blue In Progress, amber On Hold, purple Done). With no project configured,
-or a token without the `project` scope, cards show no Status and the board
-still loads. Mandrel writes the Status itself on every `agent::` label
+project `github.projectNumber` names. A card shows it, as a dot and the
+Status name (grey Todo, blue In Progress, amber On Hold, purple Done), only
+when it has drifted: when it differs from the Status board-sync writes for
+the Story's labels (below; a closed Story expects Done). A Story whose
+labels give board-sync nothing to write shows no chip. The Story detail
+always lists the Status, and the header's Status filter is unaffected.
+With no project configured, or a token without the `project` scope, cards
+show no Status and the board still loads. Mandrel writes the Status itself on every `agent::` label
 change: `agent::ready` and `agent::review-spec` → Todo, `agent::executing`
 and `agent::closing` → In Progress, `agent::blocked` → On Hold,
 `agent::done` → Done. `node .agents/scripts/agents-bootstrap-github.js` adds On Hold to the project's
@@ -122,8 +149,12 @@ card, in the Story detail.
 
 A card in Delivering or Blocked also shows a status row:
 
-- a stepper over the five published stages (build · check · handoff ·
-  close · merge), marking the current one and those before it;
+- once the delivery has published a stage, a stepper over the five
+  published stages (build · check · handoff · close · merge), marking the
+  current one and those before it. Before the first stage, the row reads
+  `no stage yet` with no stepper. A Delivering Story with neither a stage
+  nor a dispatch record shows only the muted line
+  `running outside the board`;
 - a liveness badge: a pulsing dot for `working`, amber **process exited**
   for `exited` (see
   [Following a dispatched delivery](dispatch.md#following-a-dispatched-delivery)).
@@ -135,14 +166,25 @@ A card in Delivering or Blocked also shows a status row:
 
 ## The header
 
-The board is always the main view. The header's right side holds the
-**Status** and **People** filters and three icon buttons.
+The board is always the main view. The header's right side holds a search
+box, the **Status**, **Epic** and **People** filters and two icon buttons.
+
+**Search** filters the cards as you type. Digits, with or without a leading
+`#`, match the start of a Story id (`61` and `#61` both match #6139);
+anything else matches the title, ignoring case. Press `/` anywhere outside
+a text field to focus it and Esc to clear it. The search is not saved.
 
 **Status** chooses which Project Statuses the columns show. Its menu lists
 **No status** and every Status on the board in board order (Todo, In
 Progress, On Hold, Done, then any other); its **Any status** button clears
-it. It reads, tints and saves like People below, and the two combine: a
-card shows only when it passes both.
+it. It reads, tints and saves like People below.
+
+**Epic** chooses which Epics' Stories the columns show. Its menu lists
+**No Epic** and every Epic on the board as `#<id> <title>`; **Any Epic**
+clears it. It reads, tints and saves like People.
+
+The search and the three filters combine: a card shows only when it passes
+all four.
 
 **People** chooses whose Stories the columns show. Its menu lists
 **Unassigned** and every login assigned to a Story on the board; check any
@@ -153,37 +195,32 @@ count as dependencies, so a card can wait on one you have filtered out.
 
 The icon buttons:
 
-- **Environments** (server-stack icon): a badge shows how many environments
-  are offline, when any are.
 - **Connections** (plug icon): tinted when GitHub and the `claude` CLI both
-  resolve, amber when either needs attention.
+  resolve, amber when either needs attention. A badge shows how many
+  environments are offline, when any are.
 - **Settings** (gear icon): the board's preferences.
 
 Each button opens its view in the side panel; clicking it again closes the
 panel, and clicking another one switches views.
 
-The Done column header reads `Done · <shown> of <total>`: how many of the
-most recently closed Stories it shows, and how many closed Stories the
-repository has. When that total cannot be read, it reads `Done · <shown>`.
-
 ## The side panel
 
 The side panel opens on the right and holds one view at a time: a Story's
-detail, Environments, Connections or Settings. The board stays visible and usable
-beside it, and opening a Story's detail replaces whichever view is open. Open it by double-clicking a card,
-right-clicking it, pressing Enter or Space on a focused card, or with the
-card's **⋯** button. Esc, the × button or opening the same card again
-closes it. While open it refreshes on the board's poll.
+detail, Connections or Settings. The board stays visible and usable
+beside it, and opening a Story's detail replaces whichever view is open.
+Open a Story's detail by clicking the card anywhere but a link or button,
+or by pressing Enter or Space on a focused card. Esc, the × button or
+opening the same card again closes it. While open it refreshes on the board's poll.
 
 The Story detail view shows the GitHub issue link, the pull request and its
 checks, and then only the facts that have a value: the Project Status, the
-column, environment, model and effort, stage, process, assignees, the Epic and the Stories it
+column, what it is blocked by, environment, model and effort, stage, process, assignees, the Epic and the Stories it
 depends on (both linked), and the labels as chips. The stage timeline (the
 last 10 stage changes), the dispatch record (pid, start time, session id or
 URL, command) and the last 50 lines of the log, summarized one line per
 event, appear only when there is something to show, as does the resume command `claude --resume <sessionId>` with a **Copy**
-button. The page never runs that command. Its action buttons are the
-card's Move menu, so Stop still asks for confirmation.
+button. The page never runs that command. Its action buttons list every
+move the card allows, so Stop still asks for confirmation.
 
 ## Model and effort
 
@@ -191,10 +228,12 @@ Each card's **✎** button opens a dialog with a **Model** and an **Effort**
 select. Each opens on **Use default**, which clears the Story's override;
 any other choice sets the `model::<m>` / `effort::<e>` label (created on
 demand) and removes every other one. Below them, a line per field names the
-effective value and its source: `opus (override)`, `sonnet (local
-default)`, `Claude Code default`, `routine's own model` for a cloud
-environment, or, for a Story not yet in an environment, `environment
-default (set at dispatch)` with each local environment's default. **Save**
+effective value and its source as one phrase: `opus (override)`,
+`sonnet (from local)`, `Claude Code default (from local)`, or
+`routine's own model` for a cloud environment. For a Story not yet in an
+environment it names each local environment's default, joined by `or`
+(`sonnet (from local) or Claude Code default (from gpu)`), and
+`set at dispatch` when only cloud environments are configured. **Save**
 posts `POST /api/launch-options` and refreshes the board. The card face
 shows no model or effort; the Story detail lists **Model** and **Effort**
 facts with their source. Precedence and the allowlist are in
@@ -215,22 +254,25 @@ a drop there would do, or why it is refused.
 | Anything refused | Shows the refusal reason and changes nothing. |
 
 A card moves to its new column only when the next state read places it
-there. Every card also has a **Move** menu listing the same allowed actions,
-so nothing requires dragging.
+there. Nothing requires dragging: each card carries one action button,
+labelled with what it would do (`Dispatch to local`, `Resume in local`,
+`Stop and return to Ready`, which still asks for confirmation, or
+`/mandrel-plan <id>`, which copies the command). When more than one move is
+allowed, a **▾** button beside it opens a menu with the rest. A card with no
+allowed move has no action button. The **✎** button always follows.
 
 ## Panel views
 
-- **Environments**: one card per environment with its target, load, online
-  state, where it is defined (`.agentrc.json`, `.agentrc.local.json` or the
-  implicit default) and the Stories it holds. Read-only; edit environments
-  in config.
 - **Connections**: the GitHub login, token source and status; the Claude
   account's email, org, plan and login method; `claude` CLI availability;
-  and per environment whether it is online and why not. These are the
-  accounts the board and its **local** launches act as, since a local
-  launch inherits the board's environment. A cloud environment's session
-  runs as its routine owner's account instead; the view shows that
-  environment's routine id, never a token.
+  and an **Environments** section with one card per environment: its
+  target, `load/capacity`, whether it is online and why not, where it is
+  defined (`.agentrc.json`, `.agentrc.local.json` or the implicit default)
+  and the open Stories it holds. Environments are read-only here; edit
+  them in config. These are the accounts the board and its **local**
+  launches act as, since a local launch inherits the board's environment.
+  A cloud environment's session runs as its routine owner's account
+  instead; its card shows the routine id, never a token.
 - **Settings**: the board's preferences. A change applies at once; there
   is no Save button, and **Reset to defaults** restores all three.
 

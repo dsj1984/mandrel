@@ -2976,7 +2976,7 @@
     },
     {
       "path": "lib/cli/ui/panel-model.js",
-      "mi": 113.25
+      "mi": 114.435
     },
     {
       "path": "lib/cli/ui/preferences.js",
@@ -2996,7 +2996,7 @@
     },
     {
       "path": "lib/cli/ui/story-detail.js",
-      "mi": 105.587
+      "mi": 108.242
     },
     {
       "path": "lib/cli/uninstall.js",

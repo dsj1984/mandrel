@@ -46,6 +46,37 @@ describe('column mapping', () => {
   }
 });
 
+describe('statusMatches', () => {
+  const withStatus = (ticket, status) =>
+    buildStatus({
+      environments: resolveEnvironments({}),
+      openTickets: ticket.state === 'closed' ? [] : [ticket],
+      closedStories: ticket.state === 'closed' ? [ticket] : [],
+      prs: [],
+      statuses: new Map([[ticket.id, status]].filter(([, v]) => v)),
+    }).stories[0].statusMatches;
+
+  it('is true when the Status is the one board-sync writes for the labels', () => {
+    assert.equal(withStatus(t(1, ['agent::ready']), 'Todo'), true);
+    assert.equal(withStatus(t(2, ['agent::executing']), 'In Progress'), true);
+    assert.equal(withStatus(t(3, ['agent::blocked']), 'On Hold'), true);
+  });
+
+  it('is false when the Status differs; a closed Story expects Done', () => {
+    assert.equal(withStatus(t(1, ['agent::ready']), 'On Hold'), false);
+    assert.equal(
+      withStatus(t(2, ['agent::ready'], { state: 'closed' }), 'Todo'),
+      false,
+    );
+    assert.equal(withStatus(t(3, [], { state: 'closed' }), 'Done'), true);
+  });
+
+  it('is null with no Status read or no label board-sync maps', () => {
+    assert.equal(withStatus(t(1, ['agent::ready']), null), null);
+    assert.equal(withStatus(t(2, ['type::story']), 'Todo'), null);
+  });
+});
+
 describe('PR check summary', () => {
   it('counts passed, failed and pending checks', () => {
     const row = rowOf(t(1, ['agent::executing']), [
@@ -174,6 +205,7 @@ describe('buildStatus', () => {
       'pr',
       'projectStatus',
       'state',
+      'statusMatches',
       'title',
     ]);
     assert.equal(row.environment, 'local');
