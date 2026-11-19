@@ -393,6 +393,17 @@ export async function runDispatch(argv, overrides = {}) {
   return result.code;
 }
 
+/**
+ * `runDispatch` with the caller's working directory as the default `cwd`:
+ * the `mandrel dispatch` entry, whose package root is not the project.
+ *
+ * @param {string[]} argv
+ * @param {Parameters<typeof runDispatch>[1]} [overrides]
+ */
+export function runDispatchFromCwd(argv, overrides = {}) {
+  return runDispatch(argv, { cwd: process.cwd(), ...overrides });
+}
+
 runAsCli(import.meta.url, () => runDispatch(process.argv.slice(2)), {
   source: 'dispatch',
   usage: DISPATCH_USAGE,

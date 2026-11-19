@@ -96,6 +96,7 @@ function fakeSources() {
       stateImpl = fn;
     },
     sources: {
+      projectProblem: () => null,
       readState: (doneLimit) => {
         calls.state += 1;
         calls.doneLimits.push(doneLimit);
@@ -151,15 +152,18 @@ describe('ui server', () => {
   let port;
   let fake;
   let clock;
+  let logged;
 
   beforeEach(async () => {
     if (server) await close(server);
     fake = fakeSources();
     clock = 1000;
+    logged = [];
     server = createUiServer({
       token: TOKEN,
       sources: fake.sources,
       now: () => clock,
+      log: (s) => logged.push(s),
     });
     port = await listen(server);
   });
@@ -411,16 +415,42 @@ describe('ui server', () => {
       assert.equal(fake.calls.state, 0);
     });
 
-    it('answers a failed read with an opaque error and does not cache it', async () => {
+    it('answers a failed read with an opaque error, logs its cause, and does not cache it', async () => {
       fake.setState(async () => {
         throw new Error('/secret/internal/path failed');
       });
       const res = await api(port, '/api/state');
-      assert.equal(res.status, 500);
-      assert.deepEqual(JSON.parse(res.body), { error: 'internal' });
+      assert.equal(res.status, 503);
+      assert.deepEqual(JSON.parse(res.body), { error: 'state-unavailable' });
+      assert.doesNotMatch(res.body, /secret/);
+      assert.match(
+        logged.join(''),
+        /board state read failed: \/secret\/internal\/path failed/,
+      );
       fake.setState(async () => ({ environments: [], stories: [] }));
       const again = await api(port, '/api/state');
       assert.equal(again.status, 200);
+    });
+
+    it('passes a known failure code to the page and keeps its detail in the log', async () => {
+      fake.setState(async () => {
+        throw Object.assign(new Error('x'), {
+          code: 'no-github-repo',
+          detail: 'no GitHub repository configured in /home/op',
+        });
+      });
+      const res = await api(port, '/api/state');
+      assert.equal(res.status, 503);
+      assert.deepEqual(JSON.parse(res.body), { error: 'no-github-repo' });
+      assert.match(logged.join(''), /configured in \/home\/op/);
+    });
+
+    it('does not pass an unknown failure code through', async () => {
+      fake.setState(async () => {
+        throw Object.assign(new Error('x'), { code: 'EACCES' });
+      });
+      const res = await api(port, '/api/state');
+      assert.deepEqual(JSON.parse(res.body), { error: 'state-unavailable' });
     });
   });
 
@@ -660,21 +690,43 @@ describe('sources', () => {
     assert.equal(dispatched[0].deps.cwd, 'project-root');
   });
 
-  it('throws when the read model cannot be built', async () => {
+  it('throws when the read model cannot be built, carrying the envelope error as detail', async () => {
     const sources = createSources({
-      resolveConfigImpl: () => ({}),
+      resolveConfigImpl: () => ({ github: { owner: 'o', repo: 'r' } }),
       createProviderImpl: () => ({}),
       dispatch: async (_argv, deps) => {
         deps.write('{"ok":false,"error":"boom"}');
         return 1;
       },
     });
-    await assert.rejects(sources.readState(), /state-unavailable/);
+    await assert.rejects(sources.readState(), {
+      code: 'state-unavailable',
+      detail: 'boom',
+    });
   });
 
-  it('omits the repository when the config names none', async () => {
-    const { sources } = boardSources([], { config: { github: {} } });
-    assert.equal((await sources.readState()).repository, null);
+  it('refuses a read where no GitHub repository is configured, naming the directory', async () => {
+    const { sources, dispatched } = boardSources([], {
+      config: { github: {} },
+    });
+    await assert.rejects(sources.readState(), (err) => {
+      assert.equal(err.code, 'no-github-repo');
+      assert.match(err.detail, /configured in project-root/);
+      return true;
+    });
+    assert.equal(dispatched.length, 0);
+  });
+
+  it('reports an unreadable config as config-invalid', () => {
+    const sources = createSources({
+      resolveConfigImpl: () => {
+        throw new Error('bad json');
+      },
+    });
+    assert.deepEqual(sources.projectProblem(), {
+      code: 'config-invalid',
+      detail: 'bad json',
+    });
   });
 
   it('AC-6: runs each action through runDispatch and returns its envelope unchanged', async () => {
@@ -883,6 +935,22 @@ describe('mandrel ui entry', () => {
     );
     await close(server);
     assert.equal(codes.length, 0);
+  });
+
+  it('refuses to start where no GitHub repository is configured, naming the cause', async () => {
+    const { sources } = fakeSources();
+    sources.projectProblem = () => ({
+      code: 'no-github-repo',
+      detail: 'no GitHub repository configured in /home/op',
+    });
+    const server = await runUi(['--port', '0'], deps({ sources }));
+    assert.equal(server, null);
+    assert.deepEqual(codes, [1]);
+    assert.equal(
+      errs.join(''),
+      'mandrel ui: no GitHub repository configured in /home/op\n',
+    );
+    assert.deepEqual(out, []);
   });
 
   it('reports a port it cannot listen on', async () => {

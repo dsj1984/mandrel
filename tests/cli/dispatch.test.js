@@ -79,3 +79,21 @@ describe('the bin entry', () => {
     assert.match(result.stdout, /^Usage: mandrel dispatch/);
   });
 });
+
+describe('config resolution', () => {
+  it('resolves config from the directory the operator runs it in, not the package root', async () => {
+    let seenCwd = null;
+    await run(['--status', '--json'], {
+      write: () => {},
+      exit: () => {},
+      resolveConfigImpl: ({ cwd }) => {
+        seenCwd = cwd;
+        return null;
+      },
+      createProviderImpl: () => {
+        throw new Error('stop');
+      },
+    });
+    assert.equal(seenCwd, process.cwd());
+  });
+});
