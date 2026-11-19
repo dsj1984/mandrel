@@ -91,7 +91,7 @@ function fillPart(part, values) {
  *   already resolved against the allowlist.
  * @returns {string[]}
  */
-export function fillLaunchOptions(argv, { model = null, effort = null } = {}) {
+function fillLaunchOptions(argv, { model = null, effort = null } = {}) {
   const values = [
     ['{model}', model],
     ['{effort}', effort],
@@ -128,7 +128,7 @@ export function overridesOf(labels) {
 }
 
 /** Whether `label` is a `model::` or `effort::` override label. */
-export function isLaunchLabel(label) {
+function isLaunchLabel(label) {
   return Object.values(LABEL_KINDS).some(({ prefix }) =>
     label.startsWith(prefix),
   );
@@ -140,7 +140,7 @@ export function isLaunchLabel(label) {
  * @param {'model'|'effort'} kind
  * @param {string} value
  */
-export function launchLabel(kind, value) {
+function launchLabel(kind, value) {
   const { prefix, color } = LABEL_KINDS[kind];
   return {
     name: `${prefix}${value}`,

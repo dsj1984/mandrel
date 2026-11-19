@@ -4,9 +4,7 @@ import { describe, it } from 'node:test';
 import {
   EFFORT_LEVELS,
   gateLaunch,
-  isLaunchLabel,
   launchChoices,
-  launchLabel,
   modelChoices,
   overridesOf,
   resolveLaunchOptions,
@@ -51,15 +49,6 @@ describe('labels', () => {
       effort: null,
     });
     assert.deepEqual(overridesOf(undefined), { model: null, effort: null });
-  });
-
-  it('recognises and mints override labels', () => {
-    assert.equal(isLaunchLabel('effort::max'), true);
-    assert.equal(isLaunchLabel('env::local'), false);
-    const label = launchLabel('model', 'opus');
-    assert.equal(label.name, 'model::opus');
-    assert.match(label.color, /^#[0-9A-F]{6}$/);
-    assert.equal(typeof label.description, 'string');
   });
 });
 

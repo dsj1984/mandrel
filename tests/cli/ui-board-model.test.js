@@ -9,7 +9,6 @@ import {
   dropZones,
   environmentCards,
   launchOptionsView,
-  launchOptionText,
   moveOptions,
   storyDetailView,
   zoneVerdict,
@@ -995,9 +994,9 @@ describe('launch options (AC-10, AC-11)', () => {
       /invalid/,
     );
     assert.equal(
-      launchOptionText({ value: null, source: 'environment' }, 'model'),
+      facts({ model: { value: null, source: 'environment' } }, null).Model,
       'environment default (set at dispatch)',
     );
-    assert.equal(launchOptionText(null, 'model'), null);
+    assert.equal(facts(null).Model, undefined);
   });
 });

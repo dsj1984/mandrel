@@ -8,11 +8,18 @@ import {
   envLabel,
   resolveEnvironments,
 } from '../../../.agents/scripts/lib/dispatch/environments.js';
-import { fillLaunchOptions } from '../../../.agents/scripts/lib/dispatch/launch-options.js';
+import { gateLaunch } from '../../../.agents/scripts/lib/dispatch/launch-options.js';
 
-/** The argv a launch spawns: the Story's command with its launch options filled. */
-const argvFor = (command, id, sessionId, options) =>
-  fillLaunchOptions(commandFor(command, id, sessionId), options);
+/** The argv a launch spawns: the command with override labels for `options` filled in. */
+function argvFor(command, id, sessionId, { model, effort } = {}) {
+  const labels = [model && `model::${model}`, effort && `effort::${effort}`];
+  const gated = gateLaunch(
+    { ok: true, action: 'dispatch', environment: 'e' },
+    [{ name: 'e', target: 'local', command }],
+    { labels: labels.filter(Boolean) },
+  );
+  return commandFor(gated.launch.environment.command, id, sessionId);
+}
 
 const DEFAULT_COMMAND = [
   'claude',
