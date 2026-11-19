@@ -10009,6 +10009,7 @@
       "<anon recordRows/filter(value)#0>": 2,
       "<anon resume(env)#0>": 1,
       "<anon routine(kind)#0>": 1,
+      "<anon runsOutside(story)#0>": 3,
       "<anon selectOptions(choices)#0/map(value)#0>": 1,
       "<anon selectOptions(choices)#0>": 1,
       "<anon stamp(iso)#0>": 1,
@@ -10052,6 +10053,7 @@
       "recordRows": 3,
       "rowOption": 5,
       "since": 2,
+      "stageView": 2,
       "statusChip": 3,
       "statusView": 2,
       "stepper": 1,
@@ -10073,6 +10075,7 @@
     "lib/cli/ui/panel-model.js": {
       "<anon claudeRows/filter(value)#0>": 1,
       "<anon environmentRows/env.stories.map(id)#0>": 1,
+      "<anon routineRows(env)#0>": 2,
       "claudeRows": 2,
       "connectionsView": 4,
       "environmentRows": 3,
