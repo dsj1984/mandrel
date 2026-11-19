@@ -8270,7 +8270,6 @@
       "<anon parse/map(a)#0>": 1,
       "<anon parseGoalSection/lines.map(l)#0>": 1,
       "<anon parseTextBlockSection/lines.map(line)#0>": 1,
-      "<anon parseTextListSection/lines.map(l)#0>": 1,
       "<anon pathEntryList(raw,warnings)#0>": 2,
       "<anon render(acceptance)#0/acceptance.map(a,i)#0>": 1,
       "<anon render(acceptance)#0>": 3,
