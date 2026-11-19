@@ -33,6 +33,12 @@ const DEFAULT_ARGV = (id) => [
   '--verbose',
 ];
 
+/** Launch options when nothing is configured and no override label is set. */
+const CLAUDE_DEFAULTS = {
+  model: { value: null, source: 'claude-default' },
+  effort: { value: null, source: 'claude-default' },
+};
+
 const ready = (id, extra = {}) => ({
   id,
   labels: ['type::story', 'agent::ready'],
@@ -55,6 +61,7 @@ describe('dispatch (AC-5)', () => {
       action: 'dispatch',
       storyId: 7,
       environment: 'local',
+      launchOptions: CLAUDE_DEFAULTS,
       pid: 907,
       logPath: 'log-7',
     });
@@ -305,6 +312,7 @@ describe('--dry-run (AC-11)', () => {
       storyId: 7,
       environment: 'local',
       dryRun: true,
+      launchOptions: CLAUDE_DEFAULTS,
       argv: DEFAULT_ARGV(7),
     });
     assert.deepEqual(board.writes, []);
@@ -352,13 +360,30 @@ describe('--status --json (AC-12)', () => {
       'doneShown',
       'doneTotal',
       'environments',
+      'launchChoices',
       'stories',
     ]);
     assert.equal(envelope.doneShown, 1);
     assert.equal(envelope.doneTotal, null);
     assert.deepEqual(envelope.environments, [
-      { name: 'local', target: 'local', capacity: 1, load: 3, online: true },
+      {
+        name: 'local',
+        target: 'local',
+        capacity: 1,
+        load: 3,
+        online: true,
+        model: null,
+        effort: null,
+      },
     ]);
+    assert.deepEqual(envelope.launchChoices, {
+      models: ['opus', 'sonnet', 'haiku'],
+      efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+    });
+    assert.deepEqual(envelope.stories[0].overrides, {
+      model: null,
+      effort: null,
+    });
     assert.deepEqual(
       envelope.stories.map((s) => [s.id, s.column]),
       [
@@ -449,6 +474,165 @@ describe('--status --json (AC-12)', () => {
     const { out, deps } = board.capture();
     assert.equal(await runDispatch(['--status'], deps), 0);
     assert.match(out.join(''), /^Environments:/);
+  });
+});
+
+describe('launch options (model and effort)', () => {
+  const withEnvironments = (environments, extra = {}) => ({
+    github: { operatorHandle: '@me' },
+    delivery: { environments, ...extra },
+  });
+
+  async function runWith(board, argv, config, more = {}) {
+    const { out, deps } = board.capture();
+    const code = await runDispatch(argv, { ...deps, config, ...more });
+    return { code, envelope: JSON.parse(out.join('')) };
+  }
+
+  const localSonnet = withEnvironments({
+    local: { target: 'local', model: 'sonnet' },
+  });
+
+  it('AC-3: no model, effort or override spawns exactly the pre-change argv', async () => {
+    const board = makeDispatchBoard([ready(7)]);
+    const { envelope } = await run(board, ['--env', 'local', '--dry-run', '7']);
+    assert.deepEqual(envelope.argv, DEFAULT_ARGV(7));
+  });
+
+  it('AC-4: the environment model reaches the argv; an override label beats it', async () => {
+    const plain = await runWith(
+      makeDispatchBoard([ready(7)]),
+      ['--env', 'local', '--dry-run', '7'],
+      localSonnet,
+    );
+    assert.deepEqual(plain.envelope.argv, [
+      ...DEFAULT_ARGV(7),
+      '--model=sonnet',
+    ]);
+    assert.deepEqual(plain.envelope.launchOptions.model, {
+      value: 'sonnet',
+      source: 'environment',
+    });
+    const board = makeDispatchBoard([
+      ready(7, {
+        labels: ['type::story', 'agent::ready', 'model::opus', 'effort::max'],
+      }),
+    ]);
+    const { code, envelope } = await runWith(
+      board,
+      ['--env', 'local', '7'],
+      localSonnet,
+    );
+    assert.equal(code, 0);
+    assert.deepEqual(envelope.launchOptions, {
+      model: { value: 'opus', source: 'override' },
+      effort: { value: 'max', source: 'override' },
+    });
+    assert.deepEqual(board.records.get(7).argv, [
+      ...DEFAULT_ARGV(7),
+      '--model=opus',
+      '--effort=max',
+    ]);
+  });
+
+  it('AC-4: model and effort resolve independently', async () => {
+    const config = withEnvironments({
+      local: { target: 'local', model: 'sonnet', effort: 'low' },
+    });
+    const board = makeDispatchBoard([
+      ready(7, { labels: ['type::story', 'agent::ready', 'effort::high'] }),
+    ]);
+    const { envelope } = await runWith(
+      board,
+      ['--env', 'local', '--dry-run', '7'],
+      config,
+    );
+    assert.deepEqual(envelope.argv.slice(-2), [
+      '--model=sonnet',
+      '--effort=high',
+    ]);
+  });
+
+  const invalid = [
+    ['a model outside the allowlist', ['model::gpt-5']],
+    ['an effort outside the levels', ['effort::extreme']],
+    ['two model labels', ['model::opus', 'model::sonnet']],
+    ['two effort labels', ['effort::low', 'effort::max']],
+  ];
+  for (const [name, extra] of invalid) {
+    for (const [mode, argv, labels] of [
+      ['dispatch', ['--env', 'local', '7'], ['agent::ready']],
+      ['dry run', ['--env', 'local', '--dry-run', '7'], ['agent::ready']],
+      ['resume', ['--resume', '7'], ['agent::blocked', 'env::local']],
+    ]) {
+      it(`AC-6: ${name} refuses a ${mode} before any write or launch`, async () => {
+        const board = makeDispatchBoard([
+          {
+            id: 7,
+            labels: ['type::story', ...labels, ...extra],
+            assignees: ['me'],
+          },
+        ]);
+        const { code, envelope } = await run(board, argv);
+        assert.equal(code, 2);
+        assert.equal(envelope.ok, false);
+        assert.equal(envelope.reason, 'invalid-launch-option');
+        assert.equal(typeof envelope.detail, 'string');
+        assert.deepEqual(board.writes, []);
+        assert.deepEqual(board.launches, []);
+      });
+    }
+  }
+
+  it('AC-6: delivery.dispatchModels widens the allowlist', async () => {
+    const board = makeDispatchBoard([
+      ready(7, { labels: ['type::story', 'agent::ready', 'model::fable'] }),
+    ]);
+    const { code, envelope } = await runWith(
+      board,
+      ['--env', 'local', '--dry-run', '7'],
+      withEnvironments({}, { dispatchModels: ['fable'] }),
+    );
+    assert.equal(code, 0);
+    assert.ok(envelope.argv.includes('--model=fable'));
+  });
+
+  it('AC-7: a cloud fire body stays { text }, sources read routine and overrides are reported ignored', async () => {
+    const config = withEnvironments({
+      cloud: { target: 'claude-cloud', routine: 'trig_abc', tokenEnv: 'TOK' },
+    });
+    const labels = ['type::story', 'agent::ready', 'model::opus'];
+    const dry = await runWith(
+      makeDispatchBoard([ready(7, { labels })]),
+      ['--env', 'cloud', '--dry-run', '7'],
+      config,
+      { env: { TOK: 'secret' } },
+    );
+    assert.deepEqual(JSON.parse(dry.envelope.request.body), {
+      text: 'mandrel-deliver 7',
+    });
+    const expected = {
+      model: { value: null, source: 'routine' },
+      effort: { value: null, source: 'routine' },
+      ignoredOverrides: ['model::opus'],
+    };
+    assert.deepEqual(dry.envelope.launchOptions, expected);
+    const fired = await runWith(
+      makeDispatchBoard([ready(7, { labels })]),
+      ['--env', 'cloud', '7'],
+      config,
+      {
+        env: { TOK: 'secret' },
+        launchCloudImpl: async ({ storyId, environment }) => ({
+          storyId,
+          environment: environment.name,
+          sessionUrl: 'https://claude.ai/code/session_1',
+          commentPosted: true,
+        }),
+      },
+    );
+    assert.equal(fired.code, 0);
+    assert.deepEqual(fired.envelope.launchOptions, expected);
   });
 });
 

@@ -10,6 +10,7 @@
 import { parseBlockedBy } from '../dependency-parser.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { agentStateOf, computeLoads, environmentOf } from './environments.js';
+import { launchChoices, overridesOf } from './launch-options.js';
 import { readProjectStatuses } from './project-status.js';
 import { decide } from './verdict.js';
 
@@ -126,6 +127,7 @@ function storyRow(ticket, column, ctx) {
     epic: ctx.epicOf.get(ticket.id) ?? null,
     projectStatus: ctx.statuses.get(ticket.id) ?? null,
     environment: environmentOf(ticket.labels),
+    overrides: overridesOf(ticket.labels),
     pr: prFor(ticket.id, ctx.prs),
     dependsOn: parseBlockedBy(ticket.body ?? ''),
     drops: dropsFor(ticket, ctx),
@@ -157,9 +159,10 @@ function epicIndex(epics) {
  *   closedTotal?: number|null,
  *   epics?: Array<{ id: number, title: string, children: number[] }>,
  *   statuses?: Map<number, string>,
- * }} board
- * @returns {{ environments: object[], stories: object[], doneShown: number,
- *   doneTotal: number|null }}
+ *   config?: object,
+ * }} board `config` supplies the override model allowlist.
+ * @returns {{ environments: object[], launchChoices: object,
+ *   stories: object[], doneShown: number, doneTotal: number|null }}
  */
 export function buildStatus({
   environments,
@@ -171,6 +174,7 @@ export function buildStatus({
   closedTotal = null,
   epics = [],
   statuses = new Map(),
+  config,
 }) {
   const loads = computeLoads(environments, openTickets);
   const ctx = {
@@ -198,6 +202,7 @@ export function buildStatus({
         load: loads[shown.name],
       }),
     ),
+    launchChoices: launchChoices(config),
     stories: [...open, ...done],
     doneShown: done.length,
     doneTotal: closedTotal,

@@ -25,6 +25,7 @@ import {
 } from './lib/dispatch/environments.js';
 import { launchCloud } from './lib/dispatch/launch-cloud.js';
 import { launchLocal, stopLocal } from './lib/dispatch/launch-local.js';
+import { gateLaunch } from './lib/dispatch/launch-options.js';
 import {
   readRecord,
   removeRecord,
@@ -67,7 +68,10 @@ Starts an agent::ready Story's delivery in a named environment
 labelling the Story env::<name> as the claim. The launched command is the
 environment's argv with {id} replaced by the Story id and {sessionId} by a
 fresh UUID, started detached without a shell; its output goes to
-<tempRoot>/dispatch/story-<id>.log.
+<tempRoot>/dispatch/story-<id>.log. {model} and {effort} take the Story's
+model::/effort:: label, else the environment's model/effort; an argv
+element whose value is unset is dropped. An invalid or duplicated override
+label refuses with reason invalid-launch-option.
 A claude-cloud environment instead fires its Claude Code routine once with
 the payload "mandrel-deliver <id>" and posts the session URL on the Story.
 
@@ -215,26 +219,32 @@ async function gatherVerdictInput({ ctx, mode, storyId, envName }) {
   };
 }
 
+const unlabel = (provider, storyId, label) =>
+  provider.updateTicket(storyId, { labels: { remove: [label] } });
+
+/** Mint the environment's `env::` label and apply it to the Story. */
+async function claim(provider, storyId, name) {
+  const label = envLabel(name);
+  await provider.ensureLabels([
+    {
+      name: label,
+      color: ENV_LABEL_COLOR,
+      description: `Held by delivery environment "${name}".`,
+    },
+  ]);
+  await provider.updateTicket(storyId, { labels: { add: [label] } });
+}
+
 async function launch({ ctx, verdict, storyId }) {
   const { provider, deps, config } = ctx;
-  const environment = ctx.environments.find(
-    (e) => e.name === verdict.environment,
-  );
+  const { environment, launchOptions } = verdict.launch;
   const label = envLabel(environment.name);
-  if (verdict.applyLabel) {
-    await provider.ensureLabels([
-      {
-        name: label,
-        color: ENV_LABEL_COLOR,
-        description: `Held by delivery environment "${environment.name}".`,
-      },
-    ]);
-    await provider.updateTicket(storyId, { labels: { add: [label] } });
-  }
+  if (verdict.applyLabel) await claim(provider, storyId, environment.name);
   const head = {
     action: verdict.action,
     storyId,
     environment: environment.name,
+    launchOptions,
   };
   let record;
   try {
@@ -250,7 +260,7 @@ async function launch({ ctx, verdict, storyId }) {
     });
   } catch (err) {
     if (releasesLabel(verdict.applyLabel, err)) {
-      await provider.updateTicket(storyId, { labels: { remove: [label] } });
+      await unlabel(provider, storyId, label);
     }
     return { ok: false, ...head, ...launchFailureFields(err) };
   }
@@ -270,9 +280,7 @@ async function stop({ ctx, verdict, storyId, story }) {
       config,
     });
   }
-  await provider.updateTicket(storyId, {
-    labels: { remove: [envLabel(verdict.environment)] },
-  });
+  await unlabel(provider, storyId, envLabel(verdict.environment));
   deps.removeRecordImpl(storyId, { config });
   return {
     ok: true,
@@ -284,7 +292,7 @@ async function stop({ ctx, verdict, storyId, story }) {
   };
 }
 
-function dryRunEnvelope({ ctx, verdict, storyId }) {
+function dryRunEnvelope({ verdict, storyId }) {
   const envelope = {
     ok: true,
     action: verdict.action,
@@ -293,15 +301,21 @@ function dryRunEnvelope({ ctx, verdict, storyId }) {
     dryRun: true,
   };
   if (verdict.action === 'stop') return envelope;
-  const environment = ctx.environments.find(
-    (e) => e.name === verdict.environment,
-  );
-  return { ...envelope, ...dryRunFields(environment, storyId, commandFor) };
+  const { environment, launchOptions } = verdict.launch;
+  return {
+    ...envelope,
+    launchOptions,
+    ...dryRunFields(environment, storyId, commandFor),
+  };
 }
+
+/** The verdict, gated on the Story's launch options before any write. */
+const decideLaunch = (ctx, input) =>
+  gateLaunch(decide(input), ctx.environments, input.story, ctx.config);
 
 async function act(ctx, args) {
   const input = await gatherVerdictInput({ ctx, ...args });
-  const verdict = decide(input);
+  const verdict = decideLaunch(ctx, input);
   if (!verdict.ok) return { code: 2, envelope: verdict };
   const step = { ctx, verdict, storyId: args.storyId, story: input.story };
   if (args.dryRun) return { code: 0, envelope: dryRunEnvelope(step) };
@@ -322,6 +336,7 @@ async function status(ctx, { json, doneLimit }) {
     ...board,
     operator: ctx.operator,
     doneLimit,
+    config: ctx.config,
   });
   return json
     ? { code: 0, envelope: model }

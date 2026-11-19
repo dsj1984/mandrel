@@ -5403,3 +5403,39 @@ knob; there is no per-event or per-glyph surface.
 `.agentrc.local.json` turns titling off per operator through the existing deep
 merge. With it off, `session-title.js` answers `apply: false` and exits 0, so
 no workflow step fails or pauses because titling is disabled.
+
+## ADR 20261119-6137: Dispatch model overrides raise the agentrc leaf-key ceiling to 173
+
+**Status:** Accepted
+**Date:** 2026-11-19
+**Surface:** `.agents/scripts/lib/dispatch/launch-options.js`
+**Story:** #6137
+
+### Context
+
+`mandrel dispatch` always launched a delivery on Claude Code's own model and
+effort. Operators want a per-environment default (`model` / `effort` on a
+`local` entry) and a per-Story override set from the board as a
+`model::<m>` / `effort::<e>` label. Labels can be written by anyone with
+triage access, so the launch path must check an override against an
+allowlist before it reaches the argv.
+
+### Decision
+
+Add `delivery.dispatchModels` (default `[]`) and raise the ceiling by one.
+The environment `model` / `effort` keys sit inside the open
+`delivery.environments` map, which the counter scores once, so they add
+nothing. The allowlist is `opus`, `sonnet`, `haiku`, then
+`delivery.dispatchModels`, then every environment's configured `model`.
+No existing source holds the extra entries: an alias an operator may pick
+that no environment uses as its default (for example `fable` or a pinned
+full model id) is not in any environment entry, the package manifest or
+Claude Code, which publishes no machine-readable alias list. Effort levels
+are a fixed enum and need no key.
+
+### Consequences
+
+An override outside the allowlist, an unknown effort, or two labels of one
+kind refuses the launch with `invalid-launch-option` before any label write.
+A `claude-cloud` routine runs its own model; its overrides are reported as
+ignored.
