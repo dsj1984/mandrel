@@ -36,7 +36,6 @@
     --red: #f0766d;
     --red-soft: #3e1d1b;
     --purple: #b48cf2;
-    --purple: #b48cf2;
     color-scheme: dark;
   }
 }
@@ -55,6 +54,7 @@
   --amber-soft: #3a2b11;
   --red: #f0766d;
   --red-soft: #3e1d1b;
+  --purple: #b48cf2;
   color-scheme: dark;
 }
 
