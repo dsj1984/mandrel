@@ -47,6 +47,15 @@ const IN_FLIGHT_STATES = new Set([
 const FETCH_CONCURRENCY = 5;
 
 /**
+ * An Epic's Status from its derived state. A blocked child leaves the Epic
+ * In Progress, not On Hold: its other children are still moving.
+ */
+const epicColumn = (derived) =>
+  derived === AGENT_LABELS.BLOCKED
+    ? LABEL_TO_COLUMN[AGENT_LABELS.EXECUTING]
+    : (LABEL_TO_COLUMN[derived] ?? null);
+
+/**
  * Non-throwing, unlike the Story lease: a missing owner is cosmetic and must
  * not cost the Status write and closure.
  *
@@ -256,7 +265,7 @@ async function rollUpOneEpic({
   const derived = deriveParentState(children);
   const applied = await applyColumn({
     epicId,
-    column: derived ? (LABEL_TO_COLUMN[derived] ?? null) : null,
+    column: epicColumn(derived),
     columnSync,
   });
   outcome.column = applied.column;

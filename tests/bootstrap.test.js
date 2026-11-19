@@ -248,8 +248,13 @@ describe('Bootstrap — PROJECT_FIELD_DEFS', () => {
 // STATUS_FIELD_OPTIONS
 // ---------------------------------------------------------------------------
 describe('Bootstrap — STATUS_FIELD_OPTIONS', () => {
-  it('contains the three stock Status options in canonical order', () => {
-    assert.deepEqual(STATUS_FIELD_OPTIONS, ['Todo', 'In Progress', 'Done']);
+  it('contains the four Status options in canonical order', () => {
+    assert.deepEqual(STATUS_FIELD_OPTIONS, [
+      'Todo',
+      'In Progress',
+      'On Hold',
+      'Done',
+    ]);
   });
 });
 
@@ -379,7 +384,7 @@ describe('Bootstrap — module exports', () => {
 
   it('exports STATUS_FIELD_OPTIONS array', () => {
     assert.ok(Array.isArray(STATUS_FIELD_OPTIONS));
-    assert.equal(STATUS_FIELD_OPTIONS.length, 3);
+    assert.equal(STATUS_FIELD_OPTIONS.length, 4);
   });
 
   it('does not export PROJECT_VIEW_DEFS (hard-cutover deleted in Story #4234)', () => {

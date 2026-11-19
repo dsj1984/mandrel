@@ -101,4 +101,4 @@ export const PROJECT_FIELD_DEFS = [
  *
  * @type {string[]}
  */
-export const STATUS_FIELD_OPTIONS = ['Todo', 'In Progress', 'Done'];
+export const STATUS_FIELD_OPTIONS = ['Todo', 'In Progress', 'On Hold', 'Done'];
