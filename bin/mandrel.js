@@ -96,6 +96,7 @@ const SUBCOMMANDS = new Map([
         '--stop',
         '--status',
         '--json',
+        '--done-limit',
         '--dry-run',
       ],
     },

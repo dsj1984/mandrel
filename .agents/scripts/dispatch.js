@@ -32,6 +32,8 @@ import {
 } from './lib/dispatch/record.js';
 import {
   buildStatus,
+  DEFAULT_DONE_LIMIT,
+  DONE_LIMITS,
   fetchBoard,
   renderStatus,
 } from './lib/dispatch/status.js';
@@ -57,7 +59,7 @@ import { createProvider } from './lib/provider-factory.js';
 const DISPATCH_USAGE = `Usage: mandrel dispatch --env <name> <storyId>
        mandrel dispatch --resume [--env <name>] <storyId>
        mandrel dispatch --stop <storyId>
-       mandrel dispatch --status [--json]
+       mandrel dispatch --status [--json] [--done-limit <n>]
        (or: node .agents/scripts/dispatch.js with the same flags)
 
 Starts an agent::ready Story's delivery in a named environment
@@ -79,6 +81,10 @@ Flags:
                 stopped: archive it at the printed session URL.
   --status      Print environments, load and every Story's column.
   --json        With --status, emit the read model as JSON.
+  --done-limit <n>
+                With --status, how many Done Stories to show, most
+                recently closed first: 10, 20 (default), 50 or 100.
+                Any other value exits 2.
   --dry-run     Print the verdict and the argv (or the cloud request,
                 Authorization redacted); write and start nothing.
   --help        Show this message.
@@ -89,6 +95,39 @@ cloud fire failed (reason launch-failed, rate-limited or
 launch-unconfirmed).
 `;
 
+/** A usage error that exits 2, like a refusal: its envelope is `{ ok, reason, detail }`. */
+class UsageRefusal extends Error {
+  constructor(reason, detail) {
+    super(detail);
+    this.reason = reason;
+  }
+}
+
+/** A usage refusal exits 2; anything else means the command could not run. */
+function failureResult(err) {
+  if (err instanceof UsageRefusal) {
+    return {
+      code: 2,
+      envelope: { ok: false, reason: err.reason, detail: err.message },
+    };
+  }
+  return {
+    code: 1,
+    envelope: { ok: false, error: err?.message ?? String(err) },
+  };
+}
+
+function doneLimitOf(raw) {
+  if (raw === undefined) return DEFAULT_DONE_LIMIT;
+  if (!DONE_LIMITS.map(String).includes(raw)) {
+    throw new UsageRefusal(
+      'invalid-done-limit',
+      `--done-limit must be one of ${DONE_LIMITS.join(', ')} (see --help)`,
+    );
+  }
+  return Number(raw);
+}
+
 const STORY_ID_RE = /^[1-9]\d*$/;
 
 function usageError(message) {
@@ -98,7 +137,8 @@ function usageError(message) {
 /**
  * @param {string[]} argv
  * @returns {{ mode: 'dispatch'|'resume'|'stop'|'status', envName: string|null,
- *   storyId: number|null, json: boolean, dryRun: boolean, help: boolean }}
+ *   storyId: number|null, json: boolean, dryRun: boolean, help: boolean,
+ *   doneLimit: number }}
  */
 function parseDispatchArgv(argv) {
   const { values, positionals } = parseArgs({
@@ -109,6 +149,7 @@ function parseDispatchArgv(argv) {
       stop: { type: 'boolean', default: false },
       status: { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
+      'done-limit': { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
@@ -122,6 +163,7 @@ function parseDispatchArgv(argv) {
     help: values.help,
   };
   if (values.help) return { ...base, mode: 'status', storyId: null };
+  base.doneLimit = doneLimitOf(values['done-limit']);
   const modes = ['resume', 'stop', 'status'].filter((m) => values[m]);
   if (modes.length > 1) {
     throw usageError(`--${modes.join(' and --')} are mutually exclusive`);
@@ -268,16 +310,18 @@ async function act(ctx, args) {
   return { code: Number(!envelope.ok), envelope };
 }
 
-async function status(ctx, { json }) {
+async function status(ctx, { json, doneLimit }) {
   const board = await ctx.deps.fetchBoardImpl({
     provider: ctx.provider,
     gh: ctx.deps.gh,
     config: ctx.config,
+    doneLimit,
   });
   const model = buildStatus({
     environments: ctx.environments,
     ...board,
     operator: ctx.operator,
+    doneLimit,
   });
   return json
     ? { code: 0, envelope: model }
@@ -343,10 +387,7 @@ export async function runDispatch(argv, overrides = {}) {
     result =
       args.mode === 'status' ? await status(ctx, args) : await act(ctx, args);
   } catch (err) {
-    result = {
-      code: 1,
-      envelope: { ok: false, error: err?.message ?? String(err) },
-    };
+    result = failureResult(err);
   }
   deps.write(result.text ?? `${JSON.stringify(result.envelope, null, 2)}\n`);
   return result.code;

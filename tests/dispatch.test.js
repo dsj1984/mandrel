@@ -348,7 +348,14 @@ describe('--status --json (AC-12)', () => {
       '--json',
     ]);
     assert.equal(code, 0);
-    assert.deepEqual(Object.keys(envelope).sort(), ['environments', 'stories']);
+    assert.deepEqual(Object.keys(envelope).sort(), [
+      'doneShown',
+      'doneTotal',
+      'environments',
+      'stories',
+    ]);
+    assert.equal(envelope.doneShown, 1);
+    assert.equal(envelope.doneTotal, null);
     assert.deepEqual(envelope.environments, [
       { name: 'local', target: 'local', capacity: 1, load: 3, online: true },
     ]);
@@ -393,6 +400,49 @@ describe('--status --json (AC-12)', () => {
       }
     }
   });
+
+  it('AC-1: --done-limit reaches the fetch and caps the Done Stories', async () => {
+    const closed = Array.from({ length: 60 }, (_, i) => ({
+      id: 100 + i,
+      labels: ['type::story', 'agent::done'],
+      state: 'closed',
+      closedAt: new Date(Date.UTC(2026, 0, i + 1)).toISOString(),
+    }));
+    const board = makeDispatchBoard(closed);
+    const { out, deps } = board.capture();
+    const asked = [];
+    const fetchBoardImpl = deps.fetchBoardImpl;
+    deps.fetchBoardImpl = async (args) => {
+      asked.push(args.doneLimit);
+      return { ...(await fetchBoardImpl(args)), closedTotal: 60 };
+    };
+    for (const argv of [[], ['--done-limit', '50']]) {
+      out.length = 0;
+      const code = await runDispatch(['--status', '--json', ...argv], deps);
+      assert.equal(code, 0);
+      const envelope = JSON.parse(out.join(''));
+      const done = envelope.stories.filter((s) => s.column === 'done');
+      assert.equal(done.length, envelope.doneShown);
+      assert.equal(done[0].id, 159, 'most recently closed first');
+      assert.equal(envelope.doneTotal, 60);
+    }
+    assert.deepEqual(asked, [20, 50]);
+  });
+
+  for (const value of ['0', '25', '200', 'ten', '20.0', '']) {
+    it(`AC-1: --done-limit ${JSON.stringify(value)} exits 2 with a usage message`, async () => {
+      const { code, envelope } = await run(makeDispatchBoard(tickets), [
+        '--status',
+        '--json',
+        '--done-limit',
+        value,
+      ]);
+      assert.equal(code, 2);
+      assert.equal(envelope.ok, false);
+      assert.equal(envelope.reason, 'invalid-done-limit');
+      assert.match(envelope.detail, /10, 20, 50, 100 \(see --help\)/);
+    });
+  }
 
   it('prints a human table without --json', async () => {
     const board = makeDispatchBoard(tickets);

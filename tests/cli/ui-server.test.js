@@ -74,7 +74,13 @@ const post = (port, body, headers = {}) =>
   });
 
 function fakeSources() {
-  const calls = { state: 0, connections: 0, actions: [], stories: [] };
+  const calls = {
+    state: 0,
+    doneLimits: [],
+    connections: 0,
+    actions: [],
+    stories: [],
+  };
   const result = {
     code: 0,
     envelope: { ok: true, action: 'dispatch', storyId: 7 },
@@ -90,9 +96,10 @@ function fakeSources() {
       stateImpl = fn;
     },
     sources: {
-      readState: () => {
+      readState: (doneLimit) => {
         calls.state += 1;
-        return stateImpl();
+        calls.doneLimits.push(doneLimit);
+        return stateImpl(doneLimit);
       },
       readConnections: async () => {
         calls.connections += 1;
@@ -313,6 +320,7 @@ describe('ui server', () => {
         await request(port, { path: '/board.css' }),
         await request(port, { path: '/board.js' }),
         await request(port, { path: '/board-model.js' }),
+        await request(port, { path: '/preferences.js' }),
         await request(port, { path: '/missing.txt' }),
         await request(port, { path: '/../package.json' }),
         await request(port, { method: 'POST', path: '/' }),
@@ -325,7 +333,7 @@ describe('ui server', () => {
       for (const res of responses) assertSecurityHeaders(res);
       assert.deepEqual(
         responses.map((r) => r.status),
-        [200, 200, 200, 200, 404, 404, 405, 403, 200, 404, 400, 403],
+        [200, 200, 200, 200, 200, 404, 404, 405, 403, 200, 404, 400, 403],
       );
     });
 
@@ -363,6 +371,44 @@ describe('ui server', () => {
       });
       await api(port, '/api/state');
       assert.equal(fake.calls.state, 3);
+    });
+
+    it('AC-2: reads the requested Done limit, defaulting to 20, and caches each value apart', async () => {
+      fake.setState(async (doneLimit) => ({
+        stories: [],
+        doneShown: doneLimit,
+      }));
+      for (const [query, shown] of [
+        ['', 20],
+        ['?done=20', 20],
+        ['?done=50', 50],
+        ['?done=10', 10],
+        ['?done=50', 50],
+        ['?done=100', 100],
+      ]) {
+        const res = await api(port, `/api/state${query}`);
+        assert.equal(res.status, 200, query);
+        assert.equal(JSON.parse(res.body).doneShown, shown, query);
+      }
+      assert.deepEqual(fake.calls.doneLimits, [20, 50, 10, 100]);
+    });
+
+    it('AC-2: refuses any other Done limit with 400 invalid-done-limit', async () => {
+      for (const query of [
+        '?done=',
+        '?done=0',
+        '?done=25',
+        '?done=020',
+        '?done=1e2',
+        '?done=abc',
+        '?done=-20',
+      ]) {
+        const res = await api(port, `/api/state${query}`);
+        assert.equal(res.status, 400, query);
+        assert.deepEqual(JSON.parse(res.body), { error: 'invalid-done-limit' });
+        assertSecurityHeaders(res);
+      }
+      assert.equal(fake.calls.state, 0);
     });
 
     it('answers a failed read with an opaque error and does not cache it', async () => {
@@ -467,6 +513,15 @@ describe('ui server', () => {
         assert.deepEqual(JSON.parse(res.body), { error: 'invalid-id' });
       }
       assert.deepEqual(fake.calls.stories, []);
+    });
+
+    it('finds the Story on the board read for the same Done limit', async () => {
+      const res = await api(port, '/api/story?id=7&done=100');
+      assert.equal(res.status, 200);
+      assert.deepEqual(fake.calls.doneLimits, [100]);
+      const bad = await api(port, '/api/story?id=7&done=7');
+      assert.equal(bad.status, 400);
+      assert.deepEqual(JSON.parse(bad.body), { error: 'invalid-done-limit' });
     });
 
     it('answers an id with no board Story with 404', async () => {
@@ -594,7 +649,14 @@ describe('sources', () => {
     assert.equal(byId[11].stage, null);
     assert.equal('stage' in byId[7], false);
     assert.equal(state.repository, 'o/r');
-    assert.deepEqual(dispatched[0].argv, ['--status', '--json']);
+    assert.deepEqual(dispatched[0].argv, [
+      '--status',
+      '--json',
+      '--done-limit',
+      '20',
+    ]);
+    await sources.readState(50);
+    assert.deepEqual(dispatched.at(-1).argv.slice(2), ['--done-limit', '50']);
     assert.equal(dispatched[0].deps.cwd, 'project-root');
   });
 

@@ -83,10 +83,10 @@ describe('buildStatus', () => {
       t(12, ['type::epic']),
       t(13, ['type::story', 'agent::blocked', 'env::local']),
     ],
-    closedStories: Array.from({ length: 22 }, (_, i) =>
+    closedStories: Array.from({ length: 60 }, (_, i) =>
       t(100 + i, ['type::story', 'agent::done'], {
         state: 'closed',
-        closedAt: `2026-11-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
+        closedAt: new Date(Date.UTC(2026, 0, i + 1)).toISOString(),
       }),
     ),
     prs: [
@@ -112,7 +112,23 @@ describe('buildStatus', () => {
     assert.equal(ids.includes(12), false);
     const done = status.stories.filter((s) => s.column === 'done');
     assert.equal(done.length, 20);
-    assert.equal(done[0].id, 121);
+    assert.equal(done[0].id, 159);
+    assert.equal(status.doneShown, 20);
+    assert.equal(status.doneTotal, null);
+  });
+
+  it('AC-1: shows up to doneLimit Done Stories and carries the closed total', () => {
+    const wide = buildStatus({ ...board, doneLimit: 50, closedTotal: 345 });
+    const done = wide.stories.filter((s) => s.column === 'done');
+    assert.deepEqual(
+      done.slice(0, 2).map((s) => s.id),
+      [159, 158],
+    );
+    assert.equal(done.length, 50);
+    assert.equal(wide.doneShown, 50);
+    assert.equal(wide.doneTotal, 345);
+    const all = buildStatus({ ...board, doneLimit: 100 });
+    assert.equal(all.doneShown, 60);
   });
 
   it('carries the documented Story fields', () => {
@@ -166,7 +182,60 @@ describe('buildStatus', () => {
   });
 });
 
+/** A gh fake answering the closed page, the search count and the PR list. */
+function fakeGh(calls, { searchFails = false } = {}) {
+  return {
+    api: async ({ endpoint }) => {
+      calls.push(['api', endpoint]);
+      if (endpoint.startsWith('/search/')) {
+        if (searchFails) throw new Error('rate limited');
+        return { stdout: '{"total_count":345,"items":[]}' };
+      }
+      return { stdout: '[]' };
+    },
+    pr: { list: async () => [] },
+  };
+}
+
 describe('fetchBoard', () => {
+  it('AC-1: sizes the closed page to the limit and counts every closed Story', async () => {
+    const provider = { listTicketsByLabel: async () => [] };
+    const config = { github: { owner: 'o', repo: 'r' } };
+    for (const [doneLimit, perPage] of [
+      [undefined, 50],
+      [10, 50],
+      [50, 100],
+      [100, 100],
+    ]) {
+      const calls = [];
+      const board = await fetchBoard({
+        provider,
+        config,
+        gh: fakeGh(calls),
+        doneLimit,
+      });
+      const closed = calls.find(([, e]) => e.startsWith('/repos/'))[1];
+      assert.match(closed, new RegExp(`&per_page=${perPage}$`));
+      assert.equal(board.closedTotal, 345);
+    }
+    const calls = [];
+    await fetchBoard({ provider, config, gh: fakeGh(calls) });
+    const search = calls.find(([, e]) => e.startsWith('/search/'))[1];
+    assert.equal(
+      decodeURIComponent(search),
+      '/search/issues?q=repo:o/r is:issue is:closed label:"type::story"&per_page=1',
+    );
+  });
+
+  it('AC-1: a failed count is a null total, not a failed read', async () => {
+    const board = await fetchBoard({
+      provider: { listTicketsByLabel: async () => [] },
+      config: { github: { owner: 'o', repo: 'r' } },
+      gh: fakeGh([], { searchFails: true }),
+    });
+    assert.equal(board.closedTotal, null);
+  });
+
   it('reads open issues, one page of closed Stories and open PRs', async () => {
     const calls = [];
     const board = await fetchBoard({
@@ -180,6 +249,7 @@ describe('fetchBoard', () => {
       gh: {
         api: async ({ endpoint }) => {
           calls.push(['api', endpoint]);
+          if (endpoint.startsWith('/search/')) return { stdout: 'not json' };
           return {
             stdout: JSON.stringify([
               {
@@ -218,5 +288,6 @@ describe('fetchBoard', () => {
       },
     ]);
     assert.deepEqual(board.prs, [{ number: 9 }]);
+    assert.equal(board.closedTotal, null);
   });
 });

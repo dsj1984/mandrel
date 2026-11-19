@@ -24,9 +24,10 @@ const FIXED_TEST_IDS = [
   'panel-environments-button',
   'panel-environments-offline-count',
   'panel-connections-button',
+  'panel-settings-button',
+  'done-count',
   'confirm-stop',
   'toast',
-  'theme-toggle',
   'column-backlog',
   'column-planning',
   'column-ready',
@@ -43,6 +44,7 @@ const REMOVED_TEST_IDS = [
   'tab-environments',
   'connections-button',
   'connections-dialog',
+  'theme-toggle',
 ];
 
 /** The Environments and Connections panel views' ids, set by the script. */
@@ -51,6 +53,11 @@ const PANEL_VIEW_TEST_IDS = [
   'connections-view',
   'connections-github-login',
   'connections-claude-account',
+  'settings-view',
+  'settings-theme',
+  'settings-done-limit',
+  'settings-refresh',
+  'settings-reset',
 ];
 
 /** Per-item ids the script generates. */
@@ -178,7 +185,11 @@ describe('AC-10: the served script', () => {
 
   it('imports only the same-origin view models', () => {
     const imports = [...script.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
-    assert.deepEqual(imports, ['./board-model.js', './panel-model.js']);
+    assert.deepEqual(imports, [
+      './board-model.js',
+      './panel-model.js',
+      './preferences.js',
+    ]);
   });
 
   it('decides no drop itself: every verdict comes from the view model', () => {
@@ -214,13 +225,15 @@ describe('AC-4, AC-5: the header and the panel views', () => {
     for (const id of [
       'panel-environments-button',
       'panel-connections-button',
+      'panel-settings-button',
     ]) {
       const tag = html.match(new RegExp(`<button [^>]*id="${id}"[^>]*>`))[0];
       assert.match(tag, /aria-label="[^"]+"/, id);
       assert.match(tag, /title="[^"]+"/, id);
       assert.match(tag, /aria-expanded="false"/, id);
+      assert.match(tag, /aria-controls="side-panel"/, id);
     }
-    assert.equal(html.match(/<svg [^>]*stroke="currentColor"/g).length, 2);
+    assert.equal(html.match(/<svg [^>]*stroke="currentColor"/g).length, 3);
   });
 
   it('opens each view from its button and reflects it in aria-expanded', () => {
@@ -236,13 +249,39 @@ describe('AC-4, AC-5: the header and the panel views', () => {
   });
 
   it('sets the panel view test ids', () => {
-    const panelModel = read('panel-model.js');
+    const models = read('panel-model.js') + read('preferences.js');
     for (const id of PANEL_VIEW_TEST_IDS) {
-      assert.ok(
-        script.includes(`'${id}'`) || panelModel.includes(`'${id}'`),
-        id,
-      );
+      assert.ok(script.includes(`'${id}'`) || models.includes(`'${id}'`), id);
     }
+  });
+});
+
+describe('AC-3, AC-6: Settings', () => {
+  it('opens Settings from the gear like any other panel view', () => {
+    assert.match(script, /settings: 'panel-settings-button'/);
+    assert.match(script, /ui\.view === 'settings'\) \{\s*renderSettings\(\)/);
+  });
+
+  it('has no More menu and no theme control outside Settings', () => {
+    assert.doesNotMatch(html, /<details\b/);
+    assert.doesNotMatch(html, /More options/);
+    assert.doesNotMatch(script, /mandrel-ui-theme|nextTheme/);
+    assert.doesNotMatch(css, /\.overflow\b/);
+  });
+
+  it('labels every control and applies a change with no Save button', () => {
+    assert.match(
+      script,
+      /el\('label', \{ for: field\.testId \}, field\.label\)/,
+    );
+    assert.match(script, /addEventListener\('change'/);
+    assert.doesNotMatch(script, />\s*Save\b|'Save'/);
+  });
+
+  it('AC-8: reads the board through the done query and writes nothing but browser storage', () => {
+    assert.match(script, /`\/api\/state\?done=\$\{ui\.prefs\.doneLimit\}`/);
+    assert.equal(script.match(/api\('\/api\/action'/g).length, 1);
+    assert.doesNotMatch(script, /localStorage\.(set|get|remove)Item/);
   });
 });
 
@@ -284,6 +323,7 @@ describe('AC-11: no new dependency', () => {
       'request-guard.js',
       'board-model.js',
       'panel-model.js',
+      'preferences.js',
       'accounts.js',
       'story-detail.js',
       'log-tail.js',

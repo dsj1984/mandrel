@@ -21,7 +21,8 @@ the printed URL in a browser on the same machine. It needs what
 The server stores nothing. Every state read is recomputed from GitHub
 through the `mandrel dispatch --status` read model, joined with the delivery
 stage a running delivery publishes on its Story. A read is reused for at
-most 5 seconds; the page polls every 15 seconds and after each action.
+most 5 seconds, separately for each Done limit; the page polls on the
+cadence chosen in Settings (15 seconds by default) and after each action.
 
 ## Security model
 
@@ -55,6 +56,10 @@ The board is a local, single-operator tool. It never leaves your machine:
   logged; they appear only in this token-protected response and the page.
 - The page writes every GitHub-sourced string as text, never as HTML, and
   links only to `https://github.com/` pages.
+- `GET /api/state` and `GET /api/story` take an optional `done=<n>`, the
+  number of Done Stories to read: 10, 20 (the default), 50 or 100, as
+  `mandrel dispatch --status --done-limit` accepts. Any other value is
+  refused with 400 `invalid-done-limit`.
 - `GET /api/story?id=<n>` takes only a 1–10 digit positive id (400
   `invalid-id` otherwise, 404 `not-found` for a Story not on the board). Its
   log tail is read from the path the dispatch record names, and only when
@@ -88,21 +93,26 @@ A card in Delivering or Blocked also shows a status row:
 
 ## The header
 
-The board is always the main view. The header's right side holds two icon
-buttons, then the **More** menu:
+The board is always the main view. The header's right side holds three icon
+buttons:
 
 - **Environments** (server-stack icon): a badge shows how many environments
   are offline, when any are.
 - **Connections** (plug icon): tinted when GitHub and the `claude` CLI both
   resolve, amber when either needs attention.
+- **Settings** (gear icon): the board's preferences.
 
 Each button opens its view in the side panel; clicking it again closes the
-panel, and clicking the other one switches views.
+panel, and clicking another one switches views.
+
+The Done column header reads `Done · <shown> of <total>`: how many of the
+most recently closed Stories it shows, and how many closed Stories the
+repository has. When that total cannot be read, it reads `Done · <shown>`.
 
 ## The side panel
 
 The side panel opens on the right and holds one view at a time: a Story's
-detail, Environments or Connections. The board stays visible and usable
+detail, Environments, Connections or Settings. The board stays visible and usable
 beside it, and opening a Story's detail replaces whichever view is open. Open it by double-clicking a card,
 right-clicking it, pressing Enter or Space on a focused card, or with the
 card's **⋯** button. Esc, the × button or opening the same card again
@@ -147,4 +157,18 @@ so nothing requires dragging.
   launch inherits the board's environment. A cloud environment's session
   runs as its routine owner's account instead; the view shows that
   environment's routine id, never a token.
-- **Theme** (More menu): auto (follows the system), light or dark.
+- **Settings**: the board's preferences. A change applies at once; there
+  is no Save button, and **Reset to defaults** restores all three.
+
+  | Setting | Choices | Default |
+  | --- | --- | --- |
+  | Theme | auto (follows the system), light, dark | auto |
+  | Done Stories shown | 10, 20, 50, 100 | 20 |
+  | Refresh every | 15 s, 30 s, 60 s | 15 s |
+
+  Settings are kept in this browser only, as one JSON object under the
+  `localStorage` key `mandrel-board-settings`; another browser or user
+  keeps its own. The board writes no repository or config file. A missing,
+  unreadable or out-of-range value falls back to its default, so the board
+  still works with storage blocked. A theme saved by an earlier version is
+  carried over once.
