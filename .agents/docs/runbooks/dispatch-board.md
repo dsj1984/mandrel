@@ -42,10 +42,17 @@ The board is a local, single-operator tool. It never leaves your machine:
 - Every response carries a strict Content-Security-Policy (no inline script
   or style, same-origin only), `X-Frame-Options: DENY`, `nosniff`,
   `Referrer-Policy: no-referrer` and `Cache-Control: no-store`.
-- No response contains a credential. The Connections dialog reports only
+- No response contains a credential. The Connections view reports only
   whether a GitHub token resolves and from where (environment variable or
   `gh`), never its value. Errors are `{ "error": "<code>" }` with no stack
   trace or path.
+- `GET /api/connections` also names the accounts in use: the GitHub login
+  (`gh api user`, which honours `GH_TOKEN`/`GITHUB_TOKEN` first, so it is
+  the token's account) and, from `claude auth status --json`, only the
+  Claude account's email, org name, plan and login method (plus the API
+  provider when it is not first-party). Both lookups run in parallel with a
+  10 s timeout and are reused for 60 seconds. Account values are never
+  logged; they appear only in this token-protected response and the page.
 - The page writes every GitHub-sourced string as text, never as HTML, and
   links only to `https://github.com/` pages.
 - `GET /api/story?id=<n>` takes only a 1–10 digit positive id (400
@@ -79,10 +86,24 @@ A card in Delivering or Blocked also shows a status row:
   a warning. Under `prefers-reduced-motion` the dot does not pulse;
 - `running Nm` since the launch and `updated Nm ago` since the last stage.
 
+## The header
+
+The board is always the main view. The header's right side holds two icon
+buttons, then the **More** menu:
+
+- **Environments** (server-stack icon): a badge shows how many environments
+  are offline, when any are.
+- **Connections** (plug icon): tinted when GitHub and the `claude` CLI both
+  resolve, amber when either needs attention.
+
+Each button opens its view in the side panel; clicking it again closes the
+panel, and clicking the other one switches views.
+
 ## The side panel
 
-A Story's detail opens in a side panel on the right; the board stays
-visible and usable beside it. Open it by double-clicking a card,
+The side panel opens on the right and holds one view at a time: a Story's
+detail, Environments or Connections. The board stays visible and usable
+beside it, and opening a Story's detail replaces whichever view is open. Open it by double-clicking a card,
 right-clicking it, pressing Enter or Space on a focused card, or with the
 card's **⋯** button. Esc, the × button or opening the same card again
 closes it. While open it refreshes on the board's poll.
@@ -113,13 +134,17 @@ A card moves to its new column only when the next state read places it
 there. Every card also has a **Move** menu listing the same allowed actions,
 so nothing requires dragging.
 
-## Other views
+## Panel views
 
 - **Environments**: one card per environment with its target, load, online
   state, where it is defined (`.agentrc.json`, `.agentrc.local.json` or the
   implicit default) and the Stories it holds. Read-only; edit environments
   in config.
-- **Connections** (the status button): GitHub token presence and source,
-  `claude` CLI availability, and per environment whether it is online and
-  why not.
-- **Theme** (overflow menu): auto (follows the system), light or dark.
+- **Connections**: the GitHub login, token source and status; the Claude
+  account's email, org, plan and login method; `claude` CLI availability;
+  and per environment whether it is online and why not. These are the
+  accounts the board and its **local** launches act as, since a local
+  launch inherits the board's environment. A cloud environment's session
+  runs as its routine owner's account instead; the view shows that
+  environment's routine id, never a token.
+- **Theme** (More menu): auto (follows the system), light or dark.

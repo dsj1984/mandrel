@@ -6,7 +6,6 @@ import { describe, it } from 'node:test';
 
 import {
   buildBoard,
-  connectionSummary,
   dropZones,
   environmentCards,
   moveOptions,
@@ -14,6 +13,13 @@ import {
   storyDetailView,
   zoneVerdict,
 } from '../../lib/cli/ui/board-model.js';
+import {
+  connectionsView,
+  environmentRows,
+  headerView,
+  nextPanelView,
+  storyOfView,
+} from '../../lib/cli/ui/panel-model.js';
 
 const UNTRACKED = 'untracked';
 const COLUMN_IDS = [
@@ -344,31 +350,130 @@ describe('environmentCards', () => {
   });
 });
 
-describe('connectionSummary', () => {
-  it('reports presence and source, never a value', () => {
-    const summary = connectionSummary({
-      github: { ok: true, source: 'gh' },
-      claude: { ok: true },
-      environments: [
-        { name: 'local', online: true },
-        { name: 'box', online: false, reason: 'claude CLI not found' },
-      ],
-    });
-    assert.equal(summary.ok, true);
-    assert.deepEqual(summary.lines, [
-      'GitHub token: resolved from gh',
-      'claude CLI: available',
-      'local: online',
-      'box: offline (claude CLI not found)',
-    ]);
+describe('AC-5: nextPanelView', () => {
+  it('opens a view, closes it when asked again and switches to another', () => {
+    assert.equal(nextPanelView(null, 'environments'), 'environments');
+    assert.equal(nextPanelView('environments', 'environments'), null);
+    assert.equal(nextPanelView('environments', 'connections'), 'connections');
+    assert.equal(nextPanelView('connections', 'story-7'), 'story-7');
+  });
+});
+
+describe('panel view ids and the header', () => {
+  it('reads the Story id from a story view only', () => {
+    assert.equal(storyOfView('story-42'), 42);
+    assert.equal(storyOfView('connections'), null);
+    assert.equal(storyOfView(null), null);
   });
 
-  it('flags missing pieces and a pending report', () => {
-    assert.deepEqual(connectionSummary({}), {
-      ok: false,
-      lines: ['GitHub token: not found', 'claude CLI: not found'],
+  it('AC-7: badges the offline count and labels each button', () => {
+    const ok = {
+      github: { ok: true, source: 'gh' },
+      claude: { ok: true, account: null },
+    };
+    assert.deepEqual(headerView(2, ok), {
+      badge: '2',
+      environments: 'Environments, 2 offline',
+      connections: 'Connections: connected',
+      ok: true,
     });
-    assert.equal(connectionSummary(null).ok, false);
+    assert.deepEqual(headerView(0, null), {
+      badge: '',
+      environments: 'Environments',
+      connections: 'Connections: needs attention',
+      ok: false,
+    });
+  });
+
+  it('AC-7: lists target, load, online state, definition and Stories', () => {
+    assert.deepEqual(
+      environmentRows({
+        target: 'local',
+        load: '1/2',
+        online: false,
+        reason: 'no GitHub token',
+        definedIn: '.agentrc.json',
+        stories: [3, 5],
+      }),
+      [
+        ['Target', 'local'],
+        ['Load', '1/2'],
+        ['State', 'offline (no GitHub token)'],
+        ['Defined in', '.agentrc.json'],
+        ['Stories', '#3, #5'],
+      ],
+    );
+    assert.deepEqual(environmentRows({ online: true, stories: [] }).slice(2), [
+      ['State', 'online'],
+      ['Defined in', undefined],
+      ['Stories', 'none'],
+    ]);
+  });
+});
+
+describe('AC-6: connectionsView', () => {
+  const rowsOf = (view, title) =>
+    view.sections.find((s) => s.title === title).rows;
+
+  it('shows the GitHub login, the Claude account and the routine owner note', () => {
+    const view = connectionsView({
+      github: { ok: true, source: 'gh', login: 'octocat' },
+      claude: {
+        ok: true,
+        account: {
+          email: 'dev@example.test',
+          orgName: 'Org',
+          subscriptionType: 'max',
+          authMethod: 'claude.ai',
+        },
+      },
+      environments: [
+        { name: 'local', online: true, routine: null },
+        { name: 'box', online: false, reason: 'claude CLI not found' },
+        { name: 'cloud', online: true, routine: 'trig_1' },
+      ],
+    });
+    assert.equal(view.ok, true);
+    assert.deepEqual(rowsOf(view, 'GitHub'), [
+      ['Login', 'octocat', 'connections-github-login'],
+      ['Token', 'from gh'],
+      ['Status', 'connected'],
+    ]);
+    assert.deepEqual(rowsOf(view, 'Claude account'), [
+      ['Account', 'dev@example.test', 'connections-claude-account'],
+      ['Org', 'Org'],
+      ['Plan', 'max'],
+      ['Login method', 'claude.ai'],
+    ]);
+    assert.deepEqual(rowsOf(view, 'claude CLI'), [['Status', 'available']]);
+    assert.deepEqual(view.environments, [
+      'local: online',
+      'box: offline (claude CLI not found)',
+      'cloud: online, runs as the routine owner (routine trig_1)',
+    ]);
+    assert.match(view.note, /cloud environment runs as its routine owner/);
+  });
+
+  it('shows a non-first-party API provider and flags missing pieces', () => {
+    const provider = connectionsView({
+      github: { ok: true, source: 'environment', login: null },
+      claude: { ok: true, account: { apiProvider: 'bedrock' } },
+    });
+    assert.deepEqual(rowsOf(provider, 'Claude account'), [
+      ['Account', 'unknown', 'connections-claude-account'],
+      ['API provider', 'bedrock'],
+    ]);
+    assert.equal(rowsOf(provider, 'GitHub')[0][1], 'unavailable');
+    const pending = connectionsView(null);
+    assert.equal(pending.ok, false);
+    assert.deepEqual(rowsOf(pending, 'GitHub').slice(1), [
+      ['Token', 'not found'],
+      ['Status', 'not connected'],
+    ]);
+    assert.deepEqual(rowsOf(pending, 'Claude account'), [
+      ['Account', 'not signed in', 'connections-claude-account'],
+    ]);
+    assert.deepEqual(pending.environments, []);
   });
 });
 
