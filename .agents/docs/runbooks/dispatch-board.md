@@ -50,6 +50,16 @@ The board is a local, single-operator tool. It never leaves your machine:
   be exactly `{ action, storyId, environment }`: `action` one of
   `dispatch`, `resume`, `stop`; a positive integer `storyId`; a configured
   `environment`. Anything else is refused (400) and runs nothing.
+- `POST /api/launch-options` sets a Story's model and effort overrides
+  under the same checks, in the same order: the Host allowlist, the token
+  (403 `forbidden`), the same `Origin` and JSON content type (403), and the
+  4 KB body cap. The body must be exactly `{ storyId, model, effort }`: a
+  positive integer `storyId`, a `model` in the allowlist or `null`, an
+  `effort` level or `null` (`null` uses the environment default).
+  Anything else is 400 (`invalid-body`, `unknown-property`,
+  `invalid-story-id`, `invalid-model`, `invalid-effort`); a closed ticket or
+  an Epic is 409 `not-a-story`. It writes the Story's labels in one update
+  and nothing else; dispatch re-validates the labels at launch anyway.
 - Every response carries a strict Content-Security-Policy (no inline script
   or style, same-origin only), `X-Frame-Options: DENY`, `nosniff`,
   `Referrer-Policy: no-referrer` and `Cache-Control: no-store`.
@@ -167,13 +177,28 @@ closes it. While open it refreshes on the board's poll.
 
 The Story detail view shows the GitHub issue link, the pull request and its
 checks, and then only the facts that have a value: the Project Status, the
-column, environment, stage, process, assignees, the Epic and the Stories it
+column, environment, model and effort, stage, process, assignees, the Epic and the Stories it
 depends on (both linked), and the labels as chips. The stage timeline (the
 last 10 stage changes), the dispatch record (pid, start time, session id or
 URL, command) and the last 50 lines of the log, summarized one line per
 event, appear only when there is something to show, as does the resume command `claude --resume <sessionId>` with a **Copy**
 button. The page never runs that command. Its action buttons are the
 card's Move menu, so Stop still asks for confirmation.
+
+## Model and effort
+
+Each card's **✎** button opens a dialog with a **Model** and an **Effort**
+select. Each opens on **Use default**, which clears the Story's override;
+any other choice sets the `model::<m>` / `effort::<e>` label (created on
+demand) and removes every other one. Below them, a line per field names the
+effective value and its source: `opus (override)`, `sonnet (local
+default)`, `Claude Code default`, `routine's own model` for a cloud
+environment, or, for a Story not yet in an environment, `environment
+default (set at dispatch)` with each local environment's default. **Save**
+posts `POST /api/launch-options` and refreshes the board. The card face
+shows no model or effort; the Story detail lists **Model** and **Effort**
+facts with their source. Precedence and the allowlist are in
+[Model and effort](dispatch.md#model-and-effort).
 
 ## Drag actions
 

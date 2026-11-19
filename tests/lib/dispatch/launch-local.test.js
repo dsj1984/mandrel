@@ -8,11 +8,20 @@ import {
   launchLocal,
   stopLocal,
 } from '../../../.agents/scripts/lib/dispatch/launch-local.js';
+import { gateLaunch } from '../../../.agents/scripts/lib/dispatch/launch-options.js';
 import {
   readRecord,
   writeRecord,
 } from '../../../.agents/scripts/lib/dispatch/record.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+
+/** The environment dispatch launches: `config`'s `local` entry, its options filled. */
+function launchEnvironment(config = {}, labels = []) {
+  const verdict = { ok: true, action: 'dispatch', environment: 'local' };
+  const environments = resolveEnvironments(config);
+  return gateLaunch(verdict, environments, { labels }, config).launch
+    .environment;
+}
 
 function launch(environment, uuid = () => 'sess-1') {
   const calls = [];
@@ -33,9 +42,25 @@ function launch(environment, uuid = () => 'sess-1') {
 }
 
 describe('launchLocal', () => {
+  it('AC-4: spawns --model and --effort, an override beating the environment default', async () => {
+    const config = {
+      delivery: {
+        environments: { local: { target: 'local', model: 'sonnet' } },
+      },
+    };
+    const plain = await launch(launchEnvironment(config));
+    assert.deepEqual(plain.calls[0].args.slice(-1), ['--model=sonnet']);
+    const overridden = await launch(
+      launchEnvironment(config, ['model::opus', 'effort::max']),
+    );
+    assert.deepEqual(overridden.calls[0].args.slice(-2), [
+      '--model=opus',
+      '--effort=max',
+    ]);
+  });
+
   it('AC-1: spawns the default argv with {id} and a fresh session id, and records that id', async () => {
-    const [environment] = resolveEnvironments({});
-    const { record, calls, made } = await launch(environment);
+    const { record, calls, made } = await launch(launchEnvironment());
     const argv = [
       'claude',
       '-p',

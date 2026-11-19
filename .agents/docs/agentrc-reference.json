@@ -276,7 +276,8 @@
       "closeAndLand": true,
       "sessionTitles": true,
       "agentModels": {}
-    }
+    },
+    "dispatchModels": []
   },
   "qa": {
     "featureRoot": "tests/features",

@@ -8,6 +8,18 @@ import {
   envLabel,
   resolveEnvironments,
 } from '../../../.agents/scripts/lib/dispatch/environments.js';
+import { gateLaunch } from '../../../.agents/scripts/lib/dispatch/launch-options.js';
+
+/** The argv a launch spawns: the command with override labels for `options` filled in. */
+function argvFor(command, id, sessionId, { model, effort } = {}) {
+  const labels = [model && `model::${model}`, effort && `effort::${effort}`];
+  const gated = gateLaunch(
+    { ok: true, action: 'dispatch', environment: 'e' },
+    [{ name: 'e', target: 'local', command }],
+    { labels: labels.filter(Boolean) },
+  );
+  return commandFor(gated.launch.environment.command, id, sessionId);
+}
 
 const DEFAULT_COMMAND = [
   'claude',
@@ -17,6 +29,22 @@ const DEFAULT_COMMAND = [
   '{sessionId}',
   '--name',
   '◐ Delivery #{id}',
+  '--output-format',
+  'stream-json',
+  '--verbose',
+  '--model={model}',
+  '--effort={effort}',
+];
+
+/** The argv the default command spawned before `{model}`/`{effort}` existed. */
+const PRE_CHANGE_ARGV = (id) => [
+  'claude',
+  '-p',
+  `/mandrel-deliver ${id}`,
+  '--session-id',
+  '{sessionId}',
+  '--name',
+  `◐ Delivery #${id}`,
   '--output-format',
   'stream-json',
   '--verbose',
@@ -37,6 +65,8 @@ describe('resolveEnvironments', () => {
           capacity: 1,
           online: true,
           command: DEFAULT_COMMAND,
+          model: null,
+          effort: null,
         },
       ]);
     }
@@ -46,7 +76,7 @@ describe('resolveEnvironments', () => {
     const envs = resolveEnvironments({
       delivery: {
         environments: {
-          box: { target: 'local' },
+          box: { target: 'local', model: 'sonnet', effort: 'high' },
           big: { target: 'local', capacity: 3, command: ['run', '{id}'] },
         },
       },
@@ -58,6 +88,8 @@ describe('resolveEnvironments', () => {
         capacity: 1,
         online: true,
         command: DEFAULT_COMMAND,
+        model: 'sonnet',
+        effort: 'high',
       },
       {
         name: 'big',
@@ -65,6 +97,8 @@ describe('resolveEnvironments', () => {
         capacity: 3,
         online: true,
         command: ['run', '{id}'],
+        model: null,
+        effort: null,
       },
     ]);
   });
@@ -106,6 +140,38 @@ describe('labels and load', () => {
     assert.deepEqual(commandFor(custom, 7, 'u-1'), ['run', '--sid=u-1', '7']);
     assert.deepEqual(commandFor(custom, 7), ['run', '--sid={sessionId}', '7']);
   });
+
+  it('AC-3: the default command with nothing resolved is the pre-change argv', () => {
+    assert.deepEqual(argvFor(DEFAULT_COMMAND, 7), PRE_CHANGE_ARGV(7));
+    assert.deepEqual(
+      argvFor(DEFAULT_COMMAND, 7, undefined, { model: null, effort: null }),
+      PRE_CHANGE_ARGV(7),
+    );
+  });
+
+  it('AC-4: fills --model and --effort when they resolve', () => {
+    assert.deepEqual(
+      argvFor(DEFAULT_COMMAND, 7, 'u-1', {
+        model: 'opus',
+        effort: 'max',
+      }).slice(-2),
+      ['--model=opus', '--effort=max'],
+    );
+  });
+
+  it('AC-5: a custom command takes the placeholders, drops unresolved elements, and gains nothing', () => {
+    const custom = ['run', '{id}', '--m', '{model}', 'e={effort}'];
+    assert.deepEqual(argvFor(custom, 7, 'u', { model: 'sonnet' }), [
+      'run',
+      '7',
+      '--m',
+      'sonnet',
+    ]);
+    assert.deepEqual(
+      argvFor(['run', '{id}'], 7, 'u', { model: 'opus', effort: 'max' }),
+      ['run', '7'],
+    );
+  });
 });
 
 describe('delivery.environments schema (AC-3)', () => {
@@ -126,10 +192,31 @@ describe('delivery.environments schema (AC-3)', () => {
           capacity: 2,
           command: ['claude', '-p', 'x {id}'],
         },
+        fast: { target: 'local', model: 'sonnet', effort: 'high' },
       }),
     );
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
+
+  it('AC-1: accepts delivery.dispatchModels', () => {
+    const config = withEnvs({ local: { target: 'local' } });
+    config.delivery.dispatchModels = ['fable', 'claude-opus-4-1'];
+    assert.equal(validate(config), true, JSON.stringify(validate.errors));
+  });
+
+  const badDispatchModels = {
+    'a leading dash': ['-x'],
+    'a space': ['a b'],
+    'a duplicate': ['fable', 'fable'],
+    'more than 43 characters': ['m'.repeat(44)],
+  };
+  for (const [what, dispatchModels] of Object.entries(badDispatchModels)) {
+    it(`AC-1: rejects delivery.dispatchModels with ${what}`, () => {
+      const config = withEnvs({ local: { target: 'local' } });
+      config.delivery.dispatchModels = dispatchModels;
+      assert.equal(validate(config), false);
+    });
+  }
 
   const rejects = {
     'an unknown target': { local: { target: 'cloud' } },
@@ -140,6 +227,32 @@ describe('delivery.environments schema (AC-3)', () => {
     },
     'an unknown property on an entry': {
       local: { target: 'local', shell: true },
+    },
+    'an effort outside the levels': {
+      local: { target: 'local', effort: 'extreme' },
+    },
+    'a model starting with -': { local: { target: 'local', model: '-rf' } },
+    'a model containing a space': {
+      local: { target: 'local', model: 'son net' },
+    },
+    'a model longer than 43 characters': {
+      local: { target: 'local', model: 'm'.repeat(44) },
+    },
+    'a model on a claude-cloud entry': {
+      c: {
+        target: 'claude-cloud',
+        routine: 'trig_1',
+        tokenEnv: 'T',
+        model: 'opus',
+      },
+    },
+    'an effort on a claude-cloud entry': {
+      c: {
+        target: 'claude-cloud',
+        routine: 'trig_1',
+        tokenEnv: 'T',
+        effort: 'max',
+      },
     },
   };
   for (const [what, environments] of Object.entries(rejects)) {

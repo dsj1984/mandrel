@@ -103,7 +103,35 @@ describe('buildStatus', () => {
 
   it('returns the documented environment shape with load', () => {
     assert.deepEqual(status.environments, [
-      { name: 'local', target: 'local', capacity: 1, load: 2, online: true },
+      {
+        name: 'local',
+        target: 'local',
+        capacity: 1,
+        load: 2,
+        online: true,
+        model: null,
+        effort: null,
+      },
+    ]);
+  });
+
+  it('AC-8: carries the launch choices, widened by the config', () => {
+    assert.deepEqual(status.launchChoices, {
+      models: ['opus', 'sonnet', 'haiku'],
+      efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+    });
+    const config = {
+      delivery: {
+        dispatchModels: ['fable', 'opus'],
+        environments: { local: { target: 'local', model: 'claude-x' } },
+      },
+    };
+    assert.deepEqual(buildStatus({ ...board, config }).launchChoices.models, [
+      'opus',
+      'sonnet',
+      'haiku',
+      'fable',
+      'claude-x',
     ]);
   });
 
@@ -142,12 +170,14 @@ describe('buildStatus', () => {
       'epic',
       'id',
       'labels',
+      'overrides',
       'pr',
       'projectStatus',
       'state',
       'title',
     ]);
     assert.equal(row.environment, 'local');
+    assert.deepEqual(row.overrides, { model: null, effort: null });
     assert.deepEqual(row.pr, {
       number: 5,
       url: 'u',

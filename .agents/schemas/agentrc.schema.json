@@ -1848,7 +1848,7 @@
         },
         "environments": {
           "type": "object",
-          "description": "Named delivery environments for `mandrel dispatch`, keyed by name (lowercase letters, digits and hyphens, at most 31 characters). `target` is where the delivery runs and `capacity` how many Stories may hold the environment at once (default 1). A `local` entry may set `command`, the argv started for a Story with `{id}` replaced by the Story id and `{sessionId}` by a fresh UUID per launch (default `[\"claude\", \"-p\", \"/mandrel-deliver {id}\", \"--session-id\", \"{sessionId}\", \"--name\", \"◐ Delivery #{id}\", \"--output-format\", \"stream-json\", \"--verbose\"]`), spawned without a shell. A `claude-cloud` entry fires a Claude Code routine instead: it requires `routine` (the routine id, `trig_…`) and `tokenEnv` (the NAME of the environment variable holding the routine token, never the token) and takes no `command`. Unset, one implicit `local` environment with capacity 1 is used. `.agentrc.local.json` adds or overrides an entry through the usual merge.",
+          "description": "Named delivery environments for `mandrel dispatch`, keyed by name (lowercase letters, digits and hyphens, at most 31 characters). `target` is where the delivery runs and `capacity` how many Stories may hold the environment at once (default 1). A `local` entry may set `command`, the argv started for a Story with `{id}` replaced by the Story id and `{sessionId}` by a fresh UUID per launch (default `[\"claude\", \"-p\", \"/mandrel-deliver {id}\", \"--session-id\", \"{sessionId}\", \"--name\", \"◐ Delivery #{id}\", \"--output-format\", \"stream-json\", \"--verbose\", \"--model={model}\", \"--effort={effort}\"]`), spawned without a shell. A `local` entry may also set `model` and `effort` (`low`, `medium`, `high`, `xhigh` or `max`), the defaults its `{model}` / `{effort}` placeholders take; a Story's `model::` / `effort::` label overrides them, and an argv element whose placeholder resolves to nothing is dropped. A `claude-cloud` entry fires a Claude Code routine instead: it requires `routine` (the routine id, `trig_…`) and `tokenEnv` (the NAME of the environment variable holding the routine token, never the token) and takes no `command`. Unset, one implicit `local` environment with capacity 1 is used. `.agentrc.local.json` adds or overrides an entry through the usual merge.",
           "propertyNames": {
             "pattern": "^[a-z0-9][a-z0-9-]{0,30}$"
           },
@@ -1871,6 +1871,14 @@
                       "type": "string",
                       "minLength": 1
                     }
+                  },
+                  "model": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                    "maxLength": 43
+                  },
+                  "effort": {
+                    "enum": ["low", "medium", "high", "xhigh", "max"]
                   }
                 },
                 "required": ["target"],
@@ -1900,6 +1908,17 @@
               }
             ]
           }
+        },
+        "dispatchModels": {
+          "type": "array",
+          "description": "Extra model aliases or full model ids a `model::<m>` Story label may pick for `mandrel dispatch`, beyond `opus`, `sonnet`, `haiku` and every environment's own `model`. A label naming any other model refuses the launch.",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "maxLength": 43
+          },
+          "uniqueItems": true,
+          "default": []
         }
       },
       "additionalProperties": false

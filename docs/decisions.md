@@ -36,6 +36,7 @@ superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261119-6137`](#adr-20261119-6137-dispatch-model-overrides-raise-the-agentrc-leaf-key-ceiling-to-173) | Dispatch model overrides raise the agentrc leaf-key ceiling to 173 | `.agents/scripts/lib/dispatch/launch-options.js` | Accepted |
 | [`20261118-6119`](#adr-20261118-6119-session-titles-raise-the-agentrc-leaf-key-ceiling-to-172) | Session titles raise the agentrc leaf-key ceiling to 172 | `.agents/scripts/session-title.js` | Accepted |
 | [`20261118-6108`](#adr-20261118-6108-named-delivery-environments-raise-the-agentrc-leaf-key-ceiling-to-171) | Named delivery environments raise the agentrc leaf-key ceiling to 171 | `.agents/scripts/lib/dispatch/environments.js` | Accepted |
 | [`20261117-6099`](#adr-20261117-6099-the-handoff-fast-lane-raises-the-agentrc-leaf-key-ceiling-to-170) | The handoff fast lane raises the agentrc leaf-key ceiling to 170 | `.agents/scripts/lib/config/handoff.js` | Accepted |
@@ -5403,3 +5404,39 @@ knob; there is no per-event or per-glyph surface.
 `.agentrc.local.json` turns titling off per operator through the existing deep
 merge. With it off, `session-title.js` answers `apply: false` and exits 0, so
 no workflow step fails or pauses because titling is disabled.
+
+## ADR 20261119-6137: Dispatch model overrides raise the agentrc leaf-key ceiling to 173
+
+**Status:** Accepted
+**Date:** 2026-11-19
+**Surface:** `.agents/scripts/lib/dispatch/launch-options.js`
+**Story:** #6137
+
+### Context
+
+`mandrel dispatch` always launched a delivery on Claude Code's own model and
+effort. Operators want a per-environment default (`model` / `effort` on a
+`local` entry) and a per-Story override set from the board as a
+`model::<m>` / `effort::<e>` label. Labels can be written by anyone with
+triage access, so the launch path must check an override against an
+allowlist before it reaches the argv.
+
+### Decision
+
+Add `delivery.dispatchModels` (default `[]`) and raise the ceiling by one.
+The environment `model` / `effort` keys sit inside the open
+`delivery.environments` map, which the counter scores once, so they add
+nothing. The allowlist is `opus`, `sonnet`, `haiku`, then
+`delivery.dispatchModels`, then every environment's configured `model`.
+No existing source holds the extra entries: an alias an operator may pick
+that no environment uses as its default (for example `fable` or a pinned
+full model id) is not in any environment entry, the package manifest or
+Claude Code, which publishes no machine-readable alias list. Effort levels
+are a fixed enum and need no key.
+
+### Consequences
+
+An override outside the allowlist, an unknown effort, or two labels of one
+kind refuses the launch with `invalid-launch-option` before any label write.
+A `claude-cloud` routine runs its own model; its overrides are reported as
+ignored.

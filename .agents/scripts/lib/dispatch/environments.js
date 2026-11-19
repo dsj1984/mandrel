@@ -8,6 +8,7 @@
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
+import { withLaunchDefaults } from './launch-options.js';
 import { resolveEntry } from './targets.js';
 
 /**
@@ -31,8 +32,8 @@ const LOAD_STATES = new Set([
 
 /**
  * @typedef {{ name: string, target: string, capacity: number, online: boolean,
- *   offlineReason?: string, command?: string[], routine?: string,
- *   tokenEnv?: string }} Environment
+ *   model: string|null, effort: string|null, offlineReason?: string,
+ *   command?: string[], routine?: string, tokenEnv?: string }} Environment
  */
 
 /**
@@ -49,7 +50,9 @@ export function resolveEnvironments(config, env = process.env) {
     map && typeof map === 'object' && Object.keys(map).length > 0
       ? Object.entries(map)
       : [['local', { target: 'local' }]];
-  return entries.map(([name, entry]) => resolveEntry(name, entry, env));
+  return entries.map(([name, entry]) =>
+    withLaunchDefaults(resolveEntry(name, entry, env), entry),
+  );
 }
 
 /**

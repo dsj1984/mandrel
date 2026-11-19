@@ -1051,6 +1051,10 @@
       "mi": 102.45
     },
     {
+      "path": ".agents/scripts/lib/dispatch/launch-options.js",
+      "mi": 106.804
+    },
+    {
       "path": ".agents/scripts/lib/dispatch/liveness.js",
       "mi": 100.888
     },
@@ -2980,11 +2984,11 @@
     },
     {
       "path": "lib/cli/ui/request-guard.js",
-      "mi": 101.859
+      "mi": 107.879
     },
     {
       "path": "lib/cli/ui/server.js",
-      "mi": 101.675
+      "mi": 103.174
     },
     {
       "path": "lib/cli/ui/sources.js",
@@ -2992,7 +2996,7 @@
     },
     {
       "path": "lib/cli/ui/story-detail.js",
-      "mi": 104.545
+      "mi": 105.587
     },
     {
       "path": "lib/cli/uninstall.js",

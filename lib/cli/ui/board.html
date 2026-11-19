@@ -83,6 +83,23 @@
   </div>
 </dialog>
 
+<dialog class="panel" id="launch-options-dialog" data-testid="launch-options-dialog" aria-labelledby="launch-options-title">
+  <h2 id="launch-options-title">Launch options</h2>
+  <div class="setting">
+    <label for="launch-options-model">Model</label>
+    <select id="launch-options-model" data-testid="launch-options-model"></select>
+  </div>
+  <div class="setting">
+    <label for="launch-options-effort">Effort</label>
+    <select id="launch-options-effort" data-testid="launch-options-effort"></select>
+  </div>
+  <div class="effective" id="launch-options-effective" data-testid="launch-options-effective" aria-live="polite"></div>
+  <div class="dialog-actions">
+    <button type="button" id="launch-options-cancel">Cancel</button>
+    <button type="button" id="launch-options-save" data-testid="launch-options-save">Save</button>
+  </div>
+</dialog>
+
 <div class="toast" id="toast" data-testid="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

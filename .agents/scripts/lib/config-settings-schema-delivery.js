@@ -20,6 +20,7 @@ import {
   CODE_REVIEW_SCHEMA,
   QUALITY_SCHEMA,
 } from './config-settings-schema-quality.js';
+import { EFFORT_LEVELS } from './dispatch/launch-options.js';
 
 const SAFE_STRING = {
   type: 'string',
@@ -566,10 +567,26 @@ const TEMP_RETENTION_SCHEMA = {
 
 const ENVIRONMENT_CAPACITY = { type: 'integer', minimum: 1 };
 
+/** 43 characters, so `model::<m>` fits GitHub's 50-character label limit. */
+const DISPATCH_MODEL = {
+  type: 'string',
+  pattern: AGENT_MODEL_PATTERN,
+  maxLength: 43,
+};
+
+const DISPATCH_MODELS_SCHEMA = {
+  type: 'array',
+  description:
+    "Extra model aliases or full model ids a `model::<m>` Story label may pick for `mandrel dispatch`, beyond `opus`, `sonnet`, `haiku` and every environment's own `model`. A label naming any other model refuses the launch.",
+  items: DISPATCH_MODEL,
+  uniqueItems: true,
+  default: [],
+};
+
 const ENVIRONMENTS_SCHEMA = {
   type: 'object',
   description:
-    'Named delivery environments for `mandrel dispatch`, keyed by name (lowercase letters, digits and hyphens, at most 31 characters). `target` is where the delivery runs and `capacity` how many Stories may hold the environment at once (default 1). A `local` entry may set `command`, the argv started for a Story with `{id}` replaced by the Story id and `{sessionId}` by a fresh UUID per launch (default `["claude", "-p", "/mandrel-deliver {id}", "--session-id", "{sessionId}", "--name", "◐ Delivery #{id}", "--output-format", "stream-json", "--verbose"]`), spawned without a shell. A `claude-cloud` entry fires a Claude Code routine instead: it requires `routine` (the routine id, `trig_…`) and `tokenEnv` (the NAME of the environment variable holding the routine token, never the token) and takes no `command`. Unset, one implicit `local` environment with capacity 1 is used. `.agentrc.local.json` adds or overrides an entry through the usual merge.',
+    'Named delivery environments for `mandrel dispatch`, keyed by name (lowercase letters, digits and hyphens, at most 31 characters). `target` is where the delivery runs and `capacity` how many Stories may hold the environment at once (default 1). A `local` entry may set `command`, the argv started for a Story with `{id}` replaced by the Story id and `{sessionId}` by a fresh UUID per launch (default `["claude", "-p", "/mandrel-deliver {id}", "--session-id", "{sessionId}", "--name", "◐ Delivery #{id}", "--output-format", "stream-json", "--verbose", "--model={model}", "--effort={effort}"]`), spawned without a shell. A `local` entry may also set `model` and `effort` (`low`, `medium`, `high`, `xhigh` or `max`), the defaults its `{model}` / `{effort}` placeholders take; a Story\'s `model::` / `effort::` label overrides them, and an argv element whose placeholder resolves to nothing is dropped. A `claude-cloud` entry fires a Claude Code routine instead: it requires `routine` (the routine id, `trig_…`) and `tokenEnv` (the NAME of the environment variable holding the routine token, never the token) and takes no `command`. Unset, one implicit `local` environment with capacity 1 is used. `.agentrc.local.json` adds or overrides an entry through the usual merge.',
   propertyNames: { pattern: '^[a-z0-9][a-z0-9-]{0,30}$' },
   additionalProperties: {
     oneOf: [
@@ -583,6 +600,8 @@ const ENVIRONMENTS_SCHEMA = {
             minItems: 1,
             items: { type: 'string', minLength: 1 },
           },
+          model: DISPATCH_MODEL,
+          effort: { enum: [...EFFORT_LEVELS] },
         },
         required: ['target'],
         additionalProperties: false,
@@ -626,6 +645,7 @@ export const DELIVERY_SCHEMA = {
     orchestrate: ORCHESTRATE_SCHEMA,
     routing: ROUTING_SCHEMA,
     environments: ENVIRONMENTS_SCHEMA,
+    dispatchModels: DISPATCH_MODELS_SCHEMA,
   },
   additionalProperties: false,
 };

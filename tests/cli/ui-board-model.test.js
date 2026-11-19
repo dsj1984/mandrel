@@ -8,6 +8,7 @@ import {
   buildBoard,
   dropZones,
   environmentCards,
+  launchOptionsView,
   moveOptions,
   storyDetailView,
   zoneVerdict,
@@ -890,5 +891,112 @@ describe('Epic on the card and the assignee predicate', () => {
     assert.deepEqual(backlog.projectStatus, { text: 'Triage', tone: 'other' });
     assert.equal(cardOf(story(3, 'ready')).projectStatus, null);
     assert.equal(cardOf(story(3, 'ready')).url, null);
+  });
+});
+
+describe('launch options (AC-10, AC-11)', () => {
+  const state = {
+    environments: [
+      { name: 'local', target: 'local', model: 'sonnet', effort: null },
+      { name: 'gpu', target: 'local', model: null, effort: 'high' },
+      { name: 'cloud', target: 'claude-cloud', model: null, effort: null },
+    ],
+    launchChoices: { models: ['opus', 'sonnet'], efforts: ['low', 'max'] },
+  };
+  const row = (extra) => ({
+    id: 7,
+    environment: null,
+    overrides: { model: null, effort: null },
+    ...extra,
+  });
+
+  it('opens each select on "Use default" and preselects the override', () => {
+    const view = launchOptionsView(
+      row({ overrides: { model: 'opus', effort: null } }),
+      state,
+    );
+    assert.deepEqual(view.model.options, [
+      { value: '', text: 'Use default' },
+      { value: 'opus', text: 'opus' },
+      { value: 'sonnet', text: 'sonnet' },
+    ]);
+    assert.equal(view.model.value, 'opus');
+    assert.equal(view.effort.value, '');
+    assert.equal(view.effort.options[0].text, 'Use default');
+  });
+
+  it('names the effective value and its source', () => {
+    const inLocal = launchOptionsView(
+      row({ environment: 'local', overrides: { model: null, effort: 'max' } }),
+      state,
+    );
+    assert.deepEqual(inLocal.effective, [
+      'Model: sonnet (local default)',
+      'Effort: max (override)',
+    ]);
+    assert.deepEqual(
+      launchOptionsView(row({ environment: 'gpu' }), state).effective,
+      ['Model: Claude Code default', 'Effort: high (gpu default)'],
+    );
+    assert.deepEqual(
+      launchOptionsView(
+        row({
+          environment: 'cloud',
+          overrides: { model: 'opus', effort: null },
+        }),
+        state,
+      ).effective,
+      ["Model: routine's own model", "Effort: routine's own effort"],
+    );
+  });
+
+  it('lists each local default for a Story not yet in an environment', () => {
+    assert.deepEqual(launchOptionsView(row({}), state).effective, [
+      'Model: environment default (set at dispatch) (local: sonnet, gpu: Claude Code default)',
+      'Effort: environment default (set at dispatch) (local: Claude Code default, gpu: high)',
+    ]);
+  });
+
+  it('renders no model or effort text on the card face', () => {
+    const card = cardOf({
+      ...story(7, 'ready'),
+      overrides: { model: 'opus', effort: 'max' },
+    });
+    const text = JSON.stringify(card);
+    assert.equal(text.includes('opus'), false);
+    assert.equal(text.includes('max'), false);
+  });
+
+  it('lists Model and Effort facts with their source', () => {
+    const facts = (launchOptions, environment = 'local') =>
+      Object.fromEntries(
+        storyDetailView({
+          id: 7,
+          column: 'delivering',
+          environment,
+          launchOptions,
+        }).facts,
+      );
+    const resolved = facts({
+      model: { value: 'opus', source: 'override' },
+      effort: { value: 'high', source: 'environment' },
+    });
+    assert.equal(resolved.Model, 'opus (override)');
+    assert.equal(resolved.Effort, 'high (local default)');
+    const defaults = facts({
+      model: { value: null, source: 'claude-default' },
+      effort: { value: null, source: 'routine' },
+    });
+    assert.equal(defaults.Model, 'Claude Code default');
+    assert.equal(defaults.Effort, "routine's own effort");
+    assert.match(
+      facts({ invalid: 'model::x is not allowed' }).Model,
+      /invalid/,
+    );
+    assert.equal(
+      facts({ model: { value: null, source: 'environment' } }, null).Model,
+      'environment default (set at dispatch)',
+    );
+    assert.equal(facts(null).Model, undefined);
   });
 });

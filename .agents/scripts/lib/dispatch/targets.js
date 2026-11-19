@@ -25,6 +25,8 @@ const DEFAULT_COMMAND = Object.freeze([
   '--output-format',
   'stream-json',
   '--verbose',
+  '--model={model}',
+  '--effort={effort}',
 ]);
 
 const isCloud = (environment) => environment.target === CLOUD_TARGET;

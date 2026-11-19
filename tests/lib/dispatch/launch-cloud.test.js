@@ -150,6 +150,10 @@ describe('fire request (AC-2, AC-4)', () => {
       action: 'dispatch',
       storyId: 7,
       environment: 'cloud',
+      launchOptions: {
+        model: { value: null, source: 'routine' },
+        effort: { value: null, source: 'routine' },
+      },
       sessionUrl: SESSION_URL,
       commentPosted: true,
     });
