@@ -177,3 +177,114 @@ describe('readStory (AC-5, AC-6, AC-7)', () => {
     assert.equal(await sources.readStory(99, await sources.readState()), null);
   });
 });
+
+describe('readStory for a cloud record', () => {
+  it('has no resume command: a routine-fired session is not resumable locally', async () => {
+    const { sources } = sourcesOver([executing(1)], {
+      records: {
+        1: {
+          storyId: 1,
+          startedAt: STARTED,
+          sessionId: 'sess-cloud',
+          sessionUrl: 'https://claude.ai/code/sess-cloud',
+        },
+      },
+    });
+    const detail = await sources.readStory(1, await sources.readState());
+    assert.equal(detail.resumeCommand, null);
+    assert.equal(detail.record.sessionUrl, 'https://claude.ai/code/sess-cloud');
+  });
+});
+
+describe('readConnections accounts (AC-1, AC-2, AC-3)', () => {
+  const STATUS = {
+    loggedIn: true,
+    authMethod: 'claude.ai',
+    apiProvider: 'firstParty',
+    email: 'dev@example.test',
+    orgId: 'org-uuid-secret',
+    orgName: 'Example Org',
+    subscriptionType: 'max',
+    configDirectory: 'config-dir-value',
+  };
+
+  function connectionsSources(clock) {
+    const calls = [];
+    const runner = async (cmd, args) => {
+      calls.push([cmd, ...args].join(' '));
+      if (cmd === 'gh') return { status: 0, stdout: 'octocat\n', stderr: '' };
+      const json = args[0] === 'auth';
+      return {
+        status: 0,
+        stdout: json ? JSON.stringify(STATUS) : '2.1.300',
+        stderr: '',
+      };
+    };
+    const config = {
+      delivery: {
+        environments: {
+          local: { target: 'local' },
+          cloud: {
+            target: 'claude-cloud',
+            routine: 'trig_1',
+            tokenEnv: 'CLOUD_TOKEN',
+          },
+        },
+      },
+    };
+    const sources = createSources({
+      cwd: 'project-root',
+      env: { GITHUB_TOKEN: SENTINEL },
+      runner,
+      now: () => clock.at,
+      readJson: () => null,
+      resolveConfigImpl: () => config,
+    });
+    return { sources, calls };
+  }
+
+  it('reports the login, the whitelisted account and each cloud routine', async () => {
+    const { sources } = connectionsSources({ at: 0 });
+    const report = await sources.readConnections();
+    assert.deepEqual(report.github, {
+      ok: true,
+      source: 'environment',
+      login: 'octocat',
+    });
+    assert.deepEqual(report.claude, {
+      ok: true,
+      account: {
+        email: 'dev@example.test',
+        orgName: 'Example Org',
+        subscriptionType: 'max',
+        authMethod: 'claude.ai',
+      },
+    });
+    assert.deepEqual(
+      report.environments.map((e) => [e.name, e.online, e.reason, e.routine]),
+      [
+        ['local', true, null, null],
+        ['cloud', false, 'cloud token not set', 'trig_1'],
+      ],
+    );
+    const text = JSON.stringify(report);
+    for (const dropped of ['org-uuid-secret', 'config-dir-value', SENTINEL]) {
+      assert.equal(text.includes(dropped), false, dropped);
+    }
+  });
+
+  it('probes the accounts at most once per 60 s across requests', async () => {
+    const clock = { at: 0 };
+    const { sources, calls } = connectionsSources(clock);
+    const accountProbes = () =>
+      calls.filter((c) => c.startsWith('gh api') || c.includes('auth status'))
+        .length;
+    await sources.readConnections();
+    clock.at = 30_000;
+    await sources.readConnections();
+    assert.equal(accountProbes(), 2);
+    clock.at = 60_000;
+    await sources.readConnections();
+    assert.equal(accountProbes(), 4);
+  });
+});

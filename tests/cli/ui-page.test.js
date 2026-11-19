@@ -21,10 +21,9 @@ const css = read('board.css');
 const FIXED_TEST_IDS = [
   'board',
   'zone-verdict',
-  'tab-board',
-  'tab-environments',
-  'connections-button',
-  'connections-dialog',
+  'panel-environments-button',
+  'panel-environments-offline-count',
+  'panel-connections-button',
   'confirm-stop',
   'toast',
   'theme-toggle',
@@ -36,6 +35,22 @@ const FIXED_TEST_IDS = [
   'column-done',
   'side-panel',
   'side-panel-close',
+];
+
+/** Ids the header tabs and the Connections dialog carried before the panel views. */
+const REMOVED_TEST_IDS = [
+  'tab-board',
+  'tab-environments',
+  'connections-button',
+  'connections-dialog',
+];
+
+/** The Environments and Connections panel views' ids, set by the script. */
+const PANEL_VIEW_TEST_IDS = [
+  'environments-view',
+  'connections-view',
+  'connections-github-login',
+  'connections-claude-account',
 ];
 
 /** Per-item ids the script generates. */
@@ -161,9 +176,9 @@ describe('AC-10: the served script', () => {
     assert.match(script, /\$\('confirm-stop'\)\.showModal\(\)/);
   });
 
-  it('imports only the same-origin view model', () => {
+  it('imports only the same-origin view models', () => {
     const imports = [...script.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
-    assert.deepEqual(imports, ['./board-model.js']);
+    assert.deepEqual(imports, ['./board-model.js', './panel-model.js']);
   });
 
   it('decides no drop itself: every verdict comes from the view model', () => {
@@ -183,7 +198,60 @@ describe('AC-9: the side panel', () => {
   });
 });
 
+describe('AC-4, AC-5: the header and the panel views', () => {
+  it('has no tabs, Environments tabpanel or Connections dialog', () => {
+    for (const id of REMOVED_TEST_IDS) {
+      assert.equal(html.includes(`"${id}"`), false, id);
+      assert.equal(script.includes(`'${id}'`), false, id);
+    }
+    assert.doesNotMatch(html, /role="tab(list|panel)?"/);
+    assert.doesNotMatch(html, /id="environments"/);
+    assert.doesNotMatch(html, /connections-dialog/);
+    assert.match(html, /<dialog class="panel" id="confirm-stop"/);
+  });
+
+  it('gives each icon button an aria-label, a title and aria-expanded', () => {
+    for (const id of [
+      'panel-environments-button',
+      'panel-connections-button',
+    ]) {
+      const tag = html.match(new RegExp(`<button [^>]*id="${id}"[^>]*>`))[0];
+      assert.match(tag, /aria-label="[^"]+"/, id);
+      assert.match(tag, /title="[^"]+"/, id);
+      assert.match(tag, /aria-expanded="false"/, id);
+    }
+    assert.equal(html.match(/<svg [^>]*stroke="currentColor"/g).length, 2);
+  });
+
+  it('opens each view from its button and reflects it in aria-expanded', () => {
+    assert.match(
+      script,
+      /\$\(id\)\.addEventListener\('click', \(\) => togglePanel\(view\)\)/,
+    );
+    assert.match(
+      script,
+      /setAttribute\('aria-expanded', String\(view === name\)\)/,
+    );
+    assert.match(script, /nextPanelView\(ui\.view, view\)/);
+  });
+
+  it('sets the panel view test ids', () => {
+    const panelModel = read('panel-model.js');
+    for (const id of PANEL_VIEW_TEST_IDS) {
+      assert.ok(
+        script.includes(`'${id}'`) || panelModel.includes(`'${id}'`),
+        id,
+      );
+    }
+  });
+});
+
 describe('the stylesheet', () => {
+  it('AC-8: lets the hidden attribute win over any display rule', () => {
+    assert.match(css, /\[hidden\] \{[^}]*display: none !important;\s*\}/);
+    assert.doesNotMatch(css, /:not\(\[hidden\]\)/);
+  });
+
   it('AC-11: stops the pulse under prefers-reduced-motion', () => {
     assert.match(css, /\.liveness\.working \.dot \{[^}]*animation: pulse/);
     assert.match(
@@ -215,6 +283,8 @@ describe('AC-11: no new dependency', () => {
       'sources.js',
       'request-guard.js',
       'board-model.js',
+      'panel-model.js',
+      'accounts.js',
       'story-detail.js',
       'log-tail.js',
     ]) {

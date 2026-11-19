@@ -673,6 +673,7 @@ describe('sources', () => {
   });
 
   describe('AC-7: connections report presence and source only', () => {
+    const NO_LOGIN = { login: null, reason: 'login-unavailable' };
     const claudeOk = async (cmd) =>
       cmd === 'claude'
         ? { status: 0, stdout: '2.1.300', stderr: '' }
@@ -685,8 +686,12 @@ describe('sources', () => {
         overlay: { delivery: { environments: { box: { target: 'local' } } } },
       });
       const report = await sources.readConnections();
-      assert.deepEqual(report.github, { ok: true, source: 'environment' });
-      assert.deepEqual(report.claude, { ok: true });
+      assert.deepEqual(report.github, {
+        ok: true,
+        source: 'environment',
+        ...NO_LOGIN,
+      });
+      assert.deepEqual(report.claude, { ok: true, account: null });
       assert.deepEqual(report.environments, [
         {
           name: 'local',
@@ -694,6 +699,7 @@ describe('sources', () => {
           online: true,
           reason: null,
           definedIn: '.agentrc.json',
+          routine: null,
         },
         {
           name: 'box',
@@ -701,6 +707,7 @@ describe('sources', () => {
           online: true,
           reason: null,
           definedIn: '.agentrc.local.json',
+          routine: null,
         },
       ]);
       assert.ok(!JSON.stringify(report).includes(SENTINEL));
@@ -709,7 +716,7 @@ describe('sources', () => {
     it('names gh as the source when only `gh auth token` resolves', async () => {
       const { sources } = boardSources([], { runner: claudeOk });
       const report = await sources.readConnections();
-      assert.deepEqual(report.github, { ok: true, source: 'gh' });
+      assert.deepEqual(report.github, { ok: true, source: 'gh', ...NO_LOGIN });
       assert.ok(!JSON.stringify(report).includes(SENTINEL));
     });
 
@@ -724,7 +731,7 @@ describe('sources', () => {
         }),
       });
       const report = await noClaude.sources.readConnections();
-      assert.deepEqual(report.claude, { ok: false });
+      assert.deepEqual(report.claude, { ok: false, account: null });
       assert.deepEqual(
         report.environments.map((e) => [e.name, e.online, e.reason]),
         [
@@ -734,7 +741,7 @@ describe('sources', () => {
       );
       const noToken = boardSources([], { config: { github: {} } });
       const bare = await noToken.sources.readConnections();
-      assert.deepEqual(bare.github, { ok: false, source: null });
+      assert.deepEqual(bare.github, { ok: false, source: null, ...NO_LOGIN });
       assert.deepEqual(bare.environments, [
         {
           name: 'local',
@@ -742,6 +749,7 @@ describe('sources', () => {
           online: false,
           reason: 'no GitHub token',
           definedIn: 'default',
+          routine: null,
         },
       ]);
     });

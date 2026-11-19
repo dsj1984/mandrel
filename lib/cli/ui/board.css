@@ -59,6 +59,11 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  /* biome-ignore lint/complexity/noImportantStyles: the hidden attribute must beat any component's display */
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -120,30 +125,42 @@ button.danger {
   color: var(--muted);
 }
 
-.tabs {
-  display: flex;
-  gap: 4px;
-}
-.tabs [aria-selected="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-.count {
-  color: var(--amber);
-}
-
 .actions {
   margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.status.ok {
+.icon-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  padding: 4px 6px;
+}
+.icon-button[aria-expanded="true"] {
+  background: var(--accent-soft);
   border-color: var(--accent);
 }
-.status.bad {
+.icon-button.ok {
+  color: var(--accent);
+}
+.icon-button.bad {
   border-color: var(--amber);
   color: var(--amber);
+}
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 16px;
+  background: var(--amber);
+  color: var(--surface);
 }
 
 .overflow {
@@ -292,35 +309,17 @@ main {
   margin-top: 6px;
 }
 
-.environments:not([hidden]) {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px;
-  padding-top: 8px;
-}
-
 .env-card {
-  background: var(--surface);
+  background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   padding: 12px;
+  margin-bottom: 8px;
   font-size: 12px;
 }
 .env-card h3 {
   margin: 0 0 6px;
   font-size: 14px;
-}
-.env-card dl {
-  margin: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 8px;
-}
-.env-card dt {
-  color: var(--muted);
-}
-.env-card dd {
-  margin: 0;
 }
 .env-card.offline {
   border-color: var(--amber);
@@ -337,11 +336,6 @@ main {
 .panel h2 {
   margin: 0 0 8px;
   font-size: 16px;
-}
-.connection-lines {
-  margin: 0 0 12px;
-  padding-left: 18px;
-  font-size: 12px;
 }
 .dialog-actions {
   display: flex;
@@ -459,6 +453,7 @@ main {
     transform: translateX(100%);
   }
 }
+body.panel-open .topbar,
 body.panel-open main,
 body.panel-open .zone-verdict {
   margin-right: min(420px, 100vw);
@@ -467,26 +462,26 @@ body.panel-open .zone-verdict {
   display: flex;
   justify-content: flex-end;
 }
-.story-detail h2 {
+.panel-view h2 {
   margin: 0 0 8px;
   font-size: 16px;
 }
-.story-detail h3 {
+.panel-view > h3 {
   margin: 12px 0 4px;
   font-size: 12px;
   color: var(--muted);
   text-transform: uppercase;
 }
-.story-detail dl {
+.panel-view dl {
   margin: 0;
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 2px 8px;
 }
-.story-detail dt {
+.panel-view dt {
   color: var(--muted);
 }
-.story-detail dd {
+.panel-view dd {
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -498,12 +493,15 @@ body.panel-open .zone-verdict {
   align-items: center;
   gap: 8px;
 }
-.story-detail a {
+.panel-view a {
   color: var(--accent);
 }
 .timeline {
   margin: 0;
   padding-left: 18px;
+}
+.note {
+  color: var(--muted);
 }
 .resume {
   margin-top: 8px;
@@ -525,6 +523,7 @@ body.panel-open .zone-verdict {
 }
 
 @media (max-width: 720px) {
+  body.panel-open .topbar,
   body.panel-open main,
   body.panel-open .zone-verdict {
     margin-right: 0;
