@@ -9996,6 +9996,7 @@
     "lib/cli/ui/story-detail.js": {
       "readStoryDetail": 3,
       "recordFields": 3,
+      "resumeCommandOf": 3,
       "stageOf": 2,
       "storyIdFrom": 3
     },
