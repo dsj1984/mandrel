@@ -125,7 +125,7 @@ const WIDE_MARKER_LINE_RE = /^>\s*\*\*Wide:\*\*/;
 const AUTHORED_MARKER_LINE_RE = /^\s*>\s*🏷️\s+Authored with Mandrel\b/;
 const META_BLOCK_RE = /<!--\s*meta:[\s\S]*?-->/;
 // Provenance and plan-story markers persist appends after the last section
-// can land in a path list; a whole-line comment is never a path bullet.
+// can land in any list; a whole-line comment is never a list entry.
 const WHOLE_LINE_COMMENT_RE = /^\s*<!--.*-->\s*$/;
 
 /**
@@ -447,7 +447,10 @@ function parsePathEntrySection(lines, warnings) {
  * @returns {string[]}
  */
 function parseTextListSection(lines) {
-  return lines.map((l) => stripListMarker(l)).filter(Boolean);
+  return lines
+    .filter(isNotCommentLine)
+    .map((l) => stripListMarker(l))
+    .filter(Boolean);
 }
 
 /**
