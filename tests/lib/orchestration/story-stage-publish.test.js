@@ -143,6 +143,7 @@ describe('publishDeliveryStage', () => {
       'stage',
       'prNumber',
       'updatedAt',
+      'history',
     ]);
     assert.deepEqual(json, {
       kind: 'delivery-stage',
@@ -150,8 +151,76 @@ describe('publishDeliveryStage', () => {
       stage: 'merge',
       prNumber: 77,
       updatedAt: '2026-11-18T00:00:00.000Z',
+      history: [{ stage: 'merge', at: '2026-11-18T00:00:00.000Z' }],
     });
     assert.ok(body.startsWith(structuredCommentMarker(DELIVERY_STAGE_TYPE)));
+  });
+});
+
+describe('AC-4: stage history', () => {
+  const at = (n) => new Date(Date.UTC(2026, 10, 18, 0, n)).toISOString();
+
+  it('appends each new stage and keeps the most recent 10', async () => {
+    const provider = fakeProvider();
+    const stages = ['build', 'check'];
+    for (let n = 0; n < 12; n += 1) {
+      await publishDeliveryStage({
+        provider,
+        storyId: STORY,
+        stage: stages[n % 2],
+        now: () => new Date(at(n)),
+      });
+    }
+    const [comment] = stageComments(provider);
+    const { history } = parseDeliveryStage(comment.body);
+    assert.equal(history.length, 10);
+    assert.deepEqual(history[0], { stage: 'build', at: at(2) });
+    assert.deepEqual(history.at(-1), { stage: 'check', at: at(11) });
+    assert.ok(comment.body.split('\n').some((l) => l.includes('"history"')));
+  });
+
+  it('parses a record without history and seeds the next publish from it', async () => {
+    const legacy = {
+      kind: 'delivery-stage',
+      storyId: STORY,
+      stage: 'build',
+      prNumber: null,
+      updatedAt: at(0),
+    };
+    const body = `${structuredCommentMarker(DELIVERY_STAGE_TYPE)}\n\n\`\`\`json\n${JSON.stringify(legacy)}\n\`\`\``;
+    assert.deepEqual(parseDeliveryStage(body), { ...legacy, history: [] });
+    const provider = fakeProvider();
+    provider.comments.push({ id: 99, body });
+    await publishDeliveryStage({
+      provider,
+      storyId: STORY,
+      stage: 'check',
+      now: () => new Date(at(5)),
+    });
+    const [comment] = stageComments(provider);
+    assert.deepEqual(parseDeliveryStage(comment.body).history, [
+      { stage: 'build', at: at(0) },
+      { stage: 'check', at: at(5) },
+    ]);
+  });
+
+  it('drops malformed history entries', () => {
+    const record = {
+      kind: 'delivery-stage',
+      storyId: STORY,
+      stage: 'check',
+      prNumber: null,
+      updatedAt: at(1),
+      history: [
+        { stage: 'deploy', at: at(0) },
+        'x',
+        { stage: 'check', at: at(1) },
+      ],
+    };
+    const body = `\`\`\`json\n${JSON.stringify(record)}\n\`\`\``;
+    assert.deepEqual(parseDeliveryStage(body).history, [
+      { stage: 'check', at: at(1) },
+    ]);
   });
 });
 
@@ -179,6 +248,7 @@ describe('parseDeliveryStage', () => {
     assert.deepEqual(parseDeliveryStage(body), {
       kind: 'delivery-stage',
       ...record,
+      history: [{ stage: 'handoff', at: record.updatedAt }],
     });
     for (const other of [
       null,

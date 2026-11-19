@@ -3511,13 +3511,15 @@
       "<anon computeLoads/environments.map(e)#0>": 1,
       "<anon environmentOf/find(l)#0>": 1,
       "<anon resolveEnvironments/entries.map(name,entry)#0>": 1,
+      "<anon wantsSessionId/command.some(part)#0>": 1,
       "agentStateOf": 1,
       "commandFor": 1,
       "computeLoads": 3,
       "environmentOf": 2,
       "envLabel": 1,
       "holdsEnvironment": 3,
-      "resolveEnvironments": 4
+      "resolveEnvironments": 4,
+      "wantsSessionId": 1
     },
     ".agents/scripts/lib/dispatch/launch-cloud.js": {
       "<anon launchCloud/then()#0>": 1,
@@ -3533,7 +3535,11 @@
     },
     ".agents/scripts/lib/dispatch/launch-local.js": {
       "launchLocal": 1,
+      "sessionLaunch": 2,
       "stopLocal": 3
+    },
+    ".agents/scripts/lib/dispatch/liveness.js": {
+      "processState": 6
     },
     ".agents/scripts/lib/dispatch/record.js": {
       "readRecord": 1.7023319615912207,
@@ -7660,9 +7666,13 @@
       "computeStoryReachability": 6
     },
     ".agents/scripts/lib/orchestration/story-stage-publish.js": {
+      "<anon historyOf(raw)#0/map(e)#0>": 1,
+      "<anon historyOf(raw)#0>": 2,
+      "<anon isEntry(e)#0>": 2,
       "<anon publishStagePhase/(ctx,deps)#0>": 1,
       "formatDeliveryStageBody": 1,
       "parseDeliveryStage": 8.074646449919813,
+      "priorHistory": 3,
       "publishDeliveryStage": 6,
       "publishStagePhase": 1
     },
@@ -9878,22 +9888,47 @@
       "<anon environmentCards/map(env)#0>": 2,
       "<anon moveOptions/filter(v)#0>": 1,
       "<anon moveOptions/zones.map(zone)#0>": 1,
+      "<anon recordRows/filter(value)#0>": 2,
       "<anon resume(env)#0>": 1,
+      "<anon stamp(iso)#0>": 1,
+      "<anon stepper/STAGES.map(name,i)#0>": 1,
       "<anon stop()#0>": 1,
+      "<anon storyDetailView/map(entry)#0>": 1,
       "<anon unmetOf/filter(id)#0>": 1,
       "buildBoard": 3,
       "cardView": 2,
       "checksText": 5,
       "connectionSummary": 6,
       "dropZones": 1,
+      "elapsed": 2,
       "environmentCards": 1,
+      "factRows": 2,
+      "githubUrl": 3,
       "laneOf": 2,
+      "livenessView": 3,
+      "minutesText": 2,
       "moveOptions": 1,
       "nextTheme": 1,
       "onlineMap": 1,
+      "processText": 2,
+      "prView": 2,
+      "recordRows": 3,
+      "since": 2,
+      "statusView": 2,
+      "stepper": 1,
+      "storyDetailView": 2,
+      "timelineLine": 1,
       "unmetOf": 1,
       "verdictText": 4,
       "zoneVerdict": 8
+    },
+    "lib/cli/ui/log-tail.js": {
+      "<anon oneLine(text,max)#0>": 1,
+      "blockLine": 3,
+      "isInside": 3,
+      "readLastBytes": 1,
+      "readLogTail": 4,
+      "summarizeLine": 5
     },
     "lib/cli/ui/request-guard.js": {
       "<anon validateAction/some(key)#0>": 1,
@@ -9909,6 +9944,7 @@
       "<anon createUiServer/http.createServer(req,res)#0>": 1,
       "<anon createUiServer/readState/promise.catch()#0>": 2,
       "createUiServer": 1,
+      "createUiServer/getStory": 3,
       "createUiServer/postAction": 4,
       "createUiServer/readState": 3,
       "createUiServer/route": 5,
@@ -9922,16 +9958,25 @@
       "<anon createSources/environmentNames()#0/map(e)#0>": 1,
       "<anon createSources/environmentNames()#0>": 1,
       "<anon createSources/invoke/write(s)#0>": 1,
+      "<anon createSources/liveness(record)#0>": 1,
       "<anon createSources/readConnections/map(e)#0>": 4,
       "<anon createSources/readState/envelope.stories.map(story)#0>": 2,
+      "<anon createSources/readStory/state.stories.find(s)#0>": 1,
       "createSources": 1,
       "createSources/githubPresence": 4,
+      "createSources/inFlight": 1,
       "createSources/invoke": 1,
       "createSources/readConnections": 2,
       "createSources/readState": 4,
+      "createSources/readStory": 2,
       "createSources/runAction": 1,
-      "definedIn": 3,
-      "stageOf": 2
+      "definedIn": 3
+    },
+    "lib/cli/ui/story-detail.js": {
+      "readStoryDetail": 3,
+      "recordFields": 3,
+      "stageOf": 2,
+      "storyIdFrom": 3
     },
     "lib/cli/uninstall.js": {
       "<anon revertClaudeCommands/targets.filter(t)#0>": 1,

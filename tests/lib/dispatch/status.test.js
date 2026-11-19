@@ -123,6 +123,7 @@ describe('buildStatus', () => {
       'drops',
       'environment',
       'id',
+      'labels',
       'pr',
       'state',
       'title',

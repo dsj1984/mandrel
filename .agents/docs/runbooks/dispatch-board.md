@@ -46,7 +46,14 @@ The board is a local, single-operator tool. It never leaves your machine:
   whether a GitHub token resolves and from where (environment variable or
   `gh`), never its value. Errors are `{ "error": "<code>" }` with no stack
   trace or path.
-- The page writes every GitHub-sourced string as text, never as HTML.
+- The page writes every GitHub-sourced string as text, never as HTML, and
+  links only to `https://github.com/` pages.
+- `GET /api/story?id=<n>` takes only a 1–10 digit positive id (400
+  `invalid-id` otherwise, 404 `not-found` for a Story not on the board). Its
+  log tail is read from the path the dispatch record names, and only when
+  that path is inside `<tempRoot>/dispatch/`; the page never supplies a
+  path, and no response carries an absolute path other than the recorded
+  argv.
 
 There is no sign-in, no hosted mode and no stored secret. Do not expose the
 port through a tunnel or proxy: the token protects the API from other pages
@@ -58,8 +65,35 @@ Columns, in order: **Backlog**, **Planning**, **Ready**, **Delivering**,
 **Blocked**, **Done**. Delivering holds one lane per configured environment,
 headed by its name, target and `load/capacity` (or `offline`), plus an
 `untracked` lane for in-flight Stories that carry no `env::` label. A card
-shows the Story id, title, published stage, pull request with its check
-summary, unmet dependencies and environment.
+shows the Story id, title, pull request with its check summary, unmet
+dependencies and environment.
+
+A card in Delivering or Blocked also shows a status row:
+
+- a stepper over the five published stages (build · check · handoff ·
+  close · merge), marking the current one and those before it;
+- a liveness badge: a pulsing dot for `working`, amber **process exited**
+  for `exited`, grey `unknown` (see
+  [Following a dispatched delivery](dispatch.md#following-a-dispatched-delivery)).
+  An `exited` process on a Story still `agent::executing` is highlighted as
+  a warning. Under `prefers-reduced-motion` the dot does not pulse;
+- `running Nm` since the launch and `updated Nm ago` since the last stage.
+
+## The side panel
+
+A Story's detail opens in a side panel on the right; the board stays
+visible and usable beside it. Open it by double-clicking a card,
+right-clicking it, pressing Enter or Space on a focused card, or with the
+card's **⋯** button. Esc, the × button or opening the same card again
+closes it. While open it refreshes on the board's poll.
+
+The Story detail view shows the GitHub issue link, the pull request and its
+checks, the column, environment, stage and labels, the stage timeline (the
+last 10 stage changes), the dispatch record (pid, start time, session id or
+URL, command), the last 50 lines of the log summarized one line per event,
+and the resume command `claude --resume <sessionId>` with a **Copy**
+button. The page never runs that command. Its action buttons are the
+card's Move menu, so Stop still asks for confirmation.
 
 ## Drag actions
 

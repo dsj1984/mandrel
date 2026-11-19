@@ -74,7 +74,7 @@ const post = (port, body, headers = {}) =>
   });
 
 function fakeSources() {
-  const calls = { state: 0, connections: 0, actions: [] };
+  const calls = { state: 0, connections: 0, actions: [], stories: [] };
   const result = {
     code: 0,
     envelope: { ok: true, action: 'dispatch', storyId: 7 },
@@ -103,6 +103,11 @@ function fakeSources() {
         return { code: result.code, envelope: result.envelope };
       },
       environmentNames: () => ['local', 'box-2'],
+      readStory: async (id, state) => {
+        calls.stories.push(id);
+        const row = state.stories.find((s) => s.id === id);
+        return row ? { id, column: row.column, logTail: [] } : null;
+      },
     },
   };
 }
@@ -420,6 +425,54 @@ describe('ui server', () => {
       const res = await api(port, '/api/action');
       assert.equal(res.status, 404);
       assert.equal(fake.calls.actions.length, 0);
+    });
+  });
+
+  describe('AC-5: story detail', () => {
+    it('returns the detail of a Story on the board', async () => {
+      const res = await api(port, '/api/story?id=7');
+      assert.equal(res.status, 200);
+      assert.deepEqual(JSON.parse(res.body), {
+        id: 7,
+        column: 'delivering',
+        logTail: [],
+      });
+      assertSecurityHeaders(res);
+    });
+
+    it('refuses a missing token or a foreign Host with 403', async () => {
+      const noToken = await request(port, { path: '/api/story?id=7' });
+      assert.equal(noToken.status, 403);
+      const foreign = await api(port, '/api/story?id=7', {
+        headers: { host: 'evil.example' },
+      });
+      assert.equal(foreign.status, 403);
+      assert.deepEqual(fake.calls.stories, []);
+    });
+
+    it('refuses a malformed id with 400 invalid-id', async () => {
+      for (const query of [
+        '',
+        '?id=',
+        '?id=0',
+        '?id=-1',
+        '?id=07',
+        '?id=1.5',
+        '?id=abc',
+        '?id=12345678901',
+        '?id=..%2F..%2Fetc',
+      ]) {
+        const res = await api(port, `/api/story${query}`);
+        assert.equal(res.status, 400, query);
+        assert.deepEqual(JSON.parse(res.body), { error: 'invalid-id' });
+      }
+      assert.deepEqual(fake.calls.stories, []);
+    });
+
+    it('answers an id with no board Story with 404', async () => {
+      const res = await api(port, '/api/story?id=8');
+      assert.equal(res.status, 404);
+      assert.deepEqual(JSON.parse(res.body), { error: 'not-found' });
     });
   });
 

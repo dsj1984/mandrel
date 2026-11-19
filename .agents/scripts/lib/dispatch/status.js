@@ -118,6 +118,7 @@ function storyRow(ticket, column, ctx) {
     title: ticket.title,
     column,
     state: agentStateOf(ticket.labels),
+    labels: ticket.labels ?? [],
     environment: environmentOf(ticket.labels),
     pr: prFor(ticket.id, ctx.prs),
     dependsOn: parseBlockedBy(ticket.body ?? ''),

@@ -34,10 +34,28 @@ const FIXED_TEST_IDS = [
   'column-delivering',
   'column-blocked',
   'column-done',
+  'side-panel',
+  'side-panel-close',
 ];
 
 /** Per-item ids the script generates. */
-const GENERATED_TEST_IDS = ['lane-', 'card-', 'card-move-', 'env-card-'];
+const GENERATED_TEST_IDS = [
+  'lane-',
+  'card-',
+  'card-move-',
+  'env-card-',
+  'card-status-',
+  'card-liveness-',
+  'card-details-',
+];
+
+/** The Story detail view's ids, set once by the script. */
+const DETAIL_TEST_IDS = [
+  'story-detail',
+  'story-detail-log',
+  'story-detail-resume-copy',
+  'story-detail-issue-link',
+];
 
 describe('AC-8: the served HTML', () => {
   it('has no inline script, inline style or event-handler attribute', () => {
@@ -105,6 +123,44 @@ describe('AC-10: the served script', () => {
     }
   });
 
+  it('sets the Story detail view test ids', () => {
+    for (const id of DETAIL_TEST_IDS) {
+      assert.ok(script.includes(`'${id}'`), id);
+    }
+  });
+
+  it('opens new-tab links without an opener or referrer', () => {
+    assert.match(script, /rel: 'noopener noreferrer'/);
+    assert.doesNotMatch(script, /rel: 'noreferrer'/);
+  });
+
+  it('opens the detail view from double-click, the context menu, Enter or Space, and the details button', () => {
+    for (const trigger of [
+      /addEventListener\('dblclick'/,
+      /addEventListener\('contextmenu'/,
+      /event\.key !== 'Enter' && event\.key !== ' '/,
+      /details\.addEventListener\('click', \(\) => toggleDetail/,
+    ]) {
+      assert.match(script, trigger);
+    }
+  });
+
+  it('closes the side panel on Esc and its close button', () => {
+    assert.match(script, /event\.key !== 'Escape'/);
+    assert.match(
+      script,
+      /'side-panel-close'\)\.addEventListener\('click', closePanel\)/,
+    );
+  });
+
+  it('runs panel actions through perform, so Stop still confirms', () => {
+    assert.match(
+      script,
+      /item\.addEventListener\('click', \(\) => perform\(story, option\)\)/,
+    );
+    assert.match(script, /\$\('confirm-stop'\)\.showModal\(\)/);
+  });
+
   it('imports only the same-origin view model', () => {
     const imports = [...script.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
     assert.deepEqual(imports, ['./board-model.js']);
@@ -116,7 +172,26 @@ describe('AC-10: the served script', () => {
   });
 });
 
+describe('AC-9: the side panel', () => {
+  it('is a non-modal aside, not a dialog, hidden until opened', () => {
+    assert.match(
+      html,
+      /<aside class="side-panel" id="side-panel" data-testid="side-panel"[^>]* hidden>/,
+    );
+    assert.doesNotMatch(html, /<dialog[^>]*side-panel/);
+    assert.doesNotMatch(script, /'side-panel'\)\.showModal/);
+  });
+});
+
 describe('the stylesheet', () => {
+  it('AC-11: stops the pulse under prefers-reduced-motion', () => {
+    assert.match(css, /\.liveness\.working \.dot \{[^}]*animation: pulse/);
+    assert.match(
+      css,
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\.liveness\.working \.dot,[^{]*\{\s*animation: none;/,
+    );
+  });
+
   it('defines the light and dark tokens with a manual override', () => {
     for (const token of [
       '--bg: #f5f6f7',
@@ -140,6 +215,8 @@ describe('AC-11: no new dependency', () => {
       'sources.js',
       'request-guard.js',
       'board-model.js',
+      'story-detail.js',
+      'log-tail.js',
     ]) {
       const source = read(file);
       for (const [, spec] of source.matchAll(

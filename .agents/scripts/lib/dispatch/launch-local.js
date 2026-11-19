@@ -6,28 +6,40 @@
  * @module lib/dispatch/launch-local
  */
 
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { spawnDetached } from '../child-exec.js';
 import { dispatchLogPath } from '../config/temp-paths.js';
-import { commandFor } from './environments.js';
+import { commandFor, wantsSessionId } from './environments.js';
+
+/** The argv with a fresh session id, plus that id when the command used it. */
+function sessionLaunch(command, storyId, sessionId) {
+  const argv = commandFor(command, storyId, sessionId);
+  return wantsSessionId(command) ? { argv, sessionId } : { argv };
+}
 
 /**
  * @param {{ storyId: number, environment: import('./environments.js').Environment,
  *   cwd: string, config?: object }} args
  * @param {{ spawnImpl?: typeof spawnDetached, fsImpl?: typeof fs,
- *   now?: () => Date }} [deps]
+ *   now?: () => Date, uuid?: () => string }} [deps]
  * @returns {Promise<import('./record.js').DispatchRecord>}
  */
 export async function launchLocal(
   { storyId, environment, cwd, config },
-  { spawnImpl = spawnDetached, fsImpl = fs, now = () => new Date() } = {},
+  {
+    spawnImpl = spawnDetached,
+    fsImpl = fs,
+    now = () => new Date(),
+    uuid = randomUUID,
+  } = {},
 ) {
-  const argv = commandFor(environment.command, storyId);
+  const session = sessionLaunch(environment.command, storyId, uuid());
   const logPath = dispatchLogPath(storyId, config);
   fsImpl.mkdirSync(path.dirname(logPath), { recursive: true });
-  const [file, ...args] = argv;
+  const [file, ...args] = session.argv;
   const { pid } = await spawnImpl(file, args, { logPath, cwd });
   return {
     storyId,
@@ -35,7 +47,7 @@ export async function launchLocal(
     pid,
     startedAt: now().toISOString(),
     logPath,
-    argv,
+    ...session,
   };
 }
 

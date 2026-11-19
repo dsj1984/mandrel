@@ -1040,7 +1040,7 @@
     },
     {
       "path": ".agents/scripts/lib/dispatch/environments.js",
-      "mi": 116.232
+      "mi": 116.739
     },
     {
       "path": ".agents/scripts/lib/dispatch/launch-cloud.js",
@@ -1048,7 +1048,11 @@
     },
     {
       "path": ".agents/scripts/lib/dispatch/launch-local.js",
-      "mi": 101.572
+      "mi": 102.45
+    },
+    {
+      "path": ".agents/scripts/lib/dispatch/liveness.js",
+      "mi": 100.888
     },
     {
       "path": ".agents/scripts/lib/dispatch/record.js",
@@ -2128,7 +2132,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-stage-publish.js",
-      "mi": 97.319
+      "mi": 100.691
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
@@ -2951,6 +2955,10 @@
       "mi": 101.83
     },
     {
+      "path": "lib/cli/ui/log-tail.js",
+      "mi": 98.369
+    },
+    {
       "path": "lib/cli/ui/request-guard.js",
       "mi": 101.859
     },
@@ -2961,6 +2969,10 @@
     {
       "path": "lib/cli/ui/sources.js",
       "mi": 103.719
+    },
+    {
+      "path": "lib/cli/ui/story-detail.js",
+      "mi": 101.194
     },
     {
       "path": "lib/cli/uninstall.js",

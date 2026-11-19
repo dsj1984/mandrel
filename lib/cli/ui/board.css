@@ -292,7 +292,7 @@ main {
   margin-top: 6px;
 }
 
-.environments {
+.environments:not([hidden]) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 10px;
@@ -367,7 +367,168 @@ main {
   border: 1px solid var(--red);
 }
 
+.card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.card-status {
+  margin: 4px 0;
+}
+.stepper {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+/* Bars only; each step's name stays in the text for assistive tech. */
+.step {
+  flex: 1;
+  height: 6px;
+  font-size: 0;
+  border-radius: 3px;
+  background: var(--line-strong);
+}
+.step.done {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+}
+.step.current {
+  background: var(--accent);
+}
+
+.liveness {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.liveness .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.liveness.working .dot {
+  background: var(--accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.liveness.exited {
+  color: var(--amber);
+}
+.liveness.exited .dot {
+  background: var(--amber);
+}
+.liveness.warning {
+  font-weight: 600;
+  background: var(--amber-soft);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveness.working .dot,
+  .side-panel {
+    animation: none;
+  }
+}
+
+.side-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100vw);
+  overflow-y: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  padding: 12px 16px;
+  z-index: 3;
+  font-size: 12px;
+  animation: slide-in 0.15s ease-out;
+}
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+body.panel-open main,
+body.panel-open .zone-verdict {
+  margin-right: min(420px, 100vw);
+}
+.side-panel-bar {
+  display: flex;
+  justify-content: flex-end;
+}
+.story-detail h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.story-detail h3 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.story-detail dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+}
+.story-detail dt {
+  color: var(--muted);
+}
+.story-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.detail-links,
+.detail-actions,
+.resume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.story-detail a {
+  color: var(--accent);
+}
+.timeline {
+  margin: 0;
+  padding-left: 18px;
+}
+.resume {
+  margin-top: 8px;
+}
+.resume code,
+.log {
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.log {
+  margin: 0;
+  padding: 8px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: var(--sunken);
+  border-radius: var(--radius-card);
+}
+
 @media (max-width: 720px) {
+  body.panel-open main,
+  body.panel-open .zone-verdict {
+    margin-right: 0;
+  }
   .board {
     grid-template-columns: 1fr;
     overflow-x: visible;
