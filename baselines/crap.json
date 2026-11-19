@@ -600,6 +600,7 @@
       "act": 4,
       "doneLimitOf": 3,
       "dryRunEnvelope": 2,
+      "failureResult": 2,
       "gatherVerdictInput": 3,
       "launch": 3,
       "openDependencies": 2,
