@@ -132,7 +132,7 @@
     },
     {
       "path": ".agents/scripts/dispatch.js",
-      "mi": 89.669
+      "mi": 90.489
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
@@ -2976,7 +2976,7 @@
     },
     {
       "path": "lib/cli/ui/server.js",
-      "mi": 100.867
+      "mi": 101.675
     },
     {
       "path": "lib/cli/ui/sources.js",
