@@ -2891,6 +2891,10 @@
       "mi": 99.073
     },
     {
+      "path": "lib/cli/doctor-checks/session-title-allowlist.js",
+      "mi": 103.114
+    },
+    {
       "path": "lib/cli/doctor-checks/spawn.js",
       "mi": 118.049
     },
