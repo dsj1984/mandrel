@@ -1,17 +1,25 @@
-// tests/cli/ui-assignee-filter.test.js — the board's assignee filter:
+// tests/cli/ui-board-filter.test.js — the board's People and Status filters:
 // choices from the board, the match rule, the summary and saved selection.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  assigneeOptions,
+  filterOptions,
   filterSummary,
-  loadAssigneeFilter,
-  matchesAssignees,
-  saveAssigneeFilter,
-  toggleAssignee,
-} from '../../lib/cli/ui/assignee-filter.js';
+  loadFilter,
+  matchesFilter,
+  saveFilter,
+  toggleValue,
+} from '../../lib/cli/ui/board-filter.js';
+
+const assigneeOptions = (stories, selected) =>
+  filterOptions('assignee', stories, selected);
+const matchesAssignees = (story, selected) =>
+  matchesFilter('assignee', story, selected);
+const loadAssigneeFilter = (storage) => loadFilter(storage, 'assignee');
+const saveAssigneeFilter = (storage, selected) =>
+  saveFilter(storage, 'assignee', selected);
 
 const s = (...assignees) => ({ assignees });
 
@@ -67,16 +75,16 @@ describe('matchesAssignees', () => {
 
 describe('summary and toggling', () => {
   it('summarises the selection', () => {
-    assert.equal(filterSummary([]), 'Everyone');
-    assert.equal(filterSummary(['ana']), 'ana');
-    assert.equal(filterSummary([UNASSIGNED]), 'Unassigned');
-    assert.equal(filterSummary(['ana', UNASSIGNED]), '2 selected');
+    assert.equal(filterSummary('assignee', []), 'Everyone');
+    assert.equal(filterSummary('assignee', ['ana']), 'ana');
+    assert.equal(filterSummary('assignee', [UNASSIGNED]), 'Unassigned');
+    assert.equal(filterSummary('assignee', ['ana', UNASSIGNED]), '2 selected');
   });
 
   it('adds and removes one value', () => {
-    assert.deepEqual(toggleAssignee(['ana'], 'bo', true), ['ana', 'bo']);
-    assert.deepEqual(toggleAssignee(['ana', 'bo'], 'ana', false), ['bo']);
-    assert.deepEqual(toggleAssignee(['ana'], 'ana', true), ['ana']);
+    assert.deepEqual(toggleValue(['ana'], 'bo', true), ['ana', 'bo']);
+    assert.deepEqual(toggleValue(['ana', 'bo'], 'ana', false), ['bo']);
+    assert.deepEqual(toggleValue(['ana'], 'ana', true), ['ana']);
   });
 });
 
@@ -105,5 +113,45 @@ describe('saved selection', () => {
       },
     };
     assert.doesNotThrow(() => saveAssigneeFilter(blocked, ['ana']));
+  });
+});
+
+describe('the Status filter', () => {
+  const st = (projectStatus) => ({ projectStatus });
+  const NONE = filterOptions('status', [])[0].value;
+
+  it('offers No status first, then the statuses in board order', () => {
+    const options = filterOptions(
+      'status',
+      [st('Done'), st('Triage'), st(null), st('On Hold'), st('Todo')],
+      ['Done'],
+    );
+    assert.deepEqual(
+      options.map((o) => [o.text, o.checked]),
+      [
+        ['No status', false],
+        ['Todo', false],
+        ['On Hold', false],
+        ['Done', true],
+        ['Triage', false],
+      ],
+    );
+  });
+
+  it('matches a selected Status, and No status only Stories without one', () => {
+    assert.equal(matchesFilter('status', st('On Hold'), ['On Hold']), true);
+    assert.equal(matchesFilter('status', st('Todo'), ['On Hold']), false);
+    assert.equal(matchesFilter('status', st(null), [NONE]), true);
+    assert.equal(matchesFilter('status', st('Todo'), [NONE]), false);
+  });
+
+  it('summarises and saves apart from the People filter', () => {
+    assert.equal(filterSummary('status', []), 'Any status');
+    assert.equal(filterSummary('status', [NONE]), 'No status');
+    const storage = memoryStorage();
+    saveFilter(storage, 'status', ['Todo']);
+    assert.deepEqual(loadFilter(storage, 'status'), ['Todo']);
+    assert.deepEqual(loadFilter(storage, 'assignee'), []);
+    assert.deepEqual([...storage.data.keys()], ['mandrel-board-statuses']);
   });
 });

@@ -37,10 +37,10 @@ function makeSync(opts) {
 }
 
 describe('columnForLabels', () => {
-  it('maps agent lifecycle labels to the three stock columns', () => {
+  it('maps agent lifecycle labels to the Status columns', () => {
     assert.equal(columnForLabels(['agent::executing']), 'In Progress');
     assert.equal(columnForLabels(['agent::closing']), 'In Progress');
-    assert.equal(columnForLabels(['agent::blocked']), 'In Progress');
+    assert.equal(columnForLabels(['agent::blocked']), 'On Hold');
     assert.equal(columnForLabels(['agent::done']), 'Done');
   });
 
@@ -50,7 +50,7 @@ describe('columnForLabels', () => {
   });
 
   it('done beats every other state; in-flight beats parking', () => {
-    // executing + blocked → In Progress (both collapse to the same bucket)
+    // executing + blocked → In Progress (in-flight outranks On Hold)
     assert.equal(
       columnForLabels(['agent::executing', 'agent::blocked']),
       'In Progress',

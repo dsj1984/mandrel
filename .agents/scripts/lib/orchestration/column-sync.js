@@ -1,6 +1,6 @@
 /**
  * ColumnSync — collapse an issue's `agent::*` labels onto the stock Projects
- * v2 Status options (`Todo` / `In Progress` / `Done`) and push it via
+ * v2 Status options (`Todo` / `In Progress` / `On Hold` / `Done`) and push it via
  * GraphQL. Soft no-op when no project is configured, the Status field or
  * option is missing, or the issue is not on the board. A token that cannot
  * reach the board (missing `project` scope) reports `{ status: 'failed',
@@ -26,23 +26,20 @@ export const LABEL_TO_COLUMN = Object.freeze({
   [AGENT_LABELS.READY]: 'Todo',
   [AGENT_LABELS.EXECUTING]: 'In Progress',
   [AGENT_LABELS.CLOSING]: 'In Progress',
-  [AGENT_LABELS.BLOCKED]: 'In Progress',
+  [AGENT_LABELS.BLOCKED]: 'On Hold',
   [AGENT_LABELS.DONE]: 'Done',
 });
 
 /**
- * `done` wins, then any in-flight label, then parking labels; `null` when no
+ * `done` wins, then an in-flight label, then `blocked` (On Hold), then parking labels; `null` when no
  * `agent::*` label is present.
  */
 export function columnForLabels(labels) {
   const set = new Set(labels);
   if (set.has(AGENT_LABELS.DONE)) return 'Done';
-  if (
-    set.has(AGENT_LABELS.BLOCKED) ||
-    set.has(AGENT_LABELS.EXECUTING) ||
-    set.has(AGENT_LABELS.CLOSING)
-  )
+  if (set.has(AGENT_LABELS.EXECUTING) || set.has(AGENT_LABELS.CLOSING))
     return 'In Progress';
+  if (set.has(AGENT_LABELS.BLOCKED)) return 'On Hold';
   if (set.has(AGENT_LABELS.READY) || set.has(AGENT_LABELS.REVIEW_SPEC))
     return 'Todo';
   return null;
@@ -148,7 +145,7 @@ export class ColumnSync {
    * which carry no `agent::*` label by invariant.
    *
    * @param {number} issueId
-   * @param {string} column Board column name (`Todo` | `In Progress` | `Done`).
+   * @param {string} column Board column name (`Todo` | `In Progress` | `On Hold` | `Done`).
    */
   async setColumn(issueId, column) {
     if (!column) return { status: 'skipped', reason: 'no-column' };

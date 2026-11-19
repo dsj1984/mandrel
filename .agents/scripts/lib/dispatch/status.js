@@ -10,6 +10,7 @@
 import { parseBlockedBy } from '../dependency-parser.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { agentStateOf, computeLoads, environmentOf } from './environments.js';
+import { readProjectStatuses } from './project-status.js';
 import { decide } from './verdict.js';
 
 const COLUMNS = ['backlog', 'planning', 'ready', 'delivering', 'blocked'];
@@ -123,6 +124,7 @@ function storyRow(ticket, column, ctx) {
     labels: ticket.labels ?? [],
     assignees: ticket.assignees ?? [],
     epic: ctx.epicOf.get(ticket.id) ?? null,
+    projectStatus: ctx.statuses.get(ticket.id) ?? null,
     environment: environmentOf(ticket.labels),
     pr: prFor(ticket.id, ctx.prs),
     dependsOn: parseBlockedBy(ticket.body ?? ''),
@@ -154,6 +156,7 @@ function epicIndex(epics) {
  *   doneLimit?: number,
  *   closedTotal?: number|null,
  *   epics?: Array<{ id: number, title: string, children: number[] }>,
+ *   statuses?: Map<number, string>,
  * }} board
  * @returns {{ environments: object[], stories: object[], doneShown: number,
  *   doneTotal: number|null }}
@@ -167,6 +170,7 @@ export function buildStatus({
   doneLimit = DEFAULT_DONE_LIMIT,
   closedTotal = null,
   epics = [],
+  statuses = new Map(),
 }) {
   const loads = computeLoads(environments, openTickets);
   const ctx = {
@@ -176,6 +180,7 @@ export function buildStatus({
     prs: prs ?? [],
     openIds: new Set(openTickets.map((t) => t.id)),
     epicOf: epicIndex(epics),
+    statuses,
   };
   const open = openTickets
     .filter((t) => !isEpic(t))
@@ -269,11 +274,12 @@ async function openTicketsWithEpics(provider) {
  * Live board data: every open issue (with each open Epic's children), the most recently updated closed
  * Stories (one page of up to 100, sorted by `closedAt` in
  * {@link buildStatus}), their total count, and the open pull requests with
- * their checks.
+ * their checks, plus each Story's Projects v2 Status.
  *
  * @param {{ provider: object, gh: object, config: object, doneLimit?: number }} deps
  * @returns {Promise<{ openTickets: object[], epics: object[],
- *   closedStories: object[], closedTotal: number|null, prs: object[] }>}
+ *   closedStories: object[], closedTotal: number|null, prs: object[],
+ *   statuses: Map<number, string> }>}
  */
 export async function fetchBoard({
   provider,
@@ -291,11 +297,16 @@ export async function fetchBoard({
       ['number', 'url', 'headRefName', 'statusCheckRollup'],
     ),
   ]);
+  const storyIds = [
+    ...open.openTickets.filter((t) => !isEpic(t)),
+    ...closedStories,
+  ].map((t) => t.id);
   return {
     ...open,
     closedStories,
     closedTotal,
     prs: Array.isArray(prs) ? prs : [],
+    statuses: await readProjectStatuses(provider, storyIds, config),
   };
 }
 

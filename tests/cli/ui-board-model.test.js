@@ -180,7 +180,11 @@ describe('cardView', () => {
   it('shows id, title, stage, PR checks, unmet dependencies and environment', () => {
     const board = buildBoard(state());
     const ready = board.columns.find((c) => c.id === 'ready').cards[0];
-    assert.deepEqual(ready.unmet, [1], 'a dependency in Done is met');
+    assert.deepEqual(
+      ready.unmet.map((u) => u.text),
+      ['#1'],
+      'a dependency in Done is met',
+    );
     const done = board.columns.find((c) => c.id === 'done').cards[0];
     assert.deepEqual(done.pr, {
       number: 60,
@@ -670,8 +674,8 @@ describe('AC-8: the in-flight status row', () => {
       liveness({ state: 'exited' }, 'agent::blocked').warning,
       false,
     );
-    assert.equal(liveness(undefined).text, 'unknown');
-    assert.equal(liveness({ state: 'bogus' }).state, 'unknown');
+    assert.equal(liveness(undefined), null, 'no record: no badge');
+    assert.equal(liveness({ state: 'bogus' }), null);
   });
 
   it('is absent outside Delivering and Blocked', () => {
@@ -736,9 +740,7 @@ describe('AC-9: storyDetailView', () => {
         ['Environment', 'local'],
         ['Stage', 'check'],
         ['Process', 'working, running 30m'],
-        ['Assignees', 'unassigned'],
-        ['Epic', 'none'],
-        ['Labels', 'type::story, agent::executing'],
+        ['Labels', { chips: ['type::story', 'agent::executing'] }],
       ],
       timeline: [
         'build: 2026-11-18 01:30 UTC (30m ago)',
@@ -771,15 +773,14 @@ describe('AC-9: storyDetailView', () => {
     assert.equal(view.heading, '#8');
     assert.equal(view.issueUrl, null);
     assert.equal(view.pr, null);
-    assert.deepEqual(view.facts.slice(1, 4), [
-      ['Environment', 'none'],
-      ['Stage', 'none'],
+    assert.deepEqual(view.facts, [
+      ['Column', 'blocked'],
       ['Process', 'process exited'],
     ]);
     assert.deepEqual(view.timeline, []);
     assert.deepEqual(view.record, []);
     assert.equal(view.resumeCommand, null);
-    assert.equal(view.log, 'No log output yet.');
+    assert.equal(view.log, '');
   });
 });
 
@@ -800,6 +801,19 @@ describe('Epic on the card and the assignee predicate', () => {
       url: null,
     });
     assert.equal(cardOf(story(3, 'ready')).epic, null);
+    assert.equal(
+      cardOf(story(4, 'ready', { epic: { id: 41 } })).epic.text,
+      'Epic #41 ·',
+    );
+    const { facts } = storyDetailView({
+      id: 4,
+      column: 'ready',
+      epic: { id: 41 },
+    });
+    assert.deepEqual(facts[1], [
+      'Epic',
+      { links: [{ text: '#41', url: null }] },
+    ]);
   });
 
   it('places only the Stories the predicate shows, but counts hidden blockers as unmet', () => {
@@ -817,21 +831,64 @@ describe('Epic on the card and the assignee predicate', () => {
       cards.map((c) => c.id),
       [1],
     );
-    assert.deepEqual(cards[0].unmet, [2]);
+    assert.deepEqual(cards[0].unmet, [{ text: '#2', url: null }]);
   });
 
-  it('lists the assignees and the Epic in the detail facts', () => {
-    const { facts } = storyDetailView({
-      id: 1,
-      column: 'ready',
-      assignees: ['ana', 'bo'],
-      epic: { id: 40, title: 'Board' },
-      labels: ['type::story'],
-    });
-    assert.deepEqual(facts.slice(-3), [
+  it('lists Status, assignees, the linked Epic and blockers, and label chips', () => {
+    const { facts } = storyDetailView(
+      {
+        id: 1,
+        column: 'ready',
+        projectStatus: 'On Hold',
+        assignees: ['ana', 'bo'],
+        epic: { id: 40, title: 'Board' },
+        dependsOn: [5, 6],
+        labels: ['type::story'],
+        process: { state: 'unknown' },
+      },
+      NOW,
+      'o/r',
+    );
+    const url = (id) => `https://github.com/o/r/issues/${id}`;
+    assert.deepEqual(facts, [
+      ['Status', { chip: { text: 'On Hold', tone: 'on-hold' } }],
+      ['Column', 'ready'],
       ['Assignees', 'ana, bo'],
-      ['Epic', '#40 Board'],
-      ['Labels', 'type::story'],
+      ['Epic', { links: [{ text: '#40 Board', url: url(40) }] }],
+      [
+        'Depends on',
+        {
+          links: [
+            { text: '#5', url: url(5) },
+            { text: '#6', url: url(6) },
+          ],
+        },
+      ],
+      ['Labels', { chips: ['type::story'] }],
     ]);
+  });
+
+  it('links the card id and its blockers, and colors its Project Status', () => {
+    const board = buildBoard({
+      environments: [],
+      repository: 'o/r',
+      stories: [
+        story(1, 'ready', { dependsOn: [2], projectStatus: 'In Progress' }),
+        story(2, 'backlog', { projectStatus: 'Triage' }),
+      ],
+    });
+    const [ready] = board.columns.find((c) => c.id === 'ready').cards;
+    const [backlog] = board.columns.find((c) => c.id === 'backlog').cards;
+    assert.equal(ready.url, 'https://github.com/o/r/issues/1');
+    assert.deepEqual(ready.unmet, [
+      { text: '#2', url: 'https://github.com/o/r/issues/2' },
+    ]);
+    assert.deepEqual(ready.projectStatus, {
+      text: 'In Progress',
+      tone: 'in-progress',
+    });
+    assert.deepEqual(backlog.projectStatus, { text: 'Triage', tone: 'other' });
+    assert.equal(cardOf(story(3, 'ready')).projectStatus, null);
+    assert.equal(cardOf(story(3, 'ready')).url, null);
   });
 });

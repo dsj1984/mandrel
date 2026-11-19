@@ -143,6 +143,7 @@ describe('buildStatus', () => {
       'id',
       'labels',
       'pr',
+      'projectStatus',
       'state',
       'title',
     ]);
@@ -352,5 +353,40 @@ describe('assignees and Epic', () => {
       { id: 20, title: 'B', children: [] },
     ]);
     assert.equal(board.openTickets.length, 3);
+  });
+
+  it('reads the project Status of every Story on the board, not of Epics', async () => {
+    const asked = [];
+    const provider = {
+      listTicketsByLabel: async () => [
+        t(10, ['type::epic'], { body: '' }),
+        t(11, ['type::story']),
+      ],
+      graphql: async (query) => {
+        asked.push(...[...query.matchAll(/i(\d+): issue/g)].map((m) => +m[1]));
+        return {
+          repository: {
+            i11: {
+              projectItems: {
+                nodes: [
+                  { project: { number: 2 }, status: { name: 'On Hold' } },
+                ],
+              },
+            },
+          },
+        };
+      },
+    };
+    const board = await fetchBoard({
+      provider,
+      config: { github: { owner: 'o', repo: 'r', projectNumber: 2 } },
+      gh: fakeGh([]),
+    });
+    assert.deepEqual(asked, [11]);
+    const status = buildStatus({
+      environments: resolveEnvironments({}),
+      ...board,
+    });
+    assert.equal(status.stories[0].projectStatus, 'On Hold');
   });
 });

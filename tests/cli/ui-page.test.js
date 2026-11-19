@@ -39,6 +39,9 @@ const FIXED_TEST_IDS = [
   'assignee-filter',
   'assignee-filter-summary',
   'assignee-filter-menu',
+  'status-filter',
+  'status-filter-summary',
+  'status-filter-menu',
 ];
 
 /** Ids the header tabs and the Connections dialog carried before the panel views. */
@@ -189,7 +192,7 @@ describe('AC-10: the served script', () => {
   it('imports only the same-origin view models', () => {
     const imports = [...script.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
     assert.deepEqual(imports, [
-      './assignee-filter.js',
+      './board-filter.js',
       './board-model.js',
       './panel-model.js',
       './preferences.js',
@@ -269,7 +272,7 @@ describe('AC-3, AC-6: Settings', () => {
   it('has no More menu and no theme control outside Settings', () => {
     assert.deepEqual(
       [...html.matchAll(/<details\b[^>]*id="([^"]+)"/g)].map((m) => m[1]),
-      ['assignee-filter'],
+      ['status-filter', 'assignee-filter'],
     );
     assert.doesNotMatch(html, /More options/);
     assert.doesNotMatch(script, /mandrel-ui-theme|nextTheme/);
