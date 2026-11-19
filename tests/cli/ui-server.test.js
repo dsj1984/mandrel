@@ -16,7 +16,7 @@ import {
   validateAction,
 } from '../../lib/cli/ui/request-guard.js';
 import { createUiServer } from '../../lib/cli/ui/server.js';
-import { createSources, StateError } from '../../lib/cli/ui/sources.js';
+import { createSources } from '../../lib/cli/ui/sources.js';
 import run, { DEFAULT_PORT, parseUiArgs, runUi } from '../../lib/cli/ui.js';
 import { makeDispatchBoard } from '../helpers/dispatch-board.js';
 
@@ -434,10 +434,10 @@ describe('ui server', () => {
 
     it('passes a known failure code to the page and keeps its detail in the log', async () => {
       fake.setState(async () => {
-        throw new StateError(
-          'no-github-repo',
-          'no GitHub repository configured in /home/op',
-        );
+        throw Object.assign(new Error('x'), {
+          code: 'no-github-repo',
+          detail: 'no GitHub repository configured in /home/op',
+        });
       });
       const res = await api(port, '/api/state');
       assert.equal(res.status, 503);
