@@ -1055,6 +1055,10 @@
       "mi": 100.888
     },
     {
+      "path": ".agents/scripts/lib/dispatch/project-status.js",
+      "mi": 113.843
+    },
+    {
       "path": ".agents/scripts/lib/dispatch/record.js",
       "mi": 121.927
     },
@@ -2953,6 +2957,10 @@
     {
       "path": "lib/cli/ui/assignee-filter.js",
       "mi": 116.407
+    },
+    {
+      "path": "lib/cli/ui/board-filter.js",
+      "mi": 112.878
     },
     {
       "path": "lib/cli/ui/board-model.js",

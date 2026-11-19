@@ -9896,23 +9896,7 @@
       "githubLogin": 4,
       "parseJson": 1
     },
-    "lib/cli/ui/assignee-filter.js": {
-      "<anon assigneeOptions/map(option)#0>": 1,
-      "<anon assigneeOptions/selected.filter(v)#0>": 1,
-      "<anon assigneeOptions/sort(a,b)#0>": 1,
-      "<anon assigneeOptions/sorted.map(login)#0>": 1,
-      "<anon loadAssigneeFilter/parsed.filter(v)#0>": 1,
-      "<anon matchesAssignees/assignees.some(login)#0>": 1,
-      "<anon toggleAssignee/selected.filter(v)#0>": 1,
-      "assigneeOptions": 1,
-      "filterSummary": 4,
-      "loadAssigneeFilter": 2,
-      "matchesAssignees": 3,
-      "saveAssigneeFilter": 1,
-      "toggleAssignee": 2
-    },
     "lib/cli/ui/board-model.js": {
-      "<anon assigneesText(assignees)#0>": 2,
       "<anon buildBoard/column.lanes.find(l)#0>": 1,
       "<anon buildBoard/columns.map(c)#0>": 1,
       "<anon buildBoard/COLUMNS.map(c)#0>": 1,
@@ -9927,7 +9911,6 @@
       "<anon environmentCards/map(env)#0/filter(s)#0>": 2,
       "<anon environmentCards/map(env)#0/map(s)#0>": 1,
       "<anon environmentCards/map(env)#0>": 2,
-      "<anon epicText(epic)#0>": 2,
       "<anon moveOptions/filter(v)#0>": 1,
       "<anon moveOptions/zones.map(zone)#0>": 1,
       "<anon recordRows/filter(value)#0>": 2,
