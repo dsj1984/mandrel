@@ -1504,7 +1504,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
-      "mi": 91.602
+      "mi": 92.18
     },
     {
       "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
@@ -2953,10 +2953,6 @@
     {
       "path": "lib/cli/ui/accounts.js",
       "mi": 107.262
-    },
-    {
-      "path": "lib/cli/ui/assignee-filter.js",
-      "mi": 116.407
     },
     {
       "path": "lib/cli/ui/board-filter.js",

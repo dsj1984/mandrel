@@ -1605,6 +1605,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/dispatch/project-status.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/dispatch/record.js",
       "lines": 73.08,
       "branches": 100,
@@ -1613,7 +1619,7 @@
     {
       "path": ".agents/scripts/lib/dispatch/status.js",
       "lines": 100,
-      "branches": 80,
+      "branches": 79.44,
       "functions": 100
     },
     {
@@ -2200,8 +2206,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
-      "lines": 98.81,
-      "branches": 89.81,
+      "lines": 99.4,
+      "branches": 91.15,
       "functions": 100
     },
     {
@@ -2272,8 +2278,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
-      "lines": 98.38,
-      "branches": 88.89,
+      "lines": 98.41,
+      "branches": 89.63,
       "functions": 100
     },
     {
@@ -4419,15 +4425,15 @@
       "functions": 100
     },
     {
-      "path": "lib/cli/ui/assignee-filter.js",
+      "path": "lib/cli/ui/board-filter.js",
       "lines": 100,
-      "branches": 94.12,
+      "branches": 95.24,
       "functions": 100
     },
     {
       "path": "lib/cli/ui/board-model.js",
       "lines": 100,
-      "branches": 99.07,
+      "branches": 98.86,
       "functions": 100
     },
     {
@@ -4457,7 +4463,7 @@
     {
       "path": "lib/cli/ui/server.js",
       "lines": 100,
-      "branches": 100,
+      "branches": 96.92,
       "functions": 100
     },
     {
@@ -4469,7 +4475,7 @@
     {
       "path": "lib/cli/ui/story-detail.js",
       "lines": 100,
-      "branches": 80.56,
+      "branches": 87.8,
       "functions": 100
     },
     {

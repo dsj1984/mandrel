@@ -801,6 +801,19 @@ describe('Epic on the card and the assignee predicate', () => {
       url: null,
     });
     assert.equal(cardOf(story(3, 'ready')).epic, null);
+    assert.equal(
+      cardOf(story(4, 'ready', { epic: { id: 41 } })).epic.text,
+      'Epic #41 ·',
+    );
+    const { facts } = storyDetailView({
+      id: 4,
+      column: 'ready',
+      epic: { id: 41 },
+    });
+    assert.deepEqual(facts[1], [
+      'Epic',
+      { links: [{ text: '#41', url: null }] },
+    ]);
   });
 
   it('places only the Stories the predicate shows, but counts hidden blockers as unmet', () => {

@@ -59,6 +59,14 @@ describe('readProjectStatuses', () => {
     assert.equal(calls.length, 0);
   });
 
+  it('reads an empty answer, or no config at all, as no Status', async () => {
+    const empty = { graphql: async () => null };
+    assert.equal((await readProjectStatuses(empty, [1], config)).size, 0);
+    const noIssue = { graphql: async () => ({ repository: {} }) };
+    assert.equal((await readProjectStatuses(noIssue, [1], config)).size, 0);
+    assert.equal((await readProjectStatuses(empty, [1], undefined)).size, 0);
+  });
+
   it('degrades to no Status when a read fails', async () => {
     const provider = {
       graphql: async () => {
