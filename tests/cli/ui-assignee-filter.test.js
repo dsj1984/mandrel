@@ -11,10 +11,12 @@ import {
   matchesAssignees,
   saveAssigneeFilter,
   toggleAssignee,
-  UNASSIGNED,
 } from '../../lib/cli/ui/assignee-filter.js';
 
 const s = (...assignees) => ({ assignees });
+
+/** The Unassigned choice's value, as the filter offers it. */
+const UNASSIGNED = assigneeOptions([])[0].value;
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
