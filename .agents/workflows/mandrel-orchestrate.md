@@ -43,7 +43,7 @@ annotation, which the inventory already carries.
 
 ## Start — record authority before the first sweep
 
-Title the session `node .agents/scripts/session-title.js --event orchestrate` ([runbook](../docs/runbooks/session-titles.md)).
+Title the session `node .agents/scripts/session-title.js --event orchestrate` ([runbook](../docs/runbooks/session-titles.md#applying-a-title): load the deferred rename tool before renaming).
 
 1. Ask the operator which actions this run may take unattended, using the
    host's question idiom (`.agents/instructions.md` § 1.A), offering each

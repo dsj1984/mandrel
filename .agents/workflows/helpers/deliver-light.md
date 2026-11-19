@@ -72,7 +72,7 @@ is not being loosened.
 
 ## Procedure
 
-Title the session `node .agents/scripts/session-title.js --event deliver-prompt --summary "<3–6 words>"` as the path starts ([runbook](../../docs/runbooks/session-titles.md)).
+Title the session `node .agents/scripts/session-title.js --event deliver-prompt --summary "<3–6 words>"` as the path starts ([runbook](../../docs/runbooks/session-titles.md#applying-a-title): load the deferred rename tool before renaming).
 
 1. **Predict + gate.** Form the predicted footprint (new files, edited files)
    and record the reason you are taking this path, then run the gate — it

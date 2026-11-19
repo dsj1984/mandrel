@@ -9,6 +9,7 @@
       "Bash",
       "Bash(git stash:*)",
       "mcp__github__*",
+      "mcp__ccd_session_mgmt__set_session_title",
       "Bash(grep -E --line-buffered \"Wave|wave|launched|Launched|blocked|BLOCKED|completed|COMPLETED|Fatal|FAIL|fail|Error|error|review|Epic|\\\\\\\\[DONE\\\\\\\\]|has no\")"
     ],
     "deny": [

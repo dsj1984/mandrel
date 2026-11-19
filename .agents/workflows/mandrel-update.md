@@ -199,6 +199,14 @@ the bump. The cadence is once per `/mandrel-update` invocation — skipping
 is fine when the bump introduces no new scripts, but the review itself is
 non-optional.
 
+One entry is proposed on every run, whatever the skill returns: when
+`delivery.routing.sessionTitles` is on (the default), add
+`mcp__ccd_session_mgmt__set_session_title` to `permissions.allow` unless it
+is already covered, so desktop-app session renames need no prompt. It only
+renames the current session ([runbook](../docs/runbooks/session-titles.md#allowing-the-rename-without-a-prompt));
+`mandrel doctor`'s `session-title-allowlist` advisory reports when it is
+missing.
+
 ## Step 4 — Review the surfaced changelog and update consumer-side guidance
 
 Framework upgrades change behaviour the consumer's own `AGENTS.md` and
