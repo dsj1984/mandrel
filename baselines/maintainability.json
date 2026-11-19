@@ -1051,6 +1051,10 @@
       "mi": 102.45
     },
     {
+      "path": ".agents/scripts/lib/dispatch/launch-options.js",
+      "mi": 106.804
+    },
+    {
       "path": ".agents/scripts/lib/dispatch/liveness.js",
       "mi": 100.888
     },

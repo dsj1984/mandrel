@@ -589,10 +589,8 @@
       "validateDiagnoseArgs": 4
     },
     ".agents/scripts/dispatch.js": {
-      "<anon dryRunEnvelope/ctx.environments.find(e)#0>": 1,
       "<anon gatherVerdictInput/environments.some(e)#0>": 1,
       "<anon gatherVerdictInput/map(c)#0>": 1,
-      "<anon launch/ctx.environments.find(e)#0>": 1,
       "<anon parseDispatchArgv/filter(m)#0>": 1,
       "<anon runAsCli()#0>": 1,
       "<anon runDispatch/launchCloudImpl(args)#0>": 1,
