@@ -7666,6 +7666,8 @@
       "computeStoryReachability": 6
     },
     ".agents/scripts/lib/orchestration/story-stage-publish.js": {
+      "<anon historyOf(raw)#0/map(e)#0>": 1,
+      "<anon historyOf(raw)#0>": 2,
       "<anon isEntry(e)#0>": 2,
       "<anon publishStagePhase/(ctx,deps)#0>": 1,
       "formatDeliveryStageBody": 1,
