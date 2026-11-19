@@ -62,8 +62,8 @@ const api = (port, path, extra = {}) =>
     headers: { 'x-mandrel-token': TOKEN, ...extra.headers },
   });
 
-const post = (port, body, headers = {}) =>
-  api(port, '/api/action', {
+const post = (port, body, headers = {}, path = '/api/action') =>
+  api(port, path, {
     method: 'POST',
     body: typeof body === 'string' ? body : JSON.stringify(body),
     headers: {
@@ -80,10 +80,12 @@ function fakeSources() {
     connections: 0,
     actions: [],
     stories: [],
+    launchOptions: [],
   };
   const result = {
     code: 0,
     envelope: { ok: true, action: 'dispatch', storyId: 7 },
+    launchStory: true,
   };
   let stateImpl = async () => ({
     environments: [{ name: 'local', target: 'local', capacity: 1, load: 0 }],
@@ -111,6 +113,16 @@ function fakeSources() {
         return { code: result.code, envelope: result.envelope };
       },
       environmentNames: () => ['local', 'box-2'],
+      launchChoices: () => ({
+        models: ['opus', 'sonnet', 'haiku'],
+        efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+      }),
+      setLaunchOptions: async (value) => {
+        calls.launchOptions.push(value);
+        return result.launchStory
+          ? { ok: true, ...value }
+          : { ok: false, reason: 'not-a-story' };
+      },
       readStory: async (id, state) => {
         calls.stories.push(id);
         const row = state.stories.find((s) => s.id === id);
@@ -502,6 +514,67 @@ describe('ui server', () => {
       const res = await api(port, '/api/action');
       assert.equal(res.status, 404);
       assert.equal(fake.calls.actions.length, 0);
+    });
+  });
+
+  describe('AC-9: launch options', () => {
+    const postOptions = (body, headers) =>
+      post(port, body, headers, '/api/launch-options');
+    const valid = { storyId: 7, model: 'opus', effort: null };
+
+    it('sets the options and drops the cached state', async () => {
+      await api(port, '/api/state');
+      const res = await postOptions(valid);
+      assert.equal(res.status, 200);
+      assert.deepEqual(JSON.parse(res.body), { ok: true, ...valid });
+      assert.deepEqual(fake.calls.launchOptions, [valid]);
+      await api(port, '/api/state');
+      assert.equal(fake.calls.state, 2);
+    });
+
+    it('refuses a missing token, a foreign origin or a non-JSON body with 403', async () => {
+      const noToken = await request(port, {
+        method: 'POST',
+        path: '/api/launch-options',
+        body: JSON.stringify(valid),
+        headers: {
+          origin: `http://127.0.0.1:${port}`,
+          'content-type': 'application/json',
+        },
+      });
+      const foreign = await postOptions(valid, { origin: 'http://evil.test' });
+      const text = await postOptions(valid, { 'content-type': 'text/plain' });
+      for (const res of [noToken, foreign, text]) {
+        assert.equal(res.status, 403);
+        assert.deepEqual(JSON.parse(res.body), { error: 'forbidden' });
+      }
+      assert.deepEqual(fake.calls.launchOptions, []);
+    });
+
+    const invalid = {
+      'unknown-property': { ...valid, extra: 1 },
+      'invalid-body': { storyId: 7, model: 'opus' },
+      'invalid-story-id': { ...valid, storyId: 0 },
+      'invalid-model': { ...valid, model: 'gpt-5' },
+      'invalid-effort': { ...valid, effort: 'extreme' },
+    };
+    for (const [error, body] of Object.entries(invalid)) {
+      it(`answers 400 ${error}`, async () => {
+        const res = await postOptions(body);
+        assert.equal(res.status, 400);
+        assert.deepEqual(JSON.parse(res.body), { error });
+        assert.deepEqual(fake.calls.launchOptions, []);
+      });
+    }
+
+    it('answers 409 not-a-story for a closed ticket or an Epic', async () => {
+      fake.result.launchStory = false;
+      const res = await postOptions(valid);
+      assert.equal(res.status, 409);
+      assert.deepEqual(JSON.parse(res.body), {
+        ok: false,
+        reason: 'not-a-story',
+      });
     });
   });
 

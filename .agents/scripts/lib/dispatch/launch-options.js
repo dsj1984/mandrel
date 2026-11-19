@@ -149,6 +149,24 @@ export function launchLabel(kind, value) {
   };
 }
 
+/**
+ * The label write that sets a Story's overrides to `choice` (`null` clears
+ * one): the labels to mint and add, and every other override label to remove.
+ *
+ * @param {string[]} labels The Story's current labels.
+ * @param {{ model: string|null, effort: string|null }} choice
+ * @returns {{ add: Array<{ name: string, color: string, description: string }>,
+ *   remove: string[] }}
+ */
+export function launchLabelChange(labels, choice) {
+  const add = ['model', 'effort']
+    .filter((kind) => choice[kind] !== null)
+    .map((kind) => launchLabel(kind, choice[kind]));
+  const keep = new Set(add.map((l) => l.name));
+  const remove = (labels ?? []).filter((l) => isLaunchLabel(l) && !keep.has(l));
+  return { add, remove };
+}
+
 function labelProblem(models, efforts, choices) {
   if (models.length > 1) return `more than one model:: label (${models})`;
   if (efforts.length > 1) return `more than one effort:: label (${efforts})`;

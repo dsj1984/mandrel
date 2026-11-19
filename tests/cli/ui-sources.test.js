@@ -27,7 +27,15 @@ const stageComment = (storyId, stage, history = []) => ({
   body: `\`\`\`json\n${JSON.stringify({ kind: 'delivery-stage', storyId, stage, prNumber: null, updatedAt: STARTED, history })}\n\`\`\``,
 });
 
-function sourcesOver(tickets, { records = {}, comments = {}, alive = [] }) {
+function sourcesOver(
+  tickets,
+  {
+    records = {},
+    comments = {},
+    alive = [],
+    delivery = { environments: { local: { target: 'local' } } },
+  },
+) {
   const board = makeDispatchBoard(tickets);
   for (const [id, record] of Object.entries(records)) {
     board.records.set(Number(id), record);
@@ -37,7 +45,7 @@ function sourcesOver(tickets, { records = {}, comments = {}, alive = [] }) {
     ...board.deps.config,
     github: { ...board.deps.config.github, owner: 'o', repo: 'r' },
     project: { paths: { tempRoot } },
-    delivery: { environments: { local: { target: 'local' } } },
+    delivery,
   };
   const probes = [];
   const sources = createSources({
@@ -133,6 +141,10 @@ describe('readStory (AC-5, AC-6, AC-7)', () => {
       title: 'Story 1',
       column: 'delivering',
       environment: 'local',
+      launchOptions: {
+        model: { value: null, source: 'claude-default' },
+        effort: { value: null, source: 'claude-default' },
+      },
       projectStatus: null,
       labels: ['type::story', 'agent::executing', 'env::local'],
       assignees: [],
@@ -290,5 +302,115 @@ describe('readConnections accounts (AC-1, AC-2, AC-3)', () => {
     clock.at = 60_000;
     await sources.readConnections();
     assert.equal(accountProbes(), 4);
+  });
+});
+
+describe('launch options', () => {
+  const delivery = {
+    dispatchModels: ['fable'],
+    environments: { local: { target: 'local', model: 'sonnet' } },
+  };
+  const story = (id, labels, extra = {}) => ({
+    id,
+    labels: ['type::story', ...labels],
+    ...extra,
+  });
+
+  it('AC-11: the detail resolves model and effort with their source', async () => {
+    const { sources } = sourcesOver(
+      [
+        story(1, ['agent::executing', 'env::local', 'effort::max']),
+        story(2, ['agent::ready']),
+        story(3, ['agent::ready', 'model::nope']),
+      ],
+      { delivery },
+    );
+    const state = await sources.readState();
+    assert.deepEqual((await sources.readStory(1, state)).launchOptions, {
+      model: { value: 'sonnet', source: 'environment' },
+      effort: { value: 'max', source: 'override' },
+    });
+    assert.deepEqual((await sources.readStory(2, state)).launchOptions, {
+      model: { value: null, source: 'environment' },
+      effort: { value: null, source: 'environment' },
+    });
+    assert.match(
+      (await sources.readStory(3, state)).launchOptions.invalid,
+      /model::nope/,
+    );
+  });
+
+  it('AC-9: lists the launch choices from the config', () => {
+    const { sources } = sourcesOver([], { delivery });
+    assert.deepEqual(sources.launchChoices(), {
+      models: ['opus', 'sonnet', 'haiku', 'fable'],
+      efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+    });
+  });
+
+  it('AC-9: one label write adds the chosen labels, minting them, and removes every other override', async () => {
+    const { sources, board } = sourcesOver(
+      [story(1, ['agent::ready', 'model::opus', 'effort::low', 'effort::max'])],
+      { delivery },
+    );
+    const result = await sources.setLaunchOptions({
+      storyId: 1,
+      model: 'fable',
+      effort: 'max',
+    });
+    assert.deepEqual(result, {
+      ok: true,
+      storyId: 1,
+      model: 'fable',
+      effort: 'max',
+    });
+    assert.deepEqual(board.writes, [
+      { ensureLabels: ['model::fable', 'effort::max'] },
+      {
+        id: 1,
+        mutation: {
+          labels: {
+            add: ['model::fable', 'effort::max'],
+            remove: ['model::opus', 'effort::low'],
+          },
+        },
+      },
+    ]);
+  });
+
+  it('AC-9: null clears an override without minting anything', async () => {
+    const { sources, board } = sourcesOver(
+      [story(1, ['agent::ready', 'model::opus'])],
+      { delivery },
+    );
+    await sources.setLaunchOptions({ storyId: 1, model: null, effort: null });
+    assert.deepEqual(board.writes, [
+      { id: 1, mutation: { labels: { add: [], remove: ['model::opus'] } } },
+    ]);
+    assert.deepEqual(board.store.get(1).labels, [
+      'type::story',
+      'agent::ready',
+    ]);
+  });
+
+  it('AC-9: refuses a closed ticket or an Epic and writes nothing', async () => {
+    const { sources, board } = sourcesOver(
+      [
+        story(1, ['agent::done'], { state: 'closed' }),
+        { id: 2, labels: ['type::epic'] },
+      ],
+      { delivery },
+    );
+    for (const storyId of [1, 2]) {
+      assert.deepEqual(
+        await sources.setLaunchOptions({
+          storyId,
+          model: 'opus',
+          effort: null,
+        }),
+        { ok: false, reason: 'not-a-story' },
+      );
+    }
+    assert.deepEqual(board.writes, []);
   });
 });
