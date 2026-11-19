@@ -18,6 +18,16 @@ the printed URL in a browser on the same machine. It needs what
 `mandrel dispatch` needs: a GitHub token (`GITHUB_TOKEN`/`GH_TOKEN` or
 `gh auth login`) and, for the default environment command, the `claude` CLI.
 
+Run it from your project's root. The board reads the `.agentrc.json` of the
+directory it starts in, and refuses to start (exit 1) when that config names
+no `github.owner` and `github.repo`, printing the directory it looked in.
+
+When a state read fails later, the page shows a short message and the
+terminal running `mandrel ui` prints the cause
+(`mandrel ui: board state read failed: …`). The API answers `503` with
+`no-github-repo`, `config-invalid` or `state-unavailable`, never the cause
+itself.
+
 The server stores nothing. Every state read is recomputed from GitHub
 through the `mandrel dispatch --status` read model, joined with the delivery
 stage a running delivery publishes on its Story. A read is reused for at
