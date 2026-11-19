@@ -1599,6 +1599,12 @@
       "functions": 66.67
     },
     {
+      "path": ".agents/scripts/lib/dispatch/liveness.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/dispatch/record.js",
       "lines": 73.08,
       "branches": 100,
@@ -4413,6 +4419,12 @@
       "functions": 100
     },
     {
+      "path": "lib/cli/ui/log-tail.js",
+      "lines": 100,
+      "branches": 89.19,
+      "functions": 100
+    },
+    {
       "path": "lib/cli/ui/request-guard.js",
       "lines": 100,
       "branches": 100,
@@ -4428,6 +4440,12 @@
       "path": "lib/cli/ui/sources.js",
       "lines": 100,
       "branches": 95.56,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/ui/story-detail.js",
+      "lines": 100,
+      "branches": 80.56,
       "functions": 100
     },
     {
