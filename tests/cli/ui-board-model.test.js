@@ -9,7 +9,6 @@ import {
   dropZones,
   environmentCards,
   moveOptions,
-  nextTheme,
   storyDetailView,
   zoneVerdict,
 } from '../../lib/cli/ui/board-model.js';
@@ -20,6 +19,14 @@ import {
   nextPanelView,
   storyOfView,
 } from '../../lib/cli/ui/panel-model.js';
+import {
+  DEFAULT_PREFERENCES,
+  doneHeader,
+  loadPreferences,
+  savePreferences,
+  settingsFields,
+  withPreference,
+} from '../../lib/cli/ui/preferences.js';
 
 const UNTRACKED = 'untracked';
 const COLUMN_IDS = [
@@ -477,13 +484,131 @@ describe('AC-6: connectionsView', () => {
   });
 });
 
-describe('nextTheme', () => {
-  it('cycles auto, light, dark', () => {
-    assert.equal(nextTheme('auto'), 'light');
-    assert.equal(nextTheme('light'), 'dark');
-    assert.equal(nextTheme('dark'), 'auto');
-    assert.equal(nextTheme(undefined), 'light');
-    assert.equal(nextTheme('bogus'), 'auto');
+/** A Storage stand-in over a Map; `blocked` makes every call throw. */
+function memoryStorage(entries = {}, { blocked = false } = {}) {
+  const map = new Map(Object.entries(entries));
+  const guarded =
+    (fn) =>
+    (...args) => {
+      if (blocked) throw new Error('SecurityError');
+      return fn(...args);
+    };
+  return {
+    map,
+    getItem: guarded((key) => map.get(key) ?? null),
+    setItem: guarded((key, value) => map.set(key, String(value))),
+    removeItem: guarded((key) => map.delete(key)),
+  };
+}
+
+const SETTINGS_KEY = 'mandrel-board-settings';
+
+describe('preferences', () => {
+  it('AC-4: a saved choice survives a reload, and Reset restores the defaults', () => {
+    const storage = memoryStorage();
+    let prefs = loadPreferences(storage);
+    assert.deepEqual(prefs, DEFAULT_PREFERENCES);
+    prefs = withPreference(prefs, 'theme', 'dark');
+    prefs = withPreference(prefs, 'doneLimit', '50');
+    prefs = withPreference(prefs, 'refreshSeconds', '60');
+    savePreferences(storage, prefs);
+    assert.deepEqual(loadPreferences(storage), {
+      theme: 'dark',
+      doneLimit: 50,
+      refreshSeconds: 60,
+    });
+    savePreferences(storage, { ...DEFAULT_PREFERENCES });
+    assert.deepEqual(loadPreferences(storage), {
+      theme: 'auto',
+      doneLimit: 20,
+      refreshSeconds: 15,
+    });
+  });
+
+  it('AC-5: blocked, missing, malformed or out-of-range storage gives the defaults', () => {
+    for (const storage of [
+      null,
+      memoryStorage({}, { blocked: true }),
+      memoryStorage({ [SETTINGS_KEY]: '{not json' }),
+      memoryStorage({ [SETTINGS_KEY]: '"dark"' }),
+      memoryStorage({ [SETTINGS_KEY]: 'null' }),
+      memoryStorage({
+        [SETTINGS_KEY]: JSON.stringify({
+          theme: 'neon',
+          doneLimit: 25,
+          refreshSeconds: -1,
+        }),
+      }),
+    ]) {
+      assert.deepEqual(loadPreferences(storage), DEFAULT_PREFERENCES);
+      assert.doesNotThrow(() => savePreferences(storage, DEFAULT_PREFERENCES));
+    }
+    const partial = memoryStorage({
+      [SETTINGS_KEY]: JSON.stringify({ doneLimit: 100, refreshSeconds: 7 }),
+    });
+    assert.deepEqual(loadPreferences(partial), {
+      ...DEFAULT_PREFERENCES,
+      doneLimit: 100,
+    });
+  });
+
+  it('AC-6: carries a legacy theme over once, then supersedes its key', () => {
+    const storage = memoryStorage({ 'mandrel-ui-theme': 'light' });
+    assert.equal(loadPreferences(storage).theme, 'light');
+    assert.equal(storage.map.has('mandrel-ui-theme'), false);
+    assert.equal(JSON.parse(storage.map.get(SETTINGS_KEY)).theme, 'light');
+    const saved = memoryStorage({
+      'mandrel-ui-theme': 'light',
+      [SETTINGS_KEY]: JSON.stringify({ theme: 'dark' }),
+    });
+    assert.equal(loadPreferences(saved).theme, 'dark', 'Settings win');
+    const junk = memoryStorage({ 'mandrel-ui-theme': 'neon' });
+    assert.equal(loadPreferences(junk).theme, 'auto');
+  });
+
+  it('ignores an unknown preference name', () => {
+    assert.deepEqual(
+      withPreference(DEFAULT_PREFERENCES, 'colour', 'red'),
+      DEFAULT_PREFERENCES,
+    );
+    assert.equal(
+      withPreference(DEFAULT_PREFERENCES, 'doneLimit', '7').doneLimit,
+      20,
+    );
+  });
+
+  it('lists each setting with its fixed choices and its current value', () => {
+    const fields = settingsFields({ ...DEFAULT_PREFERENCES, doneLimit: 50 });
+    assert.deepEqual(
+      fields.map((f) => [f.testId, f.label]),
+      [
+        ['settings-theme', 'Theme'],
+        ['settings-done-limit', 'Done Stories shown'],
+        ['settings-refresh', 'Refresh every'],
+      ],
+    );
+    const [theme, done, refresh] = fields;
+    assert.equal(theme.value, 'auto');
+    assert.equal(done.value, '50');
+    assert.deepEqual(
+      done.options.map((o) => o.value),
+      ['10', '20', '50', '100'],
+    );
+    assert.deepEqual(
+      refresh.options.map((o) => o.text),
+      ['15 s', '30 s', '60 s'],
+    );
+  });
+});
+
+describe('AC-7: the Done column header', () => {
+  it('shows the count with its total, or alone when the total is unknown', () => {
+    assert.equal(
+      doneHeader({ doneShown: 20, doneTotal: 345 }),
+      'Done · 20 of 345',
+    );
+    assert.equal(doneHeader({ doneShown: 20, doneTotal: null }), 'Done · 20');
+    assert.equal(doneHeader(null), 'Done');
   });
 });
 

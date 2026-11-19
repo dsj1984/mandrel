@@ -156,7 +156,7 @@ is proven by your first live dispatch, not by a test. On the first one:
 | `mandrel dispatch --env <name> <id>` | Dispatch an `agent::ready` Story: apply `env::<name>`, then start the environment's command detached. Output goes to `<tempRoot>/dispatch/story-<id>.log`; the record (`pid`, `argv`, `startedAt`, and `sessionId` when the command used `{sessionId}`) sits beside it as `story-<id>.json`. A record written before `sessionId` existed still reads, stops and resumes. If the process fails to start, the label is removed again and the command exits 1. |
 | `mandrel dispatch --resume <id>` | Relaunch an `agent::blocked` Story in the environment its label names. No `agent::*` label changes: the launched `/mandrel-deliver <id>` owns the resume path. |
 | `mandrel dispatch --stop <id>` | Stop the recorded process, release the lease, return the Story to `agent::ready` and remove its `env::` label. The branch and worktree are kept. |
-| `mandrel dispatch --status [--json]` | Print every environment with its load and every Story's board column, with the verdict each drop target would return. |
+| `mandrel dispatch --status [--json] [--done-limit <n>]` | Print every environment with its load and every Story's board column, with the verdict each drop target would return. Done lists the most recently closed Stories: 20 by default, or `--done-limit` 10, 50 or 100; any other value exits 2 with reason `invalid-done-limit`. The JSON adds `doneShown` and `doneTotal`, every closed Story's count (`null` when it cannot be read). |
 
 `--dry-run` prints the verdict and the argv it would run, and writes and
 starts nothing. No session is created, so a `{sessionId}` placeholder is
@@ -205,6 +205,7 @@ only exception).
 | `not-blocked` | A resume needs an `agent::blocked` Story. |
 | `wrong-environment` | `--env` names a different environment than the Story's label, or a stop targets a Story no environment holds. |
 | `closing` | A stop of an `agent::closing` Story; let close land, or recover it with `deliver-recover.js`. |
+| `invalid-done-limit` | `--done-limit` is not 10, 20, 50 or 100. This envelope has no `action`. |
 
 ## Headless permissions
 

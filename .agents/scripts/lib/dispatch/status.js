@@ -13,7 +13,9 @@ import { agentStateOf, computeLoads, environmentOf } from './environments.js';
 import { decide } from './verdict.js';
 
 const COLUMNS = ['backlog', 'planning', 'ready', 'delivering', 'blocked'];
-const DONE_LIMIT = 20;
+/** The Done Stories `--done-limit` may ask for; the first default is 20. */
+export const DONE_LIMITS = Object.freeze([10, 20, 50, 100]);
+export const DEFAULT_DONE_LIMIT = 20;
 
 const DELIVERING = new Set([AGENT_LABELS.EXECUTING, AGENT_LABELS.CLOSING]);
 
@@ -135,8 +137,11 @@ const isEpic = (ticket) => (ticket.labels ?? []).includes(TYPE_LABELS.EPIC);
  *   closedStories: object[],
  *   prs: object[],
  *   operator?: string|null,
+ *   doneLimit?: number,
+ *   closedTotal?: number|null,
  * }} board
- * @returns {{ environments: object[], stories: object[] }}
+ * @returns {{ environments: object[], stories: object[], doneShown: number,
+ *   doneTotal: number|null }}
  */
 export function buildStatus({
   environments,
@@ -144,6 +149,8 @@ export function buildStatus({
   closedStories,
   prs,
   operator = null,
+  doneLimit = DEFAULT_DONE_LIMIT,
+  closedTotal = null,
 }) {
   const loads = computeLoads(environments, openTickets);
   const ctx = {
@@ -160,7 +167,7 @@ export function buildStatus({
     .map(([t, column]) => storyRow(t, column, ctx));
   const done = [...closedStories]
     .sort((a, b) => String(b.closedAt).localeCompare(String(a.closedAt)))
-    .slice(0, DONE_LIMIT)
+    .slice(0, doneLimit)
     .map((t) => storyRow(t, 'done', ctx));
   return {
     environments: environments.map(
@@ -170,43 +177,82 @@ export function buildStatus({
       }),
     ),
     stories: [...open, ...done],
+    doneShown: done.length,
+    doneTotal: closedTotal,
   };
+}
+
+const closedStory = (issue) => ({
+  id: issue.number,
+  title: issue.title,
+  body: issue.body ?? '',
+  labels: (issue.labels ?? []).map((l) => l.name ?? l),
+  assignees: (issue.assignees ?? []).map((a) => a.login),
+  state: 'closed',
+  closedAt: issue.closed_at ?? null,
+});
+
+/** Sorted by update, not close, so it reads spare rows; a page holds at most 100. */
+async function closedPage(gh, repoPath, doneLimit) {
+  const perPage = Math.min(100, Math.max(50, doneLimit * 2));
+  const raw = await gh.api({
+    endpoint:
+      `/repos/${repoPath}/issues?state=closed&labels=${encodeURIComponent(TYPE_LABELS.STORY)}` +
+      `&sort=updated&direction=desc&per_page=${perPage}`,
+  });
+  return JSON.parse(raw.stdout || '[]')
+    .filter((issue) => !issue.pull_request)
+    .map(closedStory);
+}
+
+const totalCount = (raw) => {
+  const total = JSON.parse(raw.stdout || '{}').total_count;
+  return Number.isInteger(total) ? total : null;
+};
+
+/** Every closed Story's count from one search request, or `null` when it fails. */
+function closedStoryTotal(gh, repoPath) {
+  const query = encodeURIComponent(
+    `repo:${repoPath} is:issue is:closed label:"${TYPE_LABELS.STORY}"`,
+  );
+  return gh
+    .api({ endpoint: `/search/issues?q=${query}&per_page=1` })
+    .then(totalCount)
+    .catch(() => null);
 }
 
 /**
  * Live board data: every open issue, the most recently updated closed
- * Stories (one page, sorted by `closedAt` in {@link buildStatus}), and the
- * open pull requests with their checks.
+ * Stories (one page of up to 100, sorted by `closedAt` in
+ * {@link buildStatus}), their total count, and the open pull requests with
+ * their checks.
  *
- * @param {{ provider: object, gh: object, config: object }} deps
- * @returns {Promise<{ openTickets: object[], closedStories: object[], prs: object[] }>}
+ * @param {{ provider: object, gh: object, config: object, doneLimit?: number }} deps
+ * @returns {Promise<{ openTickets: object[], closedStories: object[],
+ *   closedTotal: number|null, prs: object[] }>}
  */
-export async function fetchBoard({ provider, gh, config }) {
-  const owner = config?.github?.owner ?? '{owner}';
-  const repo = config?.github?.repo ?? '{repo}';
-  const closedEndpoint =
-    `/repos/${owner}/${repo}/issues?state=closed&labels=${encodeURIComponent(TYPE_LABELS.STORY)}` +
-    '&sort=updated&direction=desc&per_page=50';
-  const [openTickets, closedRaw, prs] = await Promise.all([
+export async function fetchBoard({
+  provider,
+  gh,
+  config,
+  doneLimit = DEFAULT_DONE_LIMIT,
+}) {
+  const repoPath = `${config?.github?.owner ?? '{owner}'}/${config?.github?.repo ?? '{repo}'}`;
+  const [openTickets, closedStories, closedTotal, prs] = await Promise.all([
     provider.listTicketsByLabel({ state: 'open' }),
-    gh.api({ endpoint: closedEndpoint }),
+    closedPage(gh, repoPath, doneLimit),
+    closedStoryTotal(gh, repoPath),
     gh.pr.list(
       ['--state', 'open', '--limit', '100'],
       ['number', 'url', 'headRefName', 'statusCheckRollup'],
     ),
   ]);
-  const closedStories = JSON.parse(closedRaw.stdout || '[]')
-    .filter((issue) => !issue.pull_request)
-    .map((issue) => ({
-      id: issue.number,
-      title: issue.title,
-      body: issue.body ?? '',
-      labels: (issue.labels ?? []).map((l) => l.name ?? l),
-      assignees: (issue.assignees ?? []).map((a) => a.login),
-      state: 'closed',
-      closedAt: issue.closed_at ?? null,
-    }));
-  return { openTickets, closedStories, prs: Array.isArray(prs) ? prs : [] };
+  return {
+    openTickets,
+    closedStories,
+    closedTotal,
+    prs: Array.isArray(prs) ? prs : [],
+  };
 }
 
 const offlineNote = (env) =>
