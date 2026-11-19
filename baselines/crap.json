@@ -5595,6 +5595,7 @@
       "deriveLightSuitability": 3,
       "deriveReceiptTitle": 3,
       "deriveUnwaivableRisk": 4,
+      "describeLineCeiling": 3,
       "describeMagnitude": 4,
       "describeSensitivity": 3,
       "describeStoryBranch": 3,
