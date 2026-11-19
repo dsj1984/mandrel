@@ -21,11 +21,17 @@ const css = read('board.css');
 const FIXED_TEST_IDS = [
   'board',
   'zone-verdict',
-  'panel-environments-button',
-  'panel-environments-offline-count',
   'panel-connections-button',
+  'panel-connections-offline-count',
   'panel-settings-button',
-  'done-count',
+  'board-search',
+  'column-count-backlog',
+  'column-count-planning',
+  'column-count-ready',
+  'column-count-delivering',
+  'column-count-blocked',
+  'column-count-done',
+  'column-load-delivering',
   'confirm-stop',
   'toast',
   'column-backlog',
@@ -42,6 +48,9 @@ const FIXED_TEST_IDS = [
   'status-filter',
   'status-filter-summary',
   'status-filter-menu',
+  'epic-filter',
+  'epic-filter-summary',
+  'epic-filter-menu',
   'launch-options-dialog',
   'launch-options-model',
   'launch-options-effort',
@@ -49,18 +58,28 @@ const FIXED_TEST_IDS = [
   'launch-options-save',
 ];
 
-/** Ids the header tabs and the Connections dialog carried before the panel views. */
+/**
+ * Ids the header tabs and the Connections dialog carried before the panel
+ * views, then the Environments panel, the Done header and each card's Move
+ * and details buttons before the card's one action button.
+ */
 const REMOVED_TEST_IDS = [
   'tab-board',
   'tab-environments',
   'connections-button',
   'connections-dialog',
   'theme-toggle',
+  'panel-environments-button',
+  'panel-environments-offline-count',
+  'environments-view',
+  'done-count',
 ];
+
+/** Per-item id prefixes the card no longer generates. */
+const REMOVED_PREFIXES = ['card-move-', 'card-details-'];
 
 /** The Environments and Connections panel views' ids, set by the script. */
 const PANEL_VIEW_TEST_IDS = [
-  'environments-view',
   'connections-view',
   'connections-github-login',
   'connections-claude-account',
@@ -75,11 +94,14 @@ const PANEL_VIEW_TEST_IDS = [
 const GENERATED_TEST_IDS = [
   'lane-',
   'card-',
-  'card-move-',
+  'card-action-',
+  'card-action-more-',
+  'card-refusal-',
+  'card-blocker-',
+  'card-outside-',
   'env-card-',
   'card-status-',
   'card-liveness-',
-  'card-details-',
   'card-settings-',
 ];
 
@@ -157,6 +179,13 @@ describe('AC-10: the served script', () => {
     }
   });
 
+  it('AC-1: renders no Move or details button on a card', () => {
+    for (const prefix of REMOVED_PREFIXES) {
+      assert.equal(script.includes(`\`${prefix}`), false, prefix);
+    }
+    assert.doesNotMatch(script, /'Move'|'⋯'/);
+  });
+
   it('sets the Story detail view test ids', () => {
     for (const id of DETAIL_TEST_IDS) {
       assert.ok(script.includes(`'${id}'`), id);
@@ -168,15 +197,29 @@ describe('AC-10: the served script', () => {
     assert.doesNotMatch(script, /rel: 'noreferrer'/);
   });
 
-  it('opens the detail view from double-click, the context menu, Enter or Space, and the details button', () => {
-    for (const trigger of [
-      /addEventListener\('dblclick'/,
-      /addEventListener\('contextmenu'/,
-      /event\.key !== 'Enter' && event\.key !== ' '/,
-      /details\.addEventListener\('click', \(\) => toggleDetail/,
-    ]) {
-      assert.match(script, trigger);
-    }
+  it('AC-2: opens the detail view from a click on the card body, Enter or Space', () => {
+    assert.match(
+      script,
+      /node\.addEventListener\('click', \(event\) => \{\s*if \(!event\.target\.closest\('a, button, input, select, textarea'\)\) \{\s*toggleDetail\(id\)/,
+    );
+    assert.match(script, /event\.key !== 'Enter' && event\.key !== ' '/);
+    assert.doesNotMatch(script, /'dblclick'|'contextmenu'/);
+  });
+
+  it('AC-7: focuses the search on / outside a text control and clears it on Esc', () => {
+    assert.match(script, /event\.key !== '\/' \|\| typing\(\)/);
+    assert.match(script, /search\.focus\(\)/);
+    assert.match(script, /search\.value = '';/);
+    assert.match(script, /matchesSearch\(story, ui\.search\)/);
+  });
+
+  it('AC-9: collapses an empty column and opens every rail while a card is dragged', () => {
+    assert.match(
+      script,
+      /classList\.toggle\('collapsed', column\.count === 0\)/,
+    );
+    assert.match(script, /document\.body\.classList\.add\('dragging'\)/);
+    assert.match(css, /body\.dragging \.column\.collapsed \{/);
   });
 
   it('closes the side panel on Esc and its close button', () => {
@@ -192,6 +235,7 @@ describe('AC-10: the served script', () => {
       script,
       /item\.addEventListener\('click', \(\) => perform\(story, option\)\)/,
     );
+    assert.match(script, /first\.text,\s*\(\) => perform\(story, first\)/);
     assert.match(script, /\$\('confirm-stop'\)\.showModal\(\)/);
   });
 
@@ -250,18 +294,14 @@ describe('AC-4, AC-5: the header and the panel views', () => {
   });
 
   it('gives each icon button an aria-label, a title and aria-expanded', () => {
-    for (const id of [
-      'panel-environments-button',
-      'panel-connections-button',
-      'panel-settings-button',
-    ]) {
+    for (const id of ['panel-connections-button', 'panel-settings-button']) {
       const tag = html.match(new RegExp(`<button [^>]*id="${id}"[^>]*>`))[0];
       assert.match(tag, /aria-label="[^"]+"/, id);
       assert.match(tag, /title="[^"]+"/, id);
       assert.match(tag, /aria-expanded="false"/, id);
       assert.match(tag, /aria-controls="side-panel"/, id);
     }
-    assert.equal(html.match(/<svg [^>]*stroke="currentColor"/g).length, 3);
+    assert.equal(html.match(/<svg [^>]*stroke="currentColor"/g).length, 2);
   });
 
   it('opens each view from its button and reflects it in aria-expanded', () => {
@@ -293,7 +333,7 @@ describe('AC-3, AC-6: Settings', () => {
   it('has no More menu and no theme control outside Settings', () => {
     assert.deepEqual(
       [...html.matchAll(/<details\b[^>]*id="([^"]+)"/g)].map((m) => m[1]),
-      ['status-filter', 'assignee-filter'],
+      ['status-filter', 'epic-filter', 'assignee-filter'],
     );
     assert.doesNotMatch(html, /More options/);
     assert.doesNotMatch(script, /mandrel-ui-theme|nextTheme/);

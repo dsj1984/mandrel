@@ -222,18 +222,41 @@ main {
 }
 
 .board {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(200px, 1fr));
+  display: flex;
   gap: 10px;
   overflow-x: auto;
 }
 
 .column {
+  flex: 1 1 200px;
+  min-width: 200px;
   background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   padding: 8px;
   min-height: 240px;
+}
+
+.column-count,
+.column-load {
+  font-weight: 400;
+  text-transform: none;
+}
+
+.board-search {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  padding: 4px 10px;
+  min-height: 32px;
+  width: 180px;
+}
+.board-search:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .column h2,
@@ -282,6 +305,11 @@ main {
 }
 .lane.offline .lane-meta {
   color: var(--amber);
+}
+.lane.headless {
+  background: none;
+  border: 0;
+  padding: 0;
 }
 
 .cards {
@@ -336,6 +364,25 @@ main {
 .unmet {
   color: var(--amber);
 }
+.card.waiting {
+  opacity: 0.6;
+}
+.card.waiting:hover,
+.card.waiting:focus-within {
+  opacity: 1;
+}
+.card-reason,
+.card-outside {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-reason.blocker {
+  color: var(--red);
+}
 
 /* Project Status chip; dot colors follow GitHub's stock Status options. */
 .status-chip {
@@ -385,7 +432,7 @@ main {
   margin-bottom: 8px;
   font-size: 12px;
 }
-.env-card h3 {
+.env-card h4 {
   margin: 0 0 6px;
   font-size: 14px;
 }
@@ -614,10 +661,54 @@ body.panel-open .zone-verdict {
     margin-right: 0;
   }
   .board {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     overflow-x: visible;
+  }
+  .board-search {
+    width: 100%;
   }
   .actions {
     margin-left: 0;
+  }
+}
+
+/* An empty column is a narrow rail that still takes a drop; a drag opens it. */
+.column.collapsed {
+  flex: 0 0 40px;
+  min-width: 40px;
+  padding: 8px 4px;
+}
+.column.collapsed h2 {
+  writing-mode: vertical-rl;
+  white-space: nowrap;
+}
+.column.collapsed .cards,
+.column.collapsed .lanes,
+.column.collapsed .zone-hint {
+  display: none;
+}
+body.dragging .column.collapsed {
+  flex: 1 1 200px;
+  min-width: 200px;
+  padding: 8px;
+}
+body.dragging .column.collapsed h2 {
+  writing-mode: horizontal-tb;
+}
+body.dragging .column.collapsed .cards {
+  display: flex;
+}
+body.dragging .column.collapsed .lanes,
+body.dragging .column.collapsed .zone-hint {
+  display: block;
+}
+
+@media (max-width: 720px) {
+  .column.collapsed {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+  .column.collapsed h2 {
+    writing-mode: horizontal-tb;
   }
 }

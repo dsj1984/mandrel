@@ -9,6 +9,7 @@ import {
   dropZones,
   environmentCards,
   launchOptionsView,
+  matchesSearch,
   moveOptions,
   storyDetailView,
   zoneVerdict,
@@ -22,7 +23,6 @@ import {
 } from '../../lib/cli/ui/panel-model.js';
 import {
   DEFAULT_PREFERENCES,
-  doneHeader,
   loadPreferences,
   savePreferences,
   settingsFields,
@@ -347,6 +347,7 @@ describe('environmentCards', () => {
       online: true,
       reason: null,
       definedIn: '.agentrc.json',
+      routine: null,
       stories: [3],
     });
     assert.equal(cards[1].online, false);
@@ -385,13 +386,11 @@ describe('panel view ids and the header', () => {
     };
     assert.deepEqual(headerView(2, ok), {
       badge: '2',
-      environments: 'Environments, 2 offline',
-      connections: 'Connections: connected',
+      connections: 'Connections: connected, 2 offline',
       ok: true,
     });
     assert.deepEqual(headerView(0, null), {
       badge: '',
-      environments: 'Environments',
       connections: 'Connections: needs attention',
       ok: false,
     });
@@ -420,6 +419,10 @@ describe('panel view ids and the header', () => {
       ['Defined in', undefined],
       ['Stories', 'none'],
     ]);
+    assert.deepEqual(
+      environmentRows({ online: true, stories: [], routine: 'trig_1' }).at(-1),
+      ['Runs as', 'the routine owner (routine trig_1)'],
+    );
   });
 });
 
@@ -439,11 +442,6 @@ describe('AC-6: connectionsView', () => {
           authMethod: 'claude.ai',
         },
       },
-      environments: [
-        { name: 'local', online: true, routine: null },
-        { name: 'box', online: false, reason: 'claude CLI not found' },
-        { name: 'cloud', online: true, routine: 'trig_1' },
-      ],
     });
     assert.equal(view.ok, true);
     assert.deepEqual(rowsOf(view, 'GitHub'), [
@@ -458,11 +456,7 @@ describe('AC-6: connectionsView', () => {
       ['Login method', 'claude.ai'],
     ]);
     assert.deepEqual(rowsOf(view, 'claude CLI'), [['Status', 'available']]);
-    assert.deepEqual(view.environments, [
-      'local: online',
-      'box: offline (claude CLI not found)',
-      'cloud: online, runs as the routine owner (routine trig_1)',
-    ]);
+    assert.equal('environments' in view, false, 'environmentCards lists them');
     assert.match(view.note, /cloud environment runs as its routine owner/);
   });
 
@@ -485,7 +479,6 @@ describe('AC-6: connectionsView', () => {
     assert.deepEqual(rowsOf(pending, 'Claude account'), [
       ['Account', 'not signed in', 'connections-claude-account'],
     ]);
-    assert.deepEqual(pending.environments, []);
   });
 });
 
@@ -606,14 +599,32 @@ describe('preferences', () => {
   });
 });
 
-describe('AC-7: the Done column header', () => {
-  it('shows the count with its total, or alone when the total is unknown', () => {
-    assert.equal(
-      doneHeader({ doneShown: 20, doneTotal: 345 }),
-      'Done · 20 of 345',
+describe('AC-9: column counts', () => {
+  const countsOf = (board) =>
+    Object.fromEntries(board.columns.map((c) => [c.id, c.countText]));
+
+  it('counts the cards each column displays; Done adds its total', () => {
+    const board = buildBoard({ ...state(), doneTotal: 345 });
+    assert.deepEqual(countsOf(board), {
+      backlog: '1',
+      planning: '0',
+      ready: '1',
+      delivering: '3',
+      blocked: '1',
+      done: '2 of 345',
+    });
+    assert.equal(board.columns.find((c) => c.id === 'planning').count, 0);
+    assert.equal(countsOf(buildBoard(state())).done, '2');
+  });
+
+  it('counts only the cards the filters and search leave', () => {
+    const board = buildBoard(
+      { ...state(), doneTotal: 9 },
+      null,
+      NOW,
+      (s) => s.id !== 6,
     );
-    assert.equal(doneHeader({ doneShown: 20, doneTotal: null }), 'Done · 20');
-    assert.equal(doneHeader(null), 'Done');
+    assert.equal(countsOf(board).done, '1 of 9');
   });
 });
 
@@ -638,9 +649,23 @@ describe('AC-8: the in-flight status row', () => {
       { name: 'merge', state: 'todo' },
     ]);
     assert.equal(status.stage, 'handoff');
-    const none = statusOf(story(3, 'delivering', { stage: null }));
-    assert.ok(none.steps.every((s) => s.state === 'todo'));
-    assert.equal(none.stage, 'no stage yet');
+  });
+
+  it('AC-6: renders no stepper before a stage is published', () => {
+    const recorded = statusOf(
+      story(3, 'delivering', { stage: null, dispatched: true }),
+    );
+    assert.equal(recorded.steps, null);
+    assert.equal(recorded.stage, 'no stage yet');
+    assert.equal(recorded.outside, false);
+    const outside = statusOf(story(3, 'delivering', { stage: null }));
+    assert.equal(outside.steps, null);
+    assert.equal(outside.outside, true, 'no stage and no dispatch record');
+    assert.equal(
+      statusOf(story(3, 'blocked', { stage: null })).outside,
+      false,
+      'a Blocked Story is not running',
+    );
   });
 
   it('shows the running and updated times', () => {
@@ -794,18 +819,21 @@ describe('Epic on the card and the assignee predicate', () => {
       stories: [story(1, 'ready', { epic })],
     }).columns.find((c) => c.id === 'ready').cards[0];
     assert.deepEqual(linked.epic, {
-      text: 'Epic #40 · Board',
+      text: 'Epic #40',
+      title: 'Board',
       url: 'https://github.com/o/r/issues/40',
     });
     assert.deepEqual(cardOf(story(2, 'ready', { epic })).epic, {
-      text: 'Epic #40 · Board',
+      text: 'Epic #40',
+      title: 'Board',
       url: null,
     });
     assert.equal(cardOf(story(3, 'ready')).epic, null);
-    assert.equal(
-      cardOf(story(4, 'ready', { epic: { id: 41 } })).epic.text,
-      'Epic #41 ·',
-    );
+    assert.deepEqual(cardOf(story(4, 'ready', { epic: { id: 41 } })).epic, {
+      text: 'Epic #41',
+      title: null,
+      url: null,
+    });
     const { facts } = storyDetailView({
       id: 4,
       column: 'ready',
@@ -869,13 +897,17 @@ describe('Epic on the card and the assignee predicate', () => {
     ]);
   });
 
-  it('links the card id and its blockers, and colors its Project Status', () => {
+  it('links the card id and its blockers, and colors a drifted Project Status', () => {
     const board = buildBoard({
       environments: [],
       repository: 'o/r',
       stories: [
-        story(1, 'ready', { dependsOn: [2], projectStatus: 'In Progress' }),
-        story(2, 'backlog', { projectStatus: 'Triage' }),
+        story(1, 'ready', {
+          dependsOn: [2],
+          projectStatus: 'In Progress',
+          statusMatches: false,
+        }),
+        story(2, 'backlog', { projectStatus: 'Triage', statusMatches: false }),
       ],
     });
     const [ready] = board.columns.find((c) => c.id === 'ready').cards;
@@ -931,12 +963,12 @@ describe('launch options (AC-10, AC-11)', () => {
       state,
     );
     assert.deepEqual(inLocal.effective, [
-      'Model: sonnet (local default)',
+      'Model: sonnet (from local)',
       'Effort: max (override)',
     ]);
     assert.deepEqual(
       launchOptionsView(row({ environment: 'gpu' }), state).effective,
-      ['Model: Claude Code default', 'Effort: high (gpu default)'],
+      ['Model: Claude Code default (from gpu)', 'Effort: high (from gpu)'],
     );
     assert.deepEqual(
       launchOptionsView(
@@ -952,8 +984,21 @@ describe('launch options (AC-10, AC-11)', () => {
 
   it('lists each local default for a Story not yet in an environment', () => {
     assert.deepEqual(launchOptionsView(row({}), state).effective, [
-      'Model: environment default (set at dispatch) (local: sonnet, gpu: Claude Code default)',
-      'Effort: environment default (set at dispatch) (local: Claude Code default, gpu: high)',
+      'Model: sonnet (from local) or Claude Code default (from gpu)',
+      'Effort: Claude Code default (from local) or high (from gpu)',
+    ]);
+    const oneLocal = {
+      ...state,
+      environments: [{ name: 'local', target: 'local', model: null }],
+    };
+    assert.deepEqual(launchOptionsView(row({}), oneLocal).effective, [
+      'Model: Claude Code default (from local)',
+      'Effort: Claude Code default (from local)',
+    ]);
+    const cloudOnly = { ...state, environments: [state.environments[2]] };
+    assert.deepEqual(launchOptionsView(row({}), cloudOnly).effective, [
+      'Model: set at dispatch',
+      'Effort: set at dispatch',
     ]);
   });
 
@@ -982,12 +1027,12 @@ describe('launch options (AC-10, AC-11)', () => {
       effort: { value: 'high', source: 'environment' },
     });
     assert.equal(resolved.Model, 'opus (override)');
-    assert.equal(resolved.Effort, 'high (local default)');
+    assert.equal(resolved.Effort, 'high (from local)');
     const defaults = facts({
       model: { value: null, source: 'claude-default' },
       effort: { value: null, source: 'routine' },
     });
-    assert.equal(defaults.Model, 'Claude Code default');
+    assert.equal(defaults.Model, 'Claude Code default (from local)');
     assert.equal(defaults.Effort, "routine's own effort");
     assert.match(
       facts({ invalid: 'model::x is not allowed' }).Model,
@@ -995,8 +1040,211 @@ describe('launch options (AC-10, AC-11)', () => {
     );
     assert.equal(
       facts({ model: { value: null, source: 'environment' } }, null).Model,
-      'environment default (set at dispatch)',
+      'set at dispatch',
     );
     assert.equal(facts(null).Model, undefined);
+  });
+});
+
+describe('AC-1: the card action', () => {
+  const actionsOf = (row, env = environments) =>
+    buildBoard({ environments: env, stories: [row] })
+      .columns.flatMap((c) =>
+        c.lanes ? c.lanes.flatMap((l) => l.cards) : c.cards,
+      )
+      .at(0).actions;
+
+  it('lists every allowed move with its verdict text, first as the button', () => {
+    const [ready] = state().stories.filter((s) => s.id === 2);
+    assert.deepEqual(
+      actionsOf(ready).map((a) => [a.kind, a.text]),
+      [['action', 'Dispatch to local']],
+    );
+    const blocked = state().stories.find((s) => s.id === 5);
+    assert.deepEqual(
+      actionsOf(blocked).map((a) => a.text),
+      ['Stop and return to Ready', 'Resume in box'],
+    );
+    assert.equal(actionsOf(blocked)[0].kind, 'confirm', 'Stop still confirms');
+  });
+
+  it('copies /mandrel-plan for a Backlog Story and offers nothing when no move is allowed', () => {
+    assert.deepEqual(
+      actionsOf(story(8, 'backlog')).map((a) => [a.kind, a.text]),
+      [['copy', '/mandrel-plan 8']],
+    );
+    assert.deepEqual(actionsOf(story(9, 'done')), []);
+  });
+});
+
+describe('AC-3: Ready ordering and refusal reasons', () => {
+  const refusedEverywhere = (reason, detail) => ({
+    local: refused('dispatch', reason, detail),
+    box: refused('dispatch', 'at-capacity', 'Environment "box" holds 1 of 1.'),
+  });
+  const readyCards = () =>
+    buildBoard({
+      environments,
+      stories: [
+        story(11, 'ready', {
+          drops: refusedEverywhere('foreign-lease', '#11 is leased to @x.'),
+        }),
+        story(12, 'ready', { drops: { local: ok('dispatch', 'local') } }),
+        story(13, 'ready', {
+          dependsOn: [12],
+          drops: refusedEverywhere('unmet-dependency', 'waits on #12'),
+        }),
+        story(14, 'ready', { drops: { box: ok('dispatch', 'box') } }),
+      ],
+    }).columns.find((c) => c.id === 'ready').cards;
+
+  it('lists dispatchable Stories first, each group in read-model order', () => {
+    assert.deepEqual(
+      readyCards().map((c) => c.id),
+      [12, 14, 11, 13],
+    );
+  });
+
+  it("shows the first refused environment's detail, but no second line for a dependency", () => {
+    const byId = Object.fromEntries(readyCards().map((c) => [c.id, c]));
+    assert.equal(byId[12].waiting, null);
+    assert.deepEqual(byId[11].waiting, { text: '#11 is leased to @x.' });
+    assert.deepEqual(byId[13].waiting, { text: null });
+    assert.deepEqual(
+      byId[13].unmet.map((u) => u.text),
+      ['#12'],
+    );
+  });
+
+  it('marks no card outside Ready as waiting', () => {
+    assert.equal(cardOf(story(1, 'backlog')).waiting, null);
+  });
+});
+
+describe('AC-4: the drift-only Status chip', () => {
+  it('shows the chip only when the Status differs from what board-sync writes', () => {
+    const onHold = story(1, 'ready', {
+      projectStatus: 'On Hold',
+      statusMatches: false,
+    });
+    const todo = story(2, 'ready', {
+      projectStatus: 'Todo',
+      statusMatches: true,
+    });
+    assert.deepEqual(cardOf(onHold).projectStatus, {
+      text: 'On Hold',
+      tone: 'on-hold',
+    });
+    assert.equal(cardOf(todo).projectStatus, null);
+    assert.equal(
+      cardOf({ ...todo, statusMatches: null }).projectStatus,
+      null,
+      'no Status read',
+    );
+    for (const row of [onHold, todo]) {
+      const [status] = storyDetailView(row).facts;
+      assert.equal(status[0], 'Status', 'the detail always lists it');
+    }
+  });
+});
+
+describe('AC-5: the blocker line', () => {
+  const blocker = {
+    text: 'story-handoff blocked: lint',
+    url: 'https://github.com/o/r/issues/5#issuecomment-1',
+  };
+
+  it('shows a Blocked Story its friction heading, linked in the detail', () => {
+    assert.deepEqual(cardOf(story(5, 'blocked', { blocker })).blocker, blocker);
+    assert.equal(cardOf(story(5, 'blocked')).blocker, null);
+    assert.equal(
+      cardOf(story(5, 'delivering', { blocker })).blocker,
+      null,
+      'only a Blocked card shows it',
+    );
+    const facts = Object.fromEntries(
+      storyDetailView({ id: 5, column: 'blocked', blocker }).facts,
+    );
+    assert.deepEqual(facts['Blocked by'], { links: [blocker] });
+    assert.equal(
+      'Blocked by' in
+        Object.fromEntries(storyDetailView({ id: 5, column: 'blocked' }).facts),
+      false,
+    );
+  });
+
+  it('drops a URL that is not a GitHub page', () => {
+    const view = storyDetailView({
+      id: 5,
+      column: 'blocked',
+      blocker: { text: 'x', url: 'https://example.test/c' },
+    });
+    assert.deepEqual(Object.fromEntries(view.facts)['Blocked by'], {
+      links: [{ text: 'x', url: null }],
+    });
+  });
+});
+
+describe('AC-10: Delivering lanes', () => {
+  const delivering = (envs) =>
+    buildBoard({
+      environments: envs,
+      stories: [
+        story(4, 'delivering', { environment: null }),
+        story(3, 'delivering', { environment: 'local' }),
+      ],
+    }).columns.find((c) => c.id === 'delivering');
+
+  it('labels the untracked lane and keeps per-environment lanes for two or more', () => {
+    const column = delivering(environments);
+    assert.deepEqual(
+      column.lanes.map((l) => [l.name, l.title]),
+      [
+        ['local', 'local'],
+        ['box', 'box'],
+        [UNTRACKED, 'Not launched from the board'],
+      ],
+    );
+    assert.equal(column.header, null);
+  });
+
+  it('renders one headless lane for a single environment, launched cards first', () => {
+    const column = delivering([environments[0]]);
+    assert.equal(column.lanes.length, 1);
+    const [lane] = column.lanes;
+    assert.equal(lane.name, 'local', 'it stays the environment drop zone');
+    assert.equal(lane.title, null);
+    assert.deepEqual(
+      lane.cards.map((c) => c.id),
+      [3, 4],
+    );
+    assert.equal(column.header, '1/2');
+    assert.equal(column.count, 2);
+    const offline = buildBoard(
+      { environments: [environments[0]], stories: [] },
+      { environments: [{ name: 'local', online: false, reason: 'x' }] },
+    ).columns.find((c) => c.id === 'delivering');
+    assert.equal(offline.header, 'offline');
+  });
+});
+
+describe('AC-7: matchesSearch', () => {
+  const story = { id: 6139, title: 'Dispatch board: one action per card' };
+
+  it('matches every Story on an empty query', () => {
+    assert.equal(matchesSearch(story, ''), true);
+    assert.equal(matchesSearch(story, '  '), true);
+  });
+
+  it('matches digits, with or without #, against the id prefix', () => {
+    assert.equal(matchesSearch(story, '613'), true);
+    assert.equal(matchesSearch(story, '#6139'), true);
+    assert.equal(matchesSearch(story, '139'), false);
+  });
+
+  it('matches anything else as a case-insensitive title substring', () => {
+    assert.equal(matchesSearch(story, 'ONE ACTION'), true);
+    assert.equal(matchesSearch(story, 'epic'), false);
+    assert.equal(matchesSearch({ id: 1 }, 'x'), false);
   });
 });
