@@ -15,6 +15,20 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.125.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.124.0...mandrel-v2.125.0) (2026-11-19)
+
+
+### Added
+
+* add `mandrel ui`: a local board that shows every Story and dispatches by drag ([#6111](https://github.com/dsj1984/mandrel/issues/6111)) ([#6118](https://github.com/dsj1984/mandrel/issues/6118)) ([94cfb12](https://github.com/dsj1984/mandrel/commit/94cfb12f2ddf88f38fe63462532c9607788241d7))
+* dispatch a Story to a named environment with `mandrel dispatch` (local launch) ([#6108](https://github.com/dsj1984/mandrel/issues/6108)) ([#6116](https://github.com/dsj1984/mandrel/issues/6116)) ([90f0576](https://github.com/dsj1984/mandrel/commit/90f05766e57a6371ae1aec6a06d86a3e6af9805c))
+* dispatch a Story to an Anthropic cloud environment by firing a Claude routine ([#6110](https://github.com/dsj1984/mandrel/issues/6110)) ([#6117](https://github.com/dsj1984/mandrel/issues/6117)) ([d3d286c](https://github.com/dsj1984/mandrel/commit/d3d286cf24f253cd96645858b8d131820d4d37f3))
+* dispatch board Settings: a gear icon opens per-browser board preferences, including how many Done Stories to show ([#6123](https://github.com/dsj1984/mandrel/issues/6123)) ([#6126](https://github.com/dsj1984/mandrel/issues/6126)) ([6ea0360](https://github.com/dsj1984/mandrel/commit/6ea0360e64dc9407e4929d1f8046be713e0c2772))
+* dispatch board shows which GitHub and Claude accounts it uses, and opens Environments and Connections in the side panel from header icons ([#6122](https://github.com/dsj1984/mandrel/issues/6122)) ([#6125](https://github.com/dsj1984/mandrel/issues/6125)) ([4aecdca](https://github.com/dsj1984/mandrel/commit/4aecdca2fcd01bbac2447e4acea3e21d1e6f4acb))
+* publish a Story's delivery stage to GitHub so remote runs show their progress ([#6109](https://github.com/dsj1984/mandrel/issues/6109)) ([#6114](https://github.com/dsj1984/mandrel/issues/6114)) ([430c8ec](https://github.com/dsj1984/mandrel/commit/430c8eca1e989cd01cc30ad02d785a80ee57b1c3))
+* show on each dispatch-board card whether its delivery is alive and where it stands, with a detail popout per Story ([#6121](https://github.com/dsj1984/mandrel/issues/6121)) ([#6124](https://github.com/dsj1984/mandrel/issues/6124)) ([8c6e2dd](https://github.com/dsj1984/mandrel/commit/8c6e2dd1150b50985841bbd0119307330ddf0b74))
+* title the host session with a state glyph as plan, deliver, orchestrate, audit and QA runs progress ([#6119](https://github.com/dsj1984/mandrel/issues/6119)) ([#6120](https://github.com/dsj1984/mandrel/issues/6120)) ([a0ebec9](https://github.com/dsj1984/mandrel/commit/a0ebec92ebb9364a26f98446633f2e6e603ad191))
+
 ## [2.124.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.123.0...mandrel-v2.124.0) (2026-11-17)
 
 
