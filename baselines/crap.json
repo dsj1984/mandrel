@@ -9930,8 +9930,7 @@
       "createSources/readConnections": 2,
       "createSources/readState": 4,
       "createSources/runAction": 1,
-      "definedIn": 3,
-      "stageOf": 2
+      "definedIn": 3
     },
     "lib/cli/uninstall.js": {
       "<anon revertClaudeCommands/targets.filter(t)#0>": 1,
