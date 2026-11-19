@@ -392,23 +392,8 @@ function describeMagnitude(measured, ceilings) {
     ];
   }
   const objections = [];
-  if (measured.implAdded > ceilings.maxImplLines) {
-    objections.push(
-      overCeiling(
-        `adds ${measured.implAdded} implementation line(s)`,
-        'maxImplLines',
-        ceilings.maxImplLines,
-      ),
-    );
-  } else if (measured.implLines > ceilings.maxImplChurn) {
-    objections.push(
-      overCeiling(
-        `changes ${measured.implLines} implementation line(s)`,
-        'maxImplChurn',
-        ceilings.maxImplChurn,
-      ),
-    );
-  }
+  const lines = describeLineCeiling(measured, ceilings);
+  if (lines) objections.push(lines);
   if (measured.implFiles > ceilings.maxImplFiles) {
     objections.push(
       overCeiling(
@@ -419,6 +404,32 @@ function describeMagnitude(measured, ceilings) {
     );
   }
   return objections;
+}
+
+/**
+ * Added lines first; churn only when additions are within their ceiling, so
+ * one over-size diff reports one line objection.
+ *
+ * @param {{ implLines: number, implAdded: number }} measured
+ * @param {{ maxImplLines: number, maxImplChurn: number }} ceilings
+ * @returns {Objection|null}
+ */
+function describeLineCeiling(measured, ceilings) {
+  if (measured.implAdded > ceilings.maxImplLines) {
+    return overCeiling(
+      `adds ${measured.implAdded} implementation line(s)`,
+      'maxImplLines',
+      ceilings.maxImplLines,
+    );
+  }
+  if (measured.implLines > ceilings.maxImplChurn) {
+    return overCeiling(
+      `changes ${measured.implLines} implementation line(s)`,
+      'maxImplChurn',
+      ceilings.maxImplChurn,
+    );
+  }
+  return null;
 }
 
 /**
