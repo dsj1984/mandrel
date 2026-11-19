@@ -606,6 +606,7 @@
       "openDependencies": 2,
       "parseDispatchArgv": 8,
       "runDispatch": 3,
+      "runDispatchFromCwd": 1,
       "status": 2,
       "stop": 4,
       "usageError": 1
@@ -9869,6 +9870,10 @@
       "writeVersionMarker": 2
     },
     "lib/cli/ui.js": {
+      "<anon listenOn/Promise(resolve)#0/server.listen()#0>": 1,
+      "<anon listenOn/Promise(resolve)#0/server.once:error(err)#0>": 1,
+      "<anon listenOn/Promise(resolve)#0>": 1,
+      "listenOn": 1,
       "parsePort": 3,
       "parseUiArgs": 6,
       "run": 1,
@@ -9984,6 +9989,7 @@
       "<anon createUiServer/http.createServer(req,res)#0/catch(err)#0>": 3,
       "<anon createUiServer/http.createServer(req,res)#0>": 1,
       "<anon createUiServer/isFresh(entry)#0>": 2,
+      "<anon createUiServer/readState/catch(err)#0>": 2,
       "<anon createUiServer/readState/entry.promise.catch()#0>": 1,
       "createUiServer": 1,
       "createUiServer/getStory": 3,
@@ -10007,15 +10013,19 @@
       "<anon createSources/readStory/state.stories.find(s)#0>": 1,
       "<anon statusArgv(doneLimit)#0>": 1,
       "createSources": 1,
+      "createSources/assertProject": 2,
       "createSources/githubPresence": 4,
       "createSources/inFlight": 1,
       "createSources/invoke": 1,
+      "createSources/projectProblem": 3,
       "createSources/readConnections": 2,
       "createSources/readState": 4,
       "createSources/readStory": 2,
       "createSources/runAction": 1,
       "definedIn": 3,
-      "offlineReason": 5
+      "offlineReason": 5,
+      "projectSources": 2,
+      "statusFailure": 1
     },
     "lib/cli/ui/story-detail.js": {
       "readStoryDetail": 3,
