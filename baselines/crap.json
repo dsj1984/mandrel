@@ -9877,7 +9877,8 @@
       "parsePort": 3,
       "parseUiArgs": 6,
       "run": 1,
-      "runUi": 2
+      "runUi": 2,
+      "serveBoard": 2
     },
     "lib/cli/ui/accounts.js": {
       "<anon createAccountProbe/()#0/then(github,claude)#0>": 1,
