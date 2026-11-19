@@ -15,6 +15,15 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.127.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.126.0...mandrel-v2.127.0) (2026-11-19)
+
+
+### Added
+
+* dispatch board utility pass: read the GitHub Projects v2 Status field p… ([#6135](https://github.com/dsj1984/mandrel/issues/6135)) ([#6136](https://github.com/dsj1984/mandrel/issues/6136)) ([e3bd5e2](https://github.com/dsj1984/mandrel/commit/e3bd5e2c091e28d7566f95d92c0516bca6949a5d))
+* dispatch board: one action per card, actionable Ready and Blocked, drift-only Status chips, search and Epic filter, leaner lanes and panels ([#6139](https://github.com/dsj1984/mandrel/issues/6139)) ([#6142](https://github.com/dsj1984/mandrel/issues/6142)) ([e1b4a98](https://github.com/dsj1984/mandrel/commit/e1b4a98a6efd205bbc2f66555ebd9feb223d9dcf))
+* dispatch: per-environment default model/effort and a per-card override on the board ([#6137](https://github.com/dsj1984/mandrel/issues/6137)) ([#6140](https://github.com/dsj1984/mandrel/issues/6140)) ([38f444e](https://github.com/dsj1984/mandrel/commit/38f444e2d8ddf945c5c149d8037fef564b69094e))
+
 ## [2.126.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.125.0...mandrel-v2.126.0) (2026-11-19)
 
 
