@@ -1,7 +1,7 @@
 {
   "name": "mandrel-status",
   "version": "0.1.0",
-  "description": "Beta, read-only: shows the current /mandrel-deliver Story above the prompt",
+  "description": "Beta, read-only: one line above the prompt when a /mandrel-deliver Story needs you",
   "author": {
     "name": "Mandrel"
   },
