@@ -34,6 +34,11 @@ function formatDeliveryStageBody(fields) {
 const isEntry = (e) =>
   DELIVERY_STAGES.includes(e?.stage) && typeof e?.at === 'string';
 
+const historyOf = (raw) =>
+  (Array.isArray(raw) ? raw : [])
+    .filter(isEntry)
+    .map((e) => ({ stage: e.stage, at: e.at }));
+
 /** The entries before `stage`, seeded from a pre-history record's own stage. */
 function priorHistory(previous) {
   if (!previous) return [];
@@ -64,18 +69,16 @@ export function parseDeliveryStage(body) {
     DELIVERY_STAGES.includes(stage) &&
     (prNumber === null || Number.isInteger(prNumber)) &&
     typeof updatedAt === 'string';
-  if (!valid) return null;
-  const history = Array.isArray(record.history)
-    ? record.history.filter(isEntry).map((e) => ({ stage: e.stage, at: e.at }))
-    : [];
-  return {
-    kind: DELIVERY_STAGE_TYPE,
-    storyId,
-    stage,
-    prNumber,
-    updatedAt,
-    history,
-  };
+  return valid
+    ? {
+        kind: DELIVERY_STAGE_TYPE,
+        storyId,
+        stage,
+        prNumber,
+        updatedAt,
+        history: historyOf(record.history),
+      }
+    : null;
 }
 
 /**
