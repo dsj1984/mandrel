@@ -2951,6 +2951,10 @@
       "mi": 107.262
     },
     {
+      "path": "lib/cli/ui/assignee-filter.js",
+      "mi": 116.407
+    },
+    {
       "path": "lib/cli/ui/board-model.js",
       "mi": 106.93
     },
