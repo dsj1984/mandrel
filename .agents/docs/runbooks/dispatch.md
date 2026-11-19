@@ -15,7 +15,7 @@ Environments live under `delivery.environments` in `.agentrc.json` (or
 {
   "delivery": {
     "environments": {
-      "local": { "target": "local", "capacity": 2 },
+      "local": { "target": "local", "capacity": 2, "model": "sonnet", "effort": "high" },
       "laptop-yolo": {
         "target": "local",
         "command": ["claude", "-p", "/mandrel-deliver {id}", "--session-id", "{sessionId}"]
@@ -37,7 +37,8 @@ Environments live under `delivery.environments` in `.agentrc.json` (or
 
   ```json
   ["claude", "-p", "/mandrel-deliver {id}", "--session-id", "{sessionId}",
-   "--name", "◐ Delivery #{id}", "--output-format", "stream-json", "--verbose"]
+   "--name", "◐ Delivery #{id}", "--output-format", "stream-json", "--verbose",
+   "--model={model}", "--effort={effort}"]
   ```
 
   `--session-id` fixes the Claude Code session id so the run can be resumed
@@ -46,6 +47,10 @@ Environments live under `delivery.environments` in `.agentrc.json` (or
   `--verbose` for) makes the log fill as the run progresses instead of at
   exit. A custom command that contains `{sessionId}` gets the same fresh
   UUID; one without it records no session id.
+- **`model`** / **`effort`**: `local` only. The model (an alias such as
+  `opus`, or a full model id) and the effort level (`low`, `medium`,
+  `high`, `xhigh` or `max`) the environment's deliveries run with by
+  default. See [Model and effort](#model-and-effort).
 
 With no `delivery.environments`, one implicit environment named `local`
 with capacity 1 is used.
@@ -55,6 +60,37 @@ demand. An environment's load is the number of open Stories carrying its
 label in `agent::ready`, `agent::executing`, `agent::closing` or
 `agent::blocked`. A label left on a closed Story is history and counts for
 nothing.
+
+## Model and effort
+
+Each launch resolves a model and an effort, independently:
+
+1. a Story label `model::<m>` / `effort::<e>` (the **override**, set from
+   the [board's pencil dialog](dispatch-board.md#model-and-effort) or
+   directly in GitHub) beats
+2. the environment's configured `model` / `effort`, which beats
+3. nothing: no flag is passed and Claude Code's own default applies.
+
+They fill the `{model}` and `{effort}` placeholders in the command, like
+`{id}`. An argv element whose placeholder resolves to nothing is
+**dropped**, so the default command with nothing set spawns exactly the
+argv it did before these keys existed. A custom `command` gets the values
+only where it names a placeholder; nothing is appended to it.
+
+An override's model must be in the allowlist: `opus`, `sonnet`, `haiku`,
+then `delivery.dispatchModels` (extra aliases or full ids, for example
+`["fable"]`), then every environment's own `model`. Its effort must be one
+of the five levels. Labels can be set by anyone with triage access, so
+every dispatch, resume and dry run re-checks them: a value outside the
+allowlist, or two `model::` (or two `effort::`) labels on one Story,
+refuses with reason `invalid-launch-option` before any label is written or
+anything starts.
+
+Resolution happens at launch time, so a label changed while a delivery
+runs applies to the next dispatch or resume only. A `claude-cloud`
+routine always runs its own model: the fire body stays
+`{ "text": "mandrel-deliver <id>" }`, both sources read `routine`, and
+override labels are listed in `launchOptions.ignoredOverrides`.
 
 ## Cloud environments
 
@@ -156,7 +192,7 @@ is proven by your first live dispatch, not by a test. On the first one:
 | `mandrel dispatch --env <name> <id>` | Dispatch an `agent::ready` Story: apply `env::<name>`, then start the environment's command detached. Output goes to `<tempRoot>/dispatch/story-<id>.log`; the record (`pid`, `argv`, `startedAt`, and `sessionId` when the command used `{sessionId}`) sits beside it as `story-<id>.json`. A record written before `sessionId` existed still reads, stops and resumes. If the process fails to start, the label is removed again and the command exits 1. |
 | `mandrel dispatch --resume <id>` | Relaunch an `agent::blocked` Story in the environment its label names. No `agent::*` label changes: the launched `/mandrel-deliver <id>` owns the resume path. |
 | `mandrel dispatch --stop <id>` | Stop the recorded process, release the lease, return the Story to `agent::ready` and remove its `env::` label. The branch and worktree are kept. |
-| `mandrel dispatch --status [--json] [--done-limit <n>]` | Print every environment with its load and every Story's board column, with the verdict each drop target would return. Done lists the most recently closed Stories: 20 by default, or `--done-limit` 10, 50 or 100; any other value exits 2 with reason `invalid-done-limit`. The JSON adds `doneShown` and `doneTotal`, every closed Story's count (`null` when it cannot be read). |
+| `mandrel dispatch --status [--json] [--done-limit <n>]` | Print every environment with its load and every Story's board column, with the verdict each drop target would return. Done lists the most recently closed Stories: 20 by default, or `--done-limit` 10, 50 or 100; any other value exits 2 with reason `invalid-done-limit`. The JSON adds `doneShown` and `doneTotal`, every closed Story's count (`null` when it cannot be read), `launchChoices` (`{ models, efforts }`), each environment's `model` and `effort` (`null` when unset, always for cloud) and each Story's `overrides` (`{ model, effort }`, the raw label values or `null`). |
 
 `--dry-run` prints the verdict and the argv it would run, and writes and
 starts nothing. No session is created, so a `{sessionId}` placeholder is
@@ -183,7 +219,11 @@ start by hand does; dispatch never claims it.
 stdout is one JSON envelope (the `--status` table without `--json` is the
 only exception).
 
-- **0**: success, `{ ok: true, action, storyId, environment, pid?, logPath?, sessionUrl? }`.
+- **0**: success, `{ ok: true, action, storyId, environment, launchOptions, pid?, logPath?, sessionUrl? }`.
+  `launchOptions` is `{ model, effort, ignoredOverrides? }`, each of `model`
+  and `effort` a `{ value, source }` with `source` one of `override`,
+  `environment`, `claude-default` or `routine`. Dispatch, resume and dry
+  run carry it.
 - **2**: a refusal, `{ ok: false, action, reason, detail }`.
 - **1**: the command itself could not run (bad arguments, a GitHub failure, a
   process that did not start), `{ ok: false, error }`; or a cloud fire failed,
@@ -206,6 +246,7 @@ only exception).
 | `wrong-environment` | `--env` names a different environment than the Story's label, or a stop targets a Story no environment holds. |
 | `closing` | A stop of an `agent::closing` Story; let close land, or recover it with `deliver-recover.js`. |
 | `invalid-done-limit` | `--done-limit` is not 10, 20, 50 or 100. This envelope has no `action`. |
+| `invalid-launch-option` | A `model::` value outside the allowlist, an `effort::` value that is not a level, or two labels of one kind; `detail` names it. |
 
 ## Headless permissions
 
