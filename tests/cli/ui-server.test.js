@@ -325,7 +325,7 @@ describe('ui server', () => {
         await request(port, { path: '/board.js' }),
         await request(port, { path: '/board-model.js' }),
         await request(port, { path: '/preferences.js' }),
-        await request(port, { path: '/assignee-filter.js' }),
+        await request(port, { path: '/board-filter.js' }),
         await request(port, { path: '/missing.txt' }),
         await request(port, { path: '/../package.json' }),
         await request(port, { method: 'POST', path: '/' }),

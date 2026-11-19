@@ -87,8 +87,22 @@ Columns, in order: **Backlog**, **Planning**, **Ready**, **Delivering**,
 **Blocked**, **Done**. Delivering holds one lane per configured environment,
 headed by its name, target and `load/capacity` (or `offline`), plus an
 `untracked` lane for in-flight Stories that carry no `env::` label. A card
-shows the Story id, title, the Epic it belongs to, pull request with its
-check summary, unmet dependencies and environment.
+shows the Story id, title, the Epic it belongs to, its Project Status, pull
+request with its check summary, unmet dependencies and environment. Every
+ticket id on the board (the card's id, each `waits on #<id>`, the Epic, the
+detail's Depends on) links to its GitHub issue, and every GitHub link opens
+in a new tab.
+
+**Project Status** is the GitHub Projects v2 **Status** field, read from the
+project `github.projectNumber` names: a dot and the Status name (grey Todo,
+blue In Progress, amber On Hold, purple Done). With no project configured,
+or a token without the `project` scope, cards show no Status and the board
+still loads. Mandrel writes the Status itself on every `agent::` label
+change: `agent::ready` and `agent::review-spec` → Todo, `agent::executing`
+and `agent::closing` → In Progress, `agent::blocked` → On Hold,
+`agent::done` → Done. `node .agents/scripts/agents-bootstrap-github.js` adds On Hold to the project's
+Status options when it is missing; until then a blocked Story's Status write
+is skipped.
 
 The board shows every open issue, whoever it is assigned to, plus the most
 recently closed Stories. Epics are not cards: a Story an open Epic lists
@@ -101,16 +115,24 @@ A card in Delivering or Blocked also shows a status row:
 - a stepper over the five published stages (build · check · handoff ·
   close · merge), marking the current one and those before it;
 - a liveness badge: a pulsing dot for `working`, amber **process exited**
-  for `exited`, grey `unknown` (see
+  for `exited` (see
   [Following a dispatched delivery](dispatch.md#following-a-dispatched-delivery)).
   An `exited` process on a Story still `agent::executing` is highlighted as
-  a warning. Under `prefers-reduced-motion` the dot does not pulse;
+  a warning. Under `prefers-reduced-motion` the dot does not pulse. A Story
+  the board holds no dispatch record for (delivered from a session the
+  board did not launch) shows no badge, since its process cannot be told;
 - `running Nm` since the launch and `updated Nm ago` since the last stage.
 
 ## The header
 
 The board is always the main view. The header's right side holds the
-**People** filter and three icon buttons.
+**Status** and **People** filters and three icon buttons.
+
+**Status** chooses which Project Statuses the columns show. Its menu lists
+**No status** and every Status on the board in board order (Todo, In
+Progress, On Hold, Done, then any other); its **Any status** button clears
+it. It reads, tints and saves like People below, and the two combine: a
+card shows only when it passes both.
 
 **People** chooses whose Stories the columns show. Its menu lists
 **Unassigned** and every login assigned to a Story on the board; check any
@@ -144,10 +166,12 @@ card's **⋯** button. Esc, the × button or opening the same card again
 closes it. While open it refreshes on the board's poll.
 
 The Story detail view shows the GitHub issue link, the pull request and its
-checks, the column, environment, stage, assignees, Epic and labels, the stage timeline (the
+checks, and then only the facts that have a value: the Project Status, the
+column, environment, stage, process, assignees, the Epic and the Stories it
+depends on (both linked), and the labels as chips. The stage timeline (the
 last 10 stage changes), the dispatch record (pid, start time, session id or
-URL, command), the last 50 lines of the log summarized one line per event,
-and the resume command `claude --resume <sessionId>` with a **Copy**
+URL, command) and the last 50 lines of the log, summarized one line per
+event, appear only when there is something to show, as does the resume command `claude --resume <sessionId>` with a **Copy**
 button. The page never runs that command. Its action buttons are the
 card's Move menu, so Stop still asks for confirmation.
 

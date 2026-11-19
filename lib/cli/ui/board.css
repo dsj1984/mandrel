@@ -12,6 +12,7 @@
   --amber-soft: #fcefd9;
   --red: #c0352d;
   --red-soft: #fce7e5;
+  --purple: #8250df;
   --radius-panel: 8px;
   --radius-card: 5px;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -34,6 +35,8 @@
     --amber-soft: #3a2b11;
     --red: #f0766d;
     --red-soft: #3e1d1b;
+    --purple: #b48cf2;
+    --purple: #b48cf2;
     color-scheme: dark;
   }
 }
@@ -132,21 +135,21 @@ button.danger {
   align-items: center;
   gap: 8px;
 }
-.assignee-filter {
+.board-filter {
   position: relative;
   font-size: 13px;
 }
-.assignee-filter summary {
+.board-filter summary {
   cursor: pointer;
   list-style: none;
   padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
 }
-.assignee-filter summary::-webkit-details-marker {
+.board-filter summary::-webkit-details-marker {
   display: none;
 }
-.assignee-filter.active summary {
+.board-filter.active summary {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
@@ -332,6 +335,39 @@ main {
 }
 .unmet {
   color: var(--amber);
+}
+
+/* Project Status chip; dot colors follow GitHub's stock Status options. */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg);
+}
+.status-chip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+}
+.status-chip.in-progress .dot {
+  border-color: var(--accent);
+}
+.status-chip.on-hold .dot {
+  border-color: var(--amber);
+}
+.status-chip.done .dot {
+  border-color: var(--purple);
+  background: var(--purple);
+}
+.label-chip {
+  display: inline-block;
+  margin: 0 4px 4px 0;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .move-menu {

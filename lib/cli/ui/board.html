@@ -15,7 +15,11 @@
     <span class="repo mono" id="repository"></span>
   </div>
   <div class="actions">
-    <details class="assignee-filter" id="assignee-filter" data-testid="assignee-filter">
+    <details class="board-filter" id="status-filter" data-testid="status-filter">
+      <summary title="Show Stories whose Project Status is"><span class="filter-label">Status:</span> <span id="status-filter-summary" data-testid="status-filter-summary">Any status</span></summary>
+      <div class="filter-menu" id="status-filter-menu" data-testid="status-filter-menu"></div>
+    </details>
+    <details class="board-filter" id="assignee-filter" data-testid="assignee-filter">
       <summary title="Show Stories assigned to"><span class="filter-label">People:</span> <span id="assignee-filter-summary" data-testid="assignee-filter-summary">Everyone</span></summary>
       <div class="filter-menu" id="assignee-filter-menu" data-testid="assignee-filter-menu"></div>
     </details>
