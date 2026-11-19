@@ -60,6 +60,44 @@ describe('getDeliveryRouting — roleScopedAgents (Epic #4478, M7-B)', () => {
   });
 });
 
+describe('getDeliveryRouting — sessionTitles (Story #6119)', () => {
+  const MIN = {
+    project: {
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+    },
+  };
+
+  test('sessionTitles defaults to TRUE when unset or non-boolean', () => {
+    assert.equal(getDeliveryRouting({}).sessionTitles, true);
+    assert.equal(DELIVERY_ROUTING_DEFAULTS.sessionTitles, true);
+    assert.equal(
+      getDeliveryRouting({ delivery: { routing: { sessionTitles: 'no' } } })
+        .sessionTitles,
+      true,
+    );
+  });
+
+  test('reads false', () => {
+    assert.equal(
+      getDeliveryRouting({ delivery: { routing: { sessionTitles: false } } })
+        .sessionTitles,
+      false,
+    );
+  });
+
+  test('the validator accepts a boolean and rejects a non-boolean', () => {
+    const validate = getAgentrcValidator();
+    const at = (sessionTitles) => ({
+      ...MIN,
+      delivery: { routing: { sessionTitles } },
+    });
+    assert.equal(validate(at(true)), true);
+    assert.equal(validate(at(false)), true);
+    assert.equal(validate(at('yes')), false);
+    assert.equal(validate(at(1)), false);
+  });
+});
+
 describe('getDeliveryRouting — freshCriticSampleRate is retired (Story #5313)', () => {
   test('the accessor exposes no sampling rate and the defaults carry none', () => {
     assert.equal('freshCriticSampleRate' in getDeliveryRouting({}), false);

@@ -51,6 +51,8 @@ node .agents/scripts/plan-context.js --seed "<seed>"
 # or: --seed-file <path> | --tickets 123,456 | --amends #<id>
 ```
 
+**Title the session** ([runbook](../docs/runbooks/session-titles.md)): `node .agents/scripts/session-title.js --event plan-seed --summary "<3–6 words>"` in seed / seed-file mode, `--event plan-ticket --ids <ids>` in tickets / amends mode.
+
 It writes the envelope and **`stories.template.json`** (step 2's skeleton) to
 `<tempRoot>/plan-<slug>/` and prints a digest naming both; `--out` overrides
 the path. Persist auto-discovers the envelope from `--plan-dir` and derives
@@ -158,6 +160,8 @@ yes links them under a `type::epic` container (adopted or new). `agent::ready`
 is the **terminal** flip after receipts land; stdout is pure JSON. Tickets mode
 rewrites a one-for-one source in place, else comments on and closes each
 source id ([ref](helpers/plan-reference.md)).
+
+After a clean persist, title the session `node .agents/scripts/session-title.js --event planned --ids <ids>`: the Epic id when one was created or adopted, else the created Story ids ([runbook](../docs/runbooks/session-titles.md)).
 
 ## Constraints
 

@@ -307,6 +307,12 @@ const ROUTING_SCHEMA = {
         'When true (default), single-story-close lands through merge in one close. Opt out per-run with --no-wait-merge.',
       default: DELIVERY_ROUTING_DEFAULTS.closeAndLand,
     },
+    sessionTitles: {
+      type: 'boolean',
+      description:
+        'When true (default), plan, deliver, orchestrate, audit and QA runs retitle the top-level host session with a state glyph (○ planning, ◐ in progress, ● done, ⊗ blocked) via session-title.js, on hosts that expose a session-title tool. False makes session-title.js answer apply: false, so no step renames anything.',
+      default: DELIVERY_ROUTING_DEFAULTS.sessionTitles,
+    },
     agentModels: {
       type: 'object',
       description:

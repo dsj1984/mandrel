@@ -56,6 +56,8 @@ resolves to an empty record), `consoleAllowlist` (default `[]`), and
 
 ## Session & ledger (temp/qa/)
 
+Title the session `node .agents/scripts/session-title.js --event qa --summary "<surface>"` when it starts and `--event qa-done` with the same summary at the `/mandrel-plan` hand-off ([runbook](../../docs/runbooks/session-titles.md)).
+
 Resolve the session and its ledger path **once**, up front, via
 [`qa-session.js`](../../scripts/lib/qa/qa-session.js):
 

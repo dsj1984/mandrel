@@ -2743,6 +2743,10 @@
       "mi": 97.024
     },
     {
+      "path": ".agents/scripts/session-title.js",
+      "mi": 94.004
+    },
+    {
       "path": ".agents/scripts/single-story-close.js",
       "mi": 101.634
     },

@@ -29,13 +29,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (66).** Each governs the surface named beside it; a
+**In force (67).** Each governs the surface named beside it; a
 `Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261118-6119`](#adr-20261118-6119-session-titles-raise-the-agentrc-leaf-key-ceiling-to-172) | Session titles raise the agentrc leaf-key ceiling to 172 | `.agents/scripts/session-title.js` | Accepted |
 | [`20261118-6108`](#adr-20261118-6108-named-delivery-environments-raise-the-agentrc-leaf-key-ceiling-to-171) | Named delivery environments raise the agentrc leaf-key ceiling to 171 | `.agents/scripts/lib/dispatch/environments.js` | Accepted |
 | [`20261117-6099`](#adr-20261117-6099-the-handoff-fast-lane-raises-the-agentrc-leaf-key-ceiling-to-170) | The handoff fast lane raises the agentrc leaf-key ceiling to 170 | `.agents/scripts/lib/config/handoff.js` | Accepted |
 | [`20261112-6068`](#adr-20261112-6068-untested-cli-wiring-raises-the-agentrc-leaf-key-ceiling-to-169) | Untested CLI wiring raises the agentrc leaf-key ceiling to 169 | `.agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js` | Accepted |
@@ -5373,3 +5374,32 @@ capacity 1 is used, so a project that never dispatches pays nothing.
 
 `.agentrc.local.json` adds or overrides an environment through the existing
 deep merge. Later targets extend the `target` enum rather than adding keys.
+
+## ADR 20261118-6119: Session titles raise the agentrc leaf-key ceiling to 172
+
+**Status:** Accepted
+**Date:** 2026-11-18
+**Surface:** `.agents/scripts/session-title.js`
+**Story:** #6119
+
+### Context
+
+An operator running several sessions could not tell from the sidebar what each
+one was doing or whether it was planning, delivering, done or blocked. The
+workflows now retitle the top-level session with a state glyph through
+`session-title.js`, on hosts that expose a session-title tool.
+
+### Decision
+
+Add `delivery.routing.sessionTitles` (default `true`) and raise the ceiling by
+one. No existing source holds it: whether an operator wants their session
+renamed is a per-operator preference, not a property of the repository, the
+package manifest, the host or any gate key, and the desktop app's own approval
+prompt only covers titles the operator set by hand. One boolean is the only
+knob; there is no per-event or per-glyph surface.
+
+### Consequences
+
+`.agentrc.local.json` turns titling off per operator through the existing deep
+merge. With it off, `session-title.js` answers `apply: false` and exits 0, so
+no workflow step fails or pauses because titling is disabled.

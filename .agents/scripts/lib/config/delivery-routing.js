@@ -11,17 +11,20 @@ export const DELIVERY_ROUTING_DEFAULTS = Object.freeze({
   ceremonyProfile: 'standard',
   /** Land through merge in one close; opt out with `--no-wait-merge`. */
   closeAndLand: true,
+  /** Retitle the host session with a state glyph (`session-title.js`). */
+  sessionTitles: true,
 });
+
+const CEREMONY_PROFILES = ['minimal', 'standard', 'strict'];
 
 /**
  * @param {unknown} value
  * @returns {'minimal'|'standard'|'strict'}
  */
 function normalizeCeremonyProfile(value) {
-  if (value === 'minimal' || value === 'standard' || value === 'strict') {
-    return value;
-  }
-  return DELIVERY_ROUTING_DEFAULTS.ceremonyProfile;
+  return CEREMONY_PROFILES.includes(value)
+    ? value
+    : DELIVERY_ROUTING_DEFAULTS.ceremonyProfile;
 }
 
 /**
@@ -32,19 +35,19 @@ function normalizeCeremonyProfile(value) {
  *   roleScopedAgents: boolean,
  *   ceremonyProfile: 'minimal'|'standard'|'strict',
  *   closeAndLand: boolean,
+ *   sessionTitles: boolean,
  * }}
  */
 export function getDeliveryRouting(config) {
   const routing = config?.delivery?.routing ?? config?.routing ?? config ?? {};
+  const flag = (key) =>
+    typeof routing[key] === 'boolean'
+      ? routing[key]
+      : DELIVERY_ROUTING_DEFAULTS[key];
   return {
-    roleScopedAgents:
-      typeof routing.roleScopedAgents === 'boolean'
-        ? routing.roleScopedAgents
-        : DELIVERY_ROUTING_DEFAULTS.roleScopedAgents,
+    roleScopedAgents: flag('roleScopedAgents'),
     ceremonyProfile: normalizeCeremonyProfile(routing.ceremonyProfile),
-    closeAndLand:
-      typeof routing.closeAndLand === 'boolean'
-        ? routing.closeAndLand
-        : DELIVERY_ROUTING_DEFAULTS.closeAndLand,
+    closeAndLand: flag('closeAndLand'),
+    sessionTitles: flag('sessionTitles'),
   };
 }

@@ -2950,6 +2950,7 @@
       "lookupPath": 7.06721536351166
     },
     ".agents/scripts/lib/config/delivery-routing.js": {
+      "<anon getDeliveryRouting/flag(key)#0>": 2,
       "getDeliveryRouting": 3,
       "normalizeCeremonyProfile": 4
     },
@@ -9335,6 +9336,20 @@
       "main": 2,
       "segmentRule": 8,
       "tokens": 4
+    },
+    ".agents/scripts/session-title.js": {
+      "<anon buildTitle/INPUTS.filter(name)#0>": 1,
+      "<anon formatIds/filter(id)#0>": 1,
+      "<anon formatIds/ids.find(id)#0>": 1,
+      "<anon formatIds/ids.map(id)#0>": 1,
+      "<anon formatIds/map(id)#0>": 1,
+      "<anon map(name,glyph,verb,input)#0>": 3,
+      "<anon runAsCli()#0>": 1,
+      "buildTitle": 8,
+      "cleanText": 2,
+      "fit": 3,
+      "formatIds": 4,
+      "runSessionTitle": 2
     },
     ".agents/scripts/single-story-close.js": {
       "main": 2,

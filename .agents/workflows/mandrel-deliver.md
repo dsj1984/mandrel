@@ -76,7 +76,8 @@ to an attended run.
    Stories first — **announce it**. It hard-errors (exit 1) on an id that is
    neither a Story nor an Epic, on an Epic with no open children, or on edges
    it cannot read — a missing gate would co-dispatch against an unlanded
-   blocker.
+   blocker. Then title the session `node .agents/scripts/session-title.js --event deliver --ids <ids>` with the
+   ids as typed (the Epic id for an Epic), again on a resume ([runbook](../docs/runbooks/session-titles.md)).
 
 2. **Announce (N>1).** Present the resolved order and proceed — do not wait
    for confirmation; the operator can interject mid-run to change it.
@@ -115,7 +116,8 @@ to an attended run.
    - **2 / 3 / 4** — `cycleError` / `wedged` / `blocked`: stop the loop and
      route per reference. **4** is the protocol's HITL pause
      ([`instructions.md` § 1.J](../instructions.md)) — surface it and wait for
-     the operator; never poll. A CI red the session can fix leaves its Story
+     the operator; never poll. On exit 4, a `blocked` envelope or any HITL
+     pause, title the session `--event blocked --ids <blocked ids>`. A CI red the session can fix leaves its Story
      at `agent::closing`, so it never reaches exit 4.
 
 4. **Land what the workers hand back** (§ Closing what the workers hand back —
@@ -123,7 +125,9 @@ to an attended run.
    **per-run epilogue (N>1)**:
    `node .agents/scripts/plan-run-epilogue.js --stories 101,102`; N=1 has none
    ([reference](helpers/deliver-reference.md)). Every close rolls its container
-   Epic up from its children.
+   Epic up from its children. With every Story landed (an N=1 `landed`
+   envelope, an N>1 `done: true`), title the session `--event delivered` with
+   the step 1 ids.
 
 5. **Correct what the change invalidated.** If a memory you recalled this
    session is now wrong — a trap this landed, a budget it moved — fix that entry
