@@ -736,6 +736,8 @@ describe('AC-9: storyDetailView', () => {
         ['Environment', 'local'],
         ['Stage', 'check'],
         ['Process', 'working, running 30m'],
+        ['Assignees', 'unassigned'],
+        ['Epic', 'none'],
         ['Labels', 'type::story, agent::executing'],
       ],
       timeline: [
@@ -778,5 +780,58 @@ describe('AC-9: storyDetailView', () => {
     assert.deepEqual(view.record, []);
     assert.equal(view.resumeCommand, null);
     assert.equal(view.log, 'No log output yet.');
+  });
+});
+
+describe('Epic on the card and the assignee predicate', () => {
+  it('names the Epic on the card, linked when the repository is known', () => {
+    const epic = { id: 40, title: 'Board' };
+    const linked = buildBoard({
+      environments: [],
+      repository: 'o/r',
+      stories: [story(1, 'ready', { epic })],
+    }).columns.find((c) => c.id === 'ready').cards[0];
+    assert.deepEqual(linked.epic, {
+      text: 'Epic #40 · Board',
+      url: 'https://github.com/o/r/issues/40',
+    });
+    assert.deepEqual(cardOf(story(2, 'ready', { epic })).epic, {
+      text: 'Epic #40 · Board',
+      url: null,
+    });
+    assert.equal(cardOf(story(3, 'ready')).epic, null);
+  });
+
+  it('places only the Stories the predicate shows, but counts hidden blockers as unmet', () => {
+    const board = buildBoard(
+      {
+        environments: [],
+        stories: [story(1, 'ready', { dependsOn: [2] }), story(2, 'backlog')],
+      },
+      null,
+      Date.now(),
+      (s) => s.id === 1,
+    );
+    const cards = board.columns.flatMap((c) => c.cards);
+    assert.deepEqual(
+      cards.map((c) => c.id),
+      [1],
+    );
+    assert.deepEqual(cards[0].unmet, [2]);
+  });
+
+  it('lists the assignees and the Epic in the detail facts', () => {
+    const { facts } = storyDetailView({
+      id: 1,
+      column: 'ready',
+      assignees: ['ana', 'bo'],
+      epic: { id: 40, title: 'Board' },
+      labels: ['type::story'],
+    });
+    assert.deepEqual(facts.slice(-3), [
+      ['Assignees', 'ana, bo'],
+      ['Epic', '#40 Board'],
+      ['Labels', 'type::story'],
+    ]);
   });
 });

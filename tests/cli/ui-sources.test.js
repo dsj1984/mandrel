@@ -134,6 +134,8 @@ describe('readStory (AC-5, AC-6, AC-7)', () => {
       column: 'delivering',
       environment: 'local',
       labels: ['type::story', 'agent::executing', 'env::local'],
+      assignees: [],
+      epic: null,
       issueUrl: 'https://github.com/o/r/issues/1',
       pr: null,
       stage: 'build',

@@ -87,8 +87,14 @@ Columns, in order: **Backlog**, **Planning**, **Ready**, **Delivering**,
 **Blocked**, **Done**. Delivering holds one lane per configured environment,
 headed by its name, target and `load/capacity` (or `offline`), plus an
 `untracked` lane for in-flight Stories that carry no `env::` label. A card
-shows the Story id, title, pull request with its check summary, unmet
-dependencies and environment.
+shows the Story id, title, the Epic it belongs to, pull request with its
+check summary, unmet dependencies and environment.
+
+The board shows every open issue, whoever it is assigned to, plus the most
+recently closed Stories. Epics are not cards: a Story an open Epic lists
+(as a `- [ ] #<id>` checklist item or a native sub-issue) names that Epic
+on its card, linked to its GitHub issue. Assignees and labels stay off the
+card, in the Story detail.
 
 A card in Delivering or Blocked also shows a status row:
 
@@ -103,8 +109,17 @@ A card in Delivering or Blocked also shows a status row:
 
 ## The header
 
-The board is always the main view. The header's right side holds three icon
-buttons:
+The board is always the main view. The header's right side holds the
+**People** filter and three icon buttons.
+
+**People** chooses whose Stories the columns show. Its menu lists
+**Unassigned** and every login assigned to a Story on the board; check any
+number of them, or choose **Everyone** to clear the filter. Its button
+reads `Everyone`, the one choice, or `<n> selected`, and is tinted while a
+filter is on. The choice is saved in this browser. Hidden Stories still
+count as dependencies, so a card can wait on one you have filtered out.
+
+The icon buttons:
 
 - **Environments** (server-stack icon): a badge shows how many environments
   are offline, when any are.
@@ -129,7 +144,7 @@ card's **⋯** button. Esc, the × button or opening the same card again
 closes it. While open it refreshes on the board's poll.
 
 The Story detail view shows the GitHub issue link, the pull request and its
-checks, the column, environment, stage and labels, the stage timeline (the
+checks, the column, environment, stage, assignees, Epic and labels, the stage timeline (the
 last 10 stage changes), the dispatch record (pid, start time, session id or
 URL, command), the last 50 lines of the log summarized one line per event,
 and the resume command `claude --resume <sessionId>` with a **Copy**

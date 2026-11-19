@@ -121,6 +121,8 @@ function storyRow(ticket, column, ctx) {
     column,
     state: agentStateOf(ticket.labels),
     labels: ticket.labels ?? [],
+    assignees: ticket.assignees ?? [],
+    epic: ctx.epicOf.get(ticket.id) ?? null,
     environment: environmentOf(ticket.labels),
     pr: prFor(ticket.id, ctx.prs),
     dependsOn: parseBlockedBy(ticket.body ?? ''),
@@ -129,6 +131,18 @@ function storyRow(ticket, column, ctx) {
 }
 
 const isEpic = (ticket) => (ticket.labels ?? []).includes(TYPE_LABELS.EPIC);
+
+/** Each child Story id mapped to the open Epic that lists it; the first Epic wins. */
+function epicIndex(epics) {
+  const index = new Map();
+  for (const epic of epics ?? []) {
+    for (const child of epic.children) {
+      if (!index.has(child))
+        index.set(child, { id: epic.id, title: epic.title });
+    }
+  }
+  return index;
+}
 
 /**
  * @param {{
@@ -139,6 +153,7 @@ const isEpic = (ticket) => (ticket.labels ?? []).includes(TYPE_LABELS.EPIC);
  *   operator?: string|null,
  *   doneLimit?: number,
  *   closedTotal?: number|null,
+ *   epics?: Array<{ id: number, title: string, children: number[] }>,
  * }} board
  * @returns {{ environments: object[], stories: object[], doneShown: number,
  *   doneTotal: number|null }}
@@ -151,6 +166,7 @@ export function buildStatus({
   operator = null,
   doneLimit = DEFAULT_DONE_LIMIT,
   closedTotal = null,
+  epics = [],
 }) {
   const loads = computeLoads(environments, openTickets);
   const ctx = {
@@ -159,6 +175,7 @@ export function buildStatus({
     operator,
     prs: prs ?? [],
     openIds: new Set(openTickets.map((t) => t.id)),
+    epicOf: epicIndex(epics),
   };
   const open = openTickets
     .filter((t) => !isEpic(t))
@@ -221,15 +238,42 @@ function closedStoryTotal(gh, repoPath) {
     .catch(() => null);
 }
 
+/** Child ids an Epic's body lists as `- [ ] #<id>` checklist items. */
+const checklistChildren = (body) =>
+  [...String(body ?? '').matchAll(/-\s*\[[ xX]\]\s+#(\d+)/g)].map((m) =>
+    Number(m[1]),
+  );
+
+/** An open Epic with its children: checklist items plus native sub-issues. */
+async function epicWithChildren(provider, epic) {
+  const native = await Promise.resolve(
+    provider.getNativeSubIssues?.(epic.nodeId, epic.id),
+  ).catch(() => null);
+  const children = new Set([
+    ...checklistChildren(epic.body),
+    ...(native ?? []),
+  ]);
+  return { id: epic.id, title: epic.title, children: [...children] };
+}
+
+/** The open tickets and, for each open Epic among them, its children. */
+async function openTicketsWithEpics(provider) {
+  const openTickets = await provider.listTicketsByLabel({ state: 'open' });
+  const epics = await Promise.all(
+    openTickets.filter(isEpic).map((e) => epicWithChildren(provider, e)),
+  );
+  return { openTickets, epics };
+}
+
 /**
- * Live board data: every open issue, the most recently updated closed
+ * Live board data: every open issue (with each open Epic's children), the most recently updated closed
  * Stories (one page of up to 100, sorted by `closedAt` in
  * {@link buildStatus}), their total count, and the open pull requests with
  * their checks.
  *
  * @param {{ provider: object, gh: object, config: object, doneLimit?: number }} deps
- * @returns {Promise<{ openTickets: object[], closedStories: object[],
- *   closedTotal: number|null, prs: object[] }>}
+ * @returns {Promise<{ openTickets: object[], epics: object[],
+ *   closedStories: object[], closedTotal: number|null, prs: object[] }>}
  */
 export async function fetchBoard({
   provider,
@@ -238,8 +282,8 @@ export async function fetchBoard({
   doneLimit = DEFAULT_DONE_LIMIT,
 }) {
   const repoPath = `${config?.github?.owner ?? '{owner}'}/${config?.github?.repo ?? '{repo}'}`;
-  const [openTickets, closedStories, closedTotal, prs] = await Promise.all([
-    provider.listTicketsByLabel({ state: 'open' }),
+  const [open, closedStories, closedTotal, prs] = await Promise.all([
+    openTicketsWithEpics(provider),
     closedPage(gh, repoPath, doneLimit),
     closedStoryTotal(gh, repoPath),
     gh.pr.list(
@@ -248,7 +292,7 @@ export async function fetchBoard({
     ),
   ]);
   return {
-    openTickets,
+    ...open,
     closedStories,
     closedTotal,
     prs: Array.isArray(prs) ? prs : [],

@@ -325,6 +325,7 @@ describe('ui server', () => {
         await request(port, { path: '/board.js' }),
         await request(port, { path: '/board-model.js' }),
         await request(port, { path: '/preferences.js' }),
+        await request(port, { path: '/assignee-filter.js' }),
         await request(port, { path: '/missing.txt' }),
         await request(port, { path: '/../package.json' }),
         await request(port, { method: 'POST', path: '/' }),
@@ -337,7 +338,7 @@ describe('ui server', () => {
       for (const res of responses) assertSecurityHeaders(res);
       assert.deepEqual(
         responses.map((r) => r.status),
-        [200, 200, 200, 200, 200, 404, 404, 405, 403, 200, 404, 400, 403],
+        [200, 200, 200, 200, 200, 200, 404, 404, 405, 403, 200, 404, 400, 403],
       );
     });
 

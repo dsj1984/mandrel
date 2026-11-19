@@ -134,10 +134,12 @@ describe('buildStatus', () => {
   it('carries the documented Story fields', () => {
     const row = status.stories.find((s) => s.id === 11);
     assert.deepEqual(Object.keys(row).sort(), [
+      'assignees',
       'column',
       'dependsOn',
       'drops',
       'environment',
+      'epic',
       'id',
       'labels',
       'pr',
@@ -289,5 +291,66 @@ describe('fetchBoard', () => {
     ]);
     assert.deepEqual(board.prs, [{ number: 9 }]);
     assert.equal(board.closedTotal, null);
+  });
+});
+
+describe('assignees and Epic', () => {
+  it('carries each Story’s assignees and the open Epic that lists it', () => {
+    const { stories } = buildStatus({
+      environments: resolveEnvironments({}),
+      openTickets: [
+        t(1, ['type::story'], { assignees: ['ana', 'bo'] }),
+        t(2, ['type::story']),
+        t(3, ['type::epic'], { title: 'Board' }),
+      ],
+      closedStories: [t(4, ['agent::done'], { state: 'closed' })],
+      prs: [],
+      epics: [
+        { id: 3, title: 'Board', children: [1, 4] },
+        { id: 5, title: 'Later', children: [1] },
+      ],
+    });
+    const byId = Object.fromEntries(stories.map((s) => [s.id, s]));
+    assert.deepEqual(byId[1].assignees, ['ana', 'bo']);
+    assert.deepEqual(byId[1].epic, { id: 3, title: 'Board' });
+    assert.equal(byId[2].epic, null);
+    assert.deepEqual(byId[2].assignees, []);
+    assert.deepEqual(byId[4].epic, { id: 3, title: 'Board' });
+    assert.equal(byId[3], undefined);
+  });
+
+  it('reads each open Epic’s checklist and native sub-issues, tolerating a failed lookup', async () => {
+    const tickets = [
+      t(10, ['type::epic'], {
+        title: 'A',
+        body: '- [ ] #11\n- [x] #12',
+        nodeId: 'N10',
+      }),
+      t(20, ['type::epic'], { title: 'B', body: '', nodeId: 'N20' }),
+      t(11, ['type::story']),
+    ];
+    const asked = [];
+    const provider = {
+      listTicketsByLabel: async () => tickets,
+      getNativeSubIssues: async (nodeId, id) => {
+        asked.push([nodeId, id]);
+        if (id === 20) throw new Error('graphql down');
+        return [12, 13];
+      },
+    };
+    const board = await fetchBoard({
+      provider,
+      config: { github: { owner: 'o', repo: 'r' } },
+      gh: fakeGh([]),
+    });
+    assert.deepEqual(asked, [
+      ['N10', 10],
+      ['N20', 20],
+    ]);
+    assert.deepEqual(board.epics, [
+      { id: 10, title: 'A', children: [11, 12, 13] },
+      { id: 20, title: 'B', children: [] },
+    ]);
+    assert.equal(board.openTickets.length, 3);
   });
 });
