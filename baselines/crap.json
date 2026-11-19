@@ -9871,6 +9871,15 @@
       "run": 1,
       "runUi": 2
     },
+    "lib/cli/ui/accounts.js": {
+      "<anon createAccountProbe/()#0/then(github,claude)#0>": 1,
+      "<anon createAccountProbe/()#0>": 3,
+      "accountOf": 5,
+      "claudeAccount": 3,
+      "createAccountProbe": 1,
+      "githubLogin": 4,
+      "parseJson": 1
+    },
     "lib/cli/ui/board-model.js": {
       "<anon buildBoard/column.lanes.find(l)#0>": 1,
       "<anon buildBoard/columns.map(c)#0>": 1,
@@ -9929,6 +9938,18 @@
       "readLogTail": 4,
       "summarizeLine": 5
     },
+    "lib/cli/ui/panel-model.js": {
+      "<anon claudeRows/filter(value)#0>": 1,
+      "<anon environmentRows/env.stories.map(id)#0>": 1,
+      "claudeRows": 2,
+      "connectionsView": 4,
+      "environmentLine": 3,
+      "environmentRows": 3,
+      "githubRows": 3,
+      "headerView": 4,
+      "nextPanelView": 2,
+      "storyOfView": 2
+    },
     "lib/cli/ui/request-guard.js": {
       "<anon validateAction/some(key)#0>": 1,
       "isAllowedHost": 2,
@@ -9969,7 +9990,8 @@
       "createSources/readState": 4,
       "createSources/readStory": 2,
       "createSources/runAction": 1,
-      "definedIn": 3
+      "definedIn": 3,
+      "offlineReason": 5
     },
     "lib/cli/ui/story-detail.js": {
       "readStoryDetail": 3,
