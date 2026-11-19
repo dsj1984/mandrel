@@ -15,6 +15,10 @@
     <span class="repo mono" id="repository"></span>
   </div>
   <div class="actions">
+    <details class="assignee-filter" id="assignee-filter" data-testid="assignee-filter">
+      <summary title="Show Stories assigned to"><span class="filter-label">People:</span> <span id="assignee-filter-summary" data-testid="assignee-filter-summary">Everyone</span></summary>
+      <div class="filter-menu" id="assignee-filter-menu" data-testid="assignee-filter-menu"></div>
+    </details>
     <button type="button" class="icon-button" id="panel-environments-button" data-testid="panel-environments-button" aria-label="Environments" title="Environments" aria-controls="side-panel" aria-expanded="false">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
       <span class="badge" id="panel-environments-offline-count" data-testid="panel-environments-offline-count" hidden></span>

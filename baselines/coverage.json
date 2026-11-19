@@ -4419,6 +4419,12 @@
       "functions": 100
     },
     {
+      "path": "lib/cli/ui/assignee-filter.js",
+      "lines": 100,
+      "branches": 94.12,
+      "functions": 100
+    },
+    {
       "path": "lib/cli/ui/board-model.js",
       "lines": 100,
       "branches": 99.07,
