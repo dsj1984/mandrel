@@ -72,6 +72,8 @@ is not being loosened.
 
 ## Procedure
 
+Title the session `node .agents/scripts/session-title.js --event deliver-prompt --summary "<3–6 words>"` as the path starts ([runbook](../../docs/runbooks/session-titles.md)).
+
 1. **Predict + gate.** Form the predicted footprint (new files, edited files)
    and record the reason you are taking this path, then run the gate — it
    documents every flag itself, so run it with `--help` rather than guessing:
@@ -84,7 +86,8 @@ is not being loosened.
 
    Branch on `action` in the JSON envelope:
    - **`proceed-light`** — the receipt Story is authored; read `storyId` and
-     `nextCommands`, then continue to step 2. The diff backstop in step 4 is
+     `nextCommands`, retitle the session `--event deliver --ids <storyId>`,
+     then continue to step 2. The diff backstop in step 4 is
      what bounds the actual change.
    - **escalation** — no `action` to branch on: the gate emits an
      **`escalated` terminal envelope** instead (exit 2), attended or not.

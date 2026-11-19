@@ -304,6 +304,10 @@ start an arbitrary dev server, and do not fall back to a static-only claim
 dressed as a runtime one — name the skip and let the static findings stand on
 their own.
 
+## Session title {#session-title}
+
+The top-level caller, never an `auditor` subagent, titles the session `node .agents/scripts/session-title.js --event audit --lens <lens>` when the lens starts and `--event audited --lens <lens>` once its report is written ([runbook](../../docs/runbooks/session-titles.md)).
+
 ## Execution strategy {#execution-strategy}
 
 A lens is a self-contained, read-only unit of work — exactly the shape a
