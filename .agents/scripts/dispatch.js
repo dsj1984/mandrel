@@ -103,6 +103,20 @@ class UsageRefusal extends Error {
   }
 }
 
+/** A usage refusal exits 2; anything else means the command could not run. */
+function failureResult(err) {
+  if (err instanceof UsageRefusal) {
+    return {
+      code: 2,
+      envelope: { ok: false, reason: err.reason, detail: err.message },
+    };
+  }
+  return {
+    code: 1,
+    envelope: { ok: false, error: err?.message ?? String(err) },
+  };
+}
+
 function doneLimitOf(raw) {
   if (raw === undefined) return DEFAULT_DONE_LIMIT;
   if (!DONE_LIMITS.map(String).includes(raw)) {
@@ -373,16 +387,7 @@ export async function runDispatch(argv, overrides = {}) {
     result =
       args.mode === 'status' ? await status(ctx, args) : await act(ctx, args);
   } catch (err) {
-    result =
-      err instanceof UsageRefusal
-        ? {
-            code: 2,
-            envelope: { ok: false, reason: err.reason, detail: err.message },
-          }
-        : {
-            code: 1,
-            envelope: { ok: false, error: err?.message ?? String(err) },
-          };
+    result = failureResult(err);
   }
   deps.write(result.text ?? `${JSON.stringify(result.envelope, null, 2)}\n`);
   return result.code;
