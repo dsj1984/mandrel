@@ -309,6 +309,18 @@
       "percentage": 13.06
     },
     {
+      "path": "lib/cli/doctor-checks/session-title-allowlist.js",
+      "duplicatedLines": 8,
+      "totalLines": 66,
+      "percentage": 12.12
+    },
+    {
+      "path": "lib/cli/doctor-checks/suite-ownership.js",
+      "duplicatedLines": 8,
+      "totalLines": 42,
+      "percentage": 19.05
+    },
+    {
       "path": "lib/cli/doctor-checks/toolchain.js",
       "duplicatedLines": 12,
       "totalLines": 137,

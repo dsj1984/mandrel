@@ -306,7 +306,7 @@ their own.
 
 ## Session title {#session-title}
 
-The top-level caller, never an `auditor` subagent, titles the session `node .agents/scripts/session-title.js --event audit --lens <lens>` when the lens starts and `--event audited --lens <lens>` once its report is written ([runbook](../../docs/runbooks/session-titles.md)).
+The top-level caller, never an `auditor` subagent, titles the session `node .agents/scripts/session-title.js --event audit --lens <lens>` when the lens starts and `--event audited --lens <lens>` once its report is written ([runbook](../../docs/runbooks/session-titles.md#applying-a-title): load the deferred rename tool before renaming).
 
 ## Execution strategy {#execution-strategy}
 

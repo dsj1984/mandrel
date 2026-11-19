@@ -77,7 +77,7 @@ to an attended run.
    neither a Story nor an Epic, on an Epic with no open children, or on edges
    it cannot read — a missing gate would co-dispatch against an unlanded
    blocker. Then title the session `node .agents/scripts/session-title.js --event deliver --ids <ids>` with the
-   ids as typed (the Epic id for an Epic), again on a resume ([runbook](../docs/runbooks/session-titles.md)).
+   ids as typed (the Epic id for an Epic), again on a resume ([runbook](../docs/runbooks/session-titles.md#applying-a-title): load the deferred rename tool before renaming).
 
 2. **Announce (N>1).** Present the resolved order and proceed — do not wait
    for confirmation; the operator can interject mid-run to change it.

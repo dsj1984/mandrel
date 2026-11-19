@@ -1823,7 +1823,7 @@
             },
             "sessionTitles": {
               "type": "boolean",
-              "description": "When true (default), plan, deliver, orchestrate, audit and QA runs retitle the top-level host session with a state glyph (○ planning, ◐ in progress, ● done, ⊗ blocked) via session-title.js, on hosts that expose a session-title tool. False makes session-title.js answer apply: false, so no step renames anything.",
+              "description": "When true (default), plan, deliver, orchestrate, audit and QA runs retitle the top-level host session with a state glyph (○ planning, ◐ in progress, ● done, ⊗ blocked) via session-title.js, on hosts that expose a session-title tool (the Claude desktop app; CLI, Codex and cloud sessions stay untitled). Allowlist mcp__ccd_session_mgmt__set_session_title in .claude/settings.json so a rename needs no prompt; the doctor session-title-allowlist advisory reports when it is missing. False makes session-title.js answer apply: false, so no step renames anything.",
               "default": true
             },
             "agentModels": {

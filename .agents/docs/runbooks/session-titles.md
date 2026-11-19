@@ -39,14 +39,57 @@ free text.
    `acceptance-critic`, an auditor, a critic) never titles: a subagent cannot
    rename the session it runs in. A dispatched session titles itself only
    through the workflow it runs.
-3. **Use the host's session-title tool.** On the Claude desktop app it is
-   `mcp__ccd_session_mgmt__set_session_title` with `session_id: "self"` and
-   the printed `title`. A host with no session-title tool skips silently:
-   the Claude Code CLI, Codex, and any runner-set `--yes` run.
-4. **Never let a rename block the workflow.** A declined or failed rename is
-   ignored: never retried, never asked about, and it never fails or pauses the
-   step that set it.
+3. **Load the host's session-title tool, then rename.** On the Claude
+   desktop app it is `mcp__ccd_session_mgmt__set_session_title`, called with
+   `session_id: "self"` and the printed `title`. The app ships it
+   **deferred**: only its name is listed until it is loaded, and calling it
+   unloaded fails. A listed-but-unloaded tool is not an absent one: load it
+   first with `ToolSearch` query
+   `select:mcp__ccd_session_mgmt__set_session_title`, once per session, then
+   rename. Skip silently only when that load finds no such tool.
+4. **Never let a rename block the workflow.** A declined or failed rename,
+   or a failed load, is ignored: never retried, never asked about, and it
+   never fails or pauses the step that set it.
 
-The desktop app asks the operator to approve renaming a session whose title
-they set by hand; declining is a declined rename, so the run carries on under
-the operator's title.
+When the desktop app asks before renaming:
+
+- A title the app generated is replaced without asking.
+- A title the operator set by hand needs their approval for the new one;
+  declining is a declined rename, so the run carries on under their title.
+- Bypass-permissions mode never asks.
+- An unattended session, where nobody can approve, declines.
+
+## Which hosts title
+
+| Host | Titles? | Why |
+| --- | --- | --- |
+| Claude desktop app | Yes | Loads the deferred tool, then renames |
+| Claude Code CLI | No | No session-title tool; the step skips |
+| Codex | No | No session-title tool; the step skips |
+| Claude Code cloud / web sessions | No | No `ccd_session_mgmt` tool is exposed, and a gitignored `.claude/settings.local.json` never reaches the cloud clone, so the session keeps the title it started with |
+| Runner-set `--yes` run | No | Nobody is at the keyboard; the step skips |
+
+A cloud session's only title is the one it is given at launch. A desktop
+session that starts one names it with the `session-title.js` title for the
+work. `mandrel dispatch` to a `claude-cloud` environment cannot: the routine
+fire request has no title field, so the session carries the routine's
+name.
+
+## Allowing the rename without a prompt
+
+Unless the tool is allowlisted, the desktop app stops each rename on a
+permission prompt, so an unattended run waits or the rename is declined. Add
+this entry to `permissions.allow` in `.claude/settings.json` (or the
+per-operator `.claude/settings.local.json`):
+
+```json
+"mcp__ccd_session_mgmt__set_session_title"
+```
+
+It is safe to allow: it only renames the current session. The entry removes
+only the tool-permission prompt; the approval for replacing a hand-set title
+(above) still applies.
+`mcp__ccd_session_mgmt__*` or `mcp__ccd_session_mgmt` also covers it, but
+allows the server's other tools too. `/mandrel-update` Step 3.6 proposes the
+entry, and `mandrel doctor`'s `session-title-allowlist` advisory reports when
+titles are on and no settings file allows it.
