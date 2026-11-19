@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.128.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.127.0...mandrel-v2.128.0) (2026-11-19)
+
+
+### Added
+
+* mandrel-status mod draws one line only when a Story needs you (refs [#6149](https://github.com/dsj1984/mandrel/issues/6149)) ([#6150](https://github.com/dsj1984/mandrel/issues/6150)) ([a80bfe5](https://github.com/dsj1984/mandrel/commit/a80bfe5f3e7defab3e535a58a13e43090638b525))
+* session titles actually apply on the desktop app: load the deferred rename tool, allowlist it, and document which hosts title ([#6145](https://github.com/dsj1984/mandrel/issues/6145)) ([#6146](https://github.com/dsj1984/mandrel/issues/6146)) ([c851fc6](https://github.com/dsj1984/mandrel/commit/c851fc61069be7d4b285c61e6728a985b11404b9))
+
 ## [2.127.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.126.0...mandrel-v2.127.0) (2026-11-19)
 
 
