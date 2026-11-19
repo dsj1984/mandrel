@@ -108,6 +108,67 @@ describe('readState (AC-3)', () => {
   });
 });
 
+describe('readState: blocker and dispatch record (AC-5, AC-6)', () => {
+  const friction = (heading, url) => ({
+    body: `<!-- ap:structured-comment type="friction" -->\n\n⚠️ **Friction**\n\n${heading}\n\nDetail.`,
+    html_url: url,
+  });
+
+  it("names the latest friction comment's heading from one comments read", async () => {
+    const reads = [];
+    const { sources, board } = sourcesOver(
+      [
+        { id: 4, labels: ['type::story', 'agent::blocked', 'env::local'] },
+        { id: 6, labels: ['type::story', 'agent::blocked'] },
+      ],
+      {
+        records: { 4: { storyId: 4, pid: 104, startedAt: STARTED } },
+        comments: {
+          4: [
+            friction('### old cause', 'https://github.com/o/r/issues/4#1'),
+            stageComment(4, 'handoff'),
+            { body: 'a plain comment' },
+            friction(
+              '### story-handoff blocked: lint',
+              'https://github.com/o/r/issues/4#2',
+            ),
+          ],
+          6: [{ body: '### not friction' }],
+        },
+      },
+    );
+    const read = board.deps.provider.getTicketComments;
+    board.deps.provider.getTicketComments = (id) => {
+      reads.push(id);
+      return read(id);
+    };
+    const state = await sources.readState();
+    const byId = Object.fromEntries(state.stories.map((s) => [s.id, s]));
+    assert.deepEqual(byId[4].blocker, {
+      text: 'story-handoff blocked: lint',
+      url: 'https://github.com/o/r/issues/4#2',
+    });
+    assert.equal(byId[4].stage, 'handoff');
+    assert.equal(byId[4].dispatched, true);
+    assert.equal(byId[6].blocker, null);
+    assert.equal(byId[6].dispatched, false);
+    assert.deepEqual(reads.sort(), [4, 6], 'one comments read per Story');
+  });
+
+  it('reads no blocker when the comments cannot be read', async () => {
+    const { sources, board } = sourcesOver(
+      [{ id: 4, labels: ['type::story', 'agent::blocked'] }],
+      {},
+    );
+    board.deps.provider.getTicketComments = async () => {
+      throw new Error('down');
+    };
+    const [row] = (await sources.readState()).stories;
+    assert.equal(row.blocker, null);
+    assert.equal(row.stage, null);
+  });
+});
+
 describe('readStory (AC-5, AC-6, AC-7)', () => {
   function logIn(dir, lines) {
     fs.mkdirSync(dir, { recursive: true });
@@ -150,6 +211,7 @@ describe('readStory (AC-5, AC-6, AC-7)', () => {
       assignees: [],
       epic: null,
       dependsOn: [],
+      blocker: null,
       issueUrl: 'https://github.com/o/r/issues/1',
       pr: null,
       stage: 'build',

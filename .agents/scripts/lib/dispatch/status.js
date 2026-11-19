@@ -9,6 +9,7 @@
 
 import { parseBlockedBy } from '../dependency-parser.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
+import { columnForLabels } from '../orchestration/column-sync.js';
 import { agentStateOf, computeLoads, environmentOf } from './environments.js';
 import { launchChoices, overridesOf } from './launch-options.js';
 import { readProjectStatuses } from './project-status.js';
@@ -116,7 +117,19 @@ function prFor(storyId, prs) {
   };
 }
 
+/**
+ * Whether `status` is the Project Status board-sync writes for the Story (a
+ * closed Story expects `Done`); `null` with no Status read, or when no label
+ * gives board-sync a Status to write.
+ */
+function statusMatchesOf(ticket, column, status) {
+  const expected =
+    column === 'done' ? 'Done' : columnForLabels(ticket.labels ?? []);
+  return status && expected ? status === expected : null;
+}
+
 function storyRow(ticket, column, ctx) {
+  const projectStatus = ctx.statuses.get(ticket.id) ?? null;
   return {
     id: ticket.id,
     title: ticket.title,
@@ -125,7 +138,8 @@ function storyRow(ticket, column, ctx) {
     labels: ticket.labels ?? [],
     assignees: ticket.assignees ?? [],
     epic: ctx.epicOf.get(ticket.id) ?? null,
-    projectStatus: ctx.statuses.get(ticket.id) ?? null,
+    projectStatus,
+    statusMatches: statusMatchesOf(ticket, column, projectStatus),
     environment: environmentOf(ticket.labels),
     overrides: overridesOf(ticket.labels),
     pr: prFor(ticket.id, ctx.prs),
