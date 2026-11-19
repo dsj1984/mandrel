@@ -2947,6 +2947,10 @@
       "mi": 106.587
     },
     {
+      "path": "lib/cli/ui/accounts.js",
+      "mi": 107.262
+    },
+    {
       "path": "lib/cli/ui/board-model.js",
       "mi": 106.93
     },
@@ -2957,6 +2961,10 @@
     {
       "path": "lib/cli/ui/log-tail.js",
       "mi": 98.369
+    },
+    {
+      "path": "lib/cli/ui/panel-model.js",
+      "mi": 113.25
     },
     {
       "path": "lib/cli/ui/request-guard.js",
