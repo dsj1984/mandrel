@@ -339,6 +339,34 @@ describe('parse() — machine comment markers in path sections', () => {
     );
   });
 
+  it('keeps the plan-story marker out of a trailing Verify list', () => {
+    // deliver-light receipt shape: Verify is the last section, so the
+    // fingerprint persist appends lands under it.
+    const receipt = [
+      '## Goal',
+      'Fix the thing.',
+      '',
+      '## Acceptance',
+      '- [ ] AC-1: The change lands.',
+      '',
+      '## Verify',
+      '- npm test (unit)',
+      '',
+      '<!-- plan-story: cfcda707c9a9abf6 -->',
+    ].join('\n');
+    const { body } = parse(receipt);
+    assert.deepEqual(body.verify, ['npm test (unit)']);
+    assert.deepEqual(body.acceptance, ['The change lands.']);
+  });
+
+  it('skips whole-line comments inside Acceptance and Non-Goals lists', () => {
+    const md =
+      '## Goal\nWire X.\n\n## Acceptance\n- [ ] it works\n<!-- note -->\n\n## Non-Goals\n- no Y\n<!-- plan-story: abc123 -->';
+    const { body } = parse(md);
+    assert.deepEqual(body.acceptance, ['it works']);
+    assert.deepEqual(body.non_goals, ['no Y']);
+  });
+
   it('still refuses a prose bullet that merely contains a comment', () => {
     const md =
       '## Goal\nWire X to Y.\n\n## Changes\n- src/foo.js <!-- note --> extra words\n\n## Acceptance\n- [ ] it works';
