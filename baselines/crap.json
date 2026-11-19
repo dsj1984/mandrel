@@ -9761,6 +9761,12 @@
       "runAgentsMaterialized": 3.002666666666667,
       "runRuntimeDeps": 5.164794921875
     },
+    "lib/cli/doctor-checks/session-title-allowlist.js": {
+      "<anon runSessionTitleAllowlist/()#0>": 1,
+      "<anon runSessionTitleAllowlist/allow.some(entry)#0>": 1,
+      "<anon runSessionTitleAllowlist/SETTINGS.filter(rel)#0>": 1,
+      "runSessionTitleAllowlist": 6
+    },
     "lib/cli/doctor-checks/spawn.js": {
       "<anon createRunner/(cmd,args,opts)#0>": 2,
       "<anon spawn/Promise(resolve)#0/settle(err,stdout,stderr)#0>": 4,
@@ -9868,6 +9874,7 @@
       "runMigrate": 4
     },
     "lib/cli/registry.js": {
+      "<anon advisory:session-title-allowlist(opts)#0>": 1,
       "<anon advisory:suite-ownership(opts)#0>": 1,
       "<anon advisory:test-credit-path(opts)#0>": 1,
       "<anon advisory:version-current(opts)#0>": 1,
