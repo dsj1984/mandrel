@@ -482,23 +482,91 @@ describe('checkLightDiffBackstop — blocks over-magnitude actual diffs (AC-4)',
       const r = checkLightDiffBackstop({
         changedFiles: ['a.js'],
         magnitude: magnitudeOf(1, 10),
-        ceilings: { maxImplLines: bad, maxImplFiles: bad },
+        ceilings: { maxImplLines: bad, maxImplChurn: bad, maxImplFiles: bad },
         injectedRules: RULES,
       });
       assert.deepEqual(r.ceilings, {
         maxImplLines: LIGHT_DIFF_CEILINGS.maxImplLines,
+        maxImplChurn: LIGHT_DIFF_CEILINGS.maxImplChurn,
         maxImplFiles: LIGHT_DIFF_CEILINGS.maxImplFiles,
       });
     }
   });
 
+  test('Story #6151: a deletion-heavy diff lands — maxImplLines bounds ADDED lines', () => {
+    // The #6148 shape: register.tsx went 1443 → 351, measured 1587 changed
+    // lines and was refused. Its added lines are what a reviewer reads.
+    const r = checkLightDiffBackstop({
+      changedFiles: ['src/register.tsx', 'tests/register.test.js'],
+      magnitude: { implFiles: 1, implLines: 1587, implAdded: 248 },
+      injectedRules: RULES,
+    });
+    assert.equal(r.blocked, false);
+    assert.match(r.reasons[0], /248 added implementation line\(s\) ≤ 1000/);
+  });
+
+  test('Story #6151: a pure deletion lands', () => {
+    const r = checkLightDiffBackstop({
+      changedFiles: ['src/old-a.js', 'src/old-b.js'],
+      magnitude: { implFiles: 2, implLines: 3200, implAdded: 0 },
+      injectedRules: RULES,
+    });
+    assert.equal(r.blocked, false);
+  });
+
+  test('Story #6151: a large addition is still refused on maxImplLines', () => {
+    const r = checkLightDiffBackstop({
+      changedFiles: ['src/new.js'],
+      magnitude: { implFiles: 1, implLines: 1200, implAdded: 1200 },
+      injectedRules: RULES,
+    });
+    assert.equal(r.blocked, true);
+    assert.equal(r.refusalClass, LIGHT_REFUSAL_CLASSES.OVER_CEILING);
+    assert.match(r.reasons.join(' '), /adds 1200 .*maxImplLines 1000/);
+    assert.doesNotMatch(r.reasons.join(' '), /maxImplChurn/);
+  });
+
+  test('Story #6151: a mass deletion past maxImplChurn is still refused', () => {
+    const r = checkLightDiffBackstop({
+      changedFiles: ['src/a.js'],
+      magnitude: { implFiles: 1, implLines: 5001, implAdded: 1 },
+      injectedRules: RULES,
+    });
+    assert.equal(r.blocked, true);
+    assert.match(r.reasons.join(' '), /maxImplChurn 5000/);
+  });
+
+  test('Story #6151: a deletion under a sensitive class still blocks', () => {
+    const r = checkLightDiffBackstop({
+      changedFiles: ['src/auth/a.js'],
+      magnitude: { implFiles: 1, implLines: 40, implAdded: 0 },
+      injectedRules: RULES,
+    });
+    assert.equal(r.blocked, true);
+    assert.equal(r.refusalClass, LIGHT_REFUSAL_CLASSES.SENSITIVE_PATH);
+  });
+
+  test('Story #6151: a missing or inconsistent implAdded falls back to churn, never less', () => {
+    for (const implAdded of [undefined, -1, Number.NaN, 'x', 5000]) {
+      const r = checkLightDiffBackstop({
+        changedFiles: ['src/a.js'],
+        magnitude: { implFiles: 1, implLines: 1500, implAdded },
+        injectedRules: RULES,
+      });
+      assert.equal(r.blocked, true, `implAdded=${implAdded}`);
+      assert.equal(r.magnitude.implAdded, 1500);
+    }
+  });
+
   test('Story #4856: cardinality is no longer an axis anywhere in the ceilings', () => {
     assert.deepEqual(Object.keys(LIGHT_DIFF_CEILINGS).sort(), [
+      'maxImplChurn',
       'maxImplFiles',
       'maxImplLines',
     ]);
     assert.equal(LIGHT_DIFF_CEILINGS.maxFiles, undefined);
     assert.equal(LIGHT_DIFF_CEILINGS.maxImplLines, 1000);
+    assert.equal(LIGHT_DIFF_CEILINGS.maxImplChurn, 5000);
     // Aligned with review-depth's own narrow-diff scale (DEFAULT_DIFF_WIDTH
     // .softFiles) so the two stop holding different definitions of "narrow".
     assert.equal(
@@ -703,7 +771,29 @@ describe('the backstop pass re-checks the ACTUAL branch diff (AC-4)', () => {
       readRowsFn: () => rowsOf([20, 4, 'bin/hello.js']),
     });
     assert.equal(r.blocked, false);
-    assert.deepEqual(r.magnitude, { implFiles: 1, implLines: 24 });
+    assert.deepEqual(r.magnitude, {
+      implFiles: 1,
+      implLines: 24,
+      implAdded: 20,
+    });
+  });
+
+  test('Story #6151: a pure-deletion branch diff lands; a large-addition one does not', async () => {
+    const deletion = await backstop({
+      storyId: 6151,
+      injectedRules: RULES,
+      computeFn: () => ({ files: ['bin/a.js', 'bin/b.js'] }),
+      readRowsFn: () => rowsOf([0, 1500, 'bin/a.js'], [0, 900, 'bin/b.js']),
+    });
+    assert.equal(deletion.blocked, false);
+    const addition = await backstop({
+      storyId: 6151,
+      injectedRules: RULES,
+      computeFn: () => ({ files: ['bin/a.js'] }),
+      readRowsFn: () => rowsOf([1100, 0, 'bin/a.js']),
+    });
+    assert.equal(addition.blocked, true);
+    assert.match(addition.reasons.join(' '), /maxImplLines/);
   });
 
   test('an over-magnitude diff is blocked', async () => {

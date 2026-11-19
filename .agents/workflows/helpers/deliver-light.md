@@ -41,13 +41,21 @@ asking to proceed, so the axis and the answer had a single author.
 
 **Size is enforced where ground truth is available:** the diff backstop in
 step 4, against the actual committed change set. `LIGHT_DIFF_CEILINGS` —
-implementation lines plus a file-sprawl tripwire — is the only size block on
-this path, and it reads a diff rather than a declaration.
+added implementation lines, a wider churn tripwire, and a file-sprawl
+tripwire — is the only size block on this path, and it reads a diff rather
+than a declaration.
 
-**The backstop counts by the right principle too.** It reads magnitude —
-changed lines over implementation files — not artifacts, and exempts the test
-and doc companions the framework itself mandates. A ceiling that punishes a
-repo for obeying its own test-first rule is a ceiling that over-fires.
+**The backstop counts by the right principle too.** It reads magnitude over
+implementation files — not artifacts — and exempts the test and doc
+companions the framework itself mandates. A ceiling that punishes a repo for
+obeying its own test-first rule is a ceiling that over-fires.
+
+**It bounds added lines, not churn.** `maxImplLines` (1000) counts additions:
+the new code a reviewer has to read. Counting deletions against the same
+ceiling refused the simplifications this path should welcome — Story #6148
+cut a 1443-line file to 351 and was turned away at 1587 changed lines, then
+had to be recycled through `/mandrel-plan`. Deletions are not free, so
+`maxImplChurn` (5000, additions + deletions) still stops a mass removal.
 
 Sensitivity is the exception and stays absolute: a footprint touching an auth,
 crypto, billing, or migration class routes `full` however small or mechanical,
@@ -125,8 +133,8 @@ Title the session `node .agents/scripts/session-title.js --event deliver-prompt 
 
    This is the pass that actually bounds size, which is why the prediction gate
    above can afford to judge risk only. It measures **magnitude on the change's
-   implementation half** — changed lines (additions + deletions) plus a file
-   sprawl tripwire — never raw artifact count. Tests, `docs/**`, `**/*.md`,
+   implementation half** — added lines, a wider churn cap (additions +
+   deletions), and a file sprawl tripwire — never raw artifact count. Tests, `docs/**`, `**/*.md`,
    `baselines/**`, and lockfiles are exempt from the counts, because the
    framework mandates those companions and obeying it must not inflate the
    number that then rejects the change. They are **not** exempt from

@@ -4,8 +4,10 @@
  * lockfiles) halves, so obeying test-first and doc rules never inflates the
  * size that bounds the light path.
  *
- * Contracts: lines are additions + deletions, never net (a big deletion is
- * not trivial); a pure rename is free but its file still counts; exemption
+ * Contracts: `implLines` is churn — additions + deletions, never net (a
+ * big deletion is not trivial) — and `implAdded` is the additions alone,
+ * the new code a reviewer must read; a pure rename is free but its file
+ * still counts; exemption
  * is from counting, never from sensitive-path risk. Companion globs are a
  * positive list — a `!` glob pattern widens rather than narrows. Every
  * export is total.
@@ -146,6 +148,7 @@ export function readNumstatRows({
  * @returns {{
  *   implFiles: number,
  *   implLines: number,
+ *   implAdded: number,
  *   companionFiles: number,
  *   companionLines: number,
  *   totalFiles: number,
@@ -175,19 +178,30 @@ export function summarizeDiffMagnitude({
     if (!isCompanion(file)) implFiles += 1;
   }
 
-  let implLines = 0;
-  let companionLines = 0;
-  for (const row of rows) {
-    const lines = (row?.additions ?? 0) + (row?.deletions ?? 0);
-    if (isCompanion(row?.path)) companionLines += lines;
-    else implLines += lines;
-  }
-
   return {
     implFiles,
-    implLines,
+    ...tallyLines(rows, isCompanion),
     companionFiles: files.length - implFiles,
-    companionLines,
     totalFiles: files.length,
   };
+}
+
+/**
+ * @param {Array<{ additions?: number, deletions?: number, path?: string }>} rows
+ * @param {(file: unknown) => boolean} isCompanion
+ * @returns {{ implLines: number, implAdded: number, companionLines: number }}
+ */
+function tallyLines(rows, isCompanion) {
+  const tally = { implLines: 0, implAdded: 0, companionLines: 0 };
+  for (const row of rows) {
+    const added = row?.additions ?? 0;
+    const lines = added + (row?.deletions ?? 0);
+    if (isCompanion(row?.path)) {
+      tally.companionLines += lines;
+      continue;
+    }
+    tally.implLines += lines;
+    tally.implAdded += added;
+  }
+  return tally;
 }
