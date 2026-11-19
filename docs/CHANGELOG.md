@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.126.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.125.0...mandrel-v2.126.0) (2026-11-19)
+
+
+### Added
+
+* dispatch board: (1) a header multi-select assignee filter (named users… ([#6133](https://github.com/dsj1984/mandrel/issues/6133)) ([#6134](https://github.com/dsj1984/mandrel/issues/6134)) ([9335a90](https://github.com/dsj1984/mandrel/commit/9335a904d120f7b87792709514336d4092474c2a))
+
+
+### Fixed
+
+* fix mandrel dispatch CLI resolving config from the package dir in consu… ([#6128](https://github.com/dsj1984/mandrel/issues/6128)) ([#6129](https://github.com/dsj1984/mandrel/issues/6129)) ([04d85d9](https://github.com/dsj1984/mandrel/commit/04d85d96ff7de50819bbea0db8eddad18379b3c8))
+* fix story-body parser so whole-line HTML comments (the plan-story finge… ([#6131](https://github.com/dsj1984/mandrel/issues/6131)) ([#6132](https://github.com/dsj1984/mandrel/issues/6132)) ([3aa4a97](https://github.com/dsj1984/mandrel/commit/3aa4a97bbd3f6755b327be282b50de0ecae5ac00))
+
 ## [2.125.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.124.0...mandrel-v2.125.0) (2026-11-19)
 
 
