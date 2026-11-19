@@ -274,6 +274,7 @@
       "roleScopedAgents": true,
       "ceremonyProfile": "standard",
       "closeAndLand": true,
+      "sessionTitles": true,
       "agentModels": {}
     }
   },

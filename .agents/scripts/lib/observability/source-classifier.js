@@ -80,6 +80,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'review-dispositions-report.js',
   'role-scope-guard.js',
   'run-tests.js',
+  'session-title.js',
   'single-story-close.js',
   'single-story-confirm-merge.js',
   'single-story-init.js',

@@ -61,6 +61,7 @@
     ".agents/scripts/resolve-stories.js!",
     ".agents/scripts/resync-status-column.js!",
     ".agents/scripts/run-tests.js!",
+    ".agents/scripts/session-title.js!",
     ".agents/scripts/single-story-close.js!",
     ".agents/scripts/lib/orchestration/single-story-close/runner.js!",
     ".agents/scripts/lib/baselines/duplication-scan-child.js!",
