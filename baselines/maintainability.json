@@ -2967,6 +2967,10 @@
       "mi": 113.25
     },
     {
+      "path": "lib/cli/ui/preferences.js",
+      "mi": 109.851
+    },
+    {
       "path": "lib/cli/ui/request-guard.js",
       "mi": 101.859
     },
