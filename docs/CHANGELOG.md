@@ -15,6 +15,18 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.129.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.128.0...mandrel-v2.129.0) (2026-11-21)
+
+
+### Added
+
+* ship the comment writing rule to consumers: deliverer rule, reviewer sentence, and an audit-clean-code comments dimension ([#6154](https://github.com/dsj1984/mandrel/issues/6154)) ([#6155](https://github.com/dsj1984/mandrel/issues/6155)) ([ba506dd](https://github.com/dsj1984/mandrel/commit/ba506dd4f3d53b19c31f6d6d9c1f339d2ba1d88c))
+
+
+### Fixed
+
+* light backstop: bound added implementation lines, not churn, so a delet… ([#6151](https://github.com/dsj1984/mandrel/issues/6151)) ([#6152](https://github.com/dsj1984/mandrel/issues/6152)) ([bbaa685](https://github.com/dsj1984/mandrel/commit/bbaa6857161cb5e45249f815ea276fe157520864))
+
 ## [2.128.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.127.0...mandrel-v2.128.0) (2026-11-19)
 
 
