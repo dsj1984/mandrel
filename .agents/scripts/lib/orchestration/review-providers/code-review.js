@@ -89,7 +89,9 @@ const PROMPT_HEAD =
   'line in the new version, why it is wrong, and how to show it fails (an ' +
   'input, command or test that exposes it). A `shortcut:` comment naming ' +
   'its ceiling and trigger is a decision, not a finding, unless this diff ' +
-  'itself crosses the ceiling.\n\n' +
+  'itself crosses the ceiling. A comment this diff adds that cites a ' +
+  'Story, PR or issue number outside a `shortcut:` trigger, or that names ' +
+  'a file this diff deletes, is a finding.\n\n' +
   `${BUG_CLASS_RULE}\n\n` +
   'Set `claim` when the problem rests on a checkable fact: ' +
   '{"kind":"path-absent","path":"<file>"} when a file the change needs is ' +

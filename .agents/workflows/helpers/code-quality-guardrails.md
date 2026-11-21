@@ -90,6 +90,33 @@ escomplex keys CRAP rows on `<file>::<methodName>`, so a rename produces a
 phantom new method + a phantom deleted method. Use the refresh tag to
 suppress the noise.
 
+## Comments
+
+A comment states what a reader cannot get from the code: a **contract**, an
+**invariant**, a non-obvious **why**, a **unit**, or what a null or empty
+value means. Say it **once, at the narrowest scope that owns it**: a file
+header for the file's job, a function doc for that function's contract, an
+inline comment for the one line it sits on.
+
+A comment does not:
+
+- **restate the name or type** the code already gives;
+- **repeat the file path** of the file it is in;
+- **narrate the change** ("previously", "used to", "now"). Version control
+  holds how the code got here;
+- **cite a Story, PR or issue number.** When a branch exists because of a
+  real failure, keep the reason it still matters and drop the incident.
+
+Two things stay. **Type tags and tool directives** (JSDoc and TSDoc tags, lint
+and compiler pragmas, shebangs, license headers) are read by tools. And the
+shortcut marker below may name an issue in its trigger: that is the one
+sanctioned issue reference, and an excuse for a shortcut is written in that
+form or not at all.
+
+Delete a comment that only restates the code. Rewrite, never delete, one that
+carries an invariant alongside a ticket number. `/audit-clean-code` reports
+what an existing tree already carries; do not trim comments by formula.
+
 ## Deliberate shortcuts
 
 A shortcut with a known limit is marked in a one-line code comment, after

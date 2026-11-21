@@ -103,6 +103,12 @@ run the tools first.
    report stays a ranked, actionable batch rather than an exhaustive dump. Note
    the cap in the Executive Summary when it bites.
 
+7. **Comment searches.** Before judging any comment, run the searches the
+   Comments dimension rests on, over the scoped files: count comments citing
+   a Story, PR or issue number, list file headers that repeat their own path,
+   and probe every file path or symbol a comment names for existence. A
+   comment finding with no search behind it is not reported.
+
 ## Step 1: Quality Scan
 
 Analyze the repository with a focus on:
@@ -142,8 +148,23 @@ Analyze the repository with a focus on:
 5. **Dead Code & Orphaned Modules:** Are there exported symbols with no
    importers, files unreachable from any entry point, or commented-out blocks
    that have survived multiple commits? Quantify the LOC impact.
-6. **Documentation:** Does the code explain "why" through its structure, or does
-   it require extensive comments?
+6. **Comments:** Does each comment state what the code cannot — a contract,
+   an invariant, a non-obvious why, a unit, a null meaning — per
+   [`helpers/code-quality-guardrails.md` § Comments](helpers/code-quality-guardrails.md#comments)?
+   Report four finding kinds, each only with its evidence:
+
+   | Kind | The comment | Evidence required |
+   | --- | --- | --- |
+   | Tautology | Restates the name, signature or type, or repeats the file path | The comment beside the line it restates |
+   | Dead reference | Names a file or symbol that does not exist | The failed path probe or search; never reported from reading alone |
+   | History narration | Cites a Story, PR or issue number, or narrates the change | The search count across the scope: one finding per pattern with representative instances, never one per comment |
+   | Unenforced constraint | Forbids something ("do not remove", "do not change wording", "must stay in sync with") | The search showing no type, test or lint holds it |
+
+   An unenforced-constraint finding's remediation sketches the type, test or
+   lint that would enforce the constraint. A comment that carries an
+   invariant and also cites a ticket is rewritten, not deleted. Remediation
+   is never a comment-ratio target or trimming comments by formula, and type
+   tags, tool directives and `shortcut:` markers are not findings here.
 
 ## Report additions
 

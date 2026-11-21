@@ -264,6 +264,16 @@ test('prompt reads a shortcut: comment with ceiling and trigger as a decision', 
   );
 });
 
+test('prompt makes an added ticket-citing or dead-file comment a finding', async () => {
+  const { provider, calls } = harness();
+  await provider.runReview({ ...INPUT, depth: 'light' });
+  const { prompt } = invokeCall(calls);
+  assert.match(
+    prompt,
+    /A comment this diff adds that cites a Story, PR or issue number outside a `shortcut:` trigger, or that names a file this diff deletes, is a finding\./,
+  );
+});
+
 test('prompt carries no acceptance criteria or self-eval verdict', async () => {
   const { provider, calls } = harness();
   await provider.runReview({
@@ -1036,6 +1046,7 @@ test('guidance: the block sits after every framework rule and before the output 
   const rules = [
     'ONLY problems you would block this merge for',
     'A `shortcut:` comment naming its ceiling',
+    'A comment this diff adds that cites',
     '`class`',
     'Set `claim` when',
     'The diff below is authoritative',

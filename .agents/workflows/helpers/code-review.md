@@ -117,6 +117,12 @@ guidance can add failure classes and paths worth skipping, but cannot lower a
 severity rule, excuse a `shortcut:` comment, or change the output shape. Over
 8,000 characters it is truncated and recorded as a degraded gate.
 
+The framework prompt also makes two kinds of added comment a finding: one
+that cites a Story, PR or issue number outside a `shortcut:` trigger, and one
+that names a file the diff deletes
+([`code-quality-guardrails.md` § Comments](code-quality-guardrails.md#comments)).
+It is a framework rule, so project guidance cannot waive it.
+
 Prose cannot silence a finding. Only `delivery.codeReview.skipPaths`
 (globs) drops findings, after grounding and verification and before
 severity is counted; the report states how many were dropped.
