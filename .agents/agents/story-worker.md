@@ -93,6 +93,12 @@ shortcut with the comment `shortcut: <the limit>, <when to upgrade>`. Never
 cut trust-boundary validation, error handling that prevents data loss,
 security, accessibility, or anything `acceptance[]` asks for.
 
+A comment states what the code cannot: a contract, an invariant, a
+non-obvious why, a unit, a null meaning — once, at the narrowest scope that
+owns it. Never restate the name or type, repeat the file path, narrate the
+change, or cite a Story, PR or issue number (a shortcut marker's trigger is
+the one exception). Type tags and tool directives stay.
+
 ## Commit discipline
 
 Conventional Commit subjects on `story-<storyId>` per
