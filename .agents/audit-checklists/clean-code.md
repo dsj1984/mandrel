@@ -21,6 +21,7 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Framework/registration hooks
 - [ ] Non-JS ecosystems.
 - [ ] Churn-by-complexity hotspot cap.
+- [ ] Comment searches.
 - [ ] Logic Complexity
 - [ ] Duplication
 - [ ] Component Health
@@ -32,4 +33,4 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] KISS (Keep It Simple, Stupid)
 - [ ] Testability
 - [ ] Dead Code & Orphaned Modules
-- [ ] Documentation
+- [ ] Comments
