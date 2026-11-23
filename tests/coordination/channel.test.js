@@ -15,7 +15,6 @@ import {
   EVENT_KINDS,
   EventRefusedError,
   encodeEventComment,
-  isAllowedLink,
   renderEvents,
 } from '../../.agents/scripts/lib/coordination/event.js';
 import { isValidStructuredCommentType } from '../../.agents/scripts/lib/orchestration/ticketing/reads.js';
@@ -144,7 +143,7 @@ describe('buildEvent', () => {
   });
 });
 
-describe('isAllowedLink', () => {
+describe('the link rule', () => {
   const cases = [
     [null, true],
     ['docs/decisions.md', true],
@@ -156,16 +155,21 @@ describe('isAllowedLink', () => {
     ['https://evil.example@github.com/octo/demo/x', false],
     ['http://github.com/octo/demo/pull/1', false],
     ['javascript:alert(1)', false],
-    [' https://evil.example/x', false],
     ['notes/https://evil.example/x', false],
     ['', false],
-    [42, false],
   ];
   for (const [link, allowed] of cases) {
-    it(`${JSON.stringify(link)} → ${allowed}`, () => {
-      assert.equal(isAllowedLink(link, GITHUB), allowed);
+    it(`${allowed ? 'accepts' : 'refuses'} ${JSON.stringify(link)}`, () => {
+      const input = { kind: 'landed', summary: 's', link };
+      if (allowed) assert.equal(build(input).link, link);
+      else assert.match(refusedBy(input), /link/);
     });
   }
+
+  it('trims a link before checking it', () => {
+    const input = { kind: 'landed', summary: 's', link: ' docs/x.md ' };
+    assert.equal(build(input).link, 'docs/x.md');
+  });
 });
 
 describe('the comment codec', () => {

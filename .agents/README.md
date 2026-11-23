@@ -448,6 +448,7 @@ what keeps that footer refused. The execution-model contract is owned by
 | Bootstrap script (project + GitHub setup) | [`scripts/bootstrap.js`](scripts/bootstrap.js) |
 | Adopt the QA workflows (`/qa-explore`, `/qa-assist`, `/qa-run`) in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
 | Coordinate two operators on the same repo (lease model) | [§ Multi-developer coordination](#multi-developer-coordination) |
+| Tell other sessions the base is red, a sibling landed or a design changed | [`docs/runbooks/coordination-channel.md`](docs/runbooks/coordination-channel.md) |
 | Opt into the beta `mandrel-status` band above the prompt | [`docs/runbooks/mods.md`](docs/runbooks/mods.md) |
 | Operator runbooks (listed at the end of every `mandrel sync` / `init` / `update`) | [`docs/runbooks/`](docs/runbooks/) |
 

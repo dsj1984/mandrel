@@ -54,7 +54,7 @@ function validator() {
  * @param {unknown} text
  * @returns {string}
  */
-export function stripControl(text) {
+function stripControl(text) {
   return String(text).replace(CONTROL, '');
 }
 
@@ -90,7 +90,7 @@ function isRepoUrl(link, github) {
  * @param {{ owner?: string, repo?: string }} [github]
  * @returns {boolean}
  */
-export function isAllowedLink(link, github) {
+function isAllowedLink(link, github) {
   if (link === null) return true;
   if (typeof link !== 'string' || link === '') return false;
   if (link !== stripControl(link).trim()) return false;
