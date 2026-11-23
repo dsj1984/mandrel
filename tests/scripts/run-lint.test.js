@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn as realSpawn, spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import path from 'node:path';
+import { PassThrough } from 'node:stream';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -21,10 +22,13 @@ function fakeSpawn(outcomes = {}) {
   const calls = [];
   const spawn = (cmd, args, opts) => {
     calls.push({ argv: [cmd, ...args].join(' '), opts });
-    const child = new EventEmitter();
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+    });
     const key = Object.keys(outcomes).find((k) => args.join(' ').includes(k));
     const { code = 0, signal = null } = key ? outcomes[key] : {};
-    setImmediate(() => child.emit('exit', signal ? null : code, signal));
+    setImmediate(() => child.emit('close', signal ? null : code, signal));
     return child;
   };
   return { spawn, calls };
@@ -87,6 +91,40 @@ test('only the biome task gets RUST_BACKTRACE=1; other tasks inherit the env', a
   for (const call of calls.filter((c) => !c.argv.includes('biome ci'))) {
     assert.equal(call.opts.env, undefined, `${call.argv} must inherit env`);
   }
+});
+
+test('every task gets its own stdout/stderr pipe, never the inherited one', async () => {
+  const { calls } = await run();
+  assert.ok(calls.length > 0);
+  for (const { argv, opts } of calls) {
+    assert.deepEqual(opts.stdio, ['ignore', 'pipe', 'pipe'], argv);
+  }
+});
+
+test('a blocking-write task survives a full pipe while a Node sibling touches stdout', {
+  skip: process.platform === 'win32' && 'POSIX pipe semantics',
+}, async () => {
+  const driver = path.join(
+    REPO_ROOT,
+    'tests/fixtures/run-lint-stdio/driver.js',
+  );
+  const child = realSpawn(process.execPath, [driver], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let bytes = 0;
+  let stderr = '';
+  child.stderr.on('data', (d) => {
+    stderr += d;
+  });
+  child.stdout.on('data', (d) => {
+    bytes += d.length;
+  });
+  child.stdout.pause();
+  setTimeout(() => child.stdout.resume(), 1000);
+  const code = await new Promise((resolve) => child.on('close', resolve));
+  assert.doesNotMatch(stderr, /PROBE/);
+  assert.equal(code, 0, stderr);
+  assert.equal(bytes, (1 << 20) + 'sibling\n'.length);
 });
 
 test('--help prints usage and runs no linter', () => {

@@ -123,18 +123,27 @@ const tasks = [
   nodeGate('comment-policy', 'scripts/check-comment-policy.js'),
 ];
 
+/**
+ * Each task gets its own stdout/stderr pipe, forwarded here. Inheriting ours
+ * shares one open file description with every sibling, and each Node sibling
+ * sets O_NONBLOCK on it; Biome then hits EAGAIN on a full pipe and panics
+ * (exit 101). A private pipe stays blocking. Settles on `close`, so a task's
+ * last output is forwarded before its failure line is written.
+ */
 function runTask({ name, cmd, args, env }, spawnFn) {
   return new Promise((resolve) => {
     const child = spawnFn(cmd, args, {
-      stdio: 'inherit',
+      stdio: ['ignore', 'pipe', 'pipe'],
       shell: useShell,
       ...(env && { env: { ...process.env, ...env } }),
     });
+    child.stdout?.on('data', (chunk) => process.stdout.write(chunk));
+    child.stderr?.on('data', (chunk) => process.stderr.write(chunk));
     child.on('error', (err) => {
       process.stderr.write(`[run-lint:${name}] spawn error: ${err.message}\n`);
       resolve({ code: 1, signal: null });
     });
-    child.on('exit', (code, signal) => resolve({ code, signal }));
+    child.on('close', (code, signal) => resolve({ code, signal }));
   });
 }
 
@@ -151,15 +160,16 @@ function failureLine({ name, code, signal }) {
  * Run every lint task in parallel, then name each failure in roster order.
  * The exit code is the first failure's code (1 for a signal), else 0.
  *
- * @param {{ spawn?: typeof spawn, write?: (line: string) => void }} [deps]
+ * @param {{ spawn?: typeof spawn, write?: (line: string) => void, tasks?: typeof tasks }} [deps]
  * @returns {Promise<{ exitCode: number, failures: Array<{ name: string, code: number|null, signal: string|null }> }>}
  */
 export async function runLintTasks({
   spawn: spawnFn = spawn,
   write = (line) => process.stderr.write(`${line}\n`),
+  tasks: roster = tasks,
 } = {}) {
-  const results = await Promise.all(tasks.map((t) => runTask(t, spawnFn)));
-  const failures = tasks
+  const results = await Promise.all(roster.map((t) => runTask(t, spawnFn)));
+  const failures = roster
     .map((task, i) => ({ name: task.name, ...results[i] }))
     .filter(({ code }) => code !== 0);
   for (const failure of failures) write(failureLine(failure));
