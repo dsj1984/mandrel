@@ -114,6 +114,14 @@ publish is a persist warning. A delivering agent also runs `inbox` at each
 commit checkpoint and publishes `decision` itself: the rule is in
 [`story-worker.md`](../../agents/story-worker.md) § Coordination events.
 
+## The orchestrator
+
+`/mandrel-orchestrate` reads every trusted event on each sweep, with its own
+cursor kept beside the run ledger. It publishes `base-red` or `base-green`
+when the base branch changes state, and relays each new event once to the
+local session that owns a Story the event is pertinent to. An owner on
+another host gets the event from their own inbox.
+
 ## Who is trusted
 
 An event is read only when GitHub reports its comment's author as an `OWNER`,

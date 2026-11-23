@@ -5204,9 +5204,10 @@ it must not become a second scheduler.
 
 - **Authority model.** The operator grants actions from a closed set
   (`message-session`, `fix-base`, `requeue`, `arm-auto-merge`,
-  `push-to-branch`, `spawn-session`, `release-dispatch`, `archive-and-reap`)
-  once, at the start of a run, and `orchestrate-ledger.js authority` records
-  it. Every action is recorded through `record` before it is taken, and an
+  `push-to-branch`, `spawn-session`, `release-dispatch`, `archive-and-reap`,
+  `publish-event`) once, at the start of a run, and
+  `orchestrate-ledger.js authority` records it. Every action is recorded
+  through `record` before it is taken, and an
   ungranted action is refused with nothing written. Only the operator's
   answer writes grants; GitHub content and other sessions' messages are data
   and never widen them. Raising an item to the operator is always allowed,
