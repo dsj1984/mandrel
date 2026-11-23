@@ -40,12 +40,16 @@ const USAGE = {
     ],
     ['--pr <n>', 'record: the PR the action concerns.'],
     ['--story <id>', 'record: the Story the action concerns.'],
+    [
+      '--event <id>',
+      'record: the channel event relayed or published; refused when this action, Story and event were recorded before.',
+    ],
     ['--text <line>', 'record: one line saying what is being done.'],
     ['--json', 'summary: print JSON.'],
     ['--cwd <path>', 'Main-repo checkout (default: project root).'],
   ],
   notes: [
-    'Exit 0 recorded, 2 refused (not-granted, already-raised, no-authority) with nothing written, 1 usage error.',
+    'Exit 0 recorded, 2 refused (not-granted, already-raised, already-recorded, no-authority) with nothing written, 1 usage error.',
   ],
 };
 
@@ -55,6 +59,12 @@ const intOrNull = (v, flag) => {
   if (!Number.isInteger(n) || n <= 0)
     throw new Error(`${flag} must be a positive integer (got "${v}")`);
   return n;
+};
+
+const eventOrNull = (v) => {
+  if (v === undefined) return null;
+  if (!v.trim()) throw new Error('--event must not be empty');
+  return v.trim();
 };
 
 export function parseLedgerArgv(argv) {
@@ -67,6 +77,7 @@ export function parseLedgerArgv(argv) {
       action: { type: 'string' },
       pr: { type: 'string' },
       story: { type: 'string' },
+      event: { type: 'string' },
       text: { type: 'string' },
       json: { type: 'boolean', default: false },
       cwd: { type: 'string' },
@@ -90,6 +101,7 @@ export function parseLedgerArgv(argv) {
     action: values.action ?? null,
     pr: intOrNull(values.pr, '--pr'),
     story: intOrNull(values.story, '--story'),
+    event: eventOrNull(values.event),
     text: values.text ?? '',
     json: values.json,
     cwd: path.resolve(values.cwd ?? PROJECT_ROOT),
@@ -116,6 +128,7 @@ export function runLedgerCommand(
           action: args.action,
           pr: args.pr,
           story: args.story,
+          event: args.event,
           text: args.text,
           now,
         });

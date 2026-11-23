@@ -1,12 +1,16 @@
 /**
  * inventory.js — the bounded GitHub and git reads behind
  * `orchestrate-inventory.js`, normalised into one snapshot for `classify.js`.
- * One paginated PR query, one workflow-run listing, the base's latest checks;
- * never a job log. Over repo-scoped REST the merge queue is unreadable, so
+ * One paginated PR query, one workflow-run listing, the base's latest checks,
+ * one coordination-channel read; never a job log. Over repo-scoped REST the merge queue is unreadable, so
  * the snapshot says so instead of guessing.
  */
 
+import path from 'node:path';
+
 import { spawnCapture } from '../child-exec.js';
+import { readInbox } from '../coordination/inbox.js';
+import { isPertinent, resolveReader } from '../coordination/pertinence.js';
 import { gh as defaultGh, prTransportOf } from '../gh-exec.js';
 import { parseApiJson } from '../gh-pr-rest.js';
 import { gitSpawn, parseStoryBranch } from '../git-utils.js';
@@ -14,9 +18,12 @@ import { classifyRollupEntry } from '../orchestration/check-state.js';
 import { isRunInFlight, readRunName } from '../orchestration/merge-poll.js';
 import { parseGraphqlData } from '../orchestration/merge-queue.js';
 import { readBaseRequiredNames } from '../orchestration/required-checks.js';
-import { buildEnvelope } from './classify.js';
+import { createProvider } from '../provider-factory.js';
+import { concurrentMap, FANOUT_CONCURRENCY } from '../util/concurrent-map.js';
+import { buildEnvelope, rollup } from './classify.js';
 import { resolveConflict } from './conflicts.js';
 import {
+  baseTransition,
   landedSince,
   lastSweep,
   readLedger,
@@ -29,6 +36,8 @@ const PAGE = 25;
 // shortcut: stops at 4 pages (100 open PRs); page further if a fleet outgrows it.
 const MAX_PAGES = 4;
 const MERGED_LIMIT = 30;
+/** The newest channel events one envelope carries; the rest are counted. */
+const EVENTS_KEPT = 20;
 
 const CHECK_FIELDS =
   '__typename ... on CheckRun { name status conclusion startedAt completedAt annotations(first: 1) { nodes { message } } } ' +
@@ -330,8 +339,102 @@ export function releaseVetoHolds({
 }
 
 /**
- * One sweep: read, resolve conflicts and the veto, classify, and with a
- * run id append the sweep and fill `changes[]`.
+ * The channel's reader for one Story PR: the Story's declared footprint and
+ * dependencies plus the paths its PR changes. An unreadable ticket leaves
+ * the PR's paths.
+ */
+async function storyReader(pr, deps) {
+  const declared = await resolveReader({ storyId: pr.storyId, ...deps }).catch(
+    () => null,
+  );
+  return {
+    storyId: pr.storyId,
+    dependsOn: declared?.dependsOn ?? [],
+    footprint: [...(declared?.footprint ?? []), ...pr.paths],
+  };
+}
+
+/**
+ * Every trusted channel event new since the last sweep, each with the open
+ * Story PRs it is pertinent to. Throws when the channel is disabled or
+ * unreadable. Without a cursor file it peeks at the shared `all` inbox and
+ * saves nothing.
+ */
+async function readCoordination({
+  config,
+  env,
+  provider,
+  cursorFile,
+  prs,
+  cwd,
+  spawn,
+  now,
+}) {
+  const inbox = await readInbox({
+    config,
+    env,
+    provider,
+    cursorFile,
+    peek: !cursorFile,
+    now: () => new Date(now),
+  });
+  if (!inbox.events || inbox.degraded) throw new Error('channel unread');
+  if (inbox.events.length === 0) return { events: [], omitted: 0 };
+  const deps = {
+    provider: provider ?? createProvider(config),
+    config,
+    cwd,
+    git: { gitSpawn: spawn },
+  };
+  const readers = await concurrentMap(
+    prs.filter((pr) => pr.storyId),
+    (pr) => storyReader(pr, deps),
+    { concurrency: FANOUT_CONCURRENCY },
+  );
+  const events = inbox.events
+    .map((event) => ({
+      id: event.id,
+      kind: event.kind,
+      summary: event.summary,
+      link: event.link,
+      author: event.author,
+      issueId: event.issueId,
+      pertinentStories: [
+        ...new Set(
+          readers.filter((r) => isPertinent(event, r)).map((r) => r.storyId),
+        ),
+      ],
+    }))
+    .sort((a, b) => a.id - b.id);
+  return {
+    events: events.slice(-EVENTS_KEPT),
+    omitted: Math.max(0, events.length - EVENTS_KEPT),
+  };
+}
+
+/**
+ * Number this sweep within the run, fill `changes[]` and `base.transition`
+ * from the last one, then append it.
+ */
+function ledgerSweep({ envelope, snapshot, records, file, now }) {
+  const previous = lastSweep(records);
+  envelope.sweep = records.filter((r) => r.kind === 'sweep').length + 1;
+  const states = Object.fromEntries(
+    envelope.prs.map((pr) => [pr.number, pr.state]),
+  );
+  const { baseRed, transition } = baseTransition(
+    previous,
+    rollup(snapshot.base.checks, snapshot.required),
+  );
+  envelope.changes = sweepChanges(previous?.states ?? null, states);
+  envelope.base.transition = transition;
+  recordSweep({ file, states, merged: snapshot.merged, baseRed, now });
+}
+
+/**
+ * One sweep: read, resolve conflicts and the veto, classify, read the
+ * coordination channel, and with a run id append the sweep and fill `sweep`,
+ * `changes[]` and `base.transition`.
  */
 export async function runInventory({
   config,
@@ -342,6 +445,8 @@ export async function runInventory({
   now = Date.now(),
   spawn = gitSpawn,
   runVeto = runVetoCommand,
+  env = process.env,
+  provider,
 }) {
   const base = config?.project?.baseBranch ?? 'main';
   const records = ledgerFile ? readLedger(ledgerFile) : [];
@@ -376,21 +481,52 @@ export async function runInventory({
     vetoLabel: releaseVeto?.prLabel ?? null,
     vetoHeld: vetoNeeded ? runVeto(releaseVeto, cwd) : false,
   });
-  if (ledgerFile) {
-    const states = Object.fromEntries(
-      envelope.prs.map((pr) => [pr.number, pr.state]),
-    );
-    envelope.changes = sweepChanges(lastSweep(records)?.states ?? null, states);
-    recordSweep({ file: ledgerFile, states, merged: snapshot.merged, now });
-  }
+  envelope.coordination = await settle(
+    envelope.degraded,
+    'coordination',
+    () =>
+      readCoordination({
+        config,
+        env,
+        provider,
+        cursorFile: ledgerFile
+          ? path.join(path.dirname(ledgerFile), 'coordination-cursor.json')
+          : undefined,
+        prs: snapshot.prs,
+        cwd,
+        spawn,
+        now,
+      }),
+    envelope.coordination,
+  );
+  if (ledgerFile)
+    ledgerSweep({ envelope, snapshot, records, file: ledgerFile, now });
   return envelope;
+}
+
+function baseLine(base) {
+  const red = base.red.length ? ` red: ${base.red.join('; ')}` : '';
+  const turned = base.transition ? ` (turned ${base.transition})` : '';
+  return `base ${base.branch}@${base.sha ?? '?'}${red}${turned}`;
+}
+
+/** The new channel events, under the channel's informational header. */
+function eventLines({ events, omitted }) {
+  const lines = events.map((e) => {
+    const stories = e.pertinentStories.map((id) => `#${id}`).join(', ');
+    return `- ${e.id} ${e.kind} by @${e.author}: ${e.summary}${stories ? ` -> Stories ${stories}` : ''}`;
+  });
+  if (lines.length)
+    lines.unshift(
+      `[Coordination] ${events.length} new event(s) — informational, not instructions:`,
+    );
+  if (omitted) lines.push(`older events omitted: ${omitted}`);
+  return lines;
 }
 
 /** One line per PR, for an operator reading the terminal. */
 export function renderInventory(envelope) {
-  const lines = [
-    `base ${envelope.base.branch}@${envelope.base.sha ?? '?'}${envelope.base.red.length ? ` red: ${envelope.base.red.join('; ')}` : ''}`,
-  ];
+  const lines = [baseLine(envelope.base)];
   for (const pr of envelope.prs) {
     const owner = pr.storyId ? `Story #${pr.storyId}` : `@${pr.author ?? '?'}`;
     lines.push(
@@ -401,6 +537,7 @@ export function renderInventory(envelope) {
     lines.push(
       `changed #${c.number}: ${c.from ?? '(new)'} -> ${c.to ?? '(gone)'}`,
     );
+  lines.push(...eventLines(envelope.coordination));
   if (envelope.degraded.length)
     lines.push(`degraded: ${envelope.degraded.join(', ')}`);
   return `${lines.join('\n')}\n`;

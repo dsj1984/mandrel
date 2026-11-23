@@ -20,12 +20,13 @@ const passed = (c) => c.phase === 'done' && !c.red && !c.halted;
 /**
  * Rollup over the required checks (every check when the required set is
  * unknown). Green needs every required name present, done, not red and not
- * halted (cancelled, stale or awaiting action).
+ * halted (cancelled, stale or awaiting action). `passed` needs only that at
+ * least one of them reported and every one that did has passed.
  *
  * @param {Array<{ name: string, phase: string, red: boolean, halted?: boolean }>} checks
  * @param {string[]|null} required
  */
-function rollup(checks, required) {
+export function rollup(checks, required) {
   const want = required ? new Set(required) : null;
   const relevant = want ? checks.filter((c) => want.has(c.name)) : checks;
   const red = relevant.some((c) => c.red);
@@ -36,12 +37,14 @@ function rollup(checks, required) {
   const complete = want
     ? [...want].every((n) => present.has(n))
     : relevant.length > 0;
+  const allPassed = relevant.every(passed);
   return {
     red,
     halted,
     running,
     queued,
-    green: complete && relevant.every(passed),
+    green: complete && allPassed,
+    passed: relevant.length > 0 && allPassed,
   };
 }
 
@@ -193,8 +196,15 @@ function prEntry(pr, verdict, opts) {
   return entry;
 }
 
+/** What the sweep fills, empty until it does (with `base.transition`). */
+const sweepFields = () => ({
+  sweep: null,
+  changes: [],
+  coordination: { events: [], omitted: 0 },
+});
+
 /**
- * The inventory envelope, `changes[]` left empty for the ledger to fill.
+ * The inventory envelope, `sweepFields` and `base.transition` left empty.
  *
  * @param {object} snapshot normalised reads (see `inventory.js`)
  * @param {{ now: number, vetoLabel?: string|null, vetoHeld?: boolean,
@@ -215,13 +225,14 @@ export function buildEnvelope(snapshot, opts) {
       branch: snapshot.base.branch,
       sha: snapshot.base.sha?.slice(0, 7) ?? null,
       red: baseSigs,
+      transition: null,
     },
     runners: snapshot.runners,
     prs: prs.map((pr) => prEntry(pr, classifyPr(pr, ctx), opts)),
     overlaps: findOverlaps(prs),
     inherited,
     landed: snapshot.merged.filter((m) => m.storyId !== null),
-    changes: [],
+    ...sweepFields(),
     degraded: snapshot.degraded,
   });
 }
