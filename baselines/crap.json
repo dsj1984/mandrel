@@ -4744,7 +4744,6 @@
       "<anon readSnapshot/settle()#0>": 1,
       "<anon readSnapshot/settle()#1>": 1,
       "<anon readSnapshot/settle()#2>": 1,
-      "<anon renderInventory/e.pertinentStories.map(id)#0>": 1,
       "<anon restCheck(run)#0>": 1,
       "<anon restGet(gh,endpoint)#0>": 1,
       "<anon runInventory/settle()#0>": 2,
