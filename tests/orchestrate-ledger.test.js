@@ -213,7 +213,7 @@ describe('record (AC-7)', () => {
         recordAction({
           file,
           action: 'publish-event',
-          event: 'base-red@abc1234',
+          event: 'base-red@3',
           text: 'base-red: lint',
         });
       assert.equal(publish().reason, 'not-granted: publish-event');

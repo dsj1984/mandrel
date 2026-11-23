@@ -104,7 +104,7 @@ describe('mandrel-orchestrate workflow contract (AC-11)', () => {
       );
       assertDocMentions(
         source,
-        /On `base\.transition: "red"`, record\s+`--action publish-event --event base-red@<base\.sha>`/,
+        /On `base\.transition: "red"`, record\s+`--action publish-event --event base-red@<sweep>` \(the envelope's sweep\s+number\)/,
         'the publish is recorded with an event key first',
       );
       assertDocMentions(

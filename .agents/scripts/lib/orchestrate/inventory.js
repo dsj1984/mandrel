@@ -412,9 +412,13 @@ async function readCoordination({
   };
 }
 
-/** Fill `changes[]` and `base.transition` from the last sweep, then append this one. */
+/**
+ * Number this sweep within the run, fill `changes[]` and `base.transition`
+ * from the last one, then append it.
+ */
 function ledgerSweep({ envelope, snapshot, records, file, now }) {
   const previous = lastSweep(records);
+  envelope.sweep = records.filter((r) => r.kind === 'sweep').length + 1;
   const states = Object.fromEntries(
     envelope.prs.map((pr) => [pr.number, pr.state]),
   );
@@ -429,7 +433,7 @@ function ledgerSweep({ envelope, snapshot, records, file, now }) {
 
 /**
  * One sweep: read, resolve conflicts and the veto, classify, read the
- * coordination channel, and with a run id append the sweep and fill
+ * coordination channel, and with a run id append the sweep and fill `sweep`,
  * `changes[]` and `base.transition`.
  */
 export async function runInventory({

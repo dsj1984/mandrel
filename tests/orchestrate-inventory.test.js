@@ -826,6 +826,23 @@ describe('base transition (Story #6159 AC-2)', () => {
     };
   };
 
+  it('numbers each sweep of a run, so every transition has its own key', async () => {
+    const ledgerFile = path.join(makeTempDir('orchestrate-'), 'ledger.ndjson');
+    const sweep = (over) =>
+      runInventory({
+        config: {},
+        cwd: REPO_ROOT,
+        gh: fakeGh().gh,
+        now: NOW,
+        ...over,
+      });
+    const numbers = [];
+    for (let i = 0; i < 3; i += 1)
+      numbers.push((await sweep({ runId: 'r1', ledgerFile })).sweep);
+    assert.deepEqual(numbers, [1, 2, 3]);
+    assert.equal((await sweep()).sweep, null);
+  });
+
   it('is red when the base turned red, green when it cleared, and null otherwise', async () => {
     const sweep = sweeper();
     assert.equal(await sweep(check('lint', 'SUCCESS')), null);

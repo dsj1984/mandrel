@@ -120,7 +120,8 @@ the operators and sessions this host cannot message.
 
 - **Publish `base-red` and `base-green` once per base transition**
   (`publish-event`). On `base.transition: "red"`, record
-  `--action publish-event --event base-red@<base.sha>`, then run
+  `--action publish-event --event base-red@<sweep>` (the envelope's sweep
+  number), then run
   `node .agents/scripts/coordination.js publish --kind base-red --summary "<the failing check>" --link <fix PR URL>`
   (no `--link` while there is no fix PR). On `"green"`, do the same with
   `base-green` and a summary saying the base passes again. Both are

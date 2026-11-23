@@ -196,9 +196,15 @@ function prEntry(pr, verdict, opts) {
   return entry;
 }
 
+/** What the sweep fills, empty until it does (with `base.transition`). */
+const sweepFields = () => ({
+  sweep: null,
+  changes: [],
+  coordination: { events: [], omitted: 0 },
+});
+
 /**
- * The inventory envelope; `changes[]`, `base.transition` and `coordination`
- * are left empty for the sweep to fill.
+ * The inventory envelope, `sweepFields` and `base.transition` left empty.
  *
  * @param {object} snapshot normalised reads (see `inventory.js`)
  * @param {{ now: number, vetoLabel?: string|null, vetoHeld?: boolean,
@@ -226,8 +232,7 @@ export function buildEnvelope(snapshot, opts) {
     overlaps: findOverlaps(prs),
     inherited,
     landed: snapshot.merged.filter((m) => m.storyId !== null),
-    changes: [],
-    coordination: { events: [], omitted: 0 },
+    ...sweepFields(),
     degraded: snapshot.degraded,
   });
 }
