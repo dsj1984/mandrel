@@ -1376,7 +1376,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestrate/inventory.js",
-      "mi": 99.662
+      "mi": 100.414
     },
     {
       "path": ".agents/scripts/lib/orchestrate/ledger.js",
@@ -2620,7 +2620,7 @@
     },
     {
       "path": ".agents/scripts/orchestrate-ledger.js",
-      "mi": 89.819
+      "mi": 90.428
     },
     {
       "path": ".agents/scripts/plan-context.js",
