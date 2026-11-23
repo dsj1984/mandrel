@@ -1736,7 +1736,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "mi": 96.505
+      "mi": 97.064
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/soft-findings.js",
@@ -2000,7 +2000,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
-      "mi": 110.238
+      "mi": 112.209
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
