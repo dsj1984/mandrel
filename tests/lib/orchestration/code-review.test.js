@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-
+import { getAgentrcValidator } from '../../../.agents/scripts/lib/config-settings-schema.js';
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
 import {
   appendReviewRun,
@@ -133,6 +133,8 @@ test('runCodeReview: passes scope/ticketId/baseRef/headRef to the adapter', asyn
     depth: 'standard',
     effort: 'low',
     guidance: null,
+    invokeTimeoutMs: undefined,
+    maxChunkChars: undefined,
   });
 });
 
@@ -760,6 +762,43 @@ test('#5976: the effort resolves from depth once; effortByDepth overrides only i
   assert.deepEqual(await efforts(config, 31), ['deep', 'high']);
   const deepMax = { effortByDepth: { deep: 'max' } };
   assert.deepEqual(await efforts(deepMax, 31), ['deep', 'max']);
+});
+
+test('#6156: invokeTimeoutMs and maxChunkChars ride the review input from config', async () => {
+  const inputOf = async (codeReview) => {
+    const adapter = fakeAdapter([]);
+    await review(adapter, { resolveConfigFn: configWith(codeReview) });
+    return adapter.calls[0];
+  };
+  const set = await inputOf({
+    invokeTimeoutMs: 900_000,
+    maxChunkChars: 50_000,
+  });
+  assert.equal(set.invokeTimeoutMs, 900_000);
+  assert.equal(set.maxChunkChars, 50_000);
+  const unset = await inputOf({});
+  assert.equal(unset.invokeTimeoutMs, undefined);
+  assert.equal(unset.maxChunkChars, undefined);
+});
+
+test('#6156: the config validator accepts both review limits and rejects a bad value', () => {
+  const validate = getAgentrcValidator();
+  const accepts = (codeReview) =>
+    validate({
+      project: {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+      },
+      delivery: { codeReview },
+    });
+  assert.ok(accepts({ invokeTimeoutMs: 900_000, maxChunkChars: 60_000 }));
+  for (const bad of [
+    { invokeTimeoutMs: 59_999 },
+    { invokeTimeoutMs: 600_000.5 },
+    { maxChunkChars: 19_999 },
+    { maxChunkChars: '80000' },
+  ]) {
+    assert.equal(accepts(bad), false, JSON.stringify(bad));
+  }
 });
 
 // Story #5982 — `delivery.codeReview.onNoVerdict` and `haltCause`.

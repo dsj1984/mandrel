@@ -13,7 +13,9 @@
  * transient failure is retried once; a review still with no verdict records
  * one degraded gate via `getDegradations()` and returns no findings.
  * A diff over the cap is reviewed chunk by chunk (file-aligned, sequential,
- * findings merged). Source sections pack before tests and docs, and every
+ * findings merged). A call that times out is never re-sent as is: a slice of
+ * two or more files is re-reviewed once as two file-aligned halves. The
+ * timeout and the cap come from `input.invokeTimeoutMs` / `maxChunkChars`. Source sections pack before tests and docs, and every
  * chunk is told it is a slice and handed the whole changed-file manifest so
  * a file changed in another chunk never reads as unchanged. What went
  * unchecked — a truncated file, files past the chunk bound, a chunk with no
@@ -67,10 +69,10 @@ const claudeArgs = (effort) => [
   '',
 ];
 const AUTH_ARGS = Object.freeze(['auth', 'status', '--json']);
-const INVOKE_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_INVOKE_TIMEOUT_MS = 10 * 60 * 1000;
 const AUTH_TIMEOUT_MS = 15 * 1000;
 /** Larger diffs are reviewed in file-aligned chunks of at most this size. */
-const MAX_DIFF_CHARS = 200_000;
+const DEFAULT_MAX_CHUNK_CHARS = 80_000;
 /** Files packed past this many chunks are not reviewed; each is degraded by name. */
 const MAX_REVIEW_CHUNKS = 6;
 const DEGRADATION_BASE = Object.freeze({
@@ -192,6 +194,42 @@ function packChunks(sections, budget) {
   return chunks;
 }
 
+/**
+ * Two file-aligned halves of roughly equal size, pack order kept.
+ *
+ * @template {{ text: string }} T
+ * @param {T[]} sections - two or more.
+ * @returns {[T[], T[]]}
+ */
+function halve(sections) {
+  const total = sections.reduce((n, s) => n + s.text.length, 0);
+  let size = 0;
+  const reached = sections.findIndex((s) => {
+    size += s.text.length;
+    return size >= total / 2;
+  });
+  const at = Math.min(Math.max(reached + 1, 1), sections.length - 1);
+  return [sections.slice(0, at), sections.slice(at)];
+}
+
+/** @param {string} text */
+const sectionsOf = (text) =>
+  splitSections(text).filter((s) => s.text.length > 0);
+
+/** @param {{ text: string }[]} sections */
+const joinText = (sections) => sections.map((s) => s.text).join('');
+
+/** @param {{ file: string }[]} sections */
+const filesOf = (sections) => sections.map((s) => s.file).join(', ');
+
+/** Every changed file, so a slice never reads another slice's file as unchanged. */
+function manifestOf(sections) {
+  const files = sections
+    .map((s) => s.file)
+    .filter((file) => file !== '(unnamed)');
+  return `<manifest>\n${files.join('\n')}\n</manifest>\n`;
+}
+
 /** @param {Finding[]} findings */
 function dedupeFindings(findings) {
   const seen = new Set();
@@ -211,13 +249,7 @@ function dedupeFindings(findings) {
  * @param {string} [scope] - the slice note and `<manifest>` of a chunk.
  * @returns {string}
  */
-function buildPrompt(
-  input,
-  diff,
-  callers,
-  cap = MAX_DIFF_CHARS,
-  scope = WHOLE_DIFF_NOTE,
-) {
+function buildPrompt(input, diff, callers, cap, scope = WHOLE_DIFF_NOTE) {
   const truncated = diff.length > cap;
   const body = truncated ? diff.slice(0, cap) : diff;
   const note = truncated ? `\n[diff truncated at ${cap} characters]\n` : '';
@@ -302,10 +334,20 @@ function runReviewer(runDir, prompt, effort, deps) {
   return runClaudeNullable(claudeArgs(effort), {
     cwd: runDir,
     input: prompt,
-    timeout: INVOKE_TIMEOUT_MS,
+    timeout: deps.timeoutMs,
     run: deps.spawnFn,
     platform: deps.platform,
   });
+}
+
+/** The runner's SIGTERM reads as `claude`'s own exit 143, so time the call. */
+async function timedReview(runDir, prompt, effort, deps) {
+  const startedAt = deps.nowFn();
+  const result = await runReviewer(runDir, prompt, effort, deps);
+  const elapsed = deps.nowFn() - startedAt;
+  return result.status !== 0 && elapsed >= deps.timeoutMs
+    ? timeoutVerdict(result, deps.timeoutMs)
+    : resolveVerdict(result);
 }
 
 /**
@@ -321,10 +363,23 @@ async function reviewInTempDir(prompt, effort, deps) {
     deps.logger?.info?.(
       `[code-review] Invoking claude --print --effort ${effort} (${auth.detail})...`,
     );
-    return resolveVerdict(await runReviewer(runDir, prompt, effort, deps));
+    return await timedReview(runDir, prompt, effort, deps);
   } finally {
     fs.rmSync(runDir, { recursive: true, force: true });
   }
+}
+
+/** Not retryable: the same prompt would only time out again. */
+function timeoutVerdict({ status }, timeoutMs) {
+  return {
+    reason:
+      `claude --print timed out after ${Math.round(timeoutMs / 1000)}s ` +
+      `(status ${status ?? 'killed'}); raise ` +
+      'delivery.codeReview.invokeTimeoutMs or lower ' +
+      'delivery.codeReview.maxChunkChars',
+    retryable: false,
+    timedOut: true,
+  };
 }
 
 /** Waits out the failure's `delayMs`, when it names one. */
@@ -346,6 +401,9 @@ async function reviewWithRetry(prompt, effort, deps) {
 /** @param {ReviewInput} input */
 const effortOf = (input) => input.effort ?? 'low';
 
+/** @param {ReviewInput} input */
+const maxCharsOf = (input) => input.maxChunkChars ?? DEFAULT_MAX_CHUNK_CHARS;
+
 function assertCliPresent(probeFn) {
   if (probeFn()) return;
   throw new Error(
@@ -363,6 +421,7 @@ function assertCliPresent(probeFn) {
  *   spawnFn?: Function,
  *   authSpawnFn?: Function,
  *   sleepFn?: (ms: number) => Promise<void>,
+ *   nowFn?: () => number,
  *   platform?: string,
  *   logger?: { info?: Function, warn?: Function },
  * }} [deps] - `spawnFn` / `authSpawnFn` replace the async runner for the
@@ -372,7 +431,11 @@ function assertCliPresent(probeFn) {
 export function createCodeReviewProviderForRegistry(deps = {}) {
   assertCliPresent(deps.probeFn ?? probeClaudeCli);
   const gitSpawnFn = deps.gitSpawnFn ?? gitSpawn;
-  const runDeps = { ...deps, platform: deps.platform ?? process.platform };
+  const runDeps = {
+    ...deps,
+    platform: deps.platform ?? process.platform,
+    nowFn: deps.nowFn ?? Date.now,
+  };
   /** @type {GateDegradation[]} */
   let degradations = [];
 
@@ -409,19 +472,69 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
     }
   }
 
+  /** Each slice with its verdict; a timed-out multi-file slice is halved once. */
+  async function reviewSlice(run, sections, promptFor) {
+    const call = (part, half) =>
+      reviewWithRetry(promptFor(part, half), effortOf(run.input), run.deps);
+    const verdict = await call(sections, null);
+    if (!verdict.timedOut || sections.length < 2) {
+      return [{ sections, verdict }];
+    }
+    deps.logger?.warn?.(
+      `[code-review] ${verdict.reason}; re-reviewing as two halves.`,
+    );
+    const results = [];
+    for (const [half, part] of halve(sections).entries()) {
+      results.push({ sections: part, verdict: await call(part, half) });
+    }
+    return results;
+  }
+
+  /** Merged, de-duplicated findings; each slice with no verdict is a gap. */
+  function collect(results) {
+    const findings = [];
+    const failed = [];
+    for (const { sections, verdict } of results) {
+      if ('reason' in verdict) {
+        failed.push({ files: filesOf(sections), reason: verdict.reason });
+      } else findings.push(...verdict.findings);
+    }
+    noteChunkGaps(failed, results.length);
+    return dedupeFindings(findings);
+  }
+
+  /** A diff within the cap: one call, its halves told they are slices. */
+  async function reviewWhole(run, text) {
+    const sections = sectionsOf(text);
+    const cap = maxCharsOf(run.input);
+    const results = await reviewSlice(run, sections, (part, half) =>
+      half === null
+        ? buildPrompt(run.input, text, run.callers, cap)
+        : buildPrompt(
+            run.input,
+            joinText(part),
+            run.callers,
+            cap,
+            sliceNote(half + 1, 2) + manifestOf(sections),
+          ),
+    );
+    const [only] = results;
+    return results.length === 1 && !only.verdict.timedOut
+      ? settle(only.verdict)
+      : collect(results);
+  }
+
   /**
    * The `<callers>` block, guidance, the slice note and the manifest ride every chunk,
    * so they come out of the budget; chunk numbers are one digit, so the
    * note's length is fixed before packing.
    */
-  async function reviewInChunks(input, text, callers) {
-    const sections = splitSections(text).filter((s) => s.text.length > 0);
-    const files = sections
-      .map((s) => s.file)
-      .filter((file) => file !== '(unnamed)');
-    const manifest = `<manifest>\n${files.join('\n')}\n</manifest>\n`;
+  async function reviewInChunks(run, text) {
+    const { input, callers } = run;
+    const sections = sectionsOf(text);
+    const manifest = manifestOf(sections);
     const budget =
-      MAX_DIFF_CHARS -
+      maxCharsOf(input) -
       callers.length -
       renderGuidanceBlock(input.guidance).length -
       manifest.length -
@@ -437,30 +550,23 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
         'coverage-partial',
       );
     }
-    const findings = [];
-    const failed = [];
+    const results = [];
     for (const [index, chunk] of chunks.entries()) {
-      const files = chunk.sections.map((s) => s.file).join(', ');
       if (chunk.size > budget) {
         noteDegradation(
-          `${files} truncated at ${budget} characters: ` +
+          `${filesOf(chunk.sections)} truncated at ${budget} characters: ` +
             `${chunk.size - budget} characters not reviewed`,
           'coverage-partial',
         );
       }
-      const prompt = buildPrompt(
-        input,
-        chunk.sections.map((s) => s.text).join(''),
-        callers,
-        budget,
-        sliceNote(index + 1, chunks.length) + manifest,
+      const scope = sliceNote(index + 1, chunks.length) + manifest;
+      results.push(
+        ...(await reviewSlice(run, chunk.sections, (part) =>
+          buildPrompt(input, joinText(part), callers, budget, scope),
+        )),
       );
-      const verdict = await reviewWithRetry(prompt, effortOf(input), runDeps);
-      if ('reason' in verdict) failed.push({ files, reason: verdict.reason });
-      else findings.push(...verdict.findings);
     }
-    noteChunkGaps(failed, chunks.length);
-    return dedupeFindings(findings);
+    return collect(results);
   }
 
   return {
@@ -477,16 +583,17 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
         gitSpawnFn,
       });
       if (callers.reason) noteDegradation(callers.reason, 'context-reduced');
-      if (diff.text.length > MAX_DIFF_CHARS) {
-        return reviewInChunks(input, diff.text, callers.text);
-      }
-      return settle(
-        await reviewWithRetry(
-          buildPrompt(input, diff.text, callers.text),
-          effortOf(input),
-          runDeps,
-        ),
-      );
+      const run = {
+        input,
+        callers: callers.text,
+        deps: {
+          ...runDeps,
+          timeoutMs: input.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS,
+        },
+      };
+      return diff.text.length > maxCharsOf(input)
+        ? reviewInChunks(run, diff.text)
+        : reviewWhole(run, diff.text);
     },
     getDegradations() {
       return degradations.map((d) => ({ ...d }));

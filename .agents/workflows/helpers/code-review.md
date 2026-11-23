@@ -222,16 +222,21 @@ comment with one of three kinds:
   unresolvable. Close reports `gates.codeReview: "unreviewed"`.
 - `coverage-partial` — part of the diff went unreviewed: one chunk failed
   beside chunks that returned a verdict, files fell past the chunk bound, or a
-  chunk was truncated at the 200,000-character budget. Close reports
-  `"partial"`.
+  chunk was truncated at the chunk budget
+  (`delivery.codeReview.maxChunkChars`, default 80,000 characters). Close
+  reports `"partial"`.
 - `context-reduced` — reviewed with less context: a capped `<callers>`
   block or truncated guidance. Close reports `"degraded"`.
 
 Before recording a no-verdict, the `code-review` provider re-invokes the
 reviewer **once** when the failure is transient-shaped (a non-zero exit that
 is not a usage limit, an `is_error` result, a non-success subtype,
-unparseable output). It never retries a failed auth preflight, a usage limit
-or a timeout.
+unparseable output). It never retries a failed auth preflight or a usage
+limit, and never re-sends a call that ran out its timeout
+(`delivery.codeReview.invokeTimeoutMs`, default 10 minutes): a timed-out
+slice of two or more files is reviewed once more as two file-aligned halves,
+and a slice still without a verdict is recorded with a reason naming both
+keys.
 
 `delivery.codeReview.onNoVerdict` decides what a gap does. `report` (the
 default) never halts. `block` halts handoff and close on any
