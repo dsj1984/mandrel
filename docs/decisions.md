@@ -5473,4 +5473,3 @@ keys.
 The default review of a mid-sized diff costs two or three smaller calls
 instead of one that may not finish. A consumer whose calls still time out
 changes a key instead of using `--override-review-block`.
-
