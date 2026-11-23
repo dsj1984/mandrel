@@ -19,6 +19,7 @@ export const ACTION_DEFAULTS = Object.freeze({
   'spawn-session': 'ask',
   'release-dispatch': 'no',
   'archive-and-reap': 'ask',
+  'publish-event': 'yes',
 });
 
 /** Recorded without a grant: putting an item to the operator, filing a follow-up. */
@@ -84,10 +85,26 @@ function refusal(records, { action, text }) {
   return null;
 }
 
+/** Why this action repeats an earlier record, or null. */
+function repeatOf(records, { action, pr, story, state, event }) {
+  const earlier = records.filter(
+    (r) => r.kind === 'action' && r.action === action && r.story === story,
+  );
+  if (event !== null && earlier.some((r) => r.event === event))
+    return 'already-recorded';
+  if (
+    action === 'raise' &&
+    earlier.some((r) => r.pr === pr && r.state === state)
+  )
+    return 'already-raised';
+  return null;
+}
+
 /**
  * Record an action before it is taken. A refused action writes nothing.
- * A second `raise` for the same PR and state is refused: each case reaches
- * the operator once.
+ * A second `raise` for the same PR and state is refused, and so is a second
+ * record of the same action, Story and `event`: each case reaches the
+ * operator once, and a relay or a publish is never repeated.
  *
  * @returns {{ ok: boolean, reason?: string, record?: object }}
  */
@@ -96,24 +113,17 @@ export function recordAction({
   action,
   pr = null,
   story = null,
+  event = null,
   text,
   now = Date.now(),
 }) {
   const records = readLedger(file);
-  const reason = refusal(records, { action, text });
-  if (reason) return { ok: false, reason };
   const state = pr == null ? null : (lastSweep(records)?.states?.[pr] ?? null);
-  if (action === 'raise') {
-    const twice = records.some(
-      (r) =>
-        r.kind === 'action' &&
-        r.action === 'raise' &&
-        r.pr === pr &&
-        r.story === story &&
-        r.state === state,
-    );
-    if (twice) return { ok: false, reason: 'already-raised' };
-  }
+  const eventId = event === null ? null : String(event);
+  const reason =
+    refusal(records, { action, text }) ??
+    repeatOf(records, { action, pr, story, state, event: eventId });
+  if (reason) return { ok: false, reason };
   const record = {
     kind: 'action',
     at: new Date(now).toISOString(),
@@ -121,6 +131,7 @@ export function recordAction({
     pr,
     story,
     state,
+    ...(eventId === null ? {} : { event: eventId }),
     text: text.trim(),
   };
   append(file, record);
@@ -152,12 +163,35 @@ export function landedSince(records) {
   return lastSweep(records)?.at ?? authorityOf(records)?.at ?? null;
 }
 
-export function recordSweep({ file, states, merged, now = Date.now() }) {
+/**
+ * The base state to record, and `red` or `green` when it just changed. A red
+ * base clears only once its checks have passed, so a new commit whose checks
+ * are unreported, running or cancelled never reads as cleared.
+ *
+ * @param {object|null} previous the last sweep record
+ * @param {{ red: boolean, passed: boolean }} base
+ * @returns {{ baseRed: boolean, transition: 'red'|'green'|null }}
+ */
+export function baseTransition(previous, { red, passed }) {
+  const was = previous?.baseRed === true;
+  const baseRed = red || (was && !passed);
+  if (baseRed === was) return { baseRed, transition: null };
+  return { baseRed, transition: baseRed ? 'red' : 'green' };
+}
+
+export function recordSweep({
+  file,
+  states,
+  merged,
+  baseRed = false,
+  now = Date.now(),
+}) {
   append(file, {
     kind: 'sweep',
     at: new Date(now).toISOString(),
     states,
     merged,
+    baseRed,
   });
 }
 

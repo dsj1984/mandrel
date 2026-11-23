@@ -2,8 +2,9 @@
 
 /**
  * orchestrate-inventory.js — read-only: every open PR in exactly one state,
- * plus overlaps, inherited failures, landed Stories and runner backlog.
- * With `--run-id` it appends the sweep to the run ledger and fills `changes[]`.
+ * plus overlaps, inherited failures, landed Stories, runner backlog and the
+ * new coordination-channel events. With `--run-id` it appends the sweep to
+ * the run ledger and fills `changes[]` and `base.transition`.
  */
 
 import path from 'node:path';
@@ -22,13 +23,14 @@ const USAGE = {
   flags: [
     [
       '--run-id <id>',
-      'Append this sweep to the run ledger and report the PRs whose state changed.',
+      'Append this sweep to the run ledger; report the PRs whose state changed, the base transition, and each channel event once.',
     ],
     ['--json', 'Print the orchestrate-inventory envelope as JSON.'],
     ['--cwd <path>', 'Main-repo checkout (default: project root).'],
   ],
   notes: [
     'Over repo-scoped REST the merge queue is unreadable: `merge-queue` is listed in degraded[].',
+    'With the coordination channel disabled or unreadable, `coordination` is listed in degraded[] and no event is reported.',
   ],
 };
 

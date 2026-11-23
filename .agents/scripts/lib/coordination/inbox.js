@@ -76,7 +76,8 @@ function withTimeout(work, ms) {
  * @param {{ config: object, storyId?: number|null, provider?: object,
  *   env?: NodeJS.ProcessEnv, peek?: boolean, sinceStart?: boolean,
  *   throttle?: boolean, now?: () => Date, cwd?: string, git?: object,
- *   timeoutMs?: number }} opts `storyId: null` is the `--all` reader.
+ *   timeoutMs?: number, cursorFile?: string }} opts `storyId: null` is the
+ *   `--all` reader; `cursorFile` replaces the reader's shared cursor.
  * @returns {Promise<object>} `{ reader, since, events, dropped }`, or
  *   `disabled`, `skipped: 'throttled'` or `degraded` in place of the events.
  */
@@ -92,11 +93,12 @@ export async function readInbox({
   cwd,
   git,
   timeoutMs = POLL_TIMEOUT_MS,
+  cursorFile,
 } = {}) {
   const reader = storyId === null ? 'all' : `story-${storyId}`;
   if (!getCoordination(config, env).enabled) return { reader, disabled: true };
   try {
-    const file = coordinationCursorPath(reader, config);
+    const file = cursorFile ?? coordinationCursorPath(reader, config);
     const nowMs = now().getTime();
     const cursor = loadCursor(file, nowMs);
     if (throttle && nowMs - Date.parse(cursor.polledAt) < THROTTLE_MS) {
