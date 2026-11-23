@@ -93,6 +93,18 @@ describe('surfaceInbox', () => {
     assert.match(w.lines[0], /landed \(conflict\) by @alice on #8/);
   });
 
+  it('prints to stderr when the surface names no writer', async (t) => {
+    const w = world();
+    await w.publish(landedOnA());
+    const written = [];
+    t.mock.method(process.stderr, 'write', (chunk) => written.push(chunk));
+    const { write: _write, ...reader } = w.reader;
+    await surfaceInbox(reader);
+    t.mock.restoreAll();
+    assert.equal(written.length, 1);
+    assert.match(written[0], /^\[Coordination\] 1 pertinent event\(s\).*\n$/s);
+  });
+
   it('a default read returns each event once and prints nothing when none is new', async () => {
     const w = world();
     await w.publish(landedOnA());

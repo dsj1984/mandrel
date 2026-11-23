@@ -3873,6 +3873,7 @@ describe('runSingleStoryClose — coordination events in the terminal envelope',
   /** A no-wait close over a provider that carries a live channel. */
   async function closeWith(tag, { prepare = () => {}, env = {} } = {}) {
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=${tag}`);
+    const config = fakeConfig();
 
     const provider = Object.assign(
       makeChannelProvider(),
@@ -3901,7 +3902,7 @@ describe('runSingleStoryClose — coordination events in the terminal envelope',
         ),
       ),
     );
-    prepare(provider);
+    await prepare(provider, config);
     const lines = [];
     const outcome = await runSingleStoryClose({
       storyId: 1234,
@@ -3910,7 +3911,7 @@ describe('runSingleStoryClose — coordination events in the terminal envelope',
       skipSync: true,
       noWaitForMerge: true,
       injectedProvider: provider,
-      injectedConfig: fakeConfig(),
+      injectedConfig: config,
       injectedRunCodeReview: noopReview(),
       injectedGh: makeFakeGh((args) => {
         if (args[1] === 'list') return [];
@@ -3937,9 +3938,30 @@ describe('runSingleStoryClose — coordination events in the terminal envelope',
     nextCommand: terminal.nextCommand,
   });
 
-  it('lists the pertinent events since the Story started and prints the block', async (t) => {
+  it('lists the pertinent events since the Story started, seen or not, and prints the block', async (t) => {
     mockCloseModules(t);
-    const { terminal, lines } = await closeWith('coordination-events');
+    // Loaded after the mocks, like the runner's own copy.
+    const { surfaceInbox } = await import(
+      pathToFileURL(
+        path.resolve(
+          REPO_ROOT,
+          '.agents/scripts/lib/coordination/lifecycle.js',
+        ),
+      ).href
+    );
+    const { terminal, lines } = await closeWith('coordination-events', {
+      prepare: async (provider, config) => {
+        const earlier = await surfaceInbox({
+          storyId: 1234,
+          config,
+          provider,
+          env: {},
+          now: () => NOW,
+          write: () => {},
+        });
+        assert.equal(earlier.events.length, 1, 'an earlier read returned it');
+      },
+    });
     assert.equal(terminal.status, 'pending');
     assert.deepEqual(
       terminal.coordination.events.map((event) => event.summary),
