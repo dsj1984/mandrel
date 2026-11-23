@@ -1332,7 +1332,7 @@ test('#5982 AC-10: no retry log line or reason carries account identity', async 
   assert.doesNotMatch(text, /operator@example\.com|Example Org|org-123/);
 });
 
-// Story #6156 — a timeout is split, never re-sent; timeout and cap configurable.
+// A timeout is split, never re-sent; the timeout and the cap are configurable.
 
 /** A `verdictFor` answer: the call runs out the clock, then exits 143. */
 const TIMED_OUT = Symbol('timed-out');
