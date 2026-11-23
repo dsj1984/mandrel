@@ -876,7 +876,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/github.js",
-      "mi": 83.672
+      "mi": 85.835
     },
     {
       "path": ".agents/scripts/lib/config/handoff.js",
@@ -2412,7 +2412,7 @@
     },
     {
       "path": ".agents/scripts/lib/test-env.js",
-      "mi": 113.742
+      "mi": 114.922
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
