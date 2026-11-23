@@ -6562,6 +6562,7 @@
       "runReviewer": 1,
       "splitSections": 2,
       "tierOf": 3,
+      "timedReview": 3,
       "timeoutVerdict": 1
     },
     ".agents/scripts/lib/orchestration/review-providers/codex-cli.js": {
