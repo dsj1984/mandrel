@@ -1,7 +1,8 @@
 /**
  * orchestrate-ledger — authority recorded once, actions refused unless
- * granted, a raise reaching the operator once per PR and state, and the
- * hand-back summary rendered from the ledger alone.
+ * granted, a raise reaching the operator once per PR and state, a relay or
+ * publish recorded once per event, and the hand-back summary rendered from
+ * the ledger alone.
  */
 
 import assert from 'node:assert/strict';
@@ -11,6 +12,7 @@ import { beforeEach, describe, it } from 'node:test';
 import { orchestrateRunDir } from '../.agents/scripts/lib/config/temp-paths.js';
 import {
   ACTION_DEFAULTS,
+  baseTransition,
   ledgerPath,
   readLedger,
   recordAction,
@@ -59,7 +61,20 @@ describe('authority', () => {
       'spawn-session': 'ask',
       'release-dispatch': 'no',
       'archive-and-reap': 'ask',
+      'publish-event': 'yes',
     });
+  });
+
+  it('accepts publish-event as a grant (Story #6159 AC-4)', () => {
+    const res = cli([
+      'authority',
+      '--run-id',
+      'r1',
+      '--grant',
+      'publish-event',
+    ]);
+    assert.equal(res.code, 0);
+    assert.deepEqual(JSON.parse(res.out).grants, ['publish-event']);
   });
 
   it('records the grants once and refuses a second record or an unknown action', () => {
@@ -137,6 +152,93 @@ describe('record (AC-7)', () => {
     assert.deepEqual(raise(), { ok: false, reason: 'already-raised' });
     recordSweep({ file, states: { 5: 'green-not-queued' }, merged: [] });
     assert.equal(raise().ok, true);
+  });
+
+  describe('--event (Story #6159 AC-4)', () => {
+    const relay = (story, event) =>
+      cli([
+        'record',
+        '--run-id',
+        'r1',
+        '--action',
+        'message-session',
+        '--story',
+        String(story),
+        '--event',
+        String(event),
+        '--text',
+        'relayed a channel event',
+      ]);
+
+    it('refuses a second record of the same action, Story and event with a non-zero exit', () => {
+      const first = relay(7, 4101);
+      assert.equal(first.code, 0);
+      assert.equal(JSON.parse(first.out).event, '4101');
+      const before = readFileSync(file, 'utf8');
+      const second = relay(7, 4101);
+      assert.equal(second.code, 2);
+      assert.match(second.err, /already-recorded/);
+      assert.equal(readFileSync(file, 'utf8'), before);
+    });
+
+    it('records the same event for another Story, another event, or another action', () => {
+      assert.equal(relay(7, 4101).code, 0);
+      assert.equal(relay(8, 4101).code, 0);
+      assert.equal(relay(7, 4102).code, 0);
+      const raised = recordAction({
+        file,
+        action: 'raise',
+        story: 7,
+        event: 4101,
+        text: 'needs a decision',
+      });
+      assert.equal(raised.ok, true);
+    });
+
+    it('a record without --event is never an event repeat and carries no event', () => {
+      const note = () =>
+        recordAction({
+          file,
+          action: 'message-session',
+          story: 7,
+          text: 'status?',
+        });
+      assert.equal(relay(7, 4101).code, 0);
+      assert.equal(note().ok, true);
+      assert.equal(Object.hasOwn(note().record, 'event'), false);
+    });
+
+    it('a publish is recorded once per event key, and only when granted', () => {
+      const publish = () =>
+        recordAction({
+          file,
+          action: 'publish-event',
+          event: 'base-red@abc1234',
+          text: 'base-red: lint',
+        });
+      assert.equal(publish().reason, 'not-granted: publish-event');
+      const granted = path.join(path.dirname(file), 'granted.ndjson');
+      recordAuthority({ file: granted, grants: ['publish-event'] });
+      file = granted;
+      assert.equal(publish().ok, true);
+      assert.deepEqual(publish(), { ok: false, reason: 'already-recorded' });
+    });
+
+    it('rejects an empty --event', () => {
+      assert.throws(
+        () =>
+          parseLedgerArgv([
+            'record',
+            '--run-id',
+            'r',
+            '--action',
+            'raise',
+            '--event',
+            ' ',
+          ]),
+        /--event/,
+      );
+    });
   });
 
   it('refuses anything before authority, an unknown action, and a multi-line text', () => {
@@ -237,6 +339,39 @@ describe('summary (AC-9)', () => {
 
   it('an empty ledger renders empty sections', () => {
     assert.match(renderSummary(summarize([])), /Merged \(0\)/);
+  });
+});
+
+describe('base transition', () => {
+  const settledGreen = { red: false, settled: true };
+  const red = { red: true, settled: true };
+  const running = { red: false, settled: false };
+
+  it('turns red from no sweep or a green one, and green only once settled', () => {
+    assert.deepEqual(baseTransition(null, red), {
+      baseRed: true,
+      transition: 'red',
+    });
+    assert.deepEqual(baseTransition({ baseRed: false }, red).transition, 'red');
+    assert.deepEqual(baseTransition({ baseRed: true }, running), {
+      baseRed: true,
+      transition: null,
+    });
+    assert.deepEqual(baseTransition({ baseRed: true }, settledGreen), {
+      baseRed: false,
+      transition: 'green',
+    });
+  });
+
+  it('is null while the state holds, and for a sweep recorded before baseRed existed', () => {
+    assert.equal(baseTransition({ baseRed: true }, red).transition, null);
+    assert.equal(baseTransition({}, settledGreen).transition, null);
+    assert.equal(baseTransition(null, running).transition, null);
+  });
+
+  it('recordSweep stores the base state the next sweep compares against', () => {
+    recordSweep({ file, states: {}, merged: [], baseRed: true });
+    assert.equal(readLedger(file).at(-1).baseRed, true);
   });
 });
 

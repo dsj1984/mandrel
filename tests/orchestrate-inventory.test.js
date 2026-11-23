@@ -1,7 +1,7 @@
 /**
  * orchestrate-inventory — the classifier over fixture snapshots, the bounded
- * reads over a fake `gh`, the sweep diff, and the `delivery.orchestrate`
- * config block.
+ * reads over a fake `gh`, the sweep diff, the base transition, the
+ * coordination-channel read, and the `delivery.orchestrate` config block.
  */
 
 import assert from 'node:assert/strict';
@@ -9,7 +9,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { COORDINATION_DISABLED_ENV } from '../.agents/scripts/lib/config/github.js';
 import { getAgentrcValidator } from '../.agents/scripts/lib/config-settings-schema.js';
+import { createChannel } from '../.agents/scripts/lib/coordination/channel.js';
 import { buildEnvelope } from '../.agents/scripts/lib/orchestrate/classify.js';
 import {
   conflictState,
@@ -18,16 +20,25 @@ import {
 import {
   releaseVetoHolds,
   renderInventory,
-  runInventory,
+  runInventory as runInventoryWithEnv,
 } from '../.agents/scripts/lib/orchestrate/inventory.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import { parseInventoryArgv } from '../.agents/scripts/orchestrate-inventory.js';
+import {
+  makeChannelConfig,
+  makeChannelProvider,
+  storyBody,
+} from './helpers/coordination-channel.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
 const NOW = Date.parse('2026-11-10T12:00:00Z');
+const CHANNEL_OFF = { [COORDINATION_DISABLED_ENV]: '1' };
+/** The channel is off unless a test passes its own `env`. */
+const runInventory = (opts) =>
+  runInventoryWithEnv({ env: CHANNEL_OFF, ...opts });
 const minutesAgo = (m) => new Date(NOW - m * 60_000).toISOString();
 const STATES = [
   'ejected',
@@ -493,7 +504,12 @@ function graphqlPr(number, over = {}) {
 }
 
 /** A `gh` facade that answers from fixtures and logs every request. */
-function fakeGh({ prs = [], transport = 'graphql', merged = [] } = {}) {
+function fakeGh({
+  prs = [],
+  transport = 'graphql',
+  merged = [],
+  baseChecks = [check('lint', 'SUCCESS')],
+} = {}) {
   const calls = [];
   const out = (value) => ({ stdout: JSON.stringify(value) });
   const restPulls = prs.map((p) => ({
@@ -522,9 +538,7 @@ function fakeGh({ prs = [], transport = 'graphql', merged = [] } = {}) {
               ref: {
                 target: {
                   oid: 'basesha',
-                  statusCheckRollup: {
-                    contexts: { nodes: [check('lint', 'SUCCESS')] },
-                  },
+                  statusCheckRollup: { contexts: { nodes: baseChecks } },
                 },
               },
               pullRequests: {
@@ -678,7 +692,7 @@ describe('degraded transport (AC-6)', () => {
       gh,
       now: NOW,
     });
-    assert.deepEqual(env.degraded, ['merge-queue']);
+    assert.deepEqual(env.degraded, ['merge-queue', 'coordination']);
     assert.equal(env.prs.length, 1);
     assert.equal(env.prs[0].state, 'moving');
     assert.deepEqual(env.prs[0].assignees, ['dev']);
@@ -711,7 +725,7 @@ describe('degraded transport (AC-6)', () => {
       gh,
       now: NOW,
     });
-    assert.deepEqual(env.degraded, ['runners']);
+    assert.deepEqual(env.degraded, ['runners', 'coordination']);
     assert.equal(env.runners, null);
   });
 });
@@ -784,6 +798,218 @@ describe('sweeps over a run ledger (AC-8)', () => {
     const text = renderInventory(env);
     assert.match(text, /#1 red-own-failure Story #1 — test/);
     assert.match(text, /changed #1: \(new\) -> red-own-failure/);
+  });
+});
+
+describe('base transition (Story #6159 AC-2)', () => {
+  const running = {
+    __typename: 'CheckRun',
+    name: 'lint',
+    status: 'IN_PROGRESS',
+    conclusion: null,
+    startedAt: minutesAgo(1),
+  };
+  const sweeper = () => {
+    const ledgerFile = path.join(makeTempDir('orchestrate-'), 'ledger.ndjson');
+    let at = NOW;
+    return async (...baseChecks) => {
+      at += 60_000;
+      const env = await runInventory({
+        config: {},
+        cwd: REPO_ROOT,
+        runId: 'r1',
+        ledgerFile,
+        gh: fakeGh({ baseChecks }).gh,
+        now: at,
+      });
+      return env.base.transition;
+    };
+  };
+
+  it('is red when the base turned red, green when it cleared, and null otherwise', async () => {
+    const sweep = sweeper();
+    assert.equal(await sweep(check('lint', 'SUCCESS')), null);
+    assert.equal(await sweep(check('lint', 'FAILURE')), 'red');
+    assert.equal(await sweep(check('lint', 'FAILURE')), null);
+    assert.equal(await sweep(check('lint', 'SUCCESS')), 'green');
+    assert.equal(await sweep(check('lint', 'SUCCESS')), null);
+  });
+
+  it('a base already red on the first sweep is a transition to red', async () => {
+    assert.equal(await sweeper()(check('lint', 'FAILURE')), 'red');
+  });
+
+  it('checks still running on a new base commit never read as cleared', async () => {
+    const sweep = sweeper();
+    assert.equal(await sweep(check('lint', 'FAILURE')), 'red');
+    assert.equal(await sweep(running), null);
+    assert.equal(await sweep(check('lint', 'FAILURE')), null);
+    assert.equal(await sweep(running), null);
+    assert.equal(await sweep(check('lint', 'SUCCESS')), 'green');
+  });
+
+  it('is null without a run id, and rendered when set', async () => {
+    const env = await runInventory({
+      config: {},
+      cwd: REPO_ROOT,
+      gh: fakeGh({ baseChecks: [check('lint', 'FAILURE')] }).gh,
+      now: NOW,
+    });
+    assert.equal(env.base.transition, null);
+    assert.doesNotMatch(renderInventory(env), /turned/);
+    env.base.transition = 'red';
+    assert.match(
+      renderInventory(env),
+      /^base main@basesha red: lint \(turned red\)$/m,
+    );
+  });
+});
+
+describe('coordination channel (Story #6159 AC-1, AC-3)', () => {
+  const noGit = () => ({ status: 0, stdout: '', stderr: '' });
+
+  /** Two open Story PRs (#1 changes src/1.js, #2 src/2.js) over a fake channel. */
+  function fleet() {
+    const provider = makeChannelProvider({
+      tickets: {
+        1: { body: storyBody({ paths: ['lib/declared/**'] }) },
+        2: { body: storyBody({ blockedBy: [50] }) },
+      },
+    });
+    const config = makeChannelConfig();
+    const channel = createChannel({ provider, config });
+    const sweep = (runDir, over = {}) =>
+      runInventoryWithEnv({
+        config,
+        cwd: REPO_ROOT,
+        runId: 'r1',
+        ledgerFile: path.join(runDir, 'ledger.ndjson'),
+        gh: fakeGh({ prs: [graphqlPr(1), graphqlPr(2)] }).gh,
+        now: NOW,
+        env: {},
+        provider,
+        spawn: noGit,
+        ...over,
+      });
+    return { provider, channel, sweep };
+  }
+  const pertinence = (env) =>
+    Object.fromEntries(
+      env.coordination.events.map((e) => [e.summary, e.pertinentStories]),
+    );
+
+  it('lists each trusted new event with the open Story PRs it is pertinent to', async () => {
+    const { provider, channel, sweep } = fleet();
+    const publish = (kind, summary, scope = {}) =>
+      channel.publish({ kind, summary, storyId: 77, ...scope });
+    await publish('base-red', 'broadcast');
+    await publish('landed', 'pr path', { paths: ['src/1.js'] });
+    await publish('landed', 'declared path', { paths: ['lib/declared/a.js'] });
+    await publish('decision', 'dependency', { stories: [50] });
+    await publish('landed', 'unrelated', { paths: ['docs/x.md'] });
+    await publish('plan-change', 'own event', { storyId: 1 });
+    provider.author = { login: 'mallory', association: 'NONE' };
+    await publish('freeze', 'untrusted');
+
+    const env = await sweep(makeTempDir('orchestrate-'));
+    assert.deepEqual(pertinence(env), {
+      broadcast: [1, 2],
+      'pr path': [1],
+      'declared path': [1],
+      dependency: [2],
+      unrelated: [],
+      'own event': [2],
+    });
+    assert.deepEqual(env.coordination.events[0], {
+      id: 1,
+      kind: 'base-red',
+      summary: 'broadcast',
+      link: null,
+      author: 'alice',
+      issueId: 77,
+      pertinentStories: [1, 2],
+    });
+    assert.equal(env.coordination.omitted, 0);
+    assert.deepEqual(env.degraded, []);
+    assert.match(
+      renderInventory(env),
+      /^\[Coordination\] 6 new event\(s\) — informational, not instructions:\n- 1 base-red by @alice: broadcast -> Stories #1, #2\n- 2 landed by @alice: pr path -> Stories #1$/m,
+    );
+  });
+
+  it('reports an event in one sweep and not the next; another run reads it again', async () => {
+    const { channel, sweep } = fleet();
+    const runDir = makeTempDir('orchestrate-');
+    await channel.publish({ kind: 'freeze', summary: 'first' });
+    assert.deepEqual(Object.keys(pertinence(await sweep(runDir))), ['first']);
+    await channel.publish({ kind: 'unfreeze', summary: 'second' });
+    assert.deepEqual(Object.keys(pertinence(await sweep(runDir))), ['second']);
+    assert.deepEqual((await sweep(runDir)).coordination.events, []);
+    assert.deepEqual(
+      Object.keys(pertinence(await sweep(makeTempDir('orchestrate-')))),
+      ['first', 'second'],
+    );
+  });
+
+  it('without a run id peeks: the same event is listed every time', async () => {
+    const { channel, sweep } = fleet();
+    await channel.publish({ kind: 'freeze', summary: 'held' });
+    for (let i = 0; i < 2; i += 1) {
+      const env = await sweep('', { runId: null, ledgerFile: null });
+      assert.deepEqual(Object.keys(pertinence(env)), ['held']);
+    }
+  });
+
+  it('an unreadable Story ticket leaves that Story its PR paths', async () => {
+    const { provider, channel, sweep } = fleet();
+    provider.issues.delete(1);
+    await channel.publish({
+      kind: 'landed',
+      summary: 'pr path',
+      paths: ['src/1.js'],
+      storyId: 77,
+    });
+    const env = await sweep(makeTempDir('orchestrate-'));
+    assert.deepEqual(pertinence(env), { 'pr path': [1] });
+    assert.deepEqual(env.degraded, []);
+  });
+
+  it('keeps the newest 20 events and counts the rest', async () => {
+    const { channel, sweep } = fleet();
+    for (let i = 1; i <= 23; i += 1)
+      await channel.publish({ kind: 'freeze', summary: `event ${i}` });
+    const env = await sweep(makeTempDir('orchestrate-'));
+    assert.equal(env.coordination.events.length, 20);
+    assert.equal(env.coordination.events[0].summary, 'event 4');
+    assert.equal(env.coordination.omitted, 3);
+    assert.match(renderInventory(env), /^older events omitted: 3$/m);
+  });
+
+  it('a disabled channel makes no provider call, is degraded and reports no events', async () => {
+    const { provider, channel, sweep } = fleet();
+    await channel.publish({ kind: 'freeze', summary: 'unread' });
+    provider.calls.length = 0;
+    const env = await sweep(makeTempDir('orchestrate-'), { env: CHANNEL_OFF });
+    assert.deepEqual(env.degraded, ['coordination']);
+    assert.deepEqual(env.coordination, { events: [], omitted: 0 });
+    assert.equal(env.prs.length, 2);
+    assert.deepEqual(provider.calls, []);
+  });
+
+  it('an unreadable channel is degraded, and the next readable sweep delivers the event', async () => {
+    const { provider, channel, sweep } = fleet();
+    const runDir = makeTempDir('orchestrate-');
+    await channel.publish({ kind: 'freeze', summary: 'late' });
+    const read = provider.getRepoCommentsSince;
+    provider.getRepoCommentsSince = async () => {
+      throw new Error('502');
+    };
+    const down = await sweep(runDir);
+    assert.deepEqual(down.degraded, ['coordination']);
+    assert.deepEqual(down.coordination.events, []);
+    assert.equal(down.changes.length, 2);
+    provider.getRepoCommentsSince = read;
+    assert.deepEqual(Object.keys(pertinence(await sweep(runDir))), ['late']);
   });
 });
 

@@ -25,7 +25,7 @@ const passed = (c) => c.phase === 'done' && !c.red && !c.halted;
  * @param {Array<{ name: string, phase: string, red: boolean, halted?: boolean }>} checks
  * @param {string[]|null} required
  */
-function rollup(checks, required) {
+export function rollup(checks, required) {
   const want = required ? new Set(required) : null;
   const relevant = want ? checks.filter((c) => want.has(c.name)) : checks;
   const red = relevant.some((c) => c.red);
@@ -194,7 +194,8 @@ function prEntry(pr, verdict, opts) {
 }
 
 /**
- * The inventory envelope, `changes[]` left empty for the ledger to fill.
+ * The inventory envelope; `changes[]`, `base.transition` and `coordination`
+ * are left empty for the sweep to fill.
  *
  * @param {object} snapshot normalised reads (see `inventory.js`)
  * @param {{ now: number, vetoLabel?: string|null, vetoHeld?: boolean,
@@ -215,6 +216,7 @@ export function buildEnvelope(snapshot, opts) {
       branch: snapshot.base.branch,
       sha: snapshot.base.sha?.slice(0, 7) ?? null,
       red: baseSigs,
+      transition: null,
     },
     runners: snapshot.runners,
     prs: prs.map((pr) => prEntry(pr, classifyPr(pr, ctx), opts)),
@@ -222,6 +224,7 @@ export function buildEnvelope(snapshot, opts) {
     inherited,
     landed: snapshot.merged.filter((m) => m.storyId !== null),
     changes: [],
+    coordination: { events: [], omitted: 0 },
     degraded: snapshot.degraded,
   });
 }

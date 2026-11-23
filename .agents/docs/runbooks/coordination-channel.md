@@ -92,6 +92,14 @@ events it carries `disabled: true`, `skipped: "throttled"`, or
 `degraded: "<reason>"` when the provider failed or the read took over five
 seconds. All of them exit 0.
 
+## The orchestrator
+
+`/mandrel-orchestrate` reads every trusted event on each sweep, with its own
+cursor kept beside the run ledger. It publishes `base-red` or `base-green`
+when the base branch changes state, and relays each new event once to the
+local session that owns a Story the event is pertinent to. An owner on
+another host gets the event from their own inbox.
+
 ## Who is trusted
 
 An event is read only when GitHub reports its comment's author as an `OWNER`,
