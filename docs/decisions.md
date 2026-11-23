@@ -36,7 +36,8 @@ superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
-| [`20261123-6157`](#adr-20261123-6157-the-coordination-channel-raises-the-agentrc-leaf-key-ceiling-to-175) | The coordination channel raises the agentrc leaf-key ceiling to 175 | `.agents/scripts/lib/coordination/channel.js` | Accepted |
+| [`20261123-6157`](#adr-20261123-6157-the-coordination-channel-raises-the-agentrc-leaf-key-ceiling-to-177) | The coordination channel raises the agentrc leaf-key ceiling to 177 | `.agents/scripts/lib/coordination/channel.js` | Accepted |
+| [`20261123-6156`](#adr-20261123-6156-review-timeout-and-chunk-size-raise-the-agentrc-leaf-key-ceiling-to-175) | Review timeout and chunk size raise the agentrc leaf-key ceiling to 175 | `.agents/scripts/lib/orchestration/review-providers/code-review.js` | Accepted |
 | [`20261119-6137`](#adr-20261119-6137-dispatch-model-overrides-raise-the-agentrc-leaf-key-ceiling-to-173) | Dispatch model overrides raise the agentrc leaf-key ceiling to 173 | `.agents/scripts/lib/dispatch/launch-options.js` | Accepted |
 | [`20261118-6119`](#adr-20261118-6119-session-titles-raise-the-agentrc-leaf-key-ceiling-to-172) | Session titles raise the agentrc leaf-key ceiling to 172 | `.agents/scripts/session-title.js` | Accepted |
 | [`20261118-6108`](#adr-20261118-6108-named-delivery-environments-raise-the-agentrc-leaf-key-ceiling-to-171) | Named delivery environments raise the agentrc leaf-key ceiling to 171 | `.agents/scripts/lib/dispatch/environments.js` | Accepted |
@@ -5442,7 +5443,39 @@ kind refuses the launch with `invalid-launch-option` before any label write.
 A `claude-cloud` routine runs its own model; its overrides are reported as
 ignored.
 
-## ADR 20261123-6157: The coordination channel raises the agentrc leaf-key ceiling to 175
+## ADR 20261123-6156: Review timeout and chunk size raise the agentrc leaf-key ceiling to 175
+
+**Status:** Accepted
+**Date:** 2026-11-23
+**Surface:** `.agents/scripts/lib/orchestration/review-providers/code-review.js`
+**Story:** #6156
+
+### Context
+
+The `code-review` provider sent any diff up to 200,000 characters to one
+`claude --print` call with a fixed 10-minute timeout. A 154 KB, 44-file
+consumer diff timed out three times in a row on a quiet host, and under
+`onNoVerdict: "block"` the only way through was landing with no model review.
+Both values were module constants.
+
+### Decision
+
+Add `delivery.codeReview.invokeTimeoutMs` (default 600000) and
+`delivery.codeReview.maxChunkChars` (default 80000, down from 200,000), and
+raise the ceiling by two. How long a model call takes on a given diff depends
+on the consumer's model, account tier and diff shape. No existing source
+holds it: not the `claude` CLI's config, the package manifest, or another
+gate key. A timed-out slice of two or more files is re-reviewed once as two
+halves instead of re-sent unchanged, and its no-verdict reason names both
+keys.
+
+### Consequences
+
+The default review of a mid-sized diff costs two or three smaller calls
+instead of one that may not finish. A consumer whose calls still time out
+changes a key instead of using `--override-review-block`.
+
+## ADR 20261123-6157: The coordination channel raises the agentrc leaf-key ceiling to 177
 
 **Status:** Accepted
 **Date:** 2026-11-23

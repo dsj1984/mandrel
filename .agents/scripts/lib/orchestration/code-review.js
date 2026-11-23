@@ -564,6 +564,8 @@ async function executeReviewPipeline({ opts, config, envelope }) {
       codeReviewConfig?.effortByDepth,
     ),
     guidance: guidance.guidance,
+    invokeTimeoutMs: codeReviewConfig?.invokeTimeoutMs,
+    maxChunkChars: codeReviewConfig?.maxChunkChars,
   };
 
   const rawFindings = await reviewProvider.runReview(reviewInput);

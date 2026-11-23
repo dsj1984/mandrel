@@ -44,6 +44,10 @@
  *   providers render it via `renderExhaustiveDirective`.
  * @property {(string|null)=} guidance - Project review guidance; LLM-backed
  *   providers render it via `renderGuidanceBlock`.
+ * @property {number=} invokeTimeoutMs - `delivery.codeReview.invokeTimeoutMs`;
+ *   absent → the `code-review` provider's default.
+ * @property {number=} maxChunkChars - `delivery.codeReview.maxChunkChars`;
+ *   absent → the `code-review` provider's default.
  *
  * @typedef {object} ReviewProvider
  * @property {(input: ReviewInput) => Promise<Finding[]>} runReview
