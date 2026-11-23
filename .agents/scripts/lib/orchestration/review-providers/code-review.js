@@ -513,7 +513,10 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
             sliceNote(half + 1, 2) + manifestOf(sections),
           ),
     );
-    return results.length === 1 ? settle(results[0].verdict) : collect(results);
+    const [only] = results;
+    return results.length === 1 && !only.verdict.timedOut
+      ? settle(only.verdict)
+      : collect(results);
   }
 
   /**

@@ -1437,7 +1437,12 @@ test('#6156: a timed-out single-file diff is not split and names the timeout kno
   });
   await timed.provider.runReview(INPUT);
   assert.equal(spawned.length, 1, 'no same-prompt retry, no split');
-  assertOneDegradation(timed.provider, TIMEOUT_REASON, 'verdict-missing');
+  const row = assertOneDegradation(
+    timed.provider,
+    TIMEOUT_REASON,
+    'verdict-missing',
+  );
+  assert.match(row.reason, /^no verdict for src\/a\.js:/);
   // A plain exit 143 with no timeout is still the transient retry path.
   await provider.runReview(INPUT);
   assert.equal(invokeCalls(calls).length, 2);
