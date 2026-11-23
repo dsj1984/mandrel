@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/coordination-event.schema.json",
+  "title": "coordination-event",
+  "description": "Envelope v1 of one coordination event, carried as the JSON payload of a `coordination-event` structured comment. The author login and the event id are deliberately absent: a reader takes them from the GitHub comment, so neither can be forged in the body. The link is checked against the configured repository in code, since a schema cannot name it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "kind", "ts", "actor", "scope", "summary", "link"],
+  "properties": {
+    "v": { "const": 1 },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "base-red",
+        "base-green",
+        "freeze",
+        "unfreeze",
+        "landed",
+        "plan-change",
+        "decision"
+      ],
+      "description": "The closed vocabulary. The class (coordination, conflict, design) is derived from the kind, never authored."
+    },
+    "ts": { "type": "string", "format": "date-time" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["storyId"],
+      "properties": {
+        "storyId": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "The Story the publisher was acting for, or null for an event with no Story."
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["paths", "stories", "broadcast"],
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^\\p{Cc}]+$"
+          },
+          "description": "Repo-relative paths or globs the event concerns; matched against a reader's footprint, never opened."
+        },
+        "stories": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "broadcast": {
+          "type": "boolean",
+          "description": "True reaches every reader."
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\p{Cc}\\u2028\\u2029]+$",
+      "description": "One line, no control characters."
+    },
+    "link": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "Null, a repo-relative path with no `..` segment, or a URL under the configured repository on github.com."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["kind"],
+        "properties": {
+          "kind": { "enum": ["base-red", "base-green", "freeze", "unfreeze"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "properties": { "broadcast": { "const": true } }
+          }
+        }
+      }
+    }
+  ]
+}

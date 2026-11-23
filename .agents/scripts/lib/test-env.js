@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { COORDINATION_DISABLED_ENV } from './config/github.js';
 import { TEST_TEMP_ROOT_ENV } from './config/temp-paths.js';
 import { reapOnExit } from './test-temp.js';
 
@@ -40,6 +41,12 @@ export function ensureTestScratchTempRoot(
   return _createdScratchDir;
 }
 
+/** No test child posts to or polls a live coordination channel. */
+function withCoordinationOff(env) {
+  env[COORDINATION_DISABLED_ENV] = '1';
+  return env;
+}
+
 /**
  * Env bag for test child processes:
  *
@@ -49,7 +56,8 @@ export function ensureTestScratchTempRoot(
  *   - every `GIT_*` is dropped: inside a git hook `GIT_DIR` points at the
  *     shared gitdir, and a fixture's `git init` there writes `core.bare=true`
  *     into the main checkout, breaking every worktree;
- *   - `MANDREL_TEST_TEMP_ROOT` points at the per-process scratch root.
+ *   - `MANDREL_TEST_TEMP_ROOT` points at the per-process scratch root;
+ *   - `MANDREL_COORDINATION_DISABLED=1` turns the coordination channel off.
  *
  * @param {NodeJS.ProcessEnv} baseEnv
  * @returns {NodeJS.ProcessEnv}
@@ -63,5 +71,5 @@ export function buildWebhookSafeTestEnv(baseEnv = process.env) {
     delete env.NOTIFICATION_WEBHOOK_URL;
   }
   env[TEST_TEMP_ROOT_ENV] = ensureTestScratchTempRoot(baseEnv);
-  return env;
+  return withCoordinationOff(env);
 }

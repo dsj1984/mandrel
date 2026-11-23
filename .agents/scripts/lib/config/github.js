@@ -48,8 +48,36 @@ export const NOTIFICATIONS_DEFAULTS = Object.freeze({
     'operator-message',
     'merge.unlanded',
     'merge.flip-failed',
+    'coordination',
   ]),
 });
+
+/** `'1'` turns the coordination channel off for one process. */
+export const COORDINATION_DISABLED_ENV = 'MANDREL_COORDINATION_DISABLED';
+
+export const COORDINATION_DEFAULTS = Object.freeze({
+  enabled: true,
+  trustedAuthors: Object.freeze([]),
+});
+
+/**
+ * `github.coordination` with the environment kill switch applied.
+ *
+ * @param {object | null | undefined} config
+ * @param {NodeJS.ProcessEnv} [env=process.env]
+ * @returns {{ enabled: boolean, trustedAuthors: string[] }}
+ */
+export function getCoordination(config, env = process.env) {
+  const raw = config?.github?.coordination ?? {};
+  return {
+    enabled:
+      env?.[COORDINATION_DISABLED_ENV] !== '1' &&
+      (raw.enabled ?? COORDINATION_DEFAULTS.enabled) !== false,
+    trustedAuthors: Array.isArray(raw.trustedAuthors)
+      ? raw.trustedAuthors
+      : [...COORDINATION_DEFAULTS.trustedAuthors],
+  };
+}
 
 /**
  * Shallow overlay; `requiredChecks` is replaced wholesale when present.

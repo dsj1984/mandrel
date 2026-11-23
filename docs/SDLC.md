@@ -401,6 +401,14 @@ Agents update state on GitHub, always through `update-ticket-state.js`:
   (`lib/single-story-sweep/sweep-lock.js`, PID + mtime heartbeat under
   `temp/`) and the host full-suite lock coordinate only the sessions on one
   machine.
+- **The coordination channel carries what the lease cannot.** The lease says
+  who holds a Story; it does not say the base went red, a sibling landed or
+  a design changed.
+  [`coordination.js`](../.agents/scripts/coordination.js) posts those as
+  typed events on GitHub issue comments, and its inbox returns only the
+  events pertinent to the reading Story. It is advisory: nothing gates on
+  it. See the
+  [coordination channel runbook](../.agents/docs/runbooks/coordination-channel.md).
 
 ### Concurrent close
 
@@ -614,11 +622,12 @@ Two optional event allowlists in `github.notifications` filter each channel
 independently (no fallback chain; set an array to `[]` to silence a channel):
 
 - `commentEvents` — default `["state-transition", "story-merged", "operator-message"]`.
-- `webhookEvents` — default `["state-transition", "story-merged", "story-closing", "operator-message", "merge.unlanded", "merge.flip-failed"]`.
+- `webhookEvents` — default `["state-transition", "story-merged", "story-closing", "operator-message", "merge.unlanded", "merge.flip-failed", "coordination"]`.
 
 The events that exist are `state-transition`, `story-closing` (PR open,
-merge pending), `story-merged`, `operator-message` (the `notify.js` CLI), and
-the two merge-terminal ledger events. **Webhook URL resolution** is the
+merge pending), `story-merged`, `operator-message` (the `notify.js` CLI), the
+two merge-terminal ledger events, and `coordination` (webhook only: the
+mirror of each published coordination event). **Webhook URL resolution** is the
 `NOTIFICATION_WEBHOOK_URL` process env var only (loaded from `.env`), never
 `.agentrc.json` or `.mcp.json`. Because `notify()` is called in-band, it does
 **not** capture manual label clicks in the GitHub UI.

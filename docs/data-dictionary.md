@@ -331,3 +331,19 @@ before it reaches disk.
 | `resolveQaSession({ sessionId, config, env })` | Helper  | `lib/qa/qa-session.js`. Resolves `{ sessionId, ledgerPath, reused, untriaged }`. Session-id precedence: explicit `--session-id` → `QA_SESSION_ID` env var → derived `qa-<YYYY-MM-DD>-<hex8>`. Ids are slugified (path-traversal safe). `reused: true` signals an existing ledger that must be appended to. |
 | `QaLedgerItem`                           | Record shape  | Required: `id` (`L1`, `L2`, … in capture order), `class` (`product-bug` \| `environment-setup` \| `tooling-dx` \| `test-gap` \| `enhancement`), `severity` (`critical` \| `high` \| `medium` \| `low` \| `info`), `evidence` (one-line, scrubbed), `coverage` (surface/scenario label, `unknown` fallback), `missingTest` (string or `null`). Optional: `disposition`, `relates` (ids of folded-in items). |
 | `disposition`                            | Field         | Two-phase lifecycle marker. Capture phase: absent, `null`, or a `pending`/`untriaged` sentinel — these items form the rolling backlog (`untriaged`) a resume run carries forward. Triage phase: `file` (promote to follow-up ticket), `defer` (park), or `dismiss` (non-actionable). `TRIAGED_DISPOSITIONS` in `qa-session.js` is the SSOT. |
+
+---
+
+## Coordination Events
+
+The coordination channel posts one typed event per GitHub issue comment and
+filters them into a per-Story inbox. The operator view is the
+[coordination channel runbook](../.agents/docs/runbooks/coordination-channel.md).
+
+| Term | Kind | Definition |
+| --- | --- | --- |
+| `CoordinationEvent` | Record shape | Envelope v1, validated by `.agents/schemas/coordination-event.schema.json`: `{ v: 1, kind, ts, actor: { storyId }, scope: { paths, stories, broadcast }, summary, link }`. The author login and the event id are not fields: a reader takes them from the comment. |
+| `kind` | Field | One of `base-red`, `base-green`, `freeze`, `unfreeze` (class `coordination`, always broadcast), `landed`, `plan-change` (class `conflict`) and `decision` (class `design`). `EVENT_KINDS` in `lib/coordination/event.js` maps kind to class. |
+| `coordination-event` | Structured-comment type | The comment carrying one event: the standard marker with a `kind` attribute, one visible line, and the payload in a trailing HTML comment with `<` and `>` escaped. |
+| `meta::coordination` | Label | Marks the issue that carries events with no acting Story: the lowest-numbered open issue with the label, created on first need. |
+| `<tempRoot>/coordination/cursor-<reader>.json` | Temp artefact | One inbox reader's cursor (`story-<id>` or `all`): `{ since, startedAt, seen, polledAt }`. `coordinationCursorPath` in `lib/config/temp-paths.js` names it. |

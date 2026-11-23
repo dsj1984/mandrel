@@ -196,3 +196,13 @@ Apply this label to a GitHub issue whose fault lies in a shared base
 config, runner fleet, or cross-repo toolchain that neither the framework
 nor the consumer owns — the `--owner platform` bucket of
 [`ci-remediation.md`](ci-remediation.md).
+
+### `meta::coordination`
+
+Not a retrospective signal. It marks the one open issue that carries
+coordination events with no acting Story (`COORDINATION_LABEL` in
+[`label-constants.js`](../scripts/lib/label-constants.js)). The channel
+creates the issue on first need; leave it open. Publish with
+`node .agents/scripts/coordination.js publish --kind <kind> --summary "<text>"`
+and read with `node .agents/scripts/coordination.js inbox --all`
+([runbook](../docs/runbooks/coordination-channel.md)).

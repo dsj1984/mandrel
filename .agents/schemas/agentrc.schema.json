@@ -350,19 +350,43 @@
                   "story-closing",
                   "operator-message",
                   "merge.unlanded",
-                  "merge.flip-failed"
+                  "merge.flip-failed",
+                  "coordination"
                 ]
               },
               "uniqueItems": true,
-              "description": "Events dispatched to the configured webhook. The vocabulary is the allowlist the webhook channel gates on; `merge.unlanded` and `merge.flip-failed` are allowlistable but reach the run ledger rather than `notify()` today.",
+              "description": "Events dispatched to the configured webhook. The vocabulary is the allowlist the webhook channel gates on; `merge.unlanded` and `merge.flip-failed` are allowlistable but reach the run ledger rather than `notify()` today. `coordination` mirrors each published coordination event.",
               "default": [
                 "state-transition",
                 "story-merged",
                 "story-closing",
                 "operator-message",
                 "merge.unlanded",
-                "merge.flip-failed"
+                "merge.flip-failed",
+                "coordination"
               ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "coordination": {
+          "type": "object",
+          "description": "The coordination channel: typed events posted as issue comments, which `coordination.js inbox` filters to the ones pertinent to a Story. Advisory only — nothing gates on it.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "False makes publish and inbox answer `disabled: true` without a provider call. `MANDREL_COORDINATION_DISABLED=1` in the environment does the same for one process.",
+              "default": true
+            },
+            "trustedAuthors": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true,
+              "description": "GitHub logins (case-insensitive) whose events are read. Empty keeps the default rule: the comment author is an `OWNER`, `MEMBER` or `COLLABORATOR` of the repository. A non-empty list replaces that rule.",
+              "default": []
             }
           },
           "additionalProperties": false

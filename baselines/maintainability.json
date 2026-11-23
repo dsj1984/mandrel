@@ -103,6 +103,10 @@
       "mi": 97.499
     },
     {
+      "path": ".agents/scripts/coordination.js",
+      "mi": 96.745
+    },
+    {
       "path": ".agents/scripts/coverage-capture.js",
       "mi": 95.113
     },
@@ -872,7 +876,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/github.js",
-      "mi": 83.672
+      "mi": 85.835
     },
     {
       "path": ".agents/scripts/lib/config/handoff.js",
@@ -933,6 +937,22 @@
     {
       "path": ".agents/scripts/lib/config/worktree-isolation.js",
       "mi": 105.64
+    },
+    {
+      "path": ".agents/scripts/lib/coordination/channel.js",
+      "mi": 93.199
+    },
+    {
+      "path": ".agents/scripts/lib/coordination/event.js",
+      "mi": 92.565
+    },
+    {
+      "path": ".agents/scripts/lib/coordination/inbox.js",
+      "mi": 101.339
+    },
+    {
+      "path": ".agents/scripts/lib/coordination/pertinence.js",
+      "mi": 103.365
     },
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
@@ -2392,7 +2412,7 @@
     },
     {
       "path": ".agents/scripts/lib/test-env.js",
-      "mi": 113.742
+      "mi": 114.922
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",

@@ -5,6 +5,7 @@ import process from 'node:process';
 import { COMMANDS_DEFAULTS } from './config/commands.js';
 import {
   BRANCH_PROTECTION_DEFAULTS,
+  COORDINATION_DEFAULTS,
   DEFAULT_REQUIRED_CHECKS,
   MERGE_METHODS_DEFAULTS,
   NOTIFICATIONS_DEFAULTS,
@@ -193,6 +194,7 @@ export const WEBHOOK_EVENT_NAMES = Object.freeze([
   'operator-message',
   'merge.unlanded',
   'merge.flip-failed',
+  'coordination',
 ]);
 
 /**
@@ -233,8 +235,31 @@ const NOTIFICATIONS_SCHEMA = {
       items: { type: 'string', enum: [...WEBHOOK_EVENT_NAMES] },
       uniqueItems: true,
       description:
-        'Events dispatched to the configured webhook. The vocabulary is the allowlist the webhook channel gates on; `merge.unlanded` and `merge.flip-failed` are allowlistable but reach the run ledger rather than `notify()` today.',
+        'Events dispatched to the configured webhook. The vocabulary is the allowlist the webhook channel gates on; `merge.unlanded` and `merge.flip-failed` are allowlistable but reach the run ledger rather than `notify()` today. `coordination` mirrors each published coordination event.',
       default: [...NOTIFICATIONS_DEFAULTS.webhookEvents],
+    },
+  },
+  additionalProperties: false,
+};
+
+const COORDINATION_SCHEMA = {
+  type: 'object',
+  description:
+    'The coordination channel: typed events posted as issue comments, which `coordination.js inbox` filters to the ones pertinent to a Story. Advisory only — nothing gates on it.',
+  properties: {
+    enabled: {
+      type: 'boolean',
+      description:
+        'False makes publish and inbox answer `disabled: true` without a provider call. `MANDREL_COORDINATION_DISABLED=1` in the environment does the same for one process.',
+      default: COORDINATION_DEFAULTS.enabled,
+    },
+    trustedAuthors: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      uniqueItems: true,
+      description:
+        'GitHub logins (case-insensitive) whose events are read. Empty keeps the default rule: the comment author is an `OWNER`, `MEMBER` or `COLLABORATOR` of the repository. A non-empty list replaces that rule.',
+      default: [...COORDINATION_DEFAULTS.trustedAuthors],
     },
   },
   additionalProperties: false,
@@ -393,6 +418,7 @@ const GITHUB_SCHEMA = {
     branchProtection: BRANCH_PROTECTION_SCHEMA,
     mergeMethods: MERGE_METHODS_SCHEMA,
     notifications: NOTIFICATIONS_SCHEMA,
+    coordination: COORDINATION_SCHEMA,
   },
   additionalProperties: false,
 };
