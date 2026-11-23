@@ -1595,6 +1595,18 @@
               "minLength": 1,
               "description": "Project review guidance, a path relative to the project root. Unset, a root `REVIEW.md` is used when present; an absent file is a no-op. Its text is rendered into every LLM review provider's prompt after the framework's severity and anti-gaming rules, and over 8,000 characters is truncated with a degradation. Guidance may add failure classes and paths worth skipping but cannot lower a severity rule, excuse a `shortcut:`, or change the output shape."
             },
+            "invokeTimeoutMs": {
+              "type": "integer",
+              "minimum": 60000,
+              "default": 600000,
+              "description": "Per-call timeout (ms) for each `claude --print` invocation of the `code-review` provider. A call that times out is not re-sent: a slice of two or more files is re-reviewed once as two file-aligned halves, and a slice still without a verdict is recorded naming this key."
+            },
+            "maxChunkChars": {
+              "type": "integer",
+              "minimum": 20000,
+              "default": 80000,
+              "description": "The `code-review` provider reviews a diff larger than this many characters in file-aligned chunks of at most this size (the callers block, guidance, slice note and manifest come out of each chunk). Lower it when one call times out; at most 6 chunks are reviewed."
+            },
             "onNoVerdict": {
               "type": "string",
               "enum": ["report", "block"],
