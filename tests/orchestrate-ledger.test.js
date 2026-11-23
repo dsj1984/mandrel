@@ -343,11 +343,11 @@ describe('summary (AC-9)', () => {
 });
 
 describe('base transition', () => {
-  const settledGreen = { red: false, settled: true };
-  const red = { red: true, settled: true };
-  const running = { red: false, settled: false };
+  const settledGreen = { red: false, passed: true };
+  const red = { red: true, passed: false };
+  const running = { red: false, passed: false };
 
-  it('turns red from no sweep or a green one, and green only once settled', () => {
+  it('turns red from no sweep or a green one, and green only once its checks passed', () => {
     assert.deepEqual(baseTransition(null, red), {
       baseRed: true,
       transition: 'red',

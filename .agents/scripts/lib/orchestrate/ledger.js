@@ -164,17 +164,17 @@ export function landedSince(records) {
 }
 
 /**
- * The base state to record, and `red` or `green` when it just changed. A base
- * that is neither red nor settled keeps its last state, so checks still
- * running on a new commit never read as cleared.
+ * The base state to record, and `red` or `green` when it just changed. A red
+ * base clears only once its checks have passed, so a new commit whose checks
+ * are unreported, running or cancelled never reads as cleared.
  *
  * @param {object|null} previous the last sweep record
- * @param {{ red: boolean, settled: boolean }} base
+ * @param {{ red: boolean, passed: boolean }} base
  * @returns {{ baseRed: boolean, transition: 'red'|'green'|null }}
  */
-export function baseTransition(previous, { red, settled }) {
+export function baseTransition(previous, { red, passed }) {
   const was = previous?.baseRed === true;
-  const baseRed = red || (was && !settled);
+  const baseRed = red || (was && !passed);
   if (baseRed === was) return { baseRed, transition: null };
   return { baseRed, transition: baseRed ? 'red' : 'green' };
 }

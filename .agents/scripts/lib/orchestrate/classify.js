@@ -20,7 +20,8 @@ const passed = (c) => c.phase === 'done' && !c.red && !c.halted;
 /**
  * Rollup over the required checks (every check when the required set is
  * unknown). Green needs every required name present, done, not red and not
- * halted (cancelled, stale or awaiting action).
+ * halted (cancelled, stale or awaiting action). `passed` needs only that at
+ * least one of them reported and every one that did has passed.
  *
  * @param {Array<{ name: string, phase: string, red: boolean, halted?: boolean }>} checks
  * @param {string[]|null} required
@@ -36,12 +37,14 @@ export function rollup(checks, required) {
   const complete = want
     ? [...want].every((n) => present.has(n))
     : relevant.length > 0;
+  const allPassed = relevant.every(passed);
   return {
     red,
     halted,
     running,
     queued,
-    green: complete && relevant.every(passed),
+    green: complete && allPassed,
+    passed: relevant.length > 0 && allPassed,
   };
 }
 

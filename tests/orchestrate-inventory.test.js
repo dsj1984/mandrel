@@ -848,6 +848,21 @@ describe('base transition (Story #6159 AC-2)', () => {
     assert.equal(await sweep(check('lint', 'SUCCESS')), 'green');
   });
 
+  it('a red base with no check reported yet, or a cancelled one, stays red', async () => {
+    const sweep = sweeper();
+    assert.equal(await sweep(check('lint', 'FAILURE')), 'red');
+    assert.equal(await sweep(), null);
+    assert.equal(await sweep(check('lint', 'CANCELLED')), null);
+    assert.equal(await sweep(check('docs', 'SUCCESS')), null);
+    assert.equal(await sweep(check('lint', 'SUCCESS')), 'green');
+  });
+
+  it('a green base with no check reported yet stays green', async () => {
+    const sweep = sweeper();
+    assert.equal(await sweep(), null);
+    assert.equal(await sweep(check('lint', 'SUCCESS')), null);
+  });
+
   it('is null without a run id, and rendered when set', async () => {
     const env = await runInventory({
       config: {},

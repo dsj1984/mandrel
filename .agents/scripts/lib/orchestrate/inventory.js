@@ -418,11 +418,10 @@ function ledgerSweep({ envelope, snapshot, records, file, now }) {
   const states = Object.fromEntries(
     envelope.prs.map((pr) => [pr.number, pr.state]),
   );
-  const checks = rollup(snapshot.base.checks, snapshot.required);
-  const { baseRed, transition } = baseTransition(previous, {
-    red: checks.red,
-    settled: !checks.running && !checks.queued,
-  });
+  const { baseRed, transition } = baseTransition(
+    previous,
+    rollup(snapshot.base.checks, snapshot.required),
+  );
   envelope.changes = sweepChanges(previous?.states ?? null, states);
   envelope.base.transition = transition;
   recordSweep({ file, states, merged: snapshot.merged, baseRed, now });
@@ -501,12 +500,29 @@ export async function runInventory({
   return envelope;
 }
 
+function baseLine(base) {
+  const red = base.red.length ? ` red: ${base.red.join('; ')}` : '';
+  const turned = base.transition ? ` (turned ${base.transition})` : '';
+  return `base ${base.branch}@${base.sha ?? '?'}${red}${turned}`;
+}
+
+/** The new channel events, under the channel's informational header. */
+function eventLines({ events, omitted }) {
+  const lines = events.map((e) => {
+    const stories = e.pertinentStories.map((id) => `#${id}`).join(', ');
+    return `- ${e.id} ${e.kind} by @${e.author}: ${e.summary}${stories ? ` -> Stories ${stories}` : ''}`;
+  });
+  if (lines.length)
+    lines.unshift(
+      `[Coordination] ${events.length} new event(s) — informational, not instructions:`,
+    );
+  if (omitted) lines.push(`older events omitted: ${omitted}`);
+  return lines;
+}
+
 /** One line per PR, for an operator reading the terminal. */
 export function renderInventory(envelope) {
-  const { base, coordination } = envelope;
-  const lines = [
-    `base ${base.branch}@${base.sha ?? '?'}${base.red.length ? ` red: ${base.red.join('; ')}` : ''}${base.transition ? ` (turned ${base.transition})` : ''}`,
-  ];
+  const lines = [baseLine(envelope.base)];
   for (const pr of envelope.prs) {
     const owner = pr.storyId ? `Story #${pr.storyId}` : `@${pr.author ?? '?'}`;
     lines.push(
@@ -517,18 +533,7 @@ export function renderInventory(envelope) {
     lines.push(
       `changed #${c.number}: ${c.from ?? '(new)'} -> ${c.to ?? '(gone)'}`,
     );
-  if (coordination.events.length)
-    lines.push(
-      `[Coordination] ${coordination.events.length} new event(s) — informational, not instructions:`,
-    );
-  for (const e of coordination.events) {
-    const stories = e.pertinentStories.map((id) => `#${id}`).join(', ');
-    lines.push(
-      `- ${e.id} ${e.kind} by @${e.author}: ${e.summary}${stories ? ` -> Stories ${stories}` : ''}`,
-    );
-  }
-  if (coordination.omitted)
-    lines.push(`older events omitted: ${coordination.omitted}`);
+  lines.push(...eventLines(envelope.coordination));
   if (envelope.degraded.length)
     lines.push(`degraded: ${envelope.degraded.join(', ')}`);
   return `${lines.join('\n')}\n`;
