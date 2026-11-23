@@ -67,6 +67,8 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'story-outcome',
   // The delivery stage a Story has reached, upserted on each stage entry.
   'delivery-stage',
+  // One typed coordination event; a `kind` attr discriminates the marker.
+  'coordination-event',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

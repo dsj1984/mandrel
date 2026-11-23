@@ -65,8 +65,13 @@
         "story-closing",
         "operator-message",
         "merge.unlanded",
-        "merge.flip-failed"
+        "merge.flip-failed",
+        "coordination"
       ]
+    },
+    "coordination": {
+      "enabled": true,
+      "trustedAuthors": []
     }
   },
   "planning": {

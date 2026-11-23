@@ -1260,6 +1260,7 @@ independently — `commentEvents` for ticket comments, `webhookEvents` for
 | `story-closing`     | ✅              | ✅              |
 | `merge.unlanded`    | ✅              | —               |
 | `merge.flip-failed` | ✅              | —               |
+| `coordination`      | ✅              | —               |
 | `loop.tick`         | ✅              | —               |
 
 Shipped defaults: every webhook event, and the first three comment events.

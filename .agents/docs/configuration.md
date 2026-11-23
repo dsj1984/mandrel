@@ -124,7 +124,10 @@ GitHub provider identity plus the remote stance the bootstrap enforces. `owner`,
 | `notifications` | No | `object` | — | Allowlist-gated notification channels. An event fires on a channel only when it is named in that channel's array. |
 | `notifications.mentionOperator` | No | `boolean` | `false` | When true, `github.operatorHandle` is @-mentioned in the comments the notifier posts. |
 | `notifications.commentEvents` | No | `array<enum>` | `["state-transition","story-merged","operator-message"]` | Events mirrored onto the Story issue as a comment. Deliberately narrower than `webhookEvents`: only Story-scoped events whose message reads as narrative an operator wants durably on the ticket belong here. |
-| `notifications.webhookEvents` | No | `array<enum>` | `["state-transition","story-merged","story-closing","operator-message","merge.unlanded","merge.flip-failed"]` | Events dispatched to the configured webhook. The vocabulary is the allowlist the webhook channel gates on; `merge.unlanded` and `merge.flip-failed` are allowlistable but reach the run ledger rather than `notify()` today. |
+| `notifications.webhookEvents` | No | `array<enum>` | `["state-transition","story-merged","story-closing","operator-message","merge.unlanded","merge.flip-failed","coordination"]` | Events dispatched to the configured webhook. The vocabulary is the allowlist the webhook channel gates on; `merge.unlanded` and `merge.flip-failed` are allowlistable but reach the run ledger rather than `notify()` today. `coordination` mirrors each published coordination event. |
+| `coordination` | No | `object` | — | The coordination channel: typed events posted as issue comments, which `coordination.js inbox` filters to the ones pertinent to a Story. Advisory only — nothing gates on it. |
+| `coordination.enabled` | No | `boolean` | `true` | False makes publish and inbox answer `disabled: true` without a provider call. `MANDREL_COORDINATION_DISABLED=1` in the environment does the same for one process. |
+| `coordination.trustedAuthors` | No | `array<string>` | `[]` | GitHub logins (case-insensitive) whose events are read. Empty keeps the default rule: the comment author is an `OWNER`, `MEMBER` or `COLLABORATOR` of the repository. A non-empty list replaces that rule. |
 
 ### `planning` (optional)
 

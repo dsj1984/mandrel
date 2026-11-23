@@ -236,6 +236,21 @@ export function dispatchRecordPath(sid, config) {
   return dispatchLogPath(sid, config).replace(/\.log$/, '.json');
 }
 
+/**
+ * `<tempRoot>/coordination/cursor-<key>.json`: one inbox reader's cursor.
+ *
+ * @param {string} key `story-<id>` or `all`.
+ * @param {object} [config]
+ * @returns {string}
+ */
+export function coordinationCursorPath(key, config) {
+  return path.join(
+    anchorTempRoot(tempRootFrom(config)),
+    'coordination',
+    `cursor-${artifactName(key)}.json`,
+  );
+}
+
 const runId = (id) => {
   if (!Number.isInteger(id) || id <= 0) {
     throw new Error(`[temp-paths] runId must be a positive integer; got ${id}`);

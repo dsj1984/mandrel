@@ -78,6 +78,9 @@ export const META_LABELS = {
   PLATFORM_GAP: 'meta::platform-gap',
 };
 
+/** Marks the issue that carries coordination events with no acting Story. */
+export const COORDINATION_LABEL = 'meta::coordination';
+
 /** Metadata only — the runtime pause is `agent::blocked`. */
 export const RISK_LABELS = {
   HIGH: 'risk::high',

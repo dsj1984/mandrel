@@ -29,13 +29,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (67).** Each governs the surface named beside it; a
+**In force (68).** Each governs the surface named beside it; a
 `Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261123-6157`](#adr-20261123-6157-the-coordination-channel-raises-the-agentrc-leaf-key-ceiling-to-175) | The coordination channel raises the agentrc leaf-key ceiling to 175 | `.agents/scripts/lib/coordination/channel.js` | Accepted |
 | [`20261119-6137`](#adr-20261119-6137-dispatch-model-overrides-raise-the-agentrc-leaf-key-ceiling-to-173) | Dispatch model overrides raise the agentrc leaf-key ceiling to 173 | `.agents/scripts/lib/dispatch/launch-options.js` | Accepted |
 | [`20261118-6119`](#adr-20261118-6119-session-titles-raise-the-agentrc-leaf-key-ceiling-to-172) | Session titles raise the agentrc leaf-key ceiling to 172 | `.agents/scripts/session-title.js` | Accepted |
 | [`20261118-6108`](#adr-20261118-6108-named-delivery-environments-raise-the-agentrc-leaf-key-ceiling-to-171) | Named delivery environments raise the agentrc leaf-key ceiling to 171 | `.agents/scripts/lib/dispatch/environments.js` | Accepted |
@@ -5440,3 +5441,41 @@ An override outside the allowlist, an unknown effort, or two labels of one
 kind refuses the launch with `invalid-launch-option` before any label write.
 A `claude-cloud` routine runs its own model; its overrides are reported as
 ignored.
+
+## ADR 20261123-6157: The coordination channel raises the agentrc leaf-key ceiling to 175
+
+**Status:** Accepted
+**Date:** 2026-11-23
+**Surface:** `.agents/scripts/lib/coordination/channel.js`
+**Story:** #6157
+
+### Context
+
+The coordination channel posts typed events as issue comments and reads
+them back into a per-Story inbox. A reader must decide whose comments count
+as events, and a repository must be able to switch the channel off.
+
+### Decision
+
+Add `github.coordination.enabled` (default `true`) and
+`github.coordination.trustedAuthors` (default `[]`), and raise the ceiling
+by two.
+
+Neither derives from an existing source. `enabled` is a per-repository
+choice: `github.notifications.webhookEvents` governs only the webhook
+mirror, and `MANDREL_COORDINATION_DISABLED` is per-process, so neither can
+record that a repository wants no channel. `trustedAuthors` exists because
+the default trust source, GitHub's `author_association`, is not always
+right: a bot account that publishes events may not be a collaborator, and
+an organisation may want a narrower set than every member.
+`github.operatorHandle` holds one handle, not a list.
+
+Everything else about the channel is a constant at its read site: the
+24-hour lookback, the 120-second throttle, the five-second poll limit and
+the 200-character summary cap.
+
+### Consequences
+
+A non-empty `trustedAuthors` replaces the association rule; it does not
+add to it. With `enabled: false`, publish and inbox answer
+`disabled: true` and make no provider call.

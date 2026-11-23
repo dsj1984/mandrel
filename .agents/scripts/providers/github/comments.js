@@ -36,7 +36,7 @@ export class CommentGateway {
    * `body` must round-trip verbatim: structured-comment lookup greps it.
    *
    * @field-manifest /repos/{owner}/{repo}/issues/{n}/comments:
-   *                 id, body, created_at, user
+   *                 id, body, created_at, user, author_association
    */
   async getTicketComments(ticketId) {
     return paginateRest(this._gh, `${this._issues()}/${ticketId}/comments`);
@@ -48,7 +48,8 @@ export class CommentGateway {
 
   /**
    * @field-manifest /repos/{owner}/{repo}/issues/comments:
-   *                 id, body, issue_url, updated_at
+   *                 id, body, issue_url, updated_at, created_at, user,
+   *                 author_association
    */
   async getRepoCommentsSince(since) {
     return paginateRest(
