@@ -951,6 +951,10 @@
       "mi": 101.339
     },
     {
+      "path": ".agents/scripts/lib/coordination/lifecycle.js",
+      "mi": 96.936
+    },
+    {
       "path": ".agents/scripts/lib/coordination/pertinence.js",
       "mi": 103.365
     },
