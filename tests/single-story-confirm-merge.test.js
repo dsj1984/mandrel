@@ -22,6 +22,10 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
+import {
+  decodeEventComment,
+  isEventComment,
+} from '../.agents/scripts/lib/coordination/event.js';
 import { recordRequiredRed } from '../.agents/scripts/lib/orchestration/ci-red-handling.js';
 import { readCiDigest } from '../.agents/scripts/lib/orchestration/ci-rerun-guard.js';
 import {
@@ -35,6 +39,10 @@ import {
   resolvePrNumber,
   runConfirmMerge,
 } from '../.agents/scripts/single-story-confirm-merge.js';
+import {
+  makeChannelConfig,
+  makeChannelProvider,
+} from './helpers/coordination-channel.js';
 
 /** The done-flip back-off `flipDone` sleeps between attempts. */
 const DONE_FLIP_RETRY_DELAYS_MS = [500, 2000];
@@ -679,5 +687,137 @@ describe('merge wait — a merge-queue ejection', () => {
       assert.equal(outcome.terminal, 'pending', JSON.stringify(opts));
       assert.equal(h.rearms.length, 0, JSON.stringify(opts));
     }
+  });
+});
+
+describe('confirmStoryMerged — the landed coordination event', () => {
+  const PR_URL = 'https://github.com/octo/demo/pull/42';
+
+  /**
+   * A merged-PR confirmation over a live channel: the provider applies label
+   * writes like the real one, and `gh` answers the PR files read.
+   */
+  function landing({ files = ['lib/a.js', 'docs/b.md'] } = {}) {
+    const provider = makeChannelProvider({
+      tickets: { 3385: { title: 'Confirm me', labels: ['agent::closing'] } },
+    });
+    const story = provider.issues.get(3385);
+    provider.updateTicket = async (_id, patch) => {
+      const { add = [], remove = [] } = patch.labels ?? {};
+      story.labels = [
+        ...story.labels.filter((label) => !remove.includes(label)),
+        ...add,
+      ];
+    };
+    const gh = {
+      endpoints: [],
+      async api({ endpoint }) {
+        gh.endpoints.push(endpoint);
+        return {
+          stdout: JSON.stringify(files.map((filename) => ({ filename }))),
+        };
+      },
+    };
+    const notifyCalls = [];
+    const args = {
+      provider,
+      storyId: 3385,
+      prNumber: 42,
+      prUrl: PR_URL,
+      cwd: '/repo',
+      config: makeChannelConfig(),
+      injectedGh: gh,
+      injectedNotify: async (_id, payload) => notifyCalls.push(payload.event),
+      readPrMergeStateFn: fakeMergeState('MERGED', '2026-05-31T00:00:00Z'),
+      sleepFn: async () => {},
+      // The test runner switches the channel off for every test child.
+      injectedCoordination: { env: {} },
+    };
+    const events = () =>
+      provider.comments
+        .filter((comment) => isEventComment(comment.body))
+        .map((comment) => decodeEventComment(comment, args.config.github));
+    return { provider, gh, args, notifyCalls, events };
+  }
+
+  it('publishes exactly one landed event, scoped to the PR files and linked to the PR', async () => {
+    const l = landing();
+    const result = await confirmStoryMerged(l.args);
+    assert.equal(result.action, 'done');
+    assert.deepEqual(l.gh.endpoints, [
+      'repos/octo/demo/pulls/42/files?per_page=100',
+    ]);
+    const [event, ...rest] = l.events();
+    assert.deepEqual(rest, []);
+    assert.equal(event.kind, 'landed');
+    assert.equal(event.issueId, 3385);
+    assert.deepEqual(event.scope.paths, ['lib/a.js', 'docs/b.md']);
+    assert.equal(event.link, PR_URL);
+    assert.equal(
+      l.notifyCalls.filter((event) => event === 'story-merged').length,
+      1,
+    );
+  });
+
+  it('re-running confirmation publishes no second event', async () => {
+    const l = landing();
+    await confirmStoryMerged(l.args);
+    const again = await confirmStoryMerged(l.args);
+    assert.equal(again.action, 'noop');
+    assert.equal(l.events().length, 1);
+  });
+
+  it('a confirmation whose label flip failed still publishes once, and its retry adds nothing', async () => {
+    const l = landing();
+    const applyLabels = l.provider.updateTicket;
+    l.provider.updateTicket = async () => {
+      throw new Error('labels API 502');
+    };
+    const failed = await confirmStoryMerged(l.args);
+    assert.equal(failed.action, 'flip-failed');
+    assert.equal(l.events().length, 1);
+
+    l.provider.updateTicket = applyLabels;
+    const retried = await confirmStoryMerged(l.args);
+    assert.equal(retried.action, 'done');
+    assert.equal(l.events().length, 1);
+  });
+
+  it('a publish failure does not fail confirmation', async () => {
+    const unposted = landing();
+    unposted.provider.postComment = async () => {
+      throw new Error('comments API down');
+    };
+    const unread = landing();
+    unread.args.injectedGh = {
+      async api() {
+        throw new Error('gh: HTTP 502');
+      },
+    };
+    for (const l of [unposted, unread]) {
+      const result = await confirmStoryMerged(l.args);
+      assert.deepEqual(result, { storyId: 3385, action: 'done', merged: true });
+      assert.deepEqual(l.events(), []);
+    }
+  });
+
+  it('a disabled channel confirms the same way and reads no PR files', async () => {
+    const l = landing();
+    l.args.injectedCoordination = {
+      env: { MANDREL_COORDINATION_DISABLED: '1' },
+    };
+    const result = await confirmStoryMerged(l.args);
+    assert.deepEqual(result, { storyId: 3385, action: 'done', merged: true });
+    assert.deepEqual(l.gh.endpoints, []);
+    assert.deepEqual(l.events(), []);
+  });
+
+  it('a PR that has not merged publishes nothing', async () => {
+    const l = landing();
+    l.args.readPrMergeStateFn = fakeMergeState('OPEN');
+    const result = await confirmStoryMerged(l.args);
+    assert.equal(result.action, 'pending');
+    assert.deepEqual(l.gh.endpoints, []);
+    assert.deepEqual(l.events(), []);
   });
 });

@@ -9,6 +9,7 @@
  */
 
 import { notify as defaultNotify } from '../../notify.js';
+import { publishLanded } from '../coordination/lifecycle.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
 import { isPrMerged } from '../orchestration/merge-poll.js';
@@ -58,6 +59,7 @@ export async function readPrMergeState({ cwd, prNumber, gh = defaultGh }) {
  *   it is read here.
  * @param {(ms: number) => Promise<void>} [args.sleepFn] Backoff between
  *   done-flip attempts; injectable so tests do not sleep.
+ * @param {object} [args.injectedCoordination] `landed` publish overrides.
  * @returns {Promise<object>} `done` | `noop` (already-done) | `pending`
  *   (pr-open / pr-not-merged) | `flip-failed`.
  */
@@ -74,6 +76,7 @@ export async function confirmStoryMerged({
   readPrMergeStateFn = readPrMergeState,
   prState,
   sleepFn = defaultSleep,
+  injectedCoordination = {},
 }) {
   progress?.('CONFIRM', `Confirming merge for standalone Story #${storyId}...`);
 
@@ -123,11 +126,33 @@ export async function confirmStoryMerged({
       provider,
     });
   }
+  // The files landed whether or not the label write did; once-only per Story.
+  await publishLandedEvent({
+    storyId,
+    prNumber,
+    prUrl,
+    config,
+    provider,
+    gh: injectedGh ?? defaultGh,
+    notifyFn: injectedNotify,
+    ...injectedCoordination,
+  });
   return {
     storyId,
     action: flipped ? 'done' : 'flip-failed',
     merged: true,
   };
+}
+
+/** Best-effort, like the notify beside it: a failure is logged and swallowed. */
+async function publishLandedEvent(args) {
+  const { degraded, refused } = await publishLanded(args);
+  const failure = degraded ?? refused;
+  if (failure) {
+    Logger.warn(
+      `[single-story-confirm-merge] ⚠️ landed coordination event not published (swallowed): ${failure}`,
+    );
+  }
 }
 
 /** Not merged, or merged but held for its CI ratchet; `null` confirms. */

@@ -20,6 +20,7 @@ import {
   resolveConfig,
   resolveRuntime,
 } from './lib/config-resolver.js';
+import { surfaceInbox } from './lib/coordination/lifecycle.js';
 import { cachedGitFetch } from './lib/git/cached-fetch.js';
 import {
   branchExistsLocally,
@@ -641,6 +642,7 @@ export async function runSingleStoryInit({
   injectedSeedBranch = seedStoryBranch,
   injectedProvisionWorktree = provisionWorktree,
   injectedBuildChecklist = buildStoryChecklist,
+  injectedCoordination = {},
 } = {}) {
   const parsed =
     storyIdParam !== undefined
@@ -709,6 +711,7 @@ export async function runSingleStoryInit({
   let installStatus = { status: 'skipped', reason: 'dry-run' };
   let worktreeSweep = null;
   let boardSync = null;
+  let coordination = null;
 
   if (!dryRun) {
     const acquire = injectedAcquireLease ?? acquireStoryLease;
@@ -766,6 +769,14 @@ export async function runSingleStoryInit({
     }
     // Every mutation has landed: the Story is now in its build stage.
     await publishDeliveryStage({ provider, storyId, stage: 'build' });
+    // The default read starts this Story's cursor, 24 hours back.
+    coordination = await surfaceInbox({
+      storyId,
+      config,
+      provider,
+      cwd: workCwd,
+      ...injectedCoordination,
+    });
   }
 
   // Every path gets the checklist; `buildStoryChecklist` never throws.
@@ -788,6 +799,7 @@ export async function runSingleStoryInit({
     remote,
     checklistPath,
     boardSync,
+    coordination,
   });
 
   // The envelope (stdout + disk) is the only record; no ticket comment. Full

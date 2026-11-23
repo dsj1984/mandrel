@@ -130,6 +130,7 @@ function withRecovery(blocked) {
  * @param {'pushed'|'skipped-already-at-head'|null} [args.pushOutcome]
  * @param {{ mode: 'ci', applied: 'full'|'deferred-to-ci', reason: string, detail?: string, deferredGates: string[], ciChecks: string[] }} [args.revalidation]
  *   Close's post-merge revalidation; absent unless `revalidateAfterBaseSync` is `ci`.
+ * @param {{ events: object[] }} [args.coordination] Close's inbox read.
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]
  *   Test seam.
@@ -156,6 +157,7 @@ export function buildTerminalEnvelope({
   baseSync,
   pushOutcome,
   revalidation,
+  coordination,
   timestamp = new Date().toISOString(),
   schemaSource,
 }) {
@@ -182,6 +184,7 @@ export function buildTerminalEnvelope({
     baseSync,
     pushOutcome,
     revalidation,
+    coordination,
     timestamp,
   });
 

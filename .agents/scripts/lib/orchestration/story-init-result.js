@@ -26,6 +26,7 @@ const INSTALL_FLAGS = Object.freeze({ installed: 'true', failed: 'false' });
  * @param {{ remoteVerified: boolean, remoteUrl?: string, detail?: string }} args.remote
  * @param {string|null} args.checklistPath
  * @param {{ status: string, reason?: string }|null} [args.boardSync]
+ * @param {{ events: object[] }|null} [args.coordination] `null` on a dry run.
  * @returns {{ result: object, summary: object }}
  */
 export function composeStoryInitResult({
@@ -43,6 +44,7 @@ export function composeStoryInitResult({
   remote,
   checklistPath,
   boardSync = null,
+  coordination = null,
 }) {
   const dependenciesInstalled =
     INSTALL_FLAGS[installStatus.status] ?? 'skipped';
@@ -71,6 +73,7 @@ export function composeStoryInitResult({
     // the same Story-scoped path a multi-Story dispatch prompt names.
     checklistPath,
     boardSync,
+    coordination,
   };
   const summary = {
     storyId,

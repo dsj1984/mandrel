@@ -392,6 +392,8 @@ describe('AC-1: each entry point publishes its stage', () => {
         logger: { info() {} },
       },
     );
-    assert.deepEqual(init, { verdictPath: '/v.json' });
+    // The coordination inbox read is its own advisory field.
+    const { coordination: _coordination, ...summary } = init;
+    assert.deepEqual(summary, { verdictPath: '/v.json' });
   });
 });

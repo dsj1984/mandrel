@@ -11,6 +11,7 @@
 
 import { rm } from 'node:fs/promises';
 import { getPaths, PROJECT_ROOT } from '../../config-resolver.js';
+import { publishPlanChanges } from '../../coordination/lifecycle.js';
 import { Logger } from '../../Logger.js';
 import { sweepTempRetention } from '../../temp-retention.js';
 import {
@@ -324,6 +325,27 @@ async function persistStoryArtifacts({ provider, created, summaryFor }) {
 }
 
 /**
+ * Tell in-flight Stories that a Story was just planned over their files. A
+ * publish that fails is a warning, never a failed persist.
+ *
+ * @param {{ provider: object, config: object, created: object[], stories: object[] }} args
+ * @param {string[]} warnings Appended to in place.
+ */
+async function announcePlanChanges({ created, stories, ...lib }, warnings) {
+  const bodyBySlug = new Map(stories.map((story) => [story.slug, story.body]));
+  const planChange = await publishPlanChanges({
+    ...lib,
+    stories: created.map(({ id, slug, adopted }) => ({
+      id,
+      adopted,
+      body: bodyBySlug.get(slug),
+    })),
+  });
+  warnings.push(...planChange.warnings);
+  logWarnings(planChange.warnings);
+}
+
+/**
  * @param {{ config: object, planDir: string|null, skipCleanup: boolean }} args
  * @returns {Promise<void>}
  */
@@ -441,6 +463,7 @@ function logRunEpilogue({ dryRun, ...epilogue }) {
  *     sourceTicketOrigin?: 'flag'|'envelope'|'none',
  *     closeSuperseded?: boolean,
  *     rewriteSource?: boolean,
+ *     coordination?: object,
  *   },
  * }} input
  */
@@ -589,6 +612,10 @@ export async function runPlanPersist({
 
   if (!dryRun) {
     await persistStoryArtifacts({ provider, created, summaryFor });
+    await announcePlanChanges(
+      { provider, config, created, stories, ...opts.coordination },
+      warnings,
+    );
   }
 
   // Last among the writes: the Epic needs the children's numbers and database

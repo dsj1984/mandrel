@@ -325,6 +325,18 @@
       },
       "additionalProperties": false
     },
+    "coordination": {
+      "type": "object",
+      "description": "Close's coordination inbox read: every event pertinent to the Story since it started, each a decoded coordination-event record. Advisory: no status, gate or exit code reads it. disabled, skipped or degraded says why events is empty. Absent on an envelope whose run made no read.",
+      "required": ["events"],
+      "properties": {
+        "events": { "type": "array", "items": { "type": "object" } },
+        "disabled": { "const": true },
+        "skipped": { "type": "string", "minLength": 1 },
+        "degraded": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "timestamp": { "type": "string", "format": "date-time" }
   },
   "allOf": [

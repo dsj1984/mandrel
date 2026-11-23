@@ -15,17 +15,12 @@ import {
  *   baseBranch: string,
  *   lockWait: { waitedSeconds: number, expired: boolean, holder?: object }|null,
  *   elapsedSeconds: number,
+ *   coordination?: object,
  * }} args
  * @returns {{ result: object, terminal: object, note: string }} The close
  *   result, the validated `pending` envelope, and the operator line.
  */
-export function lockWaitPending({
-  storyId,
-  storyBranch,
-  baseBranch,
-  lockWait,
-  elapsedSeconds,
-}) {
+export function lockWaitPending({ storyId, lockWait, ...envelope }) {
   const nextCommand = NEXT_COMMANDS.close(storyId);
   return {
     result: {
@@ -35,14 +30,12 @@ export function lockWaitPending({
       reason: 'full-suite-lock-wait-expired',
     },
     terminal: buildTerminalEnvelope({
+      ...envelope,
       storyId,
       status: 'pending',
       phase: 'close-validation',
-      storyBranch,
-      baseBranch,
       lockWait,
       nextCommand,
-      elapsedSeconds,
     }),
     note: `⏸  Story #${storyId}: another full suite${describeHolder(lockWait?.holder)} held the host lock past the wait budget — resume with: ${nextCommand}`,
   };

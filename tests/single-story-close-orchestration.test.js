@@ -39,6 +39,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
+import {
+  buildEvent,
+  encodeEventComment,
+} from '../.agents/scripts/lib/coordination/event.js';
 import { readDeferralMarker } from '../.agents/scripts/lib/coverage-deferral.js';
 import {
   createGh,
@@ -48,6 +52,7 @@ import {
 import { forEachLine } from '../.agents/scripts/lib/observability/signals-writer.js';
 import { ensurePullRequestWith } from '../.agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+import { makeChannelProvider } from './helpers/coordination-channel.js';
 
 const REPO_ROOT = path
   .resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -279,6 +284,10 @@ function defaultGitUtilsMock({ pushImpl } = {}) {
           stderr: '',
         }),
       }),
+      // Close reads the coordination inbox, loaded on first use, and the
+      // inbox imports this. A load that fails to link is cached for the
+      // process, so every mock surfaces it, not only the tests that read.
+      parseStoryBranch: (..._args) => null,
     },
   };
 }
@@ -3849,5 +3858,145 @@ describe('runSingleStoryClose — the REST transport (Story #5793)', () => {
       (b) => b.key === 'PUT repos/{owner}/{repo}/pulls/5793/merge',
     );
     assert.deepEqual(merge.body, { merge_method: 'squash', sha: 'feed5793' });
+  });
+});
+
+describe('runSingleStoryClose — coordination events in the terminal envelope', () => {
+  const NOW = new Date('2026-11-20T12:00:00Z');
+
+  function mockCloseModules(t) {
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+  }
+
+  /** A no-wait close over a provider that carries a live channel. */
+  async function closeWith(tag, { prepare = () => {}, env = {} } = {}) {
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=${tag}`);
+    const config = fakeConfig();
+
+    const provider = Object.assign(
+      makeChannelProvider(),
+      makeFakeProvider({
+        initialStory: {
+          id: 1234,
+          state: 'open',
+          title: 'Test story',
+          labels: ['agent::executing'],
+          body: '',
+        },
+      }),
+    );
+    // A sibling's event naming this Story.
+    provider.add(
+      9,
+      encodeEventComment(
+        buildEvent(
+          {
+            kind: 'landed',
+            summary: 'A sibling landed',
+            stories: [1234],
+            storyId: 9,
+          },
+          { now: () => NOW },
+        ),
+      ),
+    );
+    await prepare(provider, config);
+    const lines = [];
+    const outcome = await runSingleStoryClose({
+      storyId: 1234,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: provider,
+      injectedConfig: config,
+      injectedRunCodeReview: noopReview(),
+      injectedGh: makeFakeGh((args) => {
+        if (args[1] === 'list') return [];
+        if (args[1] === 'create') {
+          return 'https://github.com/owner/repo/pull/123\n';
+        }
+        if (args[1] === 'merge') return 'ok';
+        throw new Error(`unexpected gh: ${args.join(' ')}`);
+      }),
+      injectedCoordination: {
+        env,
+        now: () => NOW,
+        write: (block) => lines.push(block),
+      },
+    });
+    return { ...outcome, lines };
+  }
+  const settled = ({ success, result, terminal }) => ({
+    success,
+    result,
+    status: terminal.status,
+    phase: terminal.phase,
+    gates: terminal.gates,
+    nextCommand: terminal.nextCommand,
+  });
+
+  it('lists the pertinent events since the Story started, seen or not, and prints the block', async (t) => {
+    mockCloseModules(t);
+    // Loaded after the mocks, like the runner's own copy.
+    const { surfaceInbox } = await import(
+      pathToFileURL(
+        path.resolve(
+          REPO_ROOT,
+          '.agents/scripts/lib/coordination/lifecycle.js',
+        ),
+      ).href
+    );
+    const { terminal, lines } = await closeWith('coordination-events', {
+      prepare: async (provider, config) => {
+        const earlier = await surfaceInbox({
+          storyId: 1234,
+          config,
+          provider,
+          env: {},
+          now: () => NOW,
+          write: () => {},
+        });
+        assert.equal(earlier.events.length, 1, 'an earlier read returned it');
+      },
+    });
+    assert.equal(terminal.status, 'pending');
+    assert.deepEqual(
+      terminal.coordination.events.map((event) => event.summary),
+      ['A sibling landed'],
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /^\[Coordination\] 1 pertinent event\(s\)/);
+  });
+
+  it('a degraded or disabled channel leaves the close otherwise unchanged and silent', async (t) => {
+    mockCloseModules(t);
+    const eventful = await closeWith('coordination-baseline');
+    const degraded = await closeWith('coordination-degraded', {
+      prepare: (provider) => {
+        provider.getRepoCommentsSince = async () => {
+          throw new Error('502 Bad Gateway');
+        };
+      },
+    });
+    const disabled = await closeWith('coordination-disabled', {
+      env: { MANDREL_COORDINATION_DISABLED: '1' },
+    });
+
+    assert.match(
+      degraded.terminal.coordination.degraded,
+      /provider-error: 502 Bad Gateway/,
+    );
+    assert.deepEqual(disabled.terminal.coordination, {
+      events: [],
+      disabled: true,
+    });
+    for (const run of [degraded, disabled]) {
+      assert.deepEqual(settled(run), settled(eventful));
+      assert.deepEqual(run.terminal.coordination.events, []);
+      assert.deepEqual(run.lines, []);
+    }
   });
 });

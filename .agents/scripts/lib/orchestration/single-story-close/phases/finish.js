@@ -172,8 +172,16 @@ function closeEnvelopeFields({
   baseSync,
   pushOutcome,
   revalidation,
+  coordination,
 }) {
-  return { lockWait, suiteTimings, baseSync, pushOutcome, revalidation };
+  return {
+    lockWait,
+    suiteTimings,
+    baseSync,
+    pushOutcome,
+    revalidation,
+    coordination,
+  };
 }
 
 /**

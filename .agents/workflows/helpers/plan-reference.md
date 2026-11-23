@@ -513,6 +513,14 @@ This is what lets `/mandrel-deliver` trust the label: a Story carrying
 `agent::ready` always has the operator's delivery instructions on the ticket,
 so nothing can pick it up mid-write and act on a half-persisted plan.
 
+After the flip, persist publishes one `plan-change` coordination event for
+each created or rewritten Story whose declared footprint shares a concrete
+path with another open `agent::executing` Story. The event is posted on the
+new Story, names the in-flight Stories and the colliding paths, and reaches
+their inboxes ([runbook](../../docs/runbooks/coordination-channel.md)).
+`--dry-run` publishes nothing, and a failed publish is a persist warning,
+never a failure.
+
 ## Resuming a failed persist
 
 Persist is **idempotent over the same authored artifacts**. Each created body

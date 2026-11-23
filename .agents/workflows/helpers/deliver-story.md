@@ -80,6 +80,13 @@ One branch, one PR to `main`, commits against the inline `acceptance[]` /
    gates (`typecheck`, `lint`, scoped tests) — the full chain runs in Step 3,
    and the **one** full-suite run at Step 2.5.
 
+**Coordination events.** Init, `acceptance-eval.js`, `story-handoff.js` and
+close each print the events pertinent to the Story on stderr and carry them
+as `coordination` in their envelope. They inform; nothing gates on them. At
+each commit checkpoint run `coordination.js inbox --story <storyId>` and
+apply [`story-worker.md`](../../agents/story-worker.md) § Coordination events
+([runbook](../../docs/runbooks/coordination-channel.md)).
+
 ### Step 1a — Bounded acceptance self-eval loop (**required**)
 
 Start from the skeleton — `acceptance-eval.js --story <storyId> --init --cwd

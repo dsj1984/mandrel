@@ -18,6 +18,7 @@ import {
   validateVerdict,
 } from '../.agents/scripts/acceptance-eval.js';
 import { runCoverageCapture } from '../.agents/scripts/coverage-capture.js';
+import { publishEvent } from '../.agents/scripts/lib/coordination/channel.js';
 import {
   computeVerdictFingerprint,
   resolveAcceptanceEvalRound,
@@ -29,6 +30,12 @@ import {
   resolveVerifyCredit,
 } from '../.agents/scripts/lib/orchestration/verify-credit.js';
 import { makeGitRepo } from './fixtures/git-fixture.js';
+import {
+  fakeGit,
+  makeChannelConfig,
+  makeChannelProvider,
+  storyBody,
+} from './helpers/coordination-channel.js';
 
 /**
  * Story #4780 — `main` scored CRAP 69.1: the gate's whole error table
@@ -1298,5 +1305,137 @@ describe('--init — the verdict skeleton (Story #5518)', () => {
       }),
       [0],
     );
+  });
+});
+
+describe('runAcceptanceEvalCli — coordination events', () => {
+  const T0 = Date.parse('2026-11-20T12:00:00Z');
+
+  /**
+   * The CLI harness over a live channel: a provider, a clock the test moves,
+   * and the lines the gate printed to stderr.
+   */
+  function channelHarness(opts) {
+    const clock = { now: new Date(T0) };
+    const provider = makeChannelProvider({
+      tickets: { 4780: { body: storyBody({ paths: ['lib/a.js'] }) } },
+      clock: () => clock.now.toISOString(),
+    });
+    const config = {
+      ...makeChannelConfig(),
+      delivery: { acceptanceEval: { maxRounds: 2 } },
+    };
+    const lines = [];
+    const h = harness(opts);
+    Object.assign(h.deps, {
+      resolveConfigImpl: () => config,
+      createProviderFn: () => provider,
+      coordination: {
+        env: {},
+        now: () => clock.now,
+        git: fakeGit(),
+        write: (block) => lines.push(block),
+      },
+    });
+    return {
+      h,
+      provider,
+      lines,
+      score: () =>
+        runAcceptanceEvalCli(
+          ['--story', '4780', '--verdict', 'v.json'],
+          h.deps,
+        ),
+      landed: (summary) =>
+        publishEvent(
+          { kind: 'landed', summary, paths: ['lib/a.js'], storyId: 9 },
+          { config, provider, env: {}, now: () => clock.now },
+        ),
+      advance(seconds) {
+        clock.now = new Date(clock.now.getTime() + seconds * 1000);
+      },
+    };
+  }
+  const summaries = (envelope) =>
+    envelope.coordination.events.map((e) => e.summary);
+
+  it('reads throttled and prints only the unseen events', async () => {
+    const c = channelHarness();
+    await c.landed('first');
+    assert.deepEqual(summaries(await c.score()), ['first']);
+    assert.equal(c.lines.length, 1);
+
+    c.advance(30);
+    await c.landed('second');
+    const throttled = await c.score();
+    assert.deepEqual(throttled.coordination, {
+      events: [],
+      skipped: 'throttled',
+    });
+    assert.equal(c.lines.length, 1, 'a throttled read prints nothing');
+
+    c.advance(121);
+    assert.deepEqual(summaries(await c.score()), ['second']);
+    assert.equal(c.lines.length, 2);
+    assert.doesNotMatch(c.lines[1], /first/);
+    assert.match(c.h.infos.at(-1), /"coordination":\{"events":\[\{/);
+  });
+
+  it('--init surfaces the inbox beside the skeleton summary', async () => {
+    const c = channelHarness();
+    c.h.deps.initSkeletonImpl = async () => ({ verdictPath: '/v.json' });
+    await c.landed('landed before the self-eval');
+    const out = await runAcceptanceEvalCli(
+      ['--story', '4780', '--init', '--cwd', '/work'],
+      c.h.deps,
+    );
+    assert.equal(out.verdictPath, '/v.json');
+    assert.deepEqual(summaries(out), ['landed before the self-eval']);
+    assert.match(c.lines[0], /1 pertinent event/);
+  });
+
+  it('an event leaves the decision and the block exit unchanged', async () => {
+    const blocked = {
+      envelope: {
+        storyId: 4780,
+        decision: 'block',
+        cap: 2,
+        unmetCriteria: [{ index: 0, verdict: 'not-met' }],
+      },
+      exitCode: 1,
+    };
+    const c = channelHarness(blocked);
+    await c.landed('a sibling landed');
+    await assert.rejects(c.score, /round cap \(2\) reached/);
+    assert.match(c.h.infos[0], /"decision":"block"/);
+    assert.equal(c.lines.length, 1);
+
+    const proceeds = channelHarness();
+    await proceeds.landed('a sibling landed');
+    assert.equal((await proceeds.score()).decision, 'proceed');
+  });
+
+  it('a degraded or disabled channel leaves the envelope otherwise unchanged', async () => {
+    const strip = ({ coordination: _coordination, ...rest }) => rest;
+    const baseline = await channelHarness().score();
+    assert.deepEqual(baseline.coordination, { events: [] });
+
+    const degraded = channelHarness();
+    await degraded.landed('unreadable');
+    degraded.provider.getRepoCommentsSince = async () => {
+      throw new Error('502 Bad Gateway');
+    };
+    const disabled = channelHarness();
+    await disabled.landed('never read');
+    disabled.h.deps.coordination.env = { MANDREL_COORDINATION_DISABLED: '1' };
+
+    const failed = await degraded.score();
+    assert.match(failed.coordination.degraded, /502 Bad Gateway/);
+    const off = await disabled.score();
+    assert.deepEqual(off.coordination, { events: [], disabled: true });
+    for (const envelope of [failed, off]) {
+      assert.deepEqual(strip(envelope), strip(baseline));
+    }
+    assert.deepEqual([...degraded.lines, ...disabled.lines], []);
   });
 });

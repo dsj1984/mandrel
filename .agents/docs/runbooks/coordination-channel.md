@@ -92,6 +92,28 @@ events it carries `disabled: true`, `skipped: "throttled"`, or
 `degraded: "<reason>"` when the provider failed or the read took over five
 seconds. All of them exit 0.
 
+## Where delivery reads and publishes
+
+The Story lifecycle touches the channel without being asked. Each read prints
+the block above on stderr when at least one event is pertinent, and adds a
+`coordination` object (`events`, plus `disabled`, `skipped` or `degraded`
+when it read nothing) to that command's JSON envelope. No event changes an
+exit code, a status, a label or a gate outcome.
+
+| Surface | What it does |
+| --- | --- |
+| `single-story-init.js` | A default read after the Story flips to `agent::executing`. It starts the cursor. |
+| `acceptance-eval.js` | A `--throttle` read, on `--init` and on scoring. |
+| `story-handoff.js` | A `--since-start` read, so the hand-off lists every pertinent event of the delivery. |
+| `single-story-close.js` | A `--since-start` read, carried in the terminal envelope. |
+| Merge confirmation | Publishes one `landed` event on the Story (`--once`), with the merged PR's files as `--paths` and the PR as `--link`. A PR of 100 files or more is sent to everyone. |
+| `plan-persist.js` | Publishes one `plan-change` event per created or rewritten Story whose declared footprint shares a concrete path with another open `agent::executing` Story, naming those Stories and paths. `--dry-run` publishes nothing. |
+
+A failed `landed` publish is logged and swallowed; a failed `plan-change`
+publish is a persist warning. A delivering agent also runs `inbox` at each
+commit checkpoint and publishes `decision` itself: the rule is in
+[`story-worker.md`](../../agents/story-worker.md) § Coordination events.
+
 ## The orchestrator
 
 `/mandrel-orchestrate` reads every trusted event on each sweep, with its own
