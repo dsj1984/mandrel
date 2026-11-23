@@ -340,6 +340,16 @@ function runReviewer(runDir, prompt, effort, deps) {
   });
 }
 
+/** The runner's SIGTERM reads as `claude`'s own exit 143, so time the call. */
+async function timedReview(runDir, prompt, effort, deps) {
+  const startedAt = deps.nowFn();
+  const result = await runReviewer(runDir, prompt, effort, deps);
+  const elapsed = deps.nowFn() - startedAt;
+  return result.status !== 0 && elapsed >= deps.timeoutMs
+    ? timeoutVerdict(result, deps.timeoutMs)
+    : resolveVerdict(result);
+}
+
 /**
  * Preflight, then the review, both from a fresh OS temp dir removed after.
  *
@@ -353,12 +363,7 @@ async function reviewInTempDir(prompt, effort, deps) {
     deps.logger?.info?.(
       `[code-review] Invoking claude --print --effort ${effort} (${auth.detail})...`,
     );
-    const startedAt = deps.nowFn();
-    const result = await runReviewer(runDir, prompt, effort, deps);
-    // The runner's SIGTERM reads as `claude`'s own exit 143, so time it.
-    return result.status !== 0 && deps.nowFn() - startedAt >= deps.timeoutMs
-      ? timeoutVerdict(result, deps.timeoutMs)
-      : resolveVerdict(result);
+    return await timedReview(runDir, prompt, effort, deps);
   } finally {
     fs.rmSync(runDir, { recursive: true, force: true });
   }
