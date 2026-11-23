@@ -3,6 +3,7 @@ import { buildDefaultGates } from '../../close-validation/gates.js';
 import { runCloseValidation } from '../../close-validation/runner.js';
 import { getCiDelivery } from '../../config/ci.js';
 import { resolveConfig } from '../../config-resolver.js';
+import { surfaceInbox } from '../../coordination/lifecycle.js';
 import { gh as defaultGh } from '../../gh-exec.js';
 import { getStoryBranch, gitSpawn, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
@@ -113,6 +114,7 @@ function resolveCloseDeps(options, injected) {
     graphqlProbe: injected.injectedGraphqlProbe,
     sleep: injected.injectedSleep,
     runPostLandTail: injected.injectedRunPostLandTail,
+    coordination: injected.injectedCoordination,
   };
 }
 
@@ -259,6 +261,19 @@ async function resolveBasePhase(ctx, deps) {
   return null;
 }
 
+/** Every pertinent coordination event since the Story started; advisory. */
+async function coordinationPhase(ctx, deps) {
+  ctx.coordination = await surfaceInbox({
+    storyId: ctx.storyId,
+    config: deps.config,
+    provider: deps.provider,
+    cwd: ctx.worktreePath ?? ctx.options.cwd,
+    mode: 'since-start',
+    ...deps.coordination,
+  });
+  return null;
+}
+
 /** First SHA of a `show-ref` / `ls-remote` line; `''` on an empty read. */
 function firstSha(stdout) {
   return String(stdout ?? '')
@@ -391,6 +406,7 @@ async function prePushPhase(ctx, deps) {
     startedAtMs: ctx.startedAtMs,
     phaseTimer: ctx.phaseTimer,
     worker: ctx.worker,
+    coordination: ctx.coordination,
   });
 }
 
@@ -459,6 +475,7 @@ function buildPrContext(ctx, deps) {
     pushOutcome: ctx.pr.pushOutcome ?? null,
     revalidation: ctx.prePush.revalidation,
     suiteTimings: envelopeSuiteTimings(ctx, deps),
+    coordination: ctx.coordination,
     gates: closeEnvelopeGates(
       options,
       ctx.prePush.validationGates,
@@ -525,6 +542,7 @@ const CLOSE_PIPELINE = Object.freeze([
   loadStoryPhase,
   graphqlPreflightPhase,
   resolveBasePhase,
+  coordinationPhase,
   unlessLanded(prePushPhase, landedPrePush),
   unlessLanded(openPrPhase, landedPr),
   armPhase,

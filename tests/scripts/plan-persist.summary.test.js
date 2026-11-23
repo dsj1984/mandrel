@@ -17,9 +17,22 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { writePlanSummaryComment } from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
+import {
+  decodeEventComment,
+  isEventComment,
+} from '../../.agents/scripts/lib/coordination/event.js';
+import {
+  runPlanPersist,
+  writePlanSummaryComment,
+} from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
 import { buildPlanSummaryCommentBody } from '../../.agents/scripts/lib/orchestration/plan-persist/summary.js';
 import { predictWaveSerialisation } from '../../.agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js';
+import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
+import {
+  makeChannelConfig,
+  makeChannelProvider,
+  storyBody,
+} from '../helpers/coordination-channel.js';
 
 const BASE = {
   storyId: 4242,
@@ -361,5 +374,117 @@ describe('one comment per Story — the summary is its whole body (#5343, #5367)
       /numeric storyId/,
     );
     assert.equal(provider.comments.length, 0);
+  });
+});
+
+describe('plan-persist publishes plan-change coordination events', () => {
+  // Committed paths, so the freshness probes have nothing to warn about.
+  const SHARED = 'tests/scripts/plan-persist.summary.test.js';
+  const OTHER = 'tests/scripts/plan-persist.flat-stories.test.js';
+
+  const draft = (path) => {
+    const acceptance = ['the change holds'];
+    const verify = ['npm test (validate)'];
+    return {
+      slug: 'planned',
+      type: 'story',
+      title: 'Story planned',
+      acceptance,
+      verify,
+      body: serialize({
+        goal: 'Goal of the planned Story.',
+        changes: [{ path, assumption: 'refactors-existing' }],
+        acceptance,
+        verify,
+      }),
+    };
+  };
+
+  /**
+   * One persist over a live channel, with Story #77 in flight on `SHARED`.
+   * The test runner switches the channel off for every test child, so
+   * `opts.coordination.env` switches it back on.
+   */
+  function persistWorld() {
+    const provider = makeChannelProvider({
+      tickets: {
+        77: {
+          labels: ['type::story', 'agent::executing'],
+          body: storyBody({ paths: [SHARED] }),
+        },
+      },
+    });
+    provider.updateTicket = async (id, { labels = {} }) => {
+      const issue = provider.issues.get(id);
+      issue.labels = [...issue.labels, ...(labels.add ?? [])];
+    };
+    const config = makeChannelConfig();
+    const persist = (path, opts = {}) =>
+      runPlanPersist({
+        provider,
+        artifacts: { stories: [draft(path)] },
+        config,
+        opts: { skipCleanup: true, coordination: { env: {} }, ...opts },
+      });
+    const events = () =>
+      provider.comments
+        .filter((comment) => isEventComment(comment.body))
+        .map((comment) => decodeEventComment(comment, config.github));
+    return { provider, persist, events };
+  }
+
+  it('publishes one event for a Story planned over an in-flight footprint', async () => {
+    const w = persistWorld();
+    const result = await w.persist(SHARED);
+    const [event, ...rest] = w.events();
+    assert.deepEqual(rest, []);
+    assert.equal(event.kind, 'plan-change');
+    assert.equal(event.issueId, result.primaryStoryId);
+    assert.deepEqual(event.scope, {
+      paths: [SHARED],
+      stories: [77],
+      broadcast: false,
+    });
+    assert.equal(
+      event.link,
+      `https://github.com/octo/demo/issues/${result.primaryStoryId}`,
+    );
+    assert.ok(
+      w.provider.issues
+        .get(result.primaryStoryId)
+        .labels.includes('agent::ready'),
+      'the event follows the ready flip',
+    );
+  });
+
+  it('publishes nothing without a collision or under --dry-run', async () => {
+    const apart = persistWorld();
+    await apart.persist(OTHER);
+    assert.deepEqual(apart.events(), []);
+
+    const dry = persistWorld();
+    await dry.persist(SHARED, { dryRun: true });
+    assert.deepEqual(dry.events(), []);
+    assert.ok(!dry.provider.calls.includes('postComment'));
+  });
+
+  it('reports a failed publish as a warning and still persists the Story', async () => {
+    const w = persistWorld();
+    const post = w.provider.postComment;
+    w.provider.postComment = async (issueId, payload) => {
+      if (isEventComment(payload.body)) throw new Error('comments API down');
+      return post(issueId, payload);
+    };
+    const result = await w.persist(SHARED);
+    assert.equal(result.stories.length, 1);
+    assert.ok(
+      result.warnings.some((warning) =>
+        /plan-change event for Story #\d+ was not published: provider-error: comments API down/.test(
+          warning,
+        ),
+      ),
+      JSON.stringify(result.warnings),
+    );
+    assert.deepEqual(w.events(), []);
   });
 });

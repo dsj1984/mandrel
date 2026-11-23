@@ -27,6 +27,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { getDeliveryRouting } from './lib/config/delivery-routing.js';
 import { resolvedTempRoot } from './lib/config/temp-paths.js';
 import { getAcceptanceEval, resolveConfig } from './lib/config-resolver.js';
+import { surfaceInbox } from './lib/coordination/lifecycle.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { appendSignal } from './lib/observability/signals-writer.js';
@@ -601,6 +602,19 @@ function requireStoryId(storyId) {
   );
 }
 
+/** The throttled inbox read of both modes: the envelope's `coordination`. */
+function surfaceCoordination({ storyId, config, cwd, deps }) {
+  const createProviderFn = deps.createProviderFn ?? createProvider;
+  return surfaceInbox({
+    storyId,
+    config,
+    cwd: cwd ?? undefined,
+    mode: 'throttle',
+    provider: () => createProviderFn(config),
+    ...deps.coordination,
+  });
+}
+
 /**
  * `--init`: write the skeleton and print its summary; scores nothing.
  *
@@ -621,8 +635,17 @@ async function runInitCli({ storyId, cwd, resolveConfigImpl, logger, deps }) {
     cwd: workCwd,
     config,
   });
-  logger.info(JSON.stringify(skeleton));
-  return skeleton;
+  const summary = {
+    ...skeleton,
+    coordination: await surfaceCoordination({
+      storyId,
+      config,
+      cwd: workCwd,
+      deps,
+    }),
+  };
+  logger.info(JSON.stringify(summary));
+  return summary;
 }
 
 /**
@@ -640,6 +663,7 @@ async function runInitCli({ storyId, cwd, resolveConfigImpl, logger, deps }) {
  *   readHeadImpl?: typeof readHeadSha,
  *   initSkeletonImpl?: typeof initVerdictSkeleton,
  *   createProviderFn?: typeof createProvider,
+ *   coordination?: object,
  *   logger?: { info: Function, warn?: Function },
  * }} [deps]
  * @returns {Promise<object>} the emitted envelope (the skeleton summary under `--init`).
@@ -723,13 +747,18 @@ export async function runAcceptanceEvalCli(
     logger,
     deps,
   });
-  const { envelope, exitCode } = await runAcceptanceEvalImpl({
+  const scored = await runAcceptanceEvalImpl({
     storyId,
     verdict,
     config,
     emitSignal,
     ...gate,
   });
+  const { exitCode } = scored;
+  const envelope = {
+    ...scored.envelope,
+    coordination: await surfaceCoordination({ storyId, config, cwd, deps }),
+  };
 
   logger.info(JSON.stringify(envelope));
 

@@ -47,6 +47,7 @@ import {
   orchestrationLogDir,
   storyReviewDepositPath,
 } from '../config/temp-paths.js';
+import { surfaceInbox } from '../coordination/lifecycle.js';
 import { COVERAGE_HOST_RESOURCES_EXIT_CODE } from '../coverage-capture.js';
 import { extractFailureRows } from '../failure-rows.js';
 import {
@@ -2105,6 +2106,17 @@ export async function runStoryHandoff(
       progress('BLOCK', `block failed: ${err?.message ?? err}`);
     }
   }
+  // Since the Story started, so the hand-off carries every pertinent event.
+  const coordination = await surfaceInbox({
+    storyId,
+    config,
+    cwd,
+    env,
+    mode: 'since-start',
+    provider: () => createProviderFn(config),
+    git: { gitSpawn: git },
+    write: (block) => progress('COORDINATION', block),
+  });
   const envelope = {
     kind: 'story-handoff',
     storyId,
@@ -2130,6 +2142,7 @@ export async function runStoryHandoff(
           ...(stop.conflictFiles ? { conflictFiles: stop.conflictFiles } : {}),
         }
       : {}),
+    coordination,
     attempt: await nextHandoffAttempt({ storyId, config, readFn: readSignals }),
     ...(reportAll ? { reportAll, findings: reportAllFindings(steps) } : {}),
   };

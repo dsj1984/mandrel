@@ -34,6 +34,8 @@ import {
 } from '../../.agents/scripts/lib/close-validation/runner.js';
 import { signalsFile } from '../../.agents/scripts/lib/config/temp-paths.js';
 import { AGENTRC_SCHEMA } from '../../.agents/scripts/lib/config-settings-schema.js';
+import { publishEvent } from '../../.agents/scripts/lib/coordination/channel.js';
+import { readInbox } from '../../.agents/scripts/lib/coordination/inbox.js';
 import { withFullSuiteLockAsync } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { validateSignal } from '../../.agents/scripts/lib/observability/signal-validator.js';
 import { runStoryHandoff } from '../../.agents/scripts/lib/orchestration/story-handoff.js';
@@ -44,6 +46,11 @@ import {
   shouldSkip,
 } from '../../.agents/scripts/lib/validation-evidence.js';
 import { runStoryHandoffCli } from '../../.agents/scripts/story-handoff.js';
+import {
+  fakeGit,
+  makeChannelProvider,
+  storyBody,
+} from '../helpers/coordination-channel.js';
 
 const CLI = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -5524,5 +5531,111 @@ describe('story-handoff — the preflight fast lane (Story #6099)', () => {
     ]);
     assert.ok(checks.includes('lint'), 'the remaining checks still ran');
     assert.equal(h.reviews.length, 0);
+  });
+});
+
+describe('story-handoff — coordination events', () => {
+  const CHANNEL_OFF = 'MANDREL_COORDINATION_DISABLED';
+  const GITHUB = {
+    owner: 'octo',
+    repo: 'demo',
+    notifications: { commentEvents: [], webhookEvents: [] },
+  };
+
+  /**
+   * A handoff whose provider carries a live channel. The runner switches the
+   * channel off for every test child, so `env` switches it back on here.
+   */
+  function channelHarness(opts = {}) {
+    const provider = makeChannelProvider({
+      tickets: {
+        [STORY]: { body: storyBody({ paths: ['lib/a.js'] }) },
+        9: { body: storyBody({ paths: ['lib/b.js'] }) },
+      },
+      clock: () => new Date().toISOString(),
+    });
+    const config = configFor({ github: GITHUB });
+    const h = harness({ config, ...opts });
+    const lines = [];
+    h.deps.createProviderFn = () => provider;
+    h.deps.env = { ...process.env, [CHANNEL_OFF]: undefined };
+    h.deps.progress = (tag, msg) => lines.push({ tag, msg });
+    const landed = (summary) =>
+      publishEvent(
+        { kind: 'landed', summary, paths: ['lib/a.js'], storyId: 9 },
+        { config, provider, env: {} },
+      );
+    const printed = () => lines.filter((l) => l.tag === 'COORDINATION');
+    return { h, provider, config, landed, printed };
+  }
+  const summaries = (envelope) =>
+    envelope.coordination.events.map((e) => e.summary);
+
+  test('the ready envelope lists every pertinent event since the Story started, seen or not', async () => {
+    const c = channelHarness();
+    await c.landed('seen before the hand-off');
+    const earlier = await readInbox({
+      config: c.config,
+      storyId: STORY,
+      provider: c.provider,
+      env: {},
+      git: fakeGit(),
+    });
+    assert.equal(earlier.events.length, 1, 'an earlier read returned it');
+    await c.landed('new at the hand-off');
+
+    const { envelope, exitCode } = await c.h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.status, 'ready');
+    assert.deepEqual(summaries(envelope), [
+      'seen before the hand-off',
+      'new at the hand-off',
+    ]);
+    assert.equal(c.printed().length, 1);
+    assert.match(c.printed()[0].msg, /^\[Coordination\] 2 pertinent event/);
+  });
+
+  test('an event changes neither the status nor the steps of a ready or a fix-required run', async () => {
+    for (const outputs of [undefined, { lint: { status: 1 } }]) {
+      const quiet = await channelHarness({ outputs }).h.run();
+      const c = channelHarness({ outputs });
+      await c.landed('a sibling landed on your files');
+      const eventful = await c.h.run();
+      assert.equal(eventful.exitCode, quiet.exitCode);
+      assert.equal(eventful.envelope.status, quiet.envelope.status);
+      assert.deepEqual(stepNames(eventful.envelope), stepNames(quiet.envelope));
+      assert.deepEqual(quiet.envelope.coordination, { events: [] });
+      assert.equal(eventful.envelope.coordination.events.length, 1);
+    }
+  });
+
+  test('a degraded or disabled channel leaves the hand-off otherwise unchanged and silent', async () => {
+    const baseline = await harness().run();
+
+    const degraded = channelHarness();
+    await degraded.landed('unreadable');
+    degraded.provider.getRepoCommentsSince = async () => {
+      throw new Error('502 Bad Gateway');
+    };
+    const disabled = channelHarness();
+    await disabled.landed('never read');
+    disabled.h.deps.env = { ...process.env, [CHANNEL_OFF]: '1' };
+
+    for (const c of [degraded, disabled]) {
+      const { envelope, exitCode } = await c.h.run();
+      assert.equal(exitCode, 0);
+      assert.equal(envelope.status, 'ready');
+      assert.deepEqual(stepNames(envelope), stepNames(baseline.envelope));
+      assert.deepEqual(envelope.review, baseline.envelope.review);
+      assert.deepEqual(envelope.coordination.events, []);
+      assert.deepEqual(c.printed(), []);
+    }
+    const { envelope } = await degraded.h.run();
+    assert.match(envelope.coordination.degraded, /502 Bad Gateway/);
+    assert.deepEqual((await disabled.h.run()).envelope.coordination, {
+      events: [],
+      disabled: true,
+    });
+    assert.ok(!disabled.provider.calls.includes('getRepoCommentsSince'));
   });
 });
