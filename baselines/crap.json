@@ -496,6 +496,22 @@
       "main": 11.206361131980968,
       "parseCloseoutArgv": 5
     },
+    ".agents/scripts/coordination.js": {
+      "<anon csv/filter(item)#0>": 1,
+      "<anon csv/map(item)#0>": 1,
+      "<anon main/abandon()#0>": 2,
+      "<anon publishCommand/map(id)#0>": 1,
+      "<anon runCoordination/config()#0>": 1,
+      "actingStory": 2.0625,
+      "csv": 1,
+      "inboxCommand": 8,
+      "main": 2,
+      "parseFlags": 1,
+      "publishCommand": 2,
+      "renderInbox": 5,
+      "runCoordination": 3,
+      "toId": 2
+    },
     ".agents/scripts/coverage-capture.js": {
       "<anon runCoverageCapture/makeCapture(source)#0/(captureOpts)#0/onTimings(t)#0>": 1,
       "<anon runCoverageCapture/makeCapture(source)#0/(captureOpts)#0>": 1,
@@ -2994,6 +3010,7 @@
     },
     ".agents/scripts/lib/config/github.js": {
       "applyOperatorHandleEnv": 4,
+      "getCoordination": 3,
       "getGitHub": 10
     },
     ".agents/scripts/lib/config/handoff.js": {
@@ -3085,6 +3102,7 @@
       "anchorTempRoot": 9,
       "closeGateLogName": 1,
       "closeGateLogPath": 1,
+      "coordinationCursorPath": 1,
       "dispatchLogPath": 1,
       "dispatchRecordPath": 1.2962962962962963,
       "inNodeTestContext": 3,
@@ -3109,6 +3127,53 @@
     ".agents/scripts/lib/config/worktree-isolation.js": {
       "defaultNodeModulesStrategy": 2,
       "getWorktreeIsolation": 6
+    },
+    ".agents/scripts/lib/coordination/channel.js": {
+      "<anon createChannel/coordinationIssueId/open.map(ticket)#0>": 1,
+      "<anon createChannel/publishOnce(input)#0>": 1,
+      "createChannel": 1,
+      "createChannel/coordinationIssueId": 2,
+      "createChannel/mirror": 2,
+      "createChannel/poll": 5,
+      "createChannel/publish": 4,
+      "degradedReason": 1,
+      "publishEvent": 4
+    },
+    ".agents/scripts/lib/coordination/event.js": {
+      "<anon renderScope/scope.stories.map(id)#0>": 1.015625,
+      "buildEvent": 10,
+      "decodeEventComment": 6,
+      "encodeEventComment": 2,
+      "isAllowedLink": 8,
+      "isEventComment": 2,
+      "isRepoUrl": 6.049382716049383,
+      "parsePayload": 4,
+      "refusal": 4,
+      "renderEvents": 2,
+      "renderScope": 4.25,
+      "stripControl": 1,
+      "validator": 1
+    },
+    ".agents/scripts/lib/coordination/inbox.js": {
+      "<anon isTimestamp(value)#0>": 2,
+      "<anon readInbox/events.map(e)#0>": 1,
+      "<anon readInbox/polled.events.filter(event)#0>": 2,
+      "<anon withTimeout/finally()#0>": 1,
+      "<anon withTimeout/Promise(_,reject)#0/setTimeout()#0>": 1,
+      "<anon withTimeout/Promise(_,reject)#0>": 1,
+      "loadCursor": 4,
+      "readInbox": 10,
+      "saveCursor": 1.0233236151603498,
+      "withTimeout": 1
+    },
+    ".agents/scripts/lib/coordination/pertinence.js": {
+      "<anon isPertinent/event.scope.stories.some(id)#0>": 1,
+      "<anon isTrustedComment/trustedAuthors.some(name)#0>": 1,
+      "changedPaths": 2.0094814814814814,
+      "isPertinent": 5,
+      "isTrustedComment": 3,
+      "resolveReader": 2,
+      "storyIdFromBranch": 2
     },
     ".agents/scripts/lib/coverage-baseline.js": {
       "<anon buildScopePredicate/()#0>": 1,
@@ -8493,7 +8558,8 @@
       "_clearTestScratchTempRootCache": 1,
       "<anon buildWebhookSafeTestEnv/filter(k)#0>": 1,
       "buildWebhookSafeTestEnv": 2,
-      "ensureTestScratchTempRoot": 6
+      "ensureTestScratchTempRoot": 6,
+      "withCoordinationOff": 1
     },
     ".agents/scripts/lib/test-run-credit.js": {
       "depositConfig": 2.0625,

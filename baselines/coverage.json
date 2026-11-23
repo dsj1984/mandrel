@@ -135,6 +135,12 @@
       "functions": 40
     },
     {
+      "path": ".agents/scripts/coordination.js",
+      "lines": 95.93,
+      "branches": 89.13,
+      "functions": 90
+    },
+    {
       "path": ".agents/scripts/coverage-capture.js",
       "lines": 98.41,
       "branches": 97.06,
@@ -1422,6 +1428,30 @@
       "path": ".agents/scripts/lib/config/worktree-isolation.js",
       "lines": 100,
       "branches": 95.24,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/coordination/channel.js",
+      "lines": 100,
+      "branches": 87.76,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/coordination/event.js",
+      "lines": 98.52,
+      "branches": 86.59,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/coordination/inbox.js",
+      "lines": 98.48,
+      "branches": 94.87,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/coordination/pertinence.js",
+      "lines": 98.36,
+      "branches": 92.31,
       "functions": 100
     },
     {
