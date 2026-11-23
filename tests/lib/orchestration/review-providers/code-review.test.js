@@ -754,6 +754,9 @@ for (const depth of ['light', 'standard']) {
   });
 }
 
+/** The chunk tests below were sized against the former 200,000 cap. */
+const WIDE = Object.freeze({ ...INPUT, maxChunkChars: 200_000 });
+
 /** A per-file diff section of exactly `size` characters. */
 function section(file, size) {
   const head = `diff --git a/${file} b/${file}\n+++ b/${file}\n`;
@@ -777,6 +780,7 @@ function perPromptHarness(diff, verdictFor, extra = {}) {
         ? { status: 0, stdout: diff, stderr: '' }
         : (extra.grep?.(args) ?? { status: 1, stdout: '', stderr: '' }),
     authSpawnFn: () => ({ status: 0, stdout: AUTH_OK, stderr: '' }),
+    nowFn: extra.nowFn,
     spawnFn: (_file, _args, options) => {
       prompts.push(options.input);
       return verdictFor(options.input);
@@ -798,7 +802,7 @@ test('#5878 AC-1: a diff exactly at the cap is one reviewer invocation with no d
   const { provider, calls } = harness({
     diff: { status: 0, stdout: diff, stderr: '' },
   });
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   const invokes = invokeCalls(calls);
   assert.equal(invokes.length, 1);
   assert.ok(invokes[0].prompt.includes(`<diff>\n${diff}\n</diff>\n`));
@@ -820,7 +824,7 @@ test('#5878 AC-2: a diff over the cap is reviewed in file-aligned chunks with me
     ),
     stderr: '',
   }));
-  const findings = await provider.runReview(INPUT);
+  const findings = await provider.runReview(WIDE);
   assert.equal(prompts.length, 2);
   for (const prompt of prompts) {
     const body = prompt.slice(
@@ -865,7 +869,7 @@ test('#5878 AC-2: the callers block rides every chunk and comes out of the chunk
       }),
     },
   );
-  await provider.runReview({ ...INPUT, depth: 'deep' });
+  await provider.runReview({ ...WIDE, depth: 'deep' });
   assert.equal(prompts.length, 2);
   assert.ok(prompts[1].includes('+++ b/src/b.js'), 'b moved to chunk 2');
   for (const prompt of prompts) {
@@ -888,7 +892,7 @@ test('#5878 AC-3: files past the chunk bound are degraded by name', async () => 
     stdout: envelope([]),
     stderr: '',
   }));
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   assert.equal(prompts.length, 6);
   const row = assertOneDegradation(provider, /review bounded at 6 chunks/);
   assert.match(
@@ -907,7 +911,7 @@ test('#5878 AC-3: a chunk with no verdict is degraded naming its files while the
       ? { status: 0, stdout: 'not json', stderr: '' }
       : { status: 0, stdout: envelope([bug('src/b.js')]), stderr: '' },
   );
-  const findings = await provider.runReview(INPUT);
+  const findings = await provider.runReview(WIDE);
   assert.deepEqual(
     findings.map((f) => f.file),
     ['src/b.js'],
@@ -924,7 +928,7 @@ test('#5764 AC-2: a capped callers block records one degradation naming the drop
     diff: { status: 0, stdout: CALLER_DIFF, stderr: '' },
     grep: () => ({ status: 0, stdout: hits, stderr: '' }),
   });
-  await provider.runReview({ ...INPUT, depth: 'deep' });
+  await provider.runReview({ ...WIDE, depth: 'deep' });
   assertOneDegradation(
     provider,
     /callers block incomplete; not checked: loadWidget/,
@@ -946,7 +950,7 @@ test('#5912: every chunk is told it is a slice and carries the whole manifest, c
     stdout: envelope([]),
     stderr: '',
   }));
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   assert.equal(prompts.length, 6);
   const manifest = `<manifest>\n${files.join('\n')}\n</manifest>\n`;
   for (const [i, prompt] of prompts.entries()) {
@@ -968,7 +972,7 @@ test('#5912: every chunk is told it is a slice and carries the whole manifest, c
 
 test('#5912: a diff at or under the cap keeps the whole-diff prompt, with no slice note or manifest', async () => {
   const { provider, calls } = harness();
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   const { prompt } = invokeCall(calls);
   assert.match(prompt, /The diff below is authoritative/);
   assert.doesNotMatch(prompt, /<manifest>|chunk \d+ of/);
@@ -989,7 +993,7 @@ test('#5912: source sections pack before tests and docs, grouped by directory', 
     stdout: envelope([]),
     stderr: '',
   }));
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   const at = chunkOf(prompts, [
     'src/b.js',
     'src/z/a.js',
@@ -1024,11 +1028,11 @@ test('#5912: source sections pack before tests and docs, grouped by directory', 
 test('guidance: no guidance leaves the prompt unchanged; with guidance only the block is added', async () => {
   const guidance = 'Every retry loop must be bounded. $& {headRef}';
   const bare = harness();
-  await bare.provider.runReview(INPUT);
+  await bare.provider.runReview(WIDE);
   const guided = harness();
-  await guided.provider.runReview({ ...INPUT, guidance });
+  await guided.provider.runReview({ ...WIDE, guidance });
   const bareNull = harness();
-  await bareNull.provider.runReview({ ...INPUT, guidance: null });
+  await bareNull.provider.runReview({ ...WIDE, guidance: null });
   const without = invokeCall(bare.calls).prompt;
   const withBlock = invokeCall(guided.calls).prompt;
   assert.equal(invokeCall(bareNull.calls).prompt, without);
@@ -1040,7 +1044,7 @@ test('guidance: no guidance leaves the prompt unchanged; with guidance only the 
 
 test('guidance: the block sits after every framework rule and before the output shape, under the precedence sentence', async () => {
   const { provider, calls } = harness();
-  await provider.runReview({ ...INPUT, guidance: 'Project rule.' });
+  await provider.runReview({ ...WIDE, guidance: 'Project rule.' });
   const { prompt } = invokeCall(calls);
   const at = prompt.indexOf('<project-review-guidance>');
   const rules = [
@@ -1074,7 +1078,7 @@ test('guidance rides every chunk and comes out of the chunk budget', async () =>
     stdout: envelope([]),
     stderr: '',
   }));
-  await provider.runReview({ ...INPUT, guidance });
+  await provider.runReview({ ...WIDE, guidance });
   assert.equal(prompts.length, 2);
   for (const prompt of prompts) {
     assert.ok(prompt.includes(guidance));
@@ -1099,7 +1103,7 @@ test('the prompt and schema ask for a bug class and every instance, which reach 
     },
   ]);
   const { provider, calls } = harness({ stdout });
-  const [finding] = await provider.runReview(INPUT);
+  const [finding] = await provider.runReview(WIDE);
   const { prompt, args } = invokeCall(calls);
   assert.match(prompt, /every instance of the same defect/);
   const schema = JSON.parse(args[args.indexOf('--json-schema') + 1]);
@@ -1119,11 +1123,11 @@ test('#5976: input.effort sets --effort on every chunk and in the log line; argv
     diff: { status: 0, stdout: diff.join(''), stderr: '' },
     logger: { info: (m) => lines.push(m) },
   });
-  await provider.runReview({ ...INPUT, depth: 'deep', effort: 'high' });
+  await provider.runReview({ ...WIDE, depth: 'deep', effort: 'high' });
   const invokes = invokeCalls(calls);
   assert.equal(invokes.length, 2);
   const low = harness();
-  await low.provider.runReview(INPUT);
+  await low.provider.runReview(WIDE);
   const lowArgs = invokeCall(low.calls).args;
   assert.equal(lowArgs[2], 'low');
   for (const { args } of invokes) {
@@ -1139,10 +1143,10 @@ test('#5982 AC-1: a whole-review no verdict is verdict-missing', async () => {
   const unreadable = harness({
     diff: { status: 128, stdout: '', stderr: 'bad revision' },
   });
-  await unreadable.provider.runReview(INPUT);
+  await unreadable.provider.runReview(WIDE);
   assertOneDegradation(unreadable.provider, /bad revision/, 'verdict-missing');
   const loggedOut = harness({ auth: { status: 1, stdout: '', stderr: '' } });
-  await loggedOut.provider.runReview(INPUT);
+  await loggedOut.provider.runReview(WIDE);
   assertOneDegradation(loggedOut.provider, /auth status/, 'verdict-missing');
 });
 
@@ -1156,7 +1160,7 @@ test('#5982 AC-1: every chunk without a verdict is one verdict-missing record na
     stdout: 'not json',
     stderr: '',
   }));
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   const row = assertOneDegradation(
     provider,
     /^no verdict for src\/a\.js, src\/b\.js: /,
@@ -1175,7 +1179,7 @@ test('#5982 AC-1: one chunk without a verdict beside one with a verdict is cover
       ? { status: 0, stdout: 'not json', stderr: '' }
       : { status: 0, stdout: envelope([]), stderr: '' },
   );
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   assertOneDegradation(
     provider,
     /^no verdict for src\/a\.js/,
@@ -1189,11 +1193,11 @@ test('#5982 AC-1: files past the chunk bound and a truncated chunk are coverage-
     files.map((f) => section(f, 150_000)).join(''),
     () => ({ status: 0, stdout: envelope([]), stderr: '' }),
   );
-  await bounded.provider.runReview(INPUT);
+  await bounded.provider.runReview(WIDE);
   assertOneDegradation(bounded.provider, /review bounded/, 'coverage-partial');
   const big = `diff --git a/x b/x\n${'+'.repeat(250_000)}\n`;
   const truncated = harness({ diff: { status: 0, stdout: big, stderr: '' } });
-  await truncated.provider.runReview(INPUT);
+  await truncated.provider.runReview(WIDE);
   assertOneDegradation(truncated.provider, /truncated at/, 'coverage-partial');
 });
 
@@ -1206,7 +1210,7 @@ test('#5982 AC-1: an incomplete callers block is context-reduced', async () => {
     diff: { status: 0, stdout: CALLER_DIFF, stderr: '' },
     grep: () => ({ status: 0, stdout: hits, stderr: '' }),
   });
-  await provider.runReview({ ...INPUT, depth: 'deep' });
+  await provider.runReview({ ...WIDE, depth: 'deep' });
   assertOneDegradation(provider, /callers block incomplete/, 'context-reduced');
 });
 
@@ -1258,7 +1262,7 @@ for (const [label, failure] of [
 ]) {
   test(`#5982 AC-8: ${label} is retried once and a recovered verdict records nothing`, async () => {
     const { provider, invocations } = sequenceHarness([failure, OK]);
-    assert.deepEqual(await provider.runReview(INPUT), []);
+    assert.deepEqual(await provider.runReview(WIDE), []);
     assert.equal(invocations(), 2);
     assert.deepEqual(provider.getDegradations(), []);
   });
@@ -1267,7 +1271,7 @@ for (const [label, failure] of [
 test('#5982 AC-8: a failure that persists is retried exactly once, then one verdict-missing record', async () => {
   const fail = { status: 1, stdout: '', stderr: 'boom' };
   const { provider, invocations, lines } = sequenceHarness([fail]);
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   assert.equal(invocations(), 2);
   assertOneDegradation(provider, /status 1: boom/, 'verdict-missing');
   assert.ok(lines.some((m) => /retrying once/.test(m)));
@@ -1281,19 +1285,19 @@ test('#5982 AC-8: no retry for a usage limit, a timeout (status null) or a faile
       stderr: '',
     },
   ]);
-  await quota.provider.runReview(INPUT);
+  await quota.provider.runReview(WIDE);
   assert.equal(quota.invocations(), 1);
   assertOneDegradation(quota.provider, /out of quota/, 'verdict-missing');
 
   const timeout = sequenceHarness([{ status: null, stdout: '', stderr: '' }]);
-  await timeout.provider.runReview(INPUT);
+  await timeout.provider.runReview(WIDE);
   assert.equal(timeout.invocations(), 1);
   assertOneDegradation(timeout.provider, /status null/, 'verdict-missing');
 
   const auth = sequenceHarness([OK], {
     auth: { status: 1, stdout: '', stderr: '' },
   });
-  await auth.provider.runReview(INPUT);
+  await auth.provider.runReview(WIDE);
   assert.equal(auth.invocations(), 0);
   assertOneDegradation(auth.provider, /auth status/, 'verdict-missing');
 });
@@ -1311,7 +1315,7 @@ test('#5982 AC-8: each chunk is retried on its own', async () => {
       ? { status: 0, stdout: 'not json', stderr: '' }
       : { status: 0, stdout: envelope([]), stderr: '' };
   });
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   assert.equal(prompts.length, 4);
   assert.deepEqual(provider.getDegradations(), []);
 });
@@ -1320,10 +1324,157 @@ test('#5982 AC-10: no retry log line or reason carries account identity', async 
   const { provider, lines } = sequenceHarness([
     { status: 1, stdout: '', stderr: 'boom' },
   ]);
-  await provider.runReview(INPUT);
+  await provider.runReview(WIDE);
   const text = [
     ...lines,
     ...provider.getDegradations().map((d) => d.reason),
   ].join('\n');
   assert.doesNotMatch(text, /operator@example\.com|Example Org|org-123/);
+});
+
+// Story #6156 — a timeout is split, never re-sent; timeout and cap configurable.
+
+/** A `verdictFor` answer: the call runs out the clock, then exits 143. */
+const TIMED_OUT = Symbol('timed-out');
+
+/** `perPromptHarness` on a fake clock a `TIMED_OUT` answer runs past 600s. */
+function clockedHarness(diff, verdictFor) {
+  let now = 0;
+  const answer = (prompt) => {
+    const verdict = verdictFor(prompt);
+    if (verdict !== TIMED_OUT) return verdict;
+    now += 600_000;
+    return { status: 143, stdout: '', stderr: '' };
+  };
+  return perPromptHarness(diff, answer, { nowFn: () => now });
+}
+
+const TIMEOUT_REASON =
+  /claude --print timed out after 600s \(status 143\).*delivery\.codeReview\.invokeTimeoutMs.*delivery\.codeReview\.maxChunkChars/;
+
+/** The `<diff>` body a prompt carries. */
+const diffBody = (prompt) => prompt.split('<diff>\n')[1].split('\n</diff>')[0];
+
+const ok = (findings = []) => ({
+  status: 0,
+  stdout: envelope(findings),
+  stderr: '',
+});
+
+test('#6156: with default config a ~154 KB, 44-file diff is several calls of at most 80,000 characters', async () => {
+  const files = Array.from({ length: 44 }, (_, i) => `src/m${i}.js`);
+  const diff = files.map((f) => section(f, 3_500)).join('');
+  assert.ok(diff.length > 150_000 && diff.length < 160_000);
+  const { provider, prompts } = clockedHarness(diff, () => ok());
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assert.ok(prompts.length >= 2, `${prompts.length} call(s)`);
+  for (const p of prompts) assert.ok(diffBody(p).length <= 80_000);
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('#6156: a timed-out whole diff is re-reviewed once as two slices, never re-sent as is', async () => {
+  const diff = [section('src/a.js', 20_000), section('src/b.js', 20_000)].join(
+    '',
+  );
+  let first = true;
+  const { provider, prompts } = clockedHarness(diff, (prompt) => {
+    if (first) {
+      first = false;
+      return TIMED_OUT;
+    }
+    const file = prompt.includes('chunk 1 of 2') ? 'src/a.js' : 'src/b.js';
+    return ok([bug(file, `Bug in ${file}`)]);
+  });
+  const findings = await provider.runReview(INPUT);
+  assert.equal(prompts.length, 3);
+  assert.notEqual(prompts[1], prompts[0]);
+  assert.match(prompts[1], /chunk 1 of 2/);
+  assert.match(prompts[2], /chunk 2 of 2/);
+  for (const p of prompts.slice(1)) {
+    assert.match(p, /<manifest>\nsrc\/a\.js\nsrc\/b\.js\n<\/manifest>/);
+  }
+  assert.ok(diffBody(prompts[1]).includes('b/src/a.js'));
+  assert.ok(!diffBody(prompts[1]).includes('b/src/b.js'));
+  assert.deepEqual(
+    findings.map((f) => f.file),
+    ['src/a.js', 'src/b.js'],
+  );
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('#6156: a timed-out chunk is halved once; a half timing out again is a coverage-partial gap', async () => {
+  const diff = [
+    section('src/a.js', 30_000),
+    section('src/b.js', 30_000),
+    section('src/c.js', 60_000),
+  ].join('');
+  const { provider, prompts } = clockedHarness(diff, (prompt) => {
+    const body = diffBody(prompt);
+    if (body.includes('b/src/a.js')) return TIMED_OUT;
+    return ok([bug('src/c.js')]);
+  });
+  const findings = await provider.runReview(INPUT);
+  // chunk {a,b} times out, halves {a} (times out) and {b}; chunk {c}.
+  assert.equal(prompts.length, 4);
+  assert.deepEqual(
+    findings.map((f) => f.file),
+    ['src/c.js'],
+  );
+  const row = assertOneDegradation(
+    provider,
+    TIMEOUT_REASON,
+    'coverage-partial',
+  );
+  assert.match(row.reason, /^no verdict for src\/a\.js:/);
+});
+
+test('#6156: a timed-out single-file diff is not split and names the timeout knobs', async () => {
+  const { provider, calls } = harness({ status: 143, stdout: '' });
+  const spawned = [];
+  const timed = clockedHarness(DIFF, () => {
+    spawned.push(1);
+    return TIMED_OUT;
+  });
+  await timed.provider.runReview(INPUT);
+  assert.equal(spawned.length, 1, 'no same-prompt retry, no split');
+  assertOneDegradation(timed.provider, TIMEOUT_REASON, 'verdict-missing');
+  // A plain exit 143 with no timeout is still the transient retry path.
+  await provider.runReview(INPUT);
+  assert.equal(invokeCalls(calls).length, 2);
+});
+
+test('#6156: halves that both time out are one verdict-missing record naming every file', async () => {
+  const diff = [section('src/a.js', 20_000), section('src/b.js', 20_000)].join(
+    '',
+  );
+  const { provider, prompts } = clockedHarness(diff, () => TIMED_OUT);
+  await provider.runReview(INPUT);
+  assert.equal(prompts.length, 3, 'the halves are not split again');
+  const row = assertOneDegradation(provider, TIMEOUT_REASON, 'verdict-missing');
+  assert.match(row.reason, /src\/a\.js, src\/b\.js/);
+});
+
+test('#6156: invokeTimeoutMs and maxChunkChars on the input reach the spawn and the packing', async () => {
+  const diff = [section('src/a.js', 30_000), section('src/b.js', 30_000)].join(
+    '',
+  );
+  const { provider, calls } = harness({
+    diff: { status: 0, stdout: diff, stderr: '' },
+  });
+  await provider.runReview({
+    ...INPUT,
+    invokeTimeoutMs: 1_200_000,
+    maxChunkChars: 40_000,
+  });
+  const invokes = invokeCalls(calls);
+  assert.equal(invokes.length, 2, 'packed to the configured cap');
+  for (const c of invokes) {
+    assert.equal(c.options.timeout, 1_200_000);
+    assert.ok(diffBody(c.prompt).length <= 40_000);
+  }
+  const defaults = harness({ diff: { status: 0, stdout: diff, stderr: '' } });
+  await defaults.provider.runReview(INPUT);
+  const [only] = invokeCalls(defaults.calls);
+  assert.equal(invokeCalls(defaults.calls).length, 1);
+  assert.equal(only.options.timeout, 600_000);
 });
