@@ -15,6 +15,21 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.130.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.129.0...mandrel-v2.130.0) (2026-11-23)
+
+
+### Added
+
+* coordination channel: typed events on GitHub with a pertinence-filtered inbox ([#6157](https://github.com/dsj1984/mandrel/issues/6157)) ([#6163](https://github.com/dsj1984/mandrel/issues/6163)) ([f1f8429](https://github.com/dsj1984/mandrel/commit/f1f8429a52e762eb4a28ebbe9d963c80e02c01c0))
+* held review survives a mid-sized diff: smaller default chunks, split-on-timeout, configurable timeout and chunk size ([#6156](https://github.com/dsj1984/mandrel/issues/6156)) ([#6161](https://github.com/dsj1984/mandrel/issues/6161)) ([9dfe710](https://github.com/dsj1984/mandrel/commit/9dfe710c208ec2f273e4f5fca0402e0e0f3dfc18))
+* orchestrator publishes base-state events and relays the channel to local sessions ([#6159](https://github.com/dsj1984/mandrel/issues/6159)) ([#6165](https://github.com/dsj1984/mandrel/issues/6165)) ([c2a45fd](https://github.com/dsj1984/mandrel/commit/c2a45fd179a01b38bf722a913b7e68e696c21d17))
+* plan and deliver publish and surface coordination events across the Story lifecycle ([#6158](https://github.com/dsj1984/mandrel/issues/6158)) ([#6167](https://github.com/dsj1984/mandrel/issues/6167)) ([91a5068](https://github.com/dsj1984/mandrel/commit/91a5068ac1cb47a72c440e266b9afedbf8d8015a))
+
+
+### Fixed
+
+* run-lint: give each lint task its own stdio pipe so Biome never inherits a non-blocking stdout ([#6164](https://github.com/dsj1984/mandrel/issues/6164)) ([#6166](https://github.com/dsj1984/mandrel/issues/6166)) ([e2a3b40](https://github.com/dsj1984/mandrel/commit/e2a3b4095c7f2d29003c8755bc8586ba9386729e))
+
 ## [2.129.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.128.0...mandrel-v2.129.0) (2026-11-21)
 
 
